@@ -17,7 +17,9 @@ jobs:
     - name: Cache cabal packages
       uses: actions/cache@v3
       with:
-        path: ~/.cabal/store
+        path: |
+          ~/.cabal/store
+          ~/.ghc
         key: ${{ runner.os }}-cabal-${{ hashFiles('**/cabal.project.freeze') }}
         restore-keys: |
           ${{ runner.os }}-cabal-
