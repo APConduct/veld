@@ -30,6 +30,26 @@
   (major1) == 0 && (major2) <  7 || \
   (major1) == 0 && (major2) == 7 && (minor) <= 0)
 #endif /* MIN_VERSION_containers */
+/* package megaparsec-9.7.0 */
+#ifndef VERSION_megaparsec
+#define VERSION_megaparsec "9.7.0"
+#endif /* VERSION_megaparsec */
+#ifndef MIN_VERSION_megaparsec
+#define MIN_VERSION_megaparsec(major1,major2,minor) (\
+  (major1) <  9 || \
+  (major1) == 9 && (major2) <  7 || \
+  (major1) == 9 && (major2) == 7 && (minor) <= 0)
+#endif /* MIN_VERSION_megaparsec */
+/* package unordered-containers-0.2.20 */
+#ifndef VERSION_unordered_containers
+#define VERSION_unordered_containers "0.2.20"
+#endif /* VERSION_unordered_containers */
+#ifndef MIN_VERSION_unordered_containers
+#define MIN_VERSION_unordered_containers(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  2 || \
+  (major1) == 0 && (major2) == 2 && (minor) <= 20)
+#endif /* MIN_VERSION_unordered_containers */
 /* package veld-0.1.0.0 */
 #ifndef VERSION_veld
 #define VERSION_veld "0.1.0.0"

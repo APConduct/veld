@@ -10,6 +10,16 @@
   (major1) == 0 && (major2) <  1 || \
   (major1) == 0 && (major2) == 1 && (minor) <= 0)
 #endif /* MIN_VERSION_veld */
+/* package array-0.5.8.0 */
+#ifndef VERSION_array
+#define VERSION_array "0.5.8.0"
+#endif /* VERSION_array */
+#ifndef MIN_VERSION_array
+#define MIN_VERSION_array(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  5 || \
+  (major1) == 0 && (major2) == 5 && (minor) <= 8)
+#endif /* MIN_VERSION_array */
 /* package base-4.21.0.0 */
 #ifndef VERSION_base
 #define VERSION_base "4.21.0.0"
@@ -30,6 +40,26 @@
   (major1) == 0 && (major2) <  7 || \
   (major1) == 0 && (major2) == 7 && (minor) <= 0)
 #endif /* MIN_VERSION_containers */
+/* package megaparsec-9.7.0 */
+#ifndef VERSION_megaparsec
+#define VERSION_megaparsec "9.7.0"
+#endif /* VERSION_megaparsec */
+#ifndef MIN_VERSION_megaparsec
+#define MIN_VERSION_megaparsec(major1,major2,minor) (\
+  (major1) <  9 || \
+  (major1) == 9 && (major2) <  7 || \
+  (major1) == 9 && (major2) == 7 && (minor) <= 0)
+#endif /* MIN_VERSION_megaparsec */
+/* package unordered-containers-0.2.20 */
+#ifndef VERSION_unordered_containers
+#define VERSION_unordered_containers "0.2.20"
+#endif /* VERSION_unordered_containers */
+#ifndef MIN_VERSION_unordered_containers
+#define MIN_VERSION_unordered_containers(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  2 || \
+  (major1) == 0 && (major2) == 2 && (minor) <= 20)
+#endif /* MIN_VERSION_unordered_containers */
 
 /* tool gcc-16.0.0 */
 #ifndef TOOL_VERSION_gcc
