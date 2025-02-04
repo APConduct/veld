@@ -32,7 +32,8 @@ jobs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
           ${{ runner.os }}-
-
+    - name: Dig
+      run: cd veld
     - name: Install dependencies
       run: |
         cabal update
