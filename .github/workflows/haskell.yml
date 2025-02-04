@@ -34,7 +34,6 @@ jobs:
           ${{ runner.os }}-
     - name: Install dependencies
       run: |
-        cd veld
         cabal update
         cabal build --only-dependencies --enable-tests --enable-benchmarks
     - name: Build
