@@ -59,7 +59,7 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  MyLib
+    exposed-modules:  MyLib Veld.Veldon Veld.Primitives Veld.Table
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -68,7 +68,7 @@ library
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.21.0.0
+    build-depends:    base ^>=4.21.0.0, containers
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -92,7 +92,7 @@ executable veld
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.21.0.0,
-        veld
+        veld,
 
     -- Directories containing source files.
     hs-source-dirs:   app
@@ -126,3 +126,5 @@ test-suite veld-test
     build-depends:
         base ^>=4.21.0.0,
         veld
+
+    default-extensions: GADTs

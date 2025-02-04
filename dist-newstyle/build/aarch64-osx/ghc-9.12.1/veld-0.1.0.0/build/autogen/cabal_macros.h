@@ -20,6 +20,16 @@
   (major1) == 4 && (major2) <  21 || \
   (major1) == 4 && (major2) == 21 && (minor) <= 0)
 #endif /* MIN_VERSION_base */
+/* package containers-0.7 */
+#ifndef VERSION_containers
+#define VERSION_containers "0.7"
+#endif /* VERSION_containers */
+#ifndef MIN_VERSION_containers
+#define MIN_VERSION_containers(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  7 || \
+  (major1) == 0 && (major2) == 7 && (minor) <= 0)
+#endif /* MIN_VERSION_containers */
 
 /* tool gcc-16.0.0 */
 #ifndef TOOL_VERSION_gcc
