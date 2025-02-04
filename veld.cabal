@@ -92,7 +92,8 @@ executable veld
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.21.0.0,
-        veld,
+        containers,
+        veld
 
     -- Directories containing source files.
     hs-source-dirs:   app
@@ -125,6 +126,7 @@ test-suite veld-test
     -- Test dependencies.
     build-depends:
         base ^>=4.21.0.0,
+        containers,
         veld
 
     default-extensions: GADTs
