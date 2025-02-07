@@ -54,7 +54,7 @@ type Lexer* = object
  col*: int          # Current column
 
 # Initialize a new lexer
-proc new_lexer(source: string): Lexer =
+proc new_lexer*(source: string): Lexer =
   result = Lexer(
     source: source,
     start: 0,
