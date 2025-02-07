@@ -1,18 +1,6 @@
 import strutils
 
 
-
-#type TokenKind = enum
-#  tkNone
-#  tkIdentifier
-#  tkNumber
-#  tkString
-#  tkOperator
-#  tkKeyword
-#  tkComment
-#  tkWhitespace
-#
-
 type TokenKind = enum
   TkIdentifier, TkString, TkNumber, TkOperator, TkKeyword, TkComment, TkWhitespace
   TkStruct, TkKind, TkImpl, TkFunc, TkSome,
