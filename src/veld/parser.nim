@@ -331,39 +331,41 @@ proc parse_type(self: var Parser): Node =
 
 
 
-proc parse_method(self: var Parser): Node =
-  # parse method definition
-  self.consume(TkFunc, "Expect 'func' keyword")
-  let method_name = self.consume(TkIdentifier, "Expect method name")
+    proc parse_method(self: var Parser): Node =
+      # parse method definition
+      self.consume(TkFunc, "Expect 'func' keyword")
+      var method_name_token = self.current
+      self.consume(TkIdentifier, "Expect method name")
 
-  # Parse parameter list
-  self.consume(TkLParen, "Expect '(' after struct name")
-  var params: seq[tuple[name: string, typ: Node]] = @[]
+      # Parse parameter list
+      self.consume(TkLParen, "Expect '(' after struct name")
+      var params: seq[tuple[name: string, typ: Node]] = @[]
 
-  while not self.check(TkRParen):
-    let param_name = self.consume(TkIdentifier, "Expect parameter name")
-    self.consume(TkColon, "Expect ':' after parameter name")
-    let param_type = self.parse_type()
-    params.add((param_name.lexeme, param_type))
+      while not self.check(TkRParen):
+        var param_name_token = self.current
+        self.consume(TkIdentifier, "Expect parameter name")
+        self.consume(TkColon, "Expect ':' after parameter name")
+        let param_type = self.parse_type()
+        params.add((name: param_name_token.lexeme, typ: param_type))
 
-    if self.match(TkComma): continue
-    else: break
+        if self.match(TkComma): continue
+        else: break
 
-  self.consume(TkRParen, "Expect ')' after parameters")
+      self.consume(TkRParen, "Expect ')' after parameters")
 
-  # Parse return type
-  var return_type: Node = nil
-  if self.match(TkArrow):
-    return_type = self.parse_type()
+      # Parse return type
+      var return_type: Node = nil
+      if self.match(TkArrow):
+        return_type = self.parse_type()
 
-  # Parse method body
-  var body: seq[Node] = @[]
-  while not self.check(TkEnd):
-    body.add(self.parse_expression())
+      # Parse method body
+      var body: seq[Node] = @[]
+      while not self.check(TkEnd):
+        body.add(self.parse_expression())
 
-  self.consume(TkEnd, "Expect 'end' after method body")
+      self.consume(TkEnd, "Expect 'end' after method body")
 
-  result = Node(kind: NkFunc, func_name: method_name.lexeme, params: params, return_type: return_type, body: body)
+      result = Node(kind: NkFunc, func_name: method_name_token.lexeme, params: params, return_type: return_type, body: body)
 
 proc parse_range_or_collection_pattern(self: var Parser): Node =
   let start = self.parse_expression()
@@ -377,112 +379,137 @@ proc parse_range_or_collection_pattern(self: var Parser): Node =
     result = Node(kind: NkPattern, pattern_name: "collection", collection: start)
 
 
-proc parse_struct(self: var Parser): Node =
-  # parse struct definition
-  self.consume(TkStruct, "Expect 'struct' keyword")
-  let name = self.consume(TkIdentifier, "Expect struct name")
+    proc parse_struct(self: var Parser): Node {.used.} =
+          # parse struct definition
+          self.consume(TkStruct, "Expect 'struct' keyword")
+          let name_token = self.current
+          self.consume(TkIdentifier, "Expect struct name")
 
-  var generic_params: seq[string] = @[]
-  if self.match(TkLBracket):
-    while not self.check(TkRBracket):
-      generic_params.add(self.consume(TkIdentifier, "Expect generic parameter name").lexeme)
-      if self.match(TkComma): self.advance()
-    self.consume(TkRBracket, "Expect ']' after generic parameters")
+          var generic_params: seq[string] = @[]
+          if self.match(TkLBracket):
+            while not self.check(TkRBracket):
+              let param_token = self.current
+              self.consume(TkIdentifier, "Expect generic parameter name")
+              generic_params.add(param_token.lexeme)
+              if self.match(TkComma): continue
+            self.consume(TkRBracket, "Expect ']' after generic parameters")
 
-  var fields: seq[tuple[name: string, typ: Node, mutable: bool]] = @[]
+          var fields: seq[tuple[name: string, typ: Node, mutable: bool]] = @[]
 
-  while not self.check(TkEnd):
-    let is_mutable = self.match(TkVar)
-    let field_name = self.consume(TkIdentifier, "Expect field name")
-    self.consume(TkColon, "Expect ':' after field name")
-    let field_type = self.parse_type()
-    fields.add((field_name.lexeme, field_type, is_mutable))
+          while not self.check(TkEnd):
+            let is_mutable = self.match(TkVar)
+            let field_token = self.current
+            self.consume(TkIdentifier, "Expect field name")
+            self.consume(TkColon, "Expect ':' after field name")
+            let field_type = self.parse_type()
+            fields.add((name: field_token.lexeme, typ: field_type, mutable: is_mutable))
 
-  self.consume(TkEnd, "Expect 'end' after struct definition")
+          self.consume(TkEnd, "Expect 'end' after struct definition")
 
-  result = Node(kind: NkStruct, struct_name: name.lexeme, struct_fields: fields, generic_params: generic_params)
+          result = Node(kind: NkStruct, struct_name: name_token.lexeme, struct_fields: fields, generic_params: generic_params)
+
+          # Remove result.params assignment since result is now properly initialized
+          # Remove result.constraints assignment for the same reason
+
+          if self.match(TkLAngle):
+            while not self.check(TkRAngle):
+              var param_token = self.current
+              self.consume(TkIdentifier, "Expect type parameter name")
+              if self.check(TkComma): self.advance()
+            self.advance() # Consume TkRAngle
+
+            if self.match(TkWhere):
+              while true:
+                self.consume(TkColon, "Expect : after type parameter")
+                if not self.match(TkComma): break
+
+                proc parse_some_object(self: var Parser): Node {.used.} =
+                  self.consume(TkSome, "Expect 'some' keyword")
+                  self.consume(TkLBrace, "Expect '{' after 'some'")
+                  var fields: seq[tuple[name: string, typ: Node, value: Node]] = @[]
+
+                  while not self.check(TkRBrace):
+                    var name_token = self.current
+                    self.consume(TkIdentifier, "Expect field name")
+                    var typ: Node = nil
+                    var value: Node = nil
+
+                    if self.match(TkColon):
+                      typ = self.parse_type()
+
+                    if self.match(TkEqual):
+                      value = self.parse_expression()
+
+                    fields.add((name: name_token.lexeme, typ: typ, value: value))
+
+                    if self.check(TkComma): self.advance()
+
+                  self.consume(TkRBrace, "Expect '}' after object fields")
+
+                  result = Node(kind: NkSomeObj, fields: fields)
+
+                  proc parse_pattern(self: var Parser): Node {.used.} =
+                    if self.match(TkLBrace):
+                      # Destructuring pattern
+                      var fields: seq[string] = @[]
+                      while not self.check(TkRBrace):
+                        let identToken = self.current
+                        self.consume(TkIdentifier, "Expect field name")
+                        fields.add(identToken.lexeme)
+                        if self.match(TkComma): discard
+                      self.consume(TkRBrace, "Expect '}' after destructuring pattern")
+                      result = Node(kind: NkPattern, pattern_name: "destructure",
+                        pattern_fields: fields,
+                        range_start: nil,
+                        range_end: nil,
+                        collection: nil)
+                    elif self.match(TkIdentifier):
+                      if self.match(TkIn):
+                        # Range or Collection Pattern
+                        result = self.parse_range_or_collection_pattern()
+                      else:
+                        # Simple Identifier Pattern
+                        result = Node(kind: NkPattern,
+                          pattern_name: self.prev.lexeme,
+                          pattern_fields: @[],
+                          range_start: nil,
+                          range_end: nil,
+                          collection: nil)
 
 
+                        proc parse_impl(self: var Parser): Node {.used.} =
+                          self.consume(TkImpl, "Expect implm keyword")
+                          var type_params: seq[string] = @[]
+                          var constraints: seq[Node] = @[]
 
+                          if self.match(TkLAngle):
+                            while not self.check(TkRAngle):
+                              let param_token = self.current
+                              self.consume(TkIdentifier, "Expect type parameter name")
+                              type_params.add(param_token.lexeme)
+                              if self.match(TkComma): continue
+                              else: break
 
-proc parse_generic_params(self: var Parser): tuple[params: seq[string], constraints: seq[Node]] =
-  result.params = @[]
-  result.constraints = @[]
+                            self.consume(TkRAngle, "Expect '>' after type parameters")
 
-  if self.match(TkLAngle):
-    while not self.match(TkRAngle):
-      result.params.add(self.consume(TkIdentifier, "Expect type parameter name").lexeme)
-      if self.check(TkComma): self.advance()
-    self.consume(TkRAngle, "Expect '>' after generic parameters")
+                            if self.match(TkWhere):
+                              while true:
+                                let constraint = self.parse_type()
+                                constraints.add(constraint)
+                                if not self.match(TkComma): break
 
-    if self.match(TkWhere):
-      while true:
-        let params = self.consume(TkColon, "Expect : after type paraneter")
-        self.constraints.add(self.parse_type())
-        if not self.match(TkComma): break
+                          let trait = self.parse_type()
+                          self.consume(TkFor, "Expect 'for' after trait")
 
-proc parse_some_object(self: var Parser): Node =
-  self.consume(TkSome, "Expect 'some' keyword")
-  self.consume(TkLBrace, "Expect '{' after 'some'")
-  var fields: seq[tuple[name: string, typ: Node, value: Node]] = @[]
+                          let target = self.parse_type()
 
-  while not self.check(TkRBrace):
-    let name = self.consume(TkIdentifier, "Expect field name")
-    var typ: Node = nil
-    var value: Node = nil
+                          var methods: seq[Node] = @[]
+                          while not self.check(TkEnd):
+                            # For now, let's just parse one method
+                            # We'll need to add proper method parsing later
+                            let meth = self.parse_type() # Placeholder
+                            methods.add(meth)
 
-    if self.match(TkColon):
-      typ = self.parse_type()
+                          self.consume(TkEnd, "Expect 'end' after impl block")
 
-    if self.match(TkEqual):
-      value = self.parse_expression()
-
-    fields.add((name.lexeme, typ, value))
-
-    if self.check(TkComma): self.advance()
-
-  self.consume(TkRBrace, "Expect '}' after object fields")
-
-  result = Node(kind: NkSomeObj, fields: fields)
-
-proc parse_pattern(self: var Parser): Node =
-  if self.match(TkLBrace):
-    # Destructuring pattern
-    var fields: seq[string] = @[]
-    while not self.check(TkRBrace):
-      fields.add(self.consume(TkIdentifier, "Expect field name").lexeme)
-      if self.match(TkComma): self.advance()
-    self.consume(TkRBrace, "Expect '}' after destructuring pattern")
-    result = Node(kind: NkPattern, fields: fields, pattern_name: "destructure", range_start: nil, range_end: nil, collection: nil)
-  elif self.match(TkIdentifier):
-    if self.match(TkIn):
-      # Range or Collection Pattern
-      result = self.parse_range_or_collection_pattern()
-    else:
-      # Simple Identifier Pattern
-      result = Node(kind: NkPattern, pattern_name: self.prev.lexeme,
-        pattern_fields: @[], # Initialized as empty
-        range_start: nil, range_end: nil, collection: nil # Initialized as nil
-      )
-
-
-proc parse_impl(self: var Parser): Node =
-  self.consume(TkImpl, "Expect implm keyword")
-  var type_params: seq[string] = @[]
-  var constraints: seq[Node] = @[]
-
-  if self.match(TkLAngle):
-    (type_params, constraints) = self.parse_generic_params()
-
-  let trait = self.parse_type()
-  self.consume(TkFor, "Expect 'for' after trait")
-
-  let target = self.parse_type()
-
-  var methods: seq[Node] = @[]
-  while not self.check(TkEnd):
-    methods.add(self.parse_method())
-
-  self.consume(TkEnd, "Expect 'end' after impl block")
-
-  result = Node(kind: NkImpl, trait: trait, target: target, type_params: type_params, where_clause: constraints, mthds: methods)
+                          result = Node(kind: NkImpl, trait: trait, target: target, type_params: type_params, where_clause: constraints, mthds: methods)
