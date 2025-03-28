@@ -7,6 +7,7 @@ mod error;
 use error::Result;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+use crate::interpreter::Interpreter;
 
 fn main() -> Result<()> {
     println!("Veld Language Interpreter v0.1.0");
@@ -15,22 +16,32 @@ fn main() -> Result<()> {
         fn add(a: i32, b: i32) -> i32 =
             a + b
         end
+
+        let result = add(5, 3)
     "#;
 
     // Lexical analysis
     let mut lexer = Lexer::new(source);
     let tokens = lexer.collect_tokens().map_err(|e| error::VeldError::LexerError(e))?;
 
-    println!("Tokens:");
+    println!("\nTokens:");
     for token in tokens.iter() {
         println!("{:?}", token);
     }
 
-    // Continue with parsing...
+    // Parsing
     let mut parser = Parser::new(tokens);
     let ast = parser.parse()?;
 
-    println!("AST: {:#?}", ast);
+    println!("\nAST:");
+    println!("{:#?}", ast);
+
+    // Interpretation
+    let mut interpreter = Interpreter::new();
+    let result = interpreter.interpret(ast)?;
+
+    println!("\nFinal Result:");
+    println!("{:#?}", result);
 
     Ok(())
 }

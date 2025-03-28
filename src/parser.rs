@@ -212,12 +212,33 @@ impl Parser {
                 }
                 Token::Identifier(name) => {
                     self.advance();
-                    Ok(Expr::Identifier(name))
+                    // Check if this is a function call
+                    if self.match_token(&[Token::LParen]) {
+                        let mut arguments = Vec::new();
+
+                        // Parse arguments
+                        if !self.check(&Token::RParen) {
+                            loop {
+                                arguments.push(self.expression()?);
+                                if !self.match_token(&[Token::Comma]) {
+                                    break;
+                                }
+                            }
+                        }
+
+                        self.consume(&Token::RParen, "Expected ')' after arguments")?;
+
+                        Ok(Expr::FunctionCall {
+                            name,
+                            arguments,
+                        })
+                    } else {
+                        Ok(Expr::Identifier(name))
+                    }
                 }
                 _ => Err(VeldError::ParserError("Expected expression".to_string())),
             }
         } else {
             Err(VeldError::ParserError("Unexpected end of input".to_string()))
         }
-    }
-}
+    }}
