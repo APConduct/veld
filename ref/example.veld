@@ -1,0 +1,241 @@
+--| This is an example Doc Comment in Veld
+-- this is a regular Veld comment
+
+-- multiple ways to declare functions
+
+fn add(a: i32, b: i32) -> i32 =
+    a + b
+end
+
+-- is the same as
+
+fn add(a: i32, b: i32) -> i32 =
+    a + b
+end
+
+-- is the same as:
+
+let add = fn(a: i32, b: i32) -> i32
+    a + b
+end
+
+-- is the same as:
+
+let add: fn(i32, i32) -> i32 =    -- first class function
+    a + b
+end
+
+-- is the same as
+
+fn add(a, b) = a + b;     -- demi-lambda function (semicolons are allowed for single-line functions)
+
+
+let add = |a, b| a + b;  -- lambda function
+
+-- Multi-line function
+fn complex_function(x: i32) -> i32 =
+    let temp = something();
+    temp + x
+end
+
+-- Traditional Struct declaration
+struct Point
+    x: f64,
+    y: f64,
+end
+
+-- Single-line struct
+struct Point(x: f64, y: f64);
+
+-- kind declaration(similar to traits or interfaces)
+kind Shape
+    fn area(self) ... -- no default implementation (must implement)
+end
+
+-- Multi-line kind declaration
+kind Shape
+    fn area(self) -> f64,
+    fn perimeter(self) -> f64,
+end
+
+-- Single-line kind
+kind Printable = fn print(self) -> str;
+
+-- Single-line impl
+impl Point fn distance(self) -> f64 = (self.x * self.x + self.y * self.y).sqrt();
+
+-- Multi-line impl needs end
+impl Circle
+    fn area(self) -> f64 =
+        3.14 * self.radius * self.radius
+    end
+end
+
+-- tables dont need impl keyword but use gc
+var foo = {
+    name: "John",
+    age: 30,
+    email: "john@example.com"
+}
+
+-- enums
+enum Color
+    Red,
+    Green,
+    Blue,
+end
+
+-- Single-line enum
+enum Direction (North, South, East, West);
+
+
+-- Explicit struct behavior declaration
+
+-- Struct declaration
+struct Square
+    side: f64 -- comma optional for last/only field
+end
+
+-- Behavior declaration
+impl Square
+    fn area(self) -> f64 =    -- automatically inferred
+        self.side * self.side
+    end
+end
+
+-- This is also allowed for convenience
+struct Circle
+    radius: f64,
+impl
+    fn area(self) -> f64 =    -- automatically inferred to be Shape impl
+        3.14 * self.radius * self.radius
+    end
+end
+
+-- Example of implementing multiple kinds
+struct MyType
+    value: i32
+impl
+    fn print(self) = println!("{}", self.value);  -- implements Printable
+    fn area(self) = self.value as f64            -- implements Shape
+end
+
+-- Example of a kind with default implementation
+kind HasVolume
+    fn volume(self) -> f64
+    fn is_empty(self) -> bool = self.volume() == 0.0  -- default implementation
+end
+
+-- Macros -------------------------------------------------------------
+
+-- Declarative macro syntax
+macro println = fn(fmt, args...)
+    -- macro implementation
+    format_and_print(fmt, args)
+end
+
+-- Pattern matching macro
+macro vec = fn
+    () => new_vec();
+    ($elem:expr) => {
+        let mut temp = new_vec();
+        temp.push($elem);
+        temp
+    };
+    ($($elem:expr),+ $(,)?) => {
+        let mut temp = new_vec();
+        $(
+            temp.push($elem);
+        )+
+        temp
+    };
+end
+
+-- Procedural macro for deriving traits
+proc_macro derive = fn(trait_name)
+    match trait_name
+        "Debug" => generate_debug_impl(),
+        "Clone" => generate_clone_impl(),
+        _ => error~("Unknown trait: {}", trait_name)
+    end
+end
+
+-- Basic macro usage
+println~("Hello {}!", "World");
+~debug(some_value);
+~format("Value: {}", 42);
+
+-- Chainable macros with prefix ~
+some_value
+    ~debug                      -- prints debug info
+    ~validate                   -- validates the value
+    ~transform(x => x * 2);     -- transforms the value
+
+-- Using derive macro
+derive~(Debug, Clone)
+struct Point
+    x: f64,
+    y: f64,
+end
+
+-- SQL query macro
+macro sql = fn(query_string)
+    parse_and_validate_sql(query_string)
+end
+
+let users = sql~(SELECT * FROM users WHERE age > 18);
+
+-- Test macro
+macro test = fn(name, block)
+    register_test(name, block)
+end
+
+test~
+fn test_addition() =
+    assert~(2 + 2 == 4);
+    assert_eq~(add(2, 2), 4);
+end
+
+-- Generic Functions and Types ------------------------------------------
+
+-- Basic generic function
+fn map<T, U>(value: T, f: fn(T) -> U) -> U =
+    f(value)
+end
+
+-- Single-line generic function
+fn identity<T>(x: T) -> T = x;
+
+-- Generic function with constraints
+fn sum<T: Number>(list: List<T>) -> T =
+    list.reduce(|a, b| a + b)
+end
+
+-- Multiple constraints
+fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool =
+    println~("{} vs {}", a, b);
+    a == b
+end
+
+-- Generic struct with constraints
+struct SortedList<T: Ord>
+    items: List<T>
+impl
+    fn add(self, item: T) =
+        self.items.push(item);
+        self.items.sort()
+    end
+end
+
+-- Generic kind
+kind Container<T>
+    fn get(self) -> T
+    fn set(self, value: T)
+end
+
+-- Generic kind with associated types
+kind Iterator
+    type Item
+    fn next(self) -> Option<Self.Item>
+    fn map<U>(self, f: fn(Self.Item) -> U) -> MapIterator<Self, U>
+end
