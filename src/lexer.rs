@@ -31,6 +31,20 @@ pub enum Token {
     #[token("->")]
     Arrow,
 
+    // Comparison operators
+    #[token("<=")]
+    LessEq,
+    #[token(">=")]
+    GreaterEq,
+    #[token("<")]
+    Less,
+    #[token(">")]
+    Greater,
+    #[token("==")]
+    EqualEqual,
+    #[token("!=")]
+    NotEqual,
+
     // Delimiters
     #[token("(")]
     LParen,
@@ -65,6 +79,24 @@ pub enum Token {
 
     #[regex(r#"[0-9]+\.[0-9]+"#, |lex| lex.slice().parse().ok())]
     FloatLiteral(f64),
+
+    #[token("if")]
+    If,
+
+    #[token("else")]
+    Else,
+
+    #[token("while")]
+    While,
+
+    #[token("return")]
+    Return,
+
+    #[token("true")]
+    True,
+
+    #[token("false")]
+    False,
 }
 
 pub struct Lexer<'a> {

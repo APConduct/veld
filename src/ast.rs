@@ -28,6 +28,12 @@ pub enum BinaryOperator {
     Subtract,
     Multiply,
     Divide,
+    LessEq,
+    GreaterEq,
+    Less,
+    Greater,
+    EqualEqual,
+    NotEqual,
     // Add more operators
 }
 
@@ -45,5 +51,15 @@ pub enum Statement {
         type_annotation: Option<String>,
         value: Box<Expr>,
     },
+    If {
+        condition: Expr,
+        then_branch: Vec<Statement>,
+        else_branch: Option<Vec<Statement>>,
+    },
+    While {
+        condition: Expr,
+        body: Vec<Statement>,
+    },
+    Return(Expr),
     // Add more variants
 }

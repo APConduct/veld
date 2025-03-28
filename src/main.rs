@@ -13,11 +13,15 @@ fn main() -> Result<()> {
     println!("Veld Language Interpreter v0.1.0");
 
     let source = r#"
-        fn add(a: i32, b: i32) -> i32 =
-            a + b
+        fn factorial(n: i32) -> i32 =
+            if n <= 1
+                return 1
+            else
+                return n * factorial(n - 1)
+            end
         end
 
-        let result = add(5, 3)
+        let result = factorial(5)
     "#;
 
     // Lexical analysis

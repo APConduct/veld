@@ -146,13 +146,69 @@ impl Parser {
         })    }
 
     fn statement(&mut self) -> Result<Statement> {
-        // For now, we'll just handle expression statements
-        let expr = self.expression()?;
-        Ok(Statement::ExprStatement(expr))
+        if self.match_token(&[Token::If]) {
+            self.if_statement()
+        } else if self.match_token(&[Token::While]) {
+            self.while_statement()
+        } else if self.match_token(&[Token::Return]) {
+            self.return_statement()
+        } else {
+            let expr = self.expression()?;
+            Ok(Statement::ExprStatement(expr))
+        }
     }
 
+    fn if_statement(&mut self) -> Result<Statement> {
+        let condition = self.expression()?;
+
+        let mut then_branch = Vec::new();
+        while !self.check(&Token::End) && !self.check(&Token::Else) && !self.is_at_end() {
+            then_branch.push(self.statement()?);
+        }
+
+        let else_branch = if self.match_token(&[Token::Else]) {
+            let mut statements = Vec::new();
+            while !self.check(&Token::End) && !self.is_at_end() {
+                statements.push(self.statement()?);
+            }
+            Some(statements)
+        } else {
+            None
+        };
+
+        self.consume(&Token::End, "Expected 'end' after if statement")?;
+
+        Ok(Statement::If {
+            condition,
+            then_branch,
+            else_branch,
+        })
+    }
+
+    fn while_statement(&mut self) -> Result<Statement> {
+        let condition = self.expression()?;
+
+        let mut body = Vec::new();
+        while !self.check(&Token::End) && !self.is_at_end() {
+            body.push(self.statement()?);
+        }
+
+        self.consume(&Token::End, "Expected 'end' after while loop")?;
+
+        Ok(Statement::While {
+            condition,
+            body,
+        })
+    }
+
+    fn return_statement(&mut self) -> Result<Statement> {
+        let value = self.expression()?;
+        Ok(Statement::Return(value))
+    }
+
+
     fn expression(&mut self) -> Result<Expr> {
-        self.addition()
+        self.comparison()
     }
 
     fn addition(&mut self) -> Result<Expr> {
@@ -241,4 +297,30 @@ impl Parser {
         } else {
             Err(VeldError::ParserError("Unexpected end of input".to_string()))
         }
-    }}
+    }
+
+    fn comparison(&mut self) -> Result<Expr> {
+        let mut expr = self.addition()?;
+
+        while self.match_token(&[Token::LessEq, Token::GreaterEq, Token::Less, Token::Greater,
+            Token::EqualEqual, Token::NotEqual]) {
+            let operator = match self.previous() {
+                Token::LessEq => BinaryOperator::LessEq,
+                Token::GreaterEq => BinaryOperator::GreaterEq,
+                Token::Less => BinaryOperator::Less,
+                Token::Greater => BinaryOperator::Greater,
+                Token::EqualEqual => BinaryOperator::EqualEqual,
+                Token::NotEqual => BinaryOperator::NotEqual,
+                _ => unreachable!(),
+            };
+            let right = self.addition()?;
+            expr = Expr::BinaryOp {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+}

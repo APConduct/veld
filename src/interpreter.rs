@@ -88,9 +88,50 @@ impl Interpreter {
                 let value = self.evaluate_expression(expr)?;
                 Ok(value.unwrap_return())
             }
+            Statement::If { condition, then_branch, else_branch } => {
+                let cond_value = self.evaluate_expression(condition)?.unwrap_return();
+
+                if self.is_truthy(cond_value) {
+                    for stmt in then_branch {
+                        let result = self.execute_statement(stmt)?;
+                        if matches!(result, Value::Return(_)) {
+                            return Ok(result);
+                        }
+                    }
+                } else if let Some(else_statements) = else_branch {
+                    for stmt in else_statements {
+                        let result = self.execute_statement(stmt)?;
+                        if matches!(result, Value::Return(_)) {
+                            return Ok(result);
+                        }
+                    }
+                }
+                Ok(Value::Void)
+            }
+            Statement::While { condition, body } => {
+                loop {
+                    // Evaluate the condition first
+                    let cond_result = self.evaluate_expression(condition.clone())?.unwrap_return();
+                    if !self.is_truthy(cond_result) {
+                        break;
+                    }
+
+                    // Execute the body
+                    for stmt in body.clone() {
+                        let result = self.execute_statement(stmt)?;
+                        if matches!(result, Value::Return(_)) {
+                            return Ok(result);
+                        }
+                    }
+                }
+                Ok(Value::Void)
+            }
+            Statement::Return(expr) => {
+                let value = self.evaluate_expression(expr)?;
+                Ok(Value::Return(Box::new(value)))
+            }
         }
     }
-
     fn evaluate_expression(&mut self, expr: Expr) -> Result<Value> {
         match expr {
             Expr::Literal(lit) => Ok(match lit {
@@ -113,8 +154,20 @@ impl Interpreter {
             }
         }
     }
+
+    fn is_truthy(&self, value: Value) -> bool {
+        match value {
+            Value::Boolean(b) => b,
+            Value::Integer(n) => n != 0,
+            Value::Float(f) => f != 0.0,
+            Value::String(s) => !s.is_empty(),
+            Value::Void => false,
+            _ => true,
+        }
+    }
     fn evaluate_binary_op(&mut self, left: Value, operator: BinaryOperator, right: Value) -> Result<Value> {
         match (left, operator, right) {
+            // Arithmetic
             (Value::Integer(a), BinaryOperator::Add, Value::Integer(b)) => Ok(Value::Integer(a + b)),
             (Value::Integer(a), BinaryOperator::Subtract, Value::Integer(b)) => Ok(Value::Integer(a - b)),
             (Value::Integer(a), BinaryOperator::Multiply, Value::Integer(b)) => Ok(Value::Integer(a * b)),
@@ -124,8 +177,14 @@ impl Interpreter {
                 } else {
                     Ok(Value::Integer(a / b))
                 }
-            }
-            // Add more operations (Float operations, etc.)
+            },
+            // Comparison
+            (Value::Integer(a), BinaryOperator::LessEq, Value::Integer(b)) => Ok(Value::Boolean(a <= b)),
+            (Value::Integer(a), BinaryOperator::GreaterEq, Value::Integer(b)) => Ok(Value::Boolean(a >= b)),
+            (Value::Integer(a), BinaryOperator::Less, Value::Integer(b)) => Ok(Value::Boolean(a < b)),
+            (Value::Integer(a), BinaryOperator::Greater, Value::Integer(b)) => Ok(Value::Boolean(a > b)),
+            (Value::Integer(a), BinaryOperator::EqualEqual, Value::Integer(b)) => Ok(Value::Boolean(a == b)),
+            (Value::Integer(a), BinaryOperator::NotEqual, Value::Integer(b)) => Ok(Value::Boolean(a != b)),
             _ => Err(VeldError::RuntimeError("Invalid operation".to_string())),
         }
     }
