@@ -170,8 +170,8 @@ end
 #### Basic Macro Calls
 ```veld
 println~("Hello {}!", "World");
-~debug(some_value);
-~format("Value: {}", 42);
+debug~(some_value);
+format~("Value: {}", 42);
 ```
 
 #### Chainable Macros

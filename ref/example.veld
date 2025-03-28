@@ -13,6 +13,17 @@ fn add(a: i32, b: i32) -> i32 =
     a + b
 end
 
+
+-- is the same as:
+
+fn add(a: i32, b: i32) -> i32 =
+    return a + b
+end
+
+-- is the same as:
+
+fn add(a: i32, b: i32) -> i32 = return a + b end
+
 -- is the same as:
 
 let add = fn(a: i32, b: i32) -> i32
@@ -25,12 +36,20 @@ let add: fn(i32, i32) -> i32 =    -- first class function
     a + b
 end
 
--- is the same as
+-- is the same as:
 
 fn add(a, b) = a + b;     -- demi-lambda function (semicolons are allowed for single-line functions)
 
+-- is the same as:
+
+fn add(a: i32, b: i32) -> i32 = a + b;
+
+-- is the same as:
 
 let add = |a, b| a + b;  -- lambda function
+
+
+
 
 -- Multi-line function
 fn complex_function(x: i32) -> i32 =
