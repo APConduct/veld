@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE instance-profile
+        SYSTEM "https://resources.jetbrains.com/writerside/1.0/product-profile.dtd">
+
+<instance-profile id="v"
+                 name="Veld" start-page="README.md">
+
+    <toc-element topic="How-to.md"/>
+    <toc-element topic="README.md"/>
+    <toc-element toc-title="Writerside">
+        <toc-element toc-title="topics">
+            <toc-element topic="topics_README.md"/>
+            <toc-element toc-title="doc">
+                <toc-element topic="doc_USAGE.md"/>
+            </toc-element>
+        </toc-element>
+    </toc-element>
+    <toc-element toc-title="doc">
+        <toc-element topic="USAGE.md"/>
+    </toc-element>
+</instance-profile>
