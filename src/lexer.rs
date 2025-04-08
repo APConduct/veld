@@ -1,11 +1,16 @@
 use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Clone)]
-#[logos(skip r"[ \t\n\f]+")]  // Skip whitespace
+#[logos(skip r"[ \t\n\f]+")] // Skip whitespace
+#[logos(skip r"--.*")]
 pub enum Token {
     // Keywords
     #[token("fn")]
     Fn,
+    // #[token("mod")]
+    // Mod,
+    #[token("proc")]
+    Proc,
     #[token("let")]
     Let,
     #[token("struct")]
@@ -16,6 +21,18 @@ pub enum Token {
     Impl,
     #[token("end")]
     End,
+    #[token("for")]
+    For,
+    #[token("in")]
+    In,
+    #[token("where")]
+    Where,
+    #[token("as")]
+    As,
+    #[token("or")]
+    Or,
+    // #[token("and")]
+    // And,
 
     // Operators
     #[token("=")]
@@ -60,6 +77,10 @@ pub enum Token {
     Colon,
     #[token(";")]
     Semicolon,
+    #[token("@")]
+    At,
+    #[token(".")]
+    Dot,
 
     // Literals and Identifiers
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
@@ -97,6 +118,9 @@ pub enum Token {
 
     #[token("false")]
     False,
+
+    #[token("and")]
+    And,
 }
 
 pub struct Lexer<'a> {
@@ -115,13 +139,13 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Result<Token, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|result| {
-            result.map_err(|_| "Invalid token".to_string())
-        })
+        self.inner
+            .next()
+            .map(|result| result.map_err(|_| "Invalid token".to_string()))
     }
 }
 
-// Add a convenience method to collect all tokens
+// Convenience method to collect all tokens
 impl<'a> Lexer<'a> {
     pub fn collect_tokens(&mut self) -> Result<Vec<Token>, String> {
         self.collect()

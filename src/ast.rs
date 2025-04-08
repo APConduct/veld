@@ -4,12 +4,36 @@ pub enum Literal {
     Float(f64),
     String(String),
     Boolean(bool),
+    Unit, // unit value: ()
+}
+
+// #[derive(Debug, Clone)]
+// pub enum Tuple {
+//     Empty,
+//     Single(Literal),
+//     Pair(Literal, Literal),
+// }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TypeAnnotation {
+    Basic(String),
+    Unit,
+    Function {
+        params: Vec<TypeAnnotation>,
+        return_type: Box<TypeAnnotation>,
+    },
+    Generic {
+        base: String,
+        type_args: Vec<TypeAnnotation>,
+        // type_params: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Literal),
     Identifier(String),
+    UnitLiteral, // Unit Literal: ()
     BinaryOp {
         left: Box<Expr>,
         operator: BinaryOperator,
@@ -19,7 +43,20 @@ pub enum Expr {
         name: String,
         arguments: Vec<Expr>,
     },
-    // Add more variants as needed
+    Lambda {
+        params: Vec<(String, Option<TypeAnnotation>)>,
+        body: Box<Expr>,
+        return_type: Option<TypeAnnotation>,
+    },
+    MethodCall {
+        object: Box<Expr>,
+        method: String,
+        arguments: Vec<Expr>,
+    },
+    StructCreate {
+        struct_name: String,
+        fields: Vec<(String, Expr)>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -34,7 +71,16 @@ pub enum BinaryOperator {
     Greater,
     EqualEqual,
     NotEqual,
-    // Add more operators
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructMethod {
+    pub name: String,
+    pub params: Vec<(String, TypeAnnotation)>,
+    pub return_type: TypeAnnotation,
+    pub body: Vec<Statement>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,13 +88,20 @@ pub enum Statement {
     ExprStatement(Expr),
     FunctionDeclaration {
         name: String,
-        params: Vec<(String, String)>, // (name, type)
-        return_type: Option<String>,
+        params: Vec<(String, TypeAnnotation)>, // (name, type)
+        return_type: TypeAnnotation,
+        body: Vec<Statement>,
+        is_proc: bool, // Mark as procedure (returns void/unit)
+    },
+    ProcDeclaration {
+        name: String,
+        params: Vec<(String, TypeAnnotation)>,
+        // return_type: TypeAnnotation,
         body: Vec<Statement>,
     },
     VariableDeclaration {
         name: String,
-        type_annotation: Option<String>,
+        type_annotation: Option<TypeAnnotation>,
         value: Box<Expr>,
     },
     If {
@@ -60,6 +113,40 @@ pub enum Statement {
         condition: Expr,
         body: Vec<Statement>,
     },
-    Return(Expr),
-    // Add more variants
+    For {
+        iterator: String,
+        iterable: Expr,
+        body: Vec<Statement>,
+    },
+    Return(Option<Expr>),
+    StructDeclaration {
+        name: String,
+        fields: Vec<(String, TypeAnnotation)>,
+        methods: Vec<StructMethod>,
+    },
+    KindDeclaration {
+        name: String,
+        methods: Vec<KindMethod>,
+    },
+    Implementation {
+        type_name: String,
+        kind_name: Option<String>,
+        methods: Vec<MethodImpl>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct KindMethod {
+    pub name: String,
+    pub params: Vec<(String, TypeAnnotation)>,
+    pub return_type: TypeAnnotation,
+    pub default_impl: Option<Vec<Statement>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MethodImpl {
+    pub name: String,
+    pub params: Vec<(String, TypeAnnotation)>,
+    pub return_type: TypeAnnotation,
+    pub body: Vec<Statement>,
 }

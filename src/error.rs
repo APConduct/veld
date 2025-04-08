@@ -8,6 +8,9 @@ pub enum VeldError {
     #[error("Parser error: {0}")]
     ParserError(String),
 
+    #[error("Type error: {0}")]
+    TypeError(String),
+
     #[error("Runtime error: {0}")]
     RuntimeError(String),
 }

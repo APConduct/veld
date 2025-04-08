@@ -1,51 +1,63 @@
+mod ast;
+mod error;
+mod interpreter;
 mod lexer;
 mod parser;
-mod ast;
-mod interpreter;
-mod error;
 
-use error::Result;
+use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::interpreter::Interpreter;
+use error::Result;
 
 fn main() -> Result<()> {
     println!("Veld Language Interpreter v0.1.0");
 
+    // Use a MUCH simpler test case to isolate the issue
     let source = r#"
-        fn factorial(n: i32) -> i32 =
-            if n <= 1
-                return 1
-            else
-                return n * factorial(n - 1)
-            end
-        end
+    fn add(a: i32, b: i32) -> i32 = a + b;
 
-        let result = factorial(5)
+
+    struct Point
+        x: f64,
+        y: f64,
+    end
+
+    impl Point
+        fn distance(self) -> f64 = 0.0
+    end
+
+    fn test() -> f64 = (1.0 + 2.0).sqrt();
+
+    let p = Vector.new(x: 1.0, y: 2.0)
+
+
     "#;
 
     // Lexical analysis
     let mut lexer = Lexer::new(source);
-    let tokens = lexer.collect_tokens().map_err(|e| error::VeldError::LexerError(e))?;
+    let tokens = lexer
+        .collect_tokens()
+        .map_err(|e| error::VeldError::LexerError(e))?;
 
     println!("\nTokens:");
     for token in tokens.iter() {
         println!("{:?}", token);
     }
 
-    // Parsing
-    let mut parser = Parser::new(tokens);
-    let ast = parser.parse()?;
+    // Parsing with debugging
+    let mut parser = Parser::new(tokens.clone());
+    println!("Starting parsing...");
 
-    println!("\nAST:");
-    println!("{:#?}", ast);
+    match parser.parse() {
+        Ok(stmts) => {
+            println!("Successfully parsed {} statements:", stmts.len());
+            for (i, stmt) in stmts.iter().enumerate() {
+                println!("Statement {}: {:?}", i + 1, stmt);
+            }
+        }
+        Err(e) => println!("Parse error: {:?}", e),
+    }
 
-    // Interpretation
-    let mut interpreter = Interpreter::new();
-    let result = interpreter.interpret(ast)?;
-
-    println!("\nFinal Result:");
-    println!("{:#?}", result);
-
+    println!("Parsing complete");
     Ok(())
 }
