@@ -47,6 +47,8 @@ pub enum Token {
     Slash,
     #[token("->")]
     Arrow,
+    #[token("*^")]
+    ExpOp,
 
     // Comparison operators
     #[token("<=")]

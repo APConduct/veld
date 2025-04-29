@@ -25,11 +25,13 @@ fn main() -> Result<()> {
         fn distance(self) -> f64 = 0.0
     end
 
+    -- Register built-in standard library functions (will be handled specially in interpreter)
+    fn sqrt(x: f64) -> f64 = x *^ 0.5; -- example pow syntax for square root
+
     -- Using a standard library function instead of method syntax
     fn test() -> f64 = sqrt(1.0 + 2.0);
 
-    -- Register built-in standard library functions (will be handled specially in interpreter)
-    fn sqrt(x: f64) -> f64;
+
     "#;
 
     // Lexical analysis

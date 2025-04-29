@@ -85,6 +85,7 @@ pub enum BinaryOperator {
     NotEqual,
     And,
     Or,
+    Exponent,
 }
 
 #[derive(Debug, Clone)]

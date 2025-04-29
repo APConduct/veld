@@ -540,6 +540,18 @@ impl Interpreter {
         right: Value,
     ) -> Result<Value> {
         match (left, operator, right) {
+            (Value::Float(a), BinaryOperator::Exponent, Value::Float(b)) => {
+                Ok(Value::Float(a.powf(b)))
+            }
+            (Value::Integer(a), BinaryOperator::Exponent, Value::Integer(b)) => {
+                // Handle integer exponentiation
+                if b >= 0 {
+                    Ok(Value::Integer(a.pow(b as u32)))
+                } else {
+                    // Negative exponent requires floating point
+                    Ok(Value::Float((a as f64).powf(b as f64)))
+                }
+            }
             // Arithmetic
             (Value::Integer(a), BinaryOperator::Add, Value::Integer(b)) => {
                 Ok(Value::Integer(a + b))

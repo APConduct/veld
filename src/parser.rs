@@ -1009,29 +1009,52 @@ impl Parser {
             }
 
             if self.match_token(&[Token::Dot]) {
-                println!("Postfix: Found dot operator for method call or property access");
-
-                // The next token should be an identifier (method/property name)
+                // Method call or property access
+                // (existing code unchanged)
                 let method =
                     self.consume_identifier("Expected property or method name after '.'")?;
                 println!("Postfix: Method/property name: {}", method);
 
-                // Check if it's a method call with parentheses
                 if self.match_token(&[Token::LParen]) {
-                    println!("Postfix: This is a method call with arguments");
-
-                    // Parse the argument list - now handling named arguments
+                    // Method call with arguments
                     let mut args = Vec::new();
                     if !self.check(&Token::RParen) {
-                        // Check if we have named arguments (looking for name: value format)
                         if self.check_named_arguments() {
-                            println!("Postfix: Parsing named arguments");
                             args = self.parse_named_arguments()?;
                         } else {
-                            // Regular positional arguments
-                            println!("Postfix: Parsing positional arguments");
                             loop {
-                                println!("Postfix: Parsing argument");
+                                args.push(Argument::Positional(self.expression()?));
+                                if !self.match_token(&[Token::Comma]) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    self.consume(&Token::RParen, "Expected ')' after method arguments")?;
+                    expr = Expr::MethodCall {
+                        object: Box::new(expr),
+                        method,
+                        arguments: args,
+                    };
+                } else {
+                    expr = Expr::PropertyAccess {
+                        object: Box::new(expr),
+                        property: method,
+                    };
+                }
+            } else if self.match_token(&[Token::LParen]) && matches!(expr, Expr::Identifier(_)) {
+                // Function call
+                if let Expr::Identifier(name) = expr {
+                    println!("Postfix: Function call: {}", name);
+
+                    // Parse arguments
+                    let mut args = Vec::new();
+                    if !self.check(&Token::RParen) {
+                        // Check for named arguments or positional arguments
+                        if self.check_named_arguments() {
+                            args = self.parse_named_arguments()?;
+                        } else {
+                            loop {
                                 args.push(Argument::Positional(self.expression()?));
                                 if !self.match_token(&[Token::Comma]) {
                                     break;
@@ -1040,26 +1063,18 @@ impl Parser {
                         }
                     }
 
-                    self.consume(&Token::RParen, "Expected ')' after method arguments")?;
-                    println!("Postfix: Method call arguments parsed");
+                    self.consume(&Token::RParen, "Expected ')' after arguments")?;
+                    println!("Postfix: Completed function call arguments");
 
-                    expr = Expr::MethodCall {
-                        object: Box::new(expr),
-                        method,
+                    expr = Expr::FunctionCall {
+                        name,
                         arguments: args,
                     };
                 } else {
-                    // Property access without parentheses
-                    println!("Postfix: This is a property access (no parentheses)");
-                    expr = Expr::PropertyAccess {
-                        object: Box::new(expr),
-                        property: method,
-                    };
+                    return Err(VeldError::ParserError(
+                        "Internal error: expected identifier before '('".to_string(),
+                    ));
                 }
-            }
-            // Rest of code remains the same...
-            else if self.match_token(&[Token::LParen]) {
-                // Function call handling - existing code
             } else {
                 break;
             }
@@ -1260,7 +1275,7 @@ impl Parser {
     }
 
     fn factor(&mut self) -> Result<Expr> {
-        let mut expr = self.call()?;
+        let mut expr = self.exponent()?;
 
         while self.match_token(&[Token::Star, Token::Slash]) {
             let operator = match self.previous() {
@@ -1268,10 +1283,26 @@ impl Parser {
                 Token::Slash => BinaryOperator::Divide,
                 _ => unreachable!(),
             };
-            let right = self.call()?;
+            let right = self.exponent()?;
             expr = Expr::BinaryOp {
                 left: Box::new(expr),
                 operator,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn exponent(&mut self) -> Result<Expr> {
+        let mut expr = self.unary()?;
+
+        if self.match_token(&[Token::ExpOp]) {
+            // For right associativity, we recursively parse the right side at the same precedence level
+            let right = self.exponent()?; // Note this is recursive at same level
+            expr = Expr::BinaryOp {
+                left: Box::new(expr),
+                operator: BinaryOperator::Exponent,
                 right: Box::new(right),
             };
         }
