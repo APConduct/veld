@@ -1,6 +1,4 @@
-use crate::ast::{
-    Argument, BinaryOperator, Expr, Literal, Statement, TypeAnnotation,
-};
+use crate::ast::{Argument, BinaryOperator, Expr, Literal, Statement, TypeAnnotation};
 use crate::error::{Result, VeldError};
 use std::collections::HashMap;
 
@@ -594,6 +592,28 @@ impl Interpreter {
             }
             (Value::Boolean(a), BinaryOperator::Or, Value::Boolean(b)) => {
                 Ok(Value::Boolean(a || b))
+            }
+
+            (Value::Float(a), BinaryOperator::Add, Value::Float(b)) => Ok(Value::Float(a + b)),
+            (Value::Float(a), BinaryOperator::Subtract, Value::Float(b)) => Ok(Value::Float(a - b)),
+            (Value::Float(a), BinaryOperator::Multiply, Value::Float(b)) => Ok(Value::Float(a * b)),
+            (Value::Float(a), BinaryOperator::Divide, Value::Float(b)) => {
+                if b == 0.0 {
+                    Err(VeldError::RuntimeError("Division by zero".to_string()))
+                } else {
+                    Ok(Value::Float(a / b))
+                }
+            }
+            // Also add comparisons for floats
+            (Value::Float(a), BinaryOperator::LessEq, Value::Float(b)) => {
+                Ok(Value::Boolean(a <= b))
+            }
+
+            (Value::Integer(a), BinaryOperator::Add, Value::Float(b)) => {
+                Ok(Value::Float(a as f64 + b))
+            }
+            (Value::Float(a), BinaryOperator::Add, Value::Integer(b)) => {
+                Ok(Value::Float(a + b as f64))
             }
             _ => Err(VeldError::RuntimeError("Invalid operation".to_string())),
         }
