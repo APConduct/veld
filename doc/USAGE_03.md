@@ -60,3 +60,35 @@ local add, subtract = math.add, math.subtract
    @when(target = "desktop")
    pub fn get_platform() -> str = "desktop";
    ```
+
+
+## More on the Macro System
+
+```veld
+// Declarative macro definition (uses tilde)
+@~macro vec
+    () => new_vec(),
+    ($elem:expr) => {
+        let mut temp = new_vec();
+        temp.push($elem);
+        temp
+    }
+end
+
+// Procedural macro definition (no tilde)
+@comptime fn derive(trait_name) =
+    match trait_name
+        "Debug" => generate_debug_impl(),
+        "Clone" => generate_clone_impl(),
+    end
+end
+
+// Usage examples
+let numbers = vec~(1, 2, 3);  // Declarative macro with tilde
+
+@derive(Debug, Clone)         // Procedural macro as attribute
+struct Point
+    x: f64,
+    y: f64,
+end
+```

@@ -129,7 +129,7 @@ enum Direction(North, South, East, West);
 
 #### Basic Declarative Macro
 ```veld
-@macro println(fmt, args...) =
+@~macro println(fmt, args...) =
     -- macro implementation
     format_and_print(fmt, args)
 end
@@ -137,7 +137,7 @@ end
 
 #### Pattern Matching Macro
 ```veld
-@macro vec
+@~macro vec
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
@@ -156,7 +156,8 @@ end
 
 #### Procedural Macro
 ```veld
-@proc_macro derive(trait_name) =
+@comptime
+fn derive(trait_name) =
     match trait_name
         "Debug" => generate_debug_impl(),
         "Clone" => generate_clone_impl(),

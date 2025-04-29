@@ -148,13 +148,13 @@ end
 -- Macros -------------------------------------------------------------
 
 -- Declarative macro syntax
-@macro println(fmt, args...) =
+@~macro println(fmt, args...) =
     -- macro implementation
     format_and_print(fmt, args)
 end
 
 -- Pattern matching macro
-@macro vec
+@~macro vec
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
@@ -171,7 +171,8 @@ end
 end
 
 -- Procedural macro for deriving traits
-@proc_macro derive(trait_name) =
+@comptime
+fn derive(trait_name) =
     match trait_name
         "Debug" => generate_debug_impl(),
         "Clone" => generate_clone_impl(),
@@ -198,14 +199,14 @@ struct Point
 end
 
 -- SQL query macro
-@macro sql(query_string) =
+@~macro sql(query_string) =
     parse_and_validate_sql(query_string)
 end
 
 let users = sql~(SELECT * FROM users WHERE age > 18);
 
 -- Test macro
-@macro test(name, block) =
+@~macro test(name, block) =
     register_test(name, block)
 end
 

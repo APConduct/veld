@@ -47,7 +47,8 @@ let config = {
 }
 
 -- Code generation
-@proc_macro derive_debug(type_name) =
+@comptime
+fn derive_debug(type_name) =
     let type_info = @reflect(type_name);
     -- Generate Debug implementation
 end
