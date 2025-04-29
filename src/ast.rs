@@ -146,6 +146,39 @@ pub enum Statement {
         kind_name: Option<String>,
         methods: Vec<MethodImpl>,
     },
+
+    ModuleDeclaration {
+        name: String,
+        // Body is optional - might just be a declaration referencing another file
+        body: Option<Vec<Statement>>,
+    },
+
+    ImportDeclaration {
+        path: Vec<String>, // Module path components (e.g., "math.vector")
+        items: Vec<ImportItem>,
+        alias: Option<String>, // For "import math as m"
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum ImportItem {
+    All,           // import math.*
+    Named(String), // import math.{sqrt}
+    NamedWithAlias {
+        // import math.{Vector as Vec}
+        name: String,
+        alias: String,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionDeclaration {
+    pub name: String,
+    pub params: Vec<(String, TypeAnnotation)>,
+    pub return_type: TypeAnnotation,
+    pub body: Vec<Statement>,
+    pub is_proc: bool,
+    pub is_public: bool, // New field to track visibility
 }
 
 #[derive(Debug, Clone)]

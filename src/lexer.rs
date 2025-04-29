@@ -31,6 +31,18 @@ pub enum Token {
     As,
     #[token("or")]
     Or,
+    #[token("mod")]
+    Mod,
+
+    #[token("import")]
+    Import,
+
+    #[token("pub")]
+    Pub,
+
+    #[token("from")]
+    From,
+
     // #[token("and")]
     // And,
 

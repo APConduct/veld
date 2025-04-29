@@ -3,53 +3,60 @@ mod error;
 mod interpreter;
 mod lexer;
 mod parser;
+mod repl;  // Add this line
 
 use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+use crate::repl::Repl;  // Add this line
 use error::Result;
+use std::env;
+use std::fs;
 
 fn main() -> Result<()> {
+    // Get command line arguments
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() == 1 {
+        // No arguments, run in REPL mode
+        println!("Starting Veld in REPL mode...");
+        let mut repl = Repl::new();
+        return repl.run();
+    } else if args.len() == 2 {
+        // One argument - interpret the file
+        return run_file(&args[1]);
+    } else {
+        println!("Usage: veld [filename]");
+        println!("       veld           # Run in REPL mode");
+        return Ok(());
+    }
+}
+
+fn run_file(filename: &str) -> Result<()> {
     println!("Veld Language Interpreter v0.1.0");
+    println!("Running file: {}", filename);
 
-    // Updated test case using function calls instead of method syntax
-    let source = r#"
-        fn add(a: i32, b: i32) -> i32 = a + b;
-
-        struct Point
-            x: f64,
-            y: f64,
-        end
-
-        impl Point
-            fn distance(self) -> f64 = 0.0
-        end
-
-        -- Example function using exponentiation operator
-        fn sqrt(x: f64) -> f64 = x *^ 0.5;
-
-        -- Test function call
-        fn test() -> f64 = sqrt(1.0 + 2.0);
-
-    "#;
+    // Read the file
+    let source = match fs::read_to_string(filename) {
+        Ok(content) => content,
+        Err(e) => {
+            println!("Error reading file: {}", e);
+            return Ok(());
+        }
+    };
 
     // Lexical analysis
-    let mut lexer = Lexer::new(source);
+    let mut lexer = Lexer::new(&source);
     let tokens = lexer
         .collect_tokens()
         .map_err(|e| error::VeldError::LexerError(e))?;
 
-    // Parsing with debugging
+    // Parsing
     let mut parser = Parser::new(tokens.clone());
     println!("Starting parsing...");
 
     match parser.parse() {
         Ok(stmts) => {
-            println!("Successfully parsed {} statements:", stmts.len());
-            for (i, stmt) in stmts.iter().enumerate() {
-                println!("Statement {}: {:?}", i + 1, stmt);
-            }
-
             // Run the interpreter if parsing succeeds
             let mut interpreter = Interpreter::new();
             match interpreter.interpret(stmts) {
@@ -60,6 +67,6 @@ fn main() -> Result<()> {
         Err(e) => println!("Parse error: {:?}", e),
     }
 
-    println!("Parsing complete");
+    println!("Execution complete");
     Ok(())
 }
