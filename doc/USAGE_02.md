@@ -249,20 +249,20 @@ end
 
 ```veld
 -- Declarative macro
-macro vec = fn
-    () => new_vec();
+@macro vec
+    () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
         temp.push($elem);
         temp
-    };
+    },
     ($($elem:expr),+ $(,)?) => {
         let mut temp = new_vec();
         $(
             temp.push($elem);
         )+
         temp
-    };
+    }
 end
 
 -- Using a macro
@@ -415,18 +415,4 @@ fn process(value: any) =
         error~("Value must be Serializable")
     end
 end
-
--- Code generation
-proc_macro derive_debug = fn(type_name) =
-    let type_info = @reflect(type_name);
-    -- Generate Debug implementation
-end
-
--- Custom DSL
-sql~{
-    SELECT users.name, users.email
-    FROM users
-    WHERE users.active = true
-    ORDER BY users.name
-}
 ```

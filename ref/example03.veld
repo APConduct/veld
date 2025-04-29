@@ -45,3 +45,17 @@ let config = {
     host: "localhost",
     port: 8080
 }
+
+-- Code generation
+@proc_macro derive_debug(type_name) =
+    let type_info = @reflect(type_name);
+    -- Generate Debug implementation
+end
+
+-- Custom DSL
+sql~{
+    SELECT users.name, users.email
+    FROM users
+    WHERE users.active = true
+    ORDER BY users.name
+}

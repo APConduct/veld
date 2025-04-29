@@ -228,20 +228,20 @@ end
 
 
 -- Declarative macro
-macro vec = fn
-    () => new_vec();
+@macro vec
+    () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
         temp.push($elem);
         temp
-    };
+    },
     ($($elem:expr),+ $(,)?) => {
         let mut temp = new_vec();
         $(
             temp.push($elem);
         )+
         temp
-    };
+    }
 end
 
 -- Using a macro
@@ -260,11 +260,10 @@ data
     ~trace               -- print debug info
     ~transform(x => x*2)  -- apply transformation
     ~validate            -- validate result
-```
 
-## Generics and Type Constraints
 
-```veld
+-- Generics and Type Constraints
+
 -- Generic struct
 struct Pair<A, B>
     first: A,
