@@ -32,7 +32,7 @@ fn add(a, b) = a + b;     -- Type inference available
 
 ### Lambda Function
 ```veld
-let add = |a, b| a + b;
+let add = a, b => a + b;  -- Type inference available
 ```
 
 ### Multi-line Function Example
@@ -196,7 +196,7 @@ end
 #### Generic Function with Constraints
 ```veld
 fn sum<T: Number>(list: List<T>) -> T =
-    list.reduce(|a, b| a + b)
+    list.reduce(a, b => a + b)
 end
 ```
 

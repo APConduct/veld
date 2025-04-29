@@ -42,7 +42,7 @@ let div = fn(a: i32, b: i32) -> i32 =
 end
 
 -- Lambda expression
-let square = |x| x * x;
+let square = x => x * x;
 
 -- Function with generic parameters
 fn map<T, U>(value: T, f: fn(T) -> U) -> U =
@@ -279,7 +279,7 @@ let html = html~(
 -- Postfix macro for method-like calls
 data
     ~trace               -- print debug info
-    ~transform(|x| x*2)  -- apply transformation
+    ~transform(x => x*2)  -- apply transformation
     ~validate            -- validate result
 ```
 
@@ -403,7 +403,7 @@ end
 ```veld
 -- Compile-time reflection
 fn generate_fields<T>() -> [str] =
-    @reflect(T).fields().map(|f| f.name)
+    @reflect(T).fields().map(f => f.name)
 end
 
 -- Runtime type checking

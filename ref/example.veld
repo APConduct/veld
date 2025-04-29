@@ -46,7 +46,7 @@ fn add(a: i32, b: i32) -> i32 = a + b;
 
 -- is the same as:
 
-let add = |a, b| a + b;  -- lambda function
+let add = a, b => a + b;  -- lambda function (no type annotations)
 
 
 
@@ -227,7 +227,7 @@ fn identity<T>(x: T) -> T = x;
 
 -- Generic function with constraints
 fn sum<T: Number>(list: List<T>) -> T =
-    list.reduce(|a, b| a + b)
+    list.reduce(a, b => a + b)
 end
 
 -- Multiple constraints
