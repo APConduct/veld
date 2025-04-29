@@ -2,7 +2,8 @@ use std::f32::consts::TAU;
 use std::thread::park;
 
 use crate::ast::{
-    BinaryOperator, Expr, KindMethod, Literal, MethodImpl, Statement, StructMethod, TypeAnnotation,
+    Argument, BinaryOperator, Expr, KindMethod, Literal, MethodImpl, Statement, StructMethod,
+    TypeAnnotation,
 };
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
@@ -104,6 +105,19 @@ impl Parser {
             TypeAnnotation::Unit
         };
 
+        // Check for function prototype (ends with semicolon)
+        if self.match_token(&[Token::Semicolon]) {
+            println!("Function declaration: Function prototype (no body)");
+            return Ok(Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type: return_type.clone(),
+                body: Vec::new(), // Empty body for prototype
+                is_proc: return_type == TypeAnnotation::Unit,
+            });
+        }
+
+        // Parse function with implementation
         self.consume(&Token::Equals, "Expected '=' after function signature")?;
         println!("Function declaration: Found equals sign, parsing body");
 
@@ -882,11 +896,6 @@ impl Parser {
 
     fn expression(&mut self) -> Result<Expr> {
         println!("Expression: Starting...");
-        println!(
-            "Expression: Current token context: {}",
-            self.debug_token_context()
-        );
-
         self.recursive_depth += 1;
         if self.recursive_depth > 100 {
             self.recursive_depth -= 1;
@@ -895,11 +904,31 @@ impl Parser {
             ));
         }
 
-        let result = self.comparison();
+        let result = self.logical();
         self.recursive_depth -= 1;
 
         println!("Expression: Completed with result: {:?}", result);
         result
+    }
+
+    fn logical(&mut self) -> Result<Expr> {
+        let mut expr = self.comparison()?;
+
+        while self.match_token(&[Token::And, Token::Or]) {
+            let operator = match self.previous() {
+                Token::And => BinaryOperator::And,
+                Token::Or => BinaryOperator::Or,
+                _ => unreachable!(),
+            };
+            let right = self.comparison()?;
+            expr = Expr::BinaryOp {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
     }
 
     fn addition(&mut self) -> Result<Expr> {
@@ -1003,7 +1032,7 @@ impl Parser {
                             println!("Postfix: Parsing positional arguments");
                             loop {
                                 println!("Postfix: Parsing argument");
-                                args.push(self.expression()?);
+                                args.push(Argument::Positional(self.expression()?));
                                 if !self.match_token(&[Token::Comma]) {
                                     break;
                                 }
@@ -1022,10 +1051,9 @@ impl Parser {
                 } else {
                     // Property access without parentheses
                     println!("Postfix: This is a property access (no parentheses)");
-                    expr = Expr::MethodCall {
+                    expr = Expr::PropertyAccess {
                         object: Box::new(expr),
-                        method,
-                        arguments: Vec::new(),
+                        property: method,
                     };
                 }
             }
@@ -1055,7 +1083,7 @@ impl Parser {
         false
     }
 
-    fn parse_named_arguments(&mut self) -> Result<Vec<Expr>> {
+    fn parse_named_arguments(&mut self) -> Result<Vec<Argument>> {
         println!("Parsing named arguments");
         let mut args = Vec::new();
 
@@ -1070,11 +1098,10 @@ impl Parser {
             // Get argument value
             let arg_value = self.expression()?;
 
-            // Create a StructCreate expression to represent the named argument
-            // This is a simplification - you might want a dedicated NamedArgument AST node
-            args.push(Expr::StructCreate {
-                struct_name: arg_name,
-                fields: vec![("value".to_string(), arg_value)],
+            // Create a named argument
+            args.push(Argument::Named {
+                name: arg_name,
+                value: arg_value,
             });
 
             // Break if no more arguments
@@ -1087,100 +1114,68 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr> {
-        println!("Primary: Starting...");
-        println!(
-            "Primary: Current token context: {}",
-            self.debug_token_context()
-        );
-
         if self.is_at_end() {
             return Err(VeldError::ParserError(
                 "Unexpected end of input".to_string(),
             ));
         }
 
-        // Choose based on the current token
-        let expr = match self.tokens.get(self.current).cloned() {
-            Some(Token::IntegerLiteral(n)) => {
-                let value = n;
+        let expr = match self.peek().clone() {
+            Token::IntegerLiteral(n) => {
                 self.advance();
-                println!("Primary: Integer literal: {}", value);
-                Expr::Literal(Literal::Integer(value))
+                Expr::Literal(Literal::Integer(n))
             }
-            Some(Token::FloatLiteral(n)) => {
-                let value = n;
+            Token::FloatLiteral(n) => {
                 self.advance();
-                println!("Primary: Float literal: {}", value);
-                Expr::Literal(Literal::Float(value))
+                Expr::Literal(Literal::Float(n))
             }
-            Some(Token::StringLiteral(s)) => {
-                let s_clone = s;
+            Token::StringLiteral(s) => {
                 self.advance();
-                println!("Primary: String literal: {}", s_clone);
-                Expr::Literal(Literal::String(s_clone))
+                Expr::Literal(Literal::String(s))
             }
-            Some(Token::True) => {
+            Token::True => {
                 self.advance();
-                println!("Primary: Boolean literal: true");
                 Expr::Literal(Literal::Boolean(true))
             }
-            Some(Token::False) => {
+            Token::False => {
                 self.advance();
-                println!("Primary: Boolean literal: false");
                 Expr::Literal(Literal::Boolean(false))
             }
-            Some(Token::Identifier(name)) => {
-                let name_clone = name;
+            Token::Identifier(name) => {
                 self.advance();
-                println!("Primary: Identifier: {}", name_clone);
-                Expr::Identifier(name_clone)
+                Expr::Identifier(name)
             }
-            Some(Token::LParen) => {
-                self.advance(); // consume the '('
-                println!("Primary: Found left parenthesis");
+            Token::LParen => {
+                self.advance(); // consume '('
 
-                // Check for empty parenthesis - unit literal
+                // Check for unit literal ()
                 if self.match_token(&[Token::RParen]) {
-                    println!("Primary: Empty parentheses - unit literal");
                     Expr::UnitLiteral
                 } else {
-                    // Parse the grouped expression
-                    println!("Primary: Parsing grouped expression");
+                    // Parse grouped expression
                     let expr = self.expression()?;
                     self.consume(&Token::RParen, "Expected ')' after expression")?;
-                    println!("Primary: Grouped expression parsed");
                     expr
                 }
             }
-            // Special case for block ending tokens to make errors clearer
-            Some(Token::End) => {
-                println!("Primary: Encountered 'end' token in expression context");
-                return Err(VeldError::ParserError(
-                    "Unexpected 'end' token - expected an expression".to_string(),
-                ));
-            }
-            Some(Token::Semicolon) => {
-                println!("Primary: Encountered ';' token in expression context");
-                return Err(VeldError::ParserError(
-                    "Unexpected ';' token - expected an expression".to_string(),
-                ));
-            }
-            Some(token) => {
-                println!("Primary: Unexpected token: {:?}", token);
+            _ => {
                 return Err(VeldError::ParserError(format!(
-                    "Expected expression, got {:?}",
-                    token
+                    "Unexpected token: {:?}",
+                    self.peek()
                 )));
-            }
-            None => {
-                return Err(VeldError::ParserError(
-                    "Unexpected end of token stream".to_string(),
-                ));
             }
         };
 
-        println!("Primary: Completed with result: {:?}", expr);
         Ok(expr)
+    }
+
+    fn peek(&self) -> &Token {
+        if self.is_at_end() {
+            // Return a placeholder token if we're at the end
+            &Token::IntegerLiteral(0)
+        } else {
+            &self.tokens[self.current]
+        }
     }
 
     fn parse_struct_fields(&mut self) -> Result<Vec<(String, Expr)>> {
@@ -1214,10 +1209,7 @@ impl Parser {
     }
 
     fn comparison(&mut self) -> Result<Expr> {
-        println!("Comparison: Starting...");
-
-        let mut expr = self.addition()?;
-        println!("Comparison: Got left operand: {:?}", expr);
+        let mut expr = self.term()?;
 
         while self.match_token(&[
             Token::LessEq,
@@ -1226,8 +1218,6 @@ impl Parser {
             Token::Greater,
             Token::EqualEqual,
             Token::NotEqual,
-            Token::And,
-            Token::Or,
         ]) {
             let operator = match self.previous() {
                 Token::LessEq => BinaryOperator::LessEq,
@@ -1236,15 +1226,9 @@ impl Parser {
                 Token::Greater => BinaryOperator::Greater,
                 Token::EqualEqual => BinaryOperator::EqualEqual,
                 Token::NotEqual => BinaryOperator::NotEqual,
-                Token::And => BinaryOperator::And,
-                Token::Or => BinaryOperator::Or,
                 _ => unreachable!(),
             };
-
-            println!("Comparison: Found operator: {:?}", operator);
-            let right = self.addition()?;
-            println!("Comparison: Got right operand: {:?}", right);
-
+            let right = self.term()?;
             expr = Expr::BinaryOp {
                 left: Box::new(expr),
                 operator,
@@ -1252,46 +1236,74 @@ impl Parser {
             };
         }
 
-        println!("Comparison: Completed with result: {:?}", expr);
+        Ok(expr)
+    }
+
+    fn term(&mut self) -> Result<Expr> {
+        let mut expr = self.factor()?;
+
+        while self.match_token(&[Token::Plus, Token::Minus]) {
+            let operator = match self.previous() {
+                Token::Plus => BinaryOperator::Add,
+                Token::Minus => BinaryOperator::Subtract,
+                _ => unreachable!(),
+            };
+            let right = self.factor()?;
+            expr = Expr::BinaryOp {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    fn factor(&mut self) -> Result<Expr> {
+        let mut expr = self.call()?;
+
+        while self.match_token(&[Token::Star, Token::Slash]) {
+            let operator = match self.previous() {
+                Token::Star => BinaryOperator::Multiply,
+                Token::Slash => BinaryOperator::Divide,
+                _ => unreachable!(),
+            };
+            let right = self.call()?;
+            expr = Expr::BinaryOp {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
         Ok(expr)
     }
 
     fn call(&mut self) -> Result<Expr> {
         let mut expr = self.primary()?;
 
-        println!("In call(): Primary expression parsed: {:?}", expr);
-        println!("Current token context: {}", self.debug_token_context());
-
         loop {
-            if self.is_at_end() {
-                println!("In call(): Reached end of tokens");
-                break;
-            }
-
-            println!(
-                "In call(): Checking next token: {:?}",
-                self.tokens.get(self.current)
-            );
-
-            // Check for method call with dot notation
-            if self.match_token(&[Token::Dot]) {
-                println!("In call(): Found dot, parsing method call");
-
-                // Get method name - use consume_identifier instead of advance
-                let method = self.consume_identifier("Expected method name after '.'")?;
-                println!("In call(): Method name: {}", method);
-
-                let mut arguments = Vec::new();
-
-                // Check if there are arguments (method call)
-                if self.match_token(&[Token::LParen]) {
-                    println!("In call(): Found left paren, parsing arguments");
-
-                    // Parse arguments if not empty
+            if self.match_token(&[Token::LParen]) && matches!(expr, Expr::Identifier(_)) {
+                // Function call
+                if let Expr::Identifier(name) = expr {
+                    // Parse arguments
+                    let mut arguments = Vec::new();
                     if !self.check(&Token::RParen) {
                         loop {
-                            println!("In call(): Parsing argument");
-                            arguments.push(self.expression()?);
+                            // Check for named arguments (identifier followed by colon)
+                            if self.check_named_argument() {
+                                let arg_name = self.consume_identifier("Expected argument name")?;
+                                self.consume(&Token::Colon, "Expected ':' after argument name")?;
+                                let arg_value = self.expression()?;
+                                arguments.push(Argument::Named {
+                                    name: arg_name,
+                                    value: arg_value,
+                                });
+                            } else {
+                                // Normal positional argument
+                                let arg = self.expression()?;
+                                arguments.push(Argument::Positional(arg));
+                            }
 
                             if !self.match_token(&[Token::Comma]) {
                                 break;
@@ -1300,38 +1312,27 @@ impl Parser {
                     }
 
                     self.consume(&Token::RParen, "Expected ')' after arguments")?;
-                    println!("In call(): Finished parsing arguments");
-                }
-
-                // Create method call expression
-                expr = Expr::MethodCall {
-                    object: Box::new(expr),
-                    method,
-                    arguments,
-                };
-                println!("In call(): Created method call: {:?}", expr);
-            }
-            // Check for function call on identifier
-            else if matches!(expr, Expr::Identifier(_)) && self.match_token(&[Token::LParen]) {
-                println!("In call(): Found function call on identifier");
-
-                if let Expr::Identifier(name) = expr {
-                    let arguments = self.arguments()?;
-                    self.consume(&Token::RParen, "Expected ')' after arguments")?;
-
                     expr = Expr::FunctionCall { name, arguments };
-                    println!("In call(): Created function call: {:?}", expr);
                 }
-            }
-            // Not a call expression, exit the loop
-            else {
-                println!("In call(): No call syntax found, exiting loop");
+            } else {
+                // FUTURE ENHANCEMENT: Implement method calls on objects with dot notation
+                // This will be needed later for expressions like (1.0 + 2.0).sqrt()
+                // For now, we're focused on standard function calls
                 break;
             }
         }
 
-        println!("In call(): Returning expression: {:?}", expr);
         Ok(expr)
+    }
+
+    fn check_named_argument(&self) -> bool {
+        // Look ahead for "identifier: value" pattern
+        if self.current + 1 < self.tokens.len() {
+            if let Token::Identifier(_) = &self.tokens[self.current] {
+                return self.tokens.get(self.current + 1) == Some(&Token::Colon);
+            }
+        }
+        false
     }
 
     fn arguments(&mut self) -> Result<Vec<Expr>> {

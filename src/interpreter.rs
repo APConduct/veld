@@ -1,4 +1,6 @@
-use crate::ast::{BinaryOperator, Expr, Literal, Statement, StructMethod, TypeAnnotation};
+use crate::ast::{
+    Argument, BinaryOperator, Expr, Literal, Statement, StructMethod, TypeAnnotation,
+};
 use crate::error::{Result, VeldError};
 use std::collections::HashMap;
 
@@ -263,7 +265,52 @@ impl Interpreter {
                 let right_val = self.evaluate_expression(*right)?.unwrap_return();
                 self.evaluate_binary_op(left_val, operator, right_val)
             }
-            Expr::FunctionCall { name, arguments } => self.call_function(name, arguments),
+            Expr::FunctionCall { name, arguments } => {
+                // Evaluate each argument and handle both named and positional arguments
+                let mut arg_values = Vec::new();
+                let mut named_args = HashMap::new();
+
+                for arg in arguments {
+                    match arg {
+                        Argument::Positional(expr) => {
+                            let value = self.evaluate_expression(expr)?;
+                            arg_values.push(value);
+                        }
+                        Argument::Named { name, value } => {
+                            // Store named arguments for future use
+                            // For now, we'll just evaluate positional arguments
+                            let value = self.evaluate_expression(value)?;
+                            named_args.insert(name, value);
+                        }
+                    }
+                }
+
+                // Special handling for standard library functions
+                if name == "sqrt" {
+                    if arg_values.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "sqrt() takes exactly one argument".to_string(),
+                        ));
+                    }
+
+                    // Extract the argument and compute square root
+                    match arg_values[0] {
+                        Value::Float(f) => Ok(Value::Float(f.sqrt())),
+                        _ => Err(VeldError::RuntimeError(
+                            "sqrt() requires a floating-point argument".to_string(),
+                        )),
+                    }
+                } else {
+                    // Regular function call
+                    self.call_function_with_values(name, arg_values)
+                }
+            }
+
+            Expr::PropertyAccess { object, property } => {
+                let obj_value = self.evaluate_expression(*object)?;
+                self.get_property(obj_value, &property)
+            }
+
             Expr::Lambda { .. } => {
                 // We'll implement lambdas later
                 Err(VeldError::RuntimeError(
@@ -285,13 +332,19 @@ impl Interpreter {
                     // Evaluate all arguments
                     let mut arg_values = Vec::new();
                     for arg in arguments {
-                        let value = self.evaluate_expression(arg)?;
+                        // Extract and evaluate the expression from the Argument
+                        let expr = match arg {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { name: _, value } => value,
+                        };
+                        let value = self.evaluate_expression(expr)?;
                         arg_values.push(value);
                     }
 
                     self.call_method_value(obj_value, method, arg_values)
                 }
             }
+
             Expr::StructCreate {
                 struct_name,
                 fields,
@@ -317,6 +370,53 @@ impl Interpreter {
                     fields: field_values,
                 })
             }
+        }
+    }
+
+    // Helper method to call functions with pre-evaluated arguments
+    fn call_function_with_values(&mut self, name: String, arg_values: Vec<Value>) -> Result<Value> {
+        let function = self
+            .get_variable(&name)
+            .ok_or_else(|| VeldError::RuntimeError(format!("Undefined function '{}'", name)))?;
+
+        match function {
+            Value::Function { params, body, .. } => {
+                // Create new scope for function
+                self.push_scope();
+
+                // Bind arguments
+                if arg_values.len() != params.len() {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Expected {} arguments but got {}",
+                        params.len(),
+                        arg_values.len()
+                    )));
+                }
+
+                // Bind parameters to arguments
+                for (i, arg) in arg_values.iter().enumerate() {
+                    self.current_scope_mut()
+                        .set(params[i].0.clone(), arg.clone());
+                }
+
+                // Execute function body
+                let mut result = Value::Unit;
+                for stmt in body {
+                    result = self.execute_statement(stmt)?;
+                    if matches!(result, Value::Return(_)) {
+                        break;
+                    }
+                }
+
+                // Remove function scope
+                self.pop_scope();
+
+                Ok(result.unwrap_return())
+            }
+            _ => Err(VeldError::RuntimeError(format!(
+                "'{}' is not a function",
+                name
+            ))),
         }
     }
 
@@ -355,7 +455,6 @@ impl Interpreter {
                     ))
                 }
             }
-            // Add other built-in methods as needed
 
             // For struct methods
             (Value::Struct { name, .. }, _) => {
@@ -488,7 +587,7 @@ impl Interpreter {
         }
     }
 
-    fn call_function(&mut self, name: String, arguments: Vec<Expr>) -> Result<Value> {
+    fn call_function(&mut self, name: String, arguments: Vec<Argument>) -> Result<Value> {
         println!("Calling function: {}", name); // Add this debug line
 
         // Check if this might be a method call on a struct
@@ -519,7 +618,12 @@ impl Interpreter {
 
                 // Evaluate arguments and bind them to parameters
                 for (i, arg) in arguments.into_iter().enumerate() {
-                    let value = self.evaluate_expression(arg)?;
+                    // Extract and evaluate the expression from the Argument
+                    let expr = match arg {
+                        Argument::Positional(expr) => expr,
+                        Argument::Named { name: _, value } => value,
+                    };
+                    let value = self.evaluate_expression(expr)?;
                     let value = value.unwrap_return();
                     self.current_scope_mut().set(params[i].0.clone(), value);
                 }
@@ -549,7 +653,7 @@ impl Interpreter {
         &mut self,
         struct_name: String,
         method_name: String,
-        arguments: Vec<Expr>,
+        arguments: Vec<Argument>,
     ) -> Result<Value> {
         // First, get the struct instance
         let instance = self.get_variable(&struct_name).ok_or_else(|| {
@@ -598,7 +702,12 @@ impl Interpreter {
 
                 // Evaluate and bind remaining arguments
                 for (i, arg) in arguments.into_iter().enumerate() {
-                    let value = self.evaluate_expression(arg)?;
+                    // Extract and evaluate the expression from the Argument
+                    let expr = match arg {
+                        Argument::Positional(expr) => expr,
+                        Argument::Named { name: _, value } => value,
+                    };
+                    let value = self.evaluate_expression(expr)?;
                     let value = value.unwrap_return();
                     // Start from index 1 to skip self
                     self.current_scope_mut().set(params[i + 1].0.clone(), value);

@@ -14,6 +14,12 @@ pub enum Literal {
 //     Pair(Literal, Literal),
 // }
 
+#[derive(Debug, Clone)]
+pub enum Argument {
+    Positional(Expr),
+    Named { name: String, value: Expr },
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeAnnotation {
     Basic(String),
@@ -41,7 +47,7 @@ pub enum Expr {
     },
     FunctionCall {
         name: String,
-        arguments: Vec<Expr>,
+        arguments: Vec<Argument>,
     },
     Lambda {
         params: Vec<(String, Option<TypeAnnotation>)>,
@@ -51,7 +57,13 @@ pub enum Expr {
     MethodCall {
         object: Box<Expr>,
         method: String,
-        arguments: Vec<Expr>,
+        arguments: Vec<Argument>,
+    },
+
+    PropertyAccess {
+        // Variant for property access without method call
+        object: Box<Expr>,
+        property: String,
     },
     StructCreate {
         struct_name: String,
