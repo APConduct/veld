@@ -1,5 +1,5 @@
 use crate::ast::{
-    Argument, BinaryOperator, Expr, Literal, Statement, StructMethod, TypeAnnotation,
+    Argument, BinaryOperator, Expr, Literal, Statement, TypeAnnotation,
 };
 use crate::error::{Result, VeldError};
 use std::collections::HashMap;

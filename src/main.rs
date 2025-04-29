@@ -14,23 +14,22 @@ fn main() -> Result<()> {
 
     // Updated test case using function calls instead of method syntax
     let source = r#"
-    fn add(a: i32, b: i32) -> i32 = a + b;
+        fn add(a: i32, b: i32) -> i32 = a + b;
 
-    struct Point
-        x: f64,
-        y: f64,
-    end
+        struct Point
+            x: f64,
+            y: f64,
+        end
 
-    impl Point
-        fn distance(self) -> f64 = 0.0
-    end
+        impl Point
+            fn distance(self) -> f64 = 0.0
+        end
 
-    -- Register built-in standard library functions (will be handled specially in interpreter)
-    fn sqrt(x: f64) -> f64 = x *^ 0.5; -- example pow syntax for square root
+        -- Example function using exponentiation operator
+        fn sqrt(x: f64) -> f64 = x *^ 0.5;
 
-    -- Using a standard library function instead of method syntax
-    fn test() -> f64 = sqrt(1.0 + 2.0);
-
+        -- Test function call
+        fn test() -> f64 = sqrt(1.0 + 2.0);
 
     "#;
 
