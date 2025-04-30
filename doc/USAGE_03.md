@@ -75,7 +75,7 @@ local add, subtract = math.add, math.subtract
     }
 end
 
-// Procedural macro definition (no tilde)
+-- Procedural macro definition (no tilde)
 @comptime fn derive(trait_name) =
     match trait_name
         "Debug" => generate_debug_impl(),
@@ -83,7 +83,7 @@ end
     end
 end
 
-// Usage examples
+-- Usage examples
 let numbers = vec~(1, 2, 3);  // Declarative macro with tilde
 
 @derive(Debug, Clone)         // Procedural macro as attribute
