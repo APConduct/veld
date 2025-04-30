@@ -60,7 +60,7 @@ fn run_file(filename: &str) -> Result<()> {
     match parser.parse() {
         Ok(stmts) => {
             // Run the interpreter if parsing succeeds
-            let mut interpreter = Interpreter::new();
+            let mut interpreter = Interpreter::new(".");
             match interpreter.interpret(stmts) {
                 Ok(result) => println!("Program result: {:?}", result),
                 Err(e) => println!("Runtime error: {:?}", e),

@@ -12,7 +12,7 @@ pub struct Repl {
 impl Repl {
     pub fn new() -> Self {
         Self {
-            interpreter: Interpreter::new(),
+            interpreter: Interpreter::new("."),
             history: Vec::new(),
         }
     }

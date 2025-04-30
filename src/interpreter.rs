@@ -1,6 +1,8 @@
-use crate::ast::{Argument, BinaryOperator, Expr, Literal, Statement, TypeAnnotation};
+use crate::ast::{Argument, BinaryOperator, Expr, ImportItem, Literal, Statement, TypeAnnotation};
 use crate::error::{Result, VeldError};
 use std::collections::HashMap;
+use std::path::Path;
+use crate::module::ModuleManager;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -56,14 +58,20 @@ pub struct Interpreter {
     scopes: Vec<Scope>,
     structs: HashMap<String, Vec<(String, TypeAnnotation)>>, // struct name -> fields
     struct_methods: HashMap<String, HashMap<String, Value>>, // struct name -> (method name -> method)
+    module_manager: ModuleManager,
+    current_module: String,
+    imported_modules: HashMap<String, String>, // alias -> module name
 }
 
 impl Interpreter {
-    pub fn new() -> Self {
+    pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
         Self {
             scopes: vec![Scope::new()],
             structs: HashMap::new(),
             struct_methods: HashMap::new(),
+            module_manager: ModuleManager::new(root_dir),
+            current_module: "main".to_string(),
+            imported_modules: Default::default(),
         }
     }
 
