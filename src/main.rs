@@ -3,7 +3,9 @@ mod error;
 mod interpreter;
 mod lexer;
 mod parser;
-mod repl;  // Add this line
+mod repl;
+mod module;
+// Add this line
 
 use crate::interpreter::Interpreter;
 use crate::lexer::Lexer;
