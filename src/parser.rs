@@ -1,10 +1,8 @@
 
-use crate::ast::{
-    Argument, BinaryOperator, Expr, KindMethod, Literal, MethodImpl, Statement, StructMethod,
-    TypeAnnotation,
-};
+use crate::ast::{Argument, BinaryOperator, Expr, ImportItem, KindMethod, Literal, MethodImpl, Statement, StructMethod, TypeAnnotation};
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
+use crate::module::Module;
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -54,7 +52,23 @@ impl Parser {
     }
 
     pub fn declaration(&mut self) -> Result<Statement> {
-        if self.match_token(&[Token::Fn]) {
+        if self.match_token(&[Token::Mod]) { 
+            self.module_declaration()
+        } else if self.match_token(&[Token::Import]) {
+            self.import_declaration()
+        } else if self.match_token(&[Token::Pub]) {
+            // Handle public declarations
+            if self.match_token(&[Token::Fn]) {
+                self.function_declaration_with_visibility(true)
+            } else if self.match_token(&[Token::Struct]) {
+                self.struct_declaration_with_visibility(true)
+            } else { 
+                Err(VeldError::ParserError(
+                    "Expected function or struct declaration after 'pub'".to_string(),
+                ))
+            }
+        }
+        else if self.match_token(&[Token::Fn]) {
             self.function_declaration()
         } else if self.match_token(&[Token::Proc]) {
             self.proc_declaration()
@@ -69,6 +83,220 @@ impl Parser {
         } else {
             self.statement()
         }
+    }
+    
+    fn function_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let name = self.consume_identifier("Expected function name")?;
+
+        println!("Function declaration: Starting...");
+        let name = self.consume_identifier("Expected function name")?;
+        println!("Function declaration: Name = {}", name);
+
+        self.consume(&Token::LParen, "Expected '(' after function name")?;
+
+        let mut params = Vec::new();
+        if !self.check(&Token::RParen) {
+            loop {
+                let param_name = self.consume_identifier("Expected parameter name")?;
+                println!("Function declaration: Param name = {}", param_name);
+                self.consume(&Token::Colon, "Expected ':' after parameter name")?;
+                let param_type = self.parse_type()?;
+                params.push((param_name, param_type));
+
+                if !self.match_token(&[Token::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(&Token::RParen, "Expected ')' after parameters")?;
+
+        let return_type = if self.match_token(&[Token::Arrow]) {
+            println!("Function declaration: Parsing return type");
+            self.parse_type()?
+        } else {
+            println!("Function declaration: No return type specified, using Unit");
+            TypeAnnotation::Unit
+        };
+
+        // Check for function prototype (ends with semicolon)
+        if self.match_token(&[Token::Semicolon]) {
+            println!("Function declaration: Function prototype (no body)");
+            return Ok(Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type: return_type.clone(),
+                body: Vec::new(), // Empty body for prototype
+                is_proc: return_type == TypeAnnotation::Unit,
+                is_public,
+            });
+        }
+
+        // Parse function with implementation
+        self.consume(&Token::Equals, "Expected '=' after function signature")?;
+        println!("Function declaration: Found equals sign, parsing body");
+
+        // Check for empty function
+        if self.check(&Token::End) {
+            self.consume(&Token::End, "Expected 'end' after function body")?;
+            println!("Function declaration: Empty function body");
+            return Ok(Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type: return_type.clone(),
+                body: Vec::new(),
+                is_proc: return_type == TypeAnnotation::Unit,
+                is_public,
+            });
+        }
+
+        // Try parsing a single expression for single-line function
+        if !self.check_statement_start() {
+            println!("Function declaration: Single-line function, parsing expression");
+            println!(
+                "Function declaration: Current token context: {}",
+                self.debug_token_context()
+            );
+
+            // This is where we need to parse expressions like (1.0 + 2.0).sqrt()
+            let expr = self.expression()?;
+            println!("Function declaration: Parsed expression: {:?}", expr);
+
+            // For single-line functions, consume semicolon if present but don't require it
+            if self.match_token(&[Token::Semicolon]) {
+                println!("Function declaration: Found semicolon after expression");
+            }
+
+            // Is this at the end or followed by a new declaration?
+            if self.is_at_end() || self.check_declaration_start() {
+                println!("Function declaration: End of single-line function");
+                return Ok(Statement::FunctionDeclaration {
+                    name,
+                    params,
+                    return_type: return_type.clone(),
+                    body: vec![Statement::Return(Some(expr))],
+                    is_proc: return_type == TypeAnnotation::Unit,
+                    is_public,
+                });
+            }
+
+            // Otherwise, it's a multi-line function starting with an expression
+            println!("Function declaration: Starting multi-line function body");
+            let mut body = vec![Statement::ExprStatement(expr)];
+
+            // Parse the rest of the multi-line body
+            while !self.check(&Token::End) && !self.is_at_end() {
+                body.push(self.statement()?);
+            }
+
+            self.consume(&Token::End, "Expected 'end' after function body")?;
+            return Ok(Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type: return_type.clone(),
+                body,
+                is_proc: return_type == TypeAnnotation::Unit,
+                is_public,
+            });
+        }
+
+        // Multi-line function with statements
+        println!("Function declaration: Parsing multi-line function body");
+        let mut body = Vec::new();
+        while !self.check(&Token::End) && !self.is_at_end() {
+            body.push(self.statement()?);
+        }
+
+        self.consume(&Token::End, "Expected 'end' after function body")?;
+
+        println!("Function declaration: Completed");
+        Ok(Statement::FunctionDeclaration {
+            name,
+            params,
+            return_type: return_type.clone(),
+            body,
+            is_proc: return_type == TypeAnnotation::Unit,
+            is_public,
+        })
+
+    }
+    
+    fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        println!("Struct declaration: Starting...");
+        let name = self.consume_identifier("Expected struct name")?;
+        println!("Struct declaration: Name = {}", name);
+
+        let mut fields = Vec::new();
+        let mut methods = Vec::new();
+
+        // Check for parentheses style
+        if self.match_token(&[Token::LParen]) {
+            println!("Struct declaration: Parentheses style");
+            if !self.check(&Token::RParen) {
+                loop {
+                    let field_name = self.consume_identifier("Expected field name")?;
+                    println!("Struct declaration: Field name = {}", field_name);
+                    self.consume(&Token::Colon, "Expected ':' after field name")?;
+                    let field_type = self.parse_type()?;
+                    fields.push((field_name, field_type));
+
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+
+            self.consume(&Token::RParen, "Expected ')' after struct fields")?;
+            self.consume(&Token::Semicolon, "Expected ';' after struct declaration")?;
+        } else {
+            // Block style struct declaration
+            println!("Struct declaration: Block style");
+            while !self.check(&Token::End) && !self.is_at_end() {
+                println!(
+                    "Struct declaration: Parsing field or method, current token: {:?}",
+                    self.tokens.get(self.current)
+                );
+
+                if self.match_token(&[Token::Fn]) {
+                    println!("Struct declaration: Found method");
+                    methods.push(self.parse_struct_method(name.clone())?);
+                } else if self.match_token(&[Token::Impl]) {
+                    println!("Struct declaration: Found impl block");
+                    while !self.check(&Token::End) && !self.is_at_end() {
+                        if self.match_token(&[Token::Fn]) {
+                            methods.push(self.parse_struct_method(name.clone())?);
+                        } else {
+                            return Err(VeldError::ParserError(
+                                "Expected method definition".to_string(),
+                            ));
+                        }
+                    }
+                    break;
+                } else {
+                    // Parse field
+                    let field_name = self.consume_identifier("Expected field name")?;
+                    println!("Struct declaration: Field name = {}", field_name);
+                    self.consume(&Token::Colon, "Expected ':' after field name")?;
+                    let field_type = self.parse_type()?;
+                    fields.push((field_name, field_type));
+
+                    // Optional comma after field
+                    self.match_token(&[Token::Comma]);
+                }
+            }
+
+            println!("Struct declaration: End of fields and methods, expecting 'end'");
+            self.consume(&Token::End, "Expected 'end' after struct definition")?;
+        }
+
+        println!("Struct declaration: Completed");
+        Ok(Statement::StructDeclaration {
+            name,
+            fields,
+            methods,
+            is_public,
+        })
+
     }
 
     fn function_declaration(&mut self) -> Result<Statement> {
@@ -112,6 +340,7 @@ impl Parser {
                 return_type: return_type.clone(),
                 body: Vec::new(), // Empty body for prototype
                 is_proc: return_type == TypeAnnotation::Unit,
+                is_public: false, // Default visibility
             });
         }
 
@@ -129,6 +358,7 @@ impl Parser {
                 return_type: return_type.clone(),
                 body: Vec::new(),
                 is_proc: return_type == TypeAnnotation::Unit,
+                is_public: false, // Default visibility
             });
         }
 
@@ -158,6 +388,7 @@ impl Parser {
                     return_type: return_type.clone(),
                     body: vec![Statement::Return(Some(expr))],
                     is_proc: return_type == TypeAnnotation::Unit,
+                    is_public: false, // Default visibility
                 });
             }
 
@@ -177,6 +408,7 @@ impl Parser {
                 return_type: return_type.clone(),
                 body,
                 is_proc: return_type == TypeAnnotation::Unit,
+                is_public: false, // Default visibility
             });
         }
 
@@ -196,6 +428,7 @@ impl Parser {
             return_type: return_type.clone(),
             body,
             is_proc: return_type == TypeAnnotation::Unit,
+            is_public: false, // Default visibility
         })
     }
 
@@ -362,6 +595,7 @@ impl Parser {
             name,
             fields,
             methods,
+            is_public: false, // Default visibility
         })
     }
 
@@ -517,6 +751,8 @@ impl Parser {
                 params,
                 return_type,
                 default_impl: None,
+                is_public: false, // Default visibility
+                
             });
         } else {
             while !self.check(&Token::End) && !self.is_at_end() {
@@ -572,6 +808,7 @@ impl Parser {
                     params,
                     return_type,
                     default_impl,
+                     is_public: false, // Default visibility
                 });
 
                 self.match_token(&[Token::Comma]);
@@ -579,7 +816,11 @@ impl Parser {
 
             self.consume(&Token::End, "Expected 'end' after kind methods")?;
         }
-        Ok(Statement::KindDeclaration { name, methods })
+        Ok(Statement::KindDeclaration {
+            name, 
+            methods,
+            is_public: false, // Default visibility
+        })
     }
 
     fn implementation_declaration(&mut self) -> Result<Statement> {
@@ -681,6 +922,7 @@ impl Parser {
             params,
             return_type,
             body: vec![Statement::Return(Some(expr))],
+            is_public: false, // Default visibility
         })
     }
 
@@ -1410,5 +1652,111 @@ impl Parser {
             }
         }
         context
+    }
+    
+    fn module_declaration(&mut self) -> Result<Statement> {
+        let name = self.consume_identifier("Expected module name after 'mod'")?;
+        
+        if self.match_token(&[Token::Semicolon]){
+            return Ok(Statement::ModuleDeclaration {
+                name,
+                body: None,
+                is_public: false, // Default visibility
+            });
+        }
+        
+        let mut body = Vec::new();
+
+        while !self.check(&Token::End) && !self.is_at_end() {
+            body.push(self.declaration()?);
+        }
+        
+        self.consume(&Token::End, "Expected 'end' after module body")?;
+        
+        Ok(Statement::ModuleDeclaration {
+            name,
+            body: Some(body),
+            is_public: false, // Default visibility
+        })
+    }
+    
+    fn import_declaration(&mut self) -> Result<Statement> {
+        // parse import path
+        let mut path = Vec::new();
+        
+        // First component is required
+        path.push(self.consume_identifier("Expected module name after 'import'")?);
+        
+        // Parse additional path components if present
+        while self.match_token(&[Token::Dot]) {
+            if self.match_token(&[Token::Star]){
+                // We got a wildcard import
+                let items = vec![ImportItem::All];
+                
+                // Check for alias (math.* as m)
+                let alias = if self.match_token(&[Token::As]){
+                    Some(self.consume_identifier("Expected alias after 'as'")?)
+                } else {
+                    None
+                };
+                
+                self.consume(&Token::Semicolon, "Expected ';' after import")?;
+                
+                return Ok(Statement::ImportDeclaration {
+                    path,
+                    items,
+                    alias,
+                    is_public: false, // Default visibility
+                });
+            } else { 
+                // Add the next path component
+                path.push(self.consume_identifier("Expected identifier after '.'")?);
+            }
+        }
+        
+        // Check for selective imports with braces: import math.{sin, cos}
+        let items = if self.match_token(&[Token::LBrace]){
+            let mut items = Vec::new();
+
+            loop {
+                let name = self.consume_identifier("Expected import item name")?;
+                
+                // Check for alias: sqrt as square_root
+                let item = if self.match_token(&[Token::As]) {
+                    let alias = self.consume_identifier("Expected alias after 'as'")?;
+                    ImportItem::Named(name)
+                } else {
+                    ImportItem::Named(name)
+                };
+                items.push(item);
+                
+                if !self.match_token(&[Token::Comma]) {
+                    break;
+                }
+                
+                // Allow trailing comma
+                if self.check(&Token::RBrace) {
+                    break;
+                }
+            }
+            self.consume(&Token::RBrace, "Expected '}' after import item(s)")?;
+            items
+        } else { 
+            // Simple import of the whole module
+            Vec::new()
+        };
+        
+        let alias = if self.match_token(&[Token::As]) {
+            Some(self.consume_identifier("Expected alias after 'as'")?)
+        } else {
+            None
+        };
+        self.consume(&Token::Semicolon, "Expected ';' after import statement")?;
+        Ok(Statement::ImportDeclaration {
+            path,
+            items,
+            alias,
+            is_public: false, // Default visibility
+        })
     }
 }

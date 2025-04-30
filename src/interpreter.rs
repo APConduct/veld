@@ -124,6 +124,7 @@ impl Interpreter {
                 name,
                 fields,
                 methods,
+                is_public: _,
             } => {
                 // Register the struct type
                 self.structs.insert(name.clone(), fields);

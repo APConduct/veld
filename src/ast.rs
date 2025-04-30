@@ -105,6 +105,7 @@ pub enum Statement {
         return_type: TypeAnnotation,
         body: Vec<Statement>,
         is_proc: bool, // Mark as procedure (returns void/unit)
+        is_public: bool, // New field to track visibility
     },
     ProcDeclaration {
         name: String,
@@ -136,10 +137,12 @@ pub enum Statement {
         name: String,
         fields: Vec<(String, TypeAnnotation)>,
         methods: Vec<StructMethod>,
+        is_public: bool, // New field to track visibility
     },
     KindDeclaration {
         name: String,
         methods: Vec<KindMethod>,
+        is_public: bool, // New field to track visibility
     },
     Implementation {
         type_name: String,
@@ -151,12 +154,14 @@ pub enum Statement {
         name: String,
         // Body is optional - might just be a declaration referencing another file
         body: Option<Vec<Statement>>,
+        is_public: bool,
     },
 
     ImportDeclaration {
         path: Vec<String>, // Module path components (e.g., "math.vector")
         items: Vec<ImportItem>,
         alias: Option<String>, // For "import math as m"
+        is_public: bool, // to track visibility
     },
 }
 
@@ -168,6 +173,7 @@ pub enum ImportItem {
         // import math.{Vector as Vec}
         name: String,
         alias: String,
+        
     },
 }
 
@@ -187,6 +193,7 @@ pub struct KindMethod {
     pub params: Vec<(String, TypeAnnotation)>,
     pub return_type: TypeAnnotation,
     pub default_impl: Option<Vec<Statement>>,
+    pub is_public: bool, //   To track visibility
 }
 
 #[derive(Debug, Clone)]
@@ -195,4 +202,5 @@ pub struct MethodImpl {
     pub params: Vec<(String, TypeAnnotation)>,
     pub return_type: TypeAnnotation,
     pub body: Vec<Statement>,
+    pub is_public: bool, // New field to track visibility
 }
