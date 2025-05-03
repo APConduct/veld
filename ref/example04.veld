@@ -1,0 +1,26 @@
+-- This example shows how to use the pipeline operator to chain operations together.
+-- The pipeline operator allows you to pass the result of one operation as the input to the next operation.
+-- The pipeline operator is represented by the '|' character followed by the '>' character.
+-- The pipeline operator can be used to chain operations together in a more readable way.
+
+fn add(x: i32, y: i32) -> i32
+    x + y
+end
+
+fn multiply(x: i32, y: i32) -> i32
+    x * y
+end
+
+fn pipeline_example() -> i32
+    let result = 2
+        |> add(3)      -- 2 + 3 = 5
+        |> multiply(4) -- 5 * 4 = 20
+        |> add(10);    -- 20 + 10 = 30
+
+    result  -- returns 30
+end
+
+-- The pipeline operator allows you to write code that is more readable and easier to understand.
+-- the normal way to write this code would be to use nested function calls, like this:
+-- let result = add(multiply(add(2, 3), 4), 10);
+
