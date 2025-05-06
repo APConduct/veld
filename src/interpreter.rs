@@ -474,23 +474,70 @@ impl Interpreter {
         // Create array prototype with methods
         let mut array_methods = HashMap::new();
         
-        // push method
-        array_methods.insert("push".to_string(), Value::Function { 
+        // Get the last element of the array
+        array_methods.insert("last".to_string(), Value::Function {
             params: vec![
                 ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-                ("element".to_string(), TypeAnnotation::Basic("any".to_string())), 
             ],
-            body: vec![], // Built-in method with custom implementation
-            return_type: TypeAnnotation::Unit,
+            body: vec![],  // Built-in method with custom implementation
+            return_type: TypeAnnotation::Basic("any".to_string()),
         });
         
-        // pop method
-        array_methods.insert("pop".to_string(), Value::Function {
+        // Get the first element of the array
+        array_methods.insert("first".to_string(), Value::Function {
             params: vec![
                 ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
             ],
-            body: vec![], // Built-in method with custom implementation
+            body: vec![],
             return_type: TypeAnnotation::Basic("any".to_string()),
+        });
+        
+        // Return new array without the last element
+        array_methods.insert("init".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+            ],
+            body: vec![],
+            return_type: TypeAnnotation::Basic("Array".to_string()),
+        });
+        
+        // Return new array without the first element
+        array_methods.insert("tail".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+            ],
+            body: vec![],
+            return_type: TypeAnnotation::Basic("Array".to_string()),
+        });
+
+        // Return new array with value added at the end
+        array_methods.insert("with".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+                ("value".to_string(), TypeAnnotation::Basic("any".to_string())),
+            ],
+            body: vec![],
+            return_type: TypeAnnotation::Basic("Array".to_string()),
+        });
+        
+        // Take the first n elements of the array
+        array_methods.insert("take".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+                ("n".to_string(), TypeAnnotation::Basic("i32".to_string())),
+            ],
+            body: vec![],
+            return_type: TypeAnnotation::Basic("Array".to_string()),
+        });
+        
+        // Drop the first n elements of the array
+        array_methods.insert("drop".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+                ("n".to_string(), TypeAnnotation::Basic("i32".to_string())),
+            ],
+            body: vec![],
+            return_type: TypeAnnotation::Basic("Array".to_string()),
         });
         
         // length method
@@ -511,15 +558,6 @@ impl Interpreter {
             body: vec![], // Built-in method with custom implementation
             return_type: TypeAnnotation::Basic("Array".to_string()),
         });
-        
-        // array_methods.insert("map".to_string(), Value::Function {
-        //     params: vec![
-        //         ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-        //         ("callback".to_string(), TypeAnnotation::Basic("function".to_string())),
-        //     ],
-        //     body: vec![], // Built-in method with custom implementation
-        //     return_type: TypeAnnotation::Basic("Array".to_string()),
-        // });
 
         // filter method
         array_methods.insert("filter".to_string(), Value::Function {
@@ -533,15 +571,6 @@ impl Interpreter {
         
         // Store methods in struct_methods HashMap with a special key
         self.struct_methods.insert("Array".to_string(), array_methods);
-        
-        // array_methods.insert("filter".to_string(), Value::Function {
-        //     params: vec![
-        //         ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-        //         ("callback".to_string(), TypeAnnotation::Basic("function".to_string())),
-        //     ],
-        //     body: vec![], // Built-in method with custom implementation
-        //     return_type: TypeAnnotation::Basic("Array".to_string()),
-        // });
     }
 
     // Helper method to call functions with pre-evaluated arguments
@@ -607,21 +636,23 @@ impl Interpreter {
                 // Handle array properties
                 match property {
                     "len" => Ok(Value::Integer(elements.len() as i64)),
-                    "push" | "pop" | "map" | "filter" => {
-                        // Return a special function that, when called, 
-                        // will invoke the corresponding array method
+                    "last" | "first" | "init" | "tail" | "with" | "take" | "drop" | "map" | "filter" => {
+                        // Return a special function that, when called, will invoke the corresponding array method
                         Ok(Value::Function {
                             params: vec![
                                 ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
                                 ("arg".to_string(), TypeAnnotation::Unit),
                             ],
-                            body: vec![], // Empty body for built-in methods
+                            body: vec![],  // Empty body for built-in methods
                             return_type: TypeAnnotation::Basic("any".to_string()),
                         })
                     },
-                    _ => Err(VeldError::RuntimeError(format!("Property '{}' not found", property))),
+                    _ => Err(VeldError::RuntimeError(format!(
+                        "Property '{}' not found on array",
+                        property
+                    )))
                 }
-            }
+            },    
             _ => Err(VeldError::RuntimeError("Cannot access property on non-struct value".to_string())),
         }
     }
@@ -635,39 +666,160 @@ impl Interpreter {
         // Special handling for array methods
         if let Value::Array(elements) = &object {
             match method_name.as_str() {
-                "push" => {
-                    if args.len() != 1 {
-                        return Err(VeldError::RuntimeError(
-                            "push() takes exactly one argument".to_string(),
-                        ));
-                    }
-                    
-                    // Create a mutable clone of the array
-                    let mut new_elements = elements.clone();
-                    new_elements.push(args[0].clone());
-                    
-                    return Ok(Value::Array(new_elements));
-                },
-                "pop" => {
+                // "push" => {
+                //     if args.len() != 1 {
+                //         return Err(VeldError::RuntimeError(
+                //             "push() takes exactly one argument".to_string(),
+                //         ));
+                //     }
+                //     
+                //     // Create a mutable clone of the array
+                //     let mut new_elements = elements.clone();
+                //     new_elements.push(args[0].clone());
+                //     
+                //     return Ok(Value::Array(new_elements));
+                // },
+                // "pop" => {
+                //     if !args.is_empty() {
+                //         return Err(VeldError::RuntimeError(
+                //             "pop() takes no arguments".to_string(),
+                //         ));
+                //     }
+                //     
+                //     // Check if the array is empty
+                //     return if elements.is_empty() {
+                //         Err(VeldError::RuntimeError(
+                //             "pop() called on an empty array".to_string(),
+                //         ))
+                //     } else {
+                //         // Create a mutable clone and pop the last element
+                //         let mut new_elements = elements.clone();
+                //         let popped = new_elements.pop().unwrap();
+                // 
+                //         // Return the modified array as the parent Value
+                //         // and the popped value as the return value
+                //         Ok(popped)
+                //     }
+                // },
+
+                "last" => {
                     if !args.is_empty() {
                         return Err(VeldError::RuntimeError(
-                            "pop() takes no arguments".to_string(),
+                            "last() takes no arguments".to_string(),
                         ));
                     }
-                    
-                    // Check if the array is empty
-                    return if elements.is_empty() {
-                        Err(VeldError::RuntimeError(
-                            "pop() called on an empty array".to_string(),
-                        ))
-                    } else {
-                        // Create a mutable clone and pop the last element
-                        let mut new_elements = elements.clone();
-                        let popped = new_elements.pop().unwrap();
 
-                        // Return the modified array as the parent Value
-                        // and the popped value as the return value
-                        Ok(popped)
+                    if elements.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "Cannot get last element of empty array".to_string(),
+                        ));
+                    }
+
+                    return Ok(elements.last().unwrap().clone());
+                },
+
+                "first" => {
+                    if !args.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "first() takes no arguments".to_string(),
+                        ));
+                    }
+
+                    if elements.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "Cannot get first element of empty array".to_string(),
+                        ));
+                    }
+
+                    return Ok(elements.first().unwrap().clone());
+                },
+                "init" => {
+                    if !args.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "init() takes no arguments".to_string(),
+                        ));
+                    }
+
+                    if elements.is_empty() {
+                        return Ok(Value::Array(vec![]));
+                    }
+
+                    let mut new_elements = elements.clone();
+                    new_elements.pop();
+                    return Ok(Value::Array(new_elements));
+                },
+
+                "tail" => {
+                    if !args.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "tail() takes no arguments".to_string(),
+                        ));
+                    }
+
+                    if elements.is_empty() {
+                        return Ok(Value::Array(vec![]));
+                    }
+
+                    let new_elements = elements.iter().skip(1).cloned().collect();
+                    return Ok(Value::Array(new_elements));
+                },
+                "with" => {
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "with() takes exactly one argument".to_string(),
+                        ));
+                    }
+
+                    let mut new_elements = elements.clone();
+                    new_elements.push(args[0].clone());
+                    return Ok(Value::Array(new_elements));
+                },
+
+                "take" => {
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "take() takes exactly one argument".to_string(),
+                        ));
+                    }
+
+                    if let Value::Integer(n) = &args[0] {
+                        if *n < 0 {
+                            return Err(VeldError::RuntimeError(
+                                "take() argument must be non-negative".to_string(),
+                            ));
+                        }
+
+                        let n = *n as usize;
+                        let new_elements = elements.iter().take(n).cloned().collect();
+                        return Ok(Value::Array(new_elements));
+                    } else {
+                        return Err(VeldError::RuntimeError(
+                            "take() argument must be an integer".to_string(),
+                        ));
+                    }
+                },
+
+                "drop" => {
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "drop() takes exactly one argument".to_string(),
+                        ));
+                    }
+
+                    if let Value::Integer(n) = &args[0] {
+                        if *n < 0 {
+                            return Err(VeldError::RuntimeError(
+                                "drop() argument must be non-negative".to_string(),
+                            ));
+                        }
+
+                        let n = *n as usize;
+                        let new_elements = elements.iter().skip(n).cloned().collect();
+                        return Ok(Value::Array(new_elements));
+                    } else {
+                        return Err(VeldError::RuntimeError(
+                            "drop() argument must be an integer".to_string(),
+                        ));
                     }
                 },
                 "len" => {
