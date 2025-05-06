@@ -1491,6 +1491,11 @@ impl Parser {
                 self.advance();
                 Expr::Identifier(name)
             }
+            Token::Fn => {
+                // Handle function expressions: fn(x, y) -> type x + y end
+                self.advance(); // consume 'fn'
+                self.parse_function_expression()?
+            }
             Token::LParen => {
                 self.advance(); // consume '('
 
@@ -1513,6 +1518,52 @@ impl Parser {
         };
 
         Ok(expr)
+    }
+    
+    fn parse_function_expression(&mut self) -> Result<Expr> {
+        // Parse parameters
+        self.consume(&Token::LParen, "Expected '(' after 'fn'")?;
+        
+        let mut params = Vec::new();
+        if !self.check(&Token::RParen) {
+            loop {
+                let param_name = self.consume_identifier("Expected parameter name")?;
+                
+                // Type annotation
+                let type_annotation = if self.match_token(&[Token::Colon]) {
+                    Some(self.parse_type()?)
+                } else { 
+                    None
+                };
+                
+                params.push((param_name, type_annotation));
+                
+                if !self.match_token(&[Token::Comma]) { 
+                    break;
+                }
+            }
+        }
+        self.consume(&Token::RParen, "Expected ')' after parameters")?;
+        
+        // Return type
+        let return_type = if self.match_token(&[Token::Arrow]) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        
+        // Body - expect and expression
+        let body = self.expression()?;
+        
+        // If there's an 'end' token, consume it
+        self.match_token(&[Token::End]);
+        
+        Ok(Expr::Lambda {
+            params,
+            body: Box::new(body),
+            return_type,
+        })
+        
     }
 
     fn peek(&self) -> &Token {

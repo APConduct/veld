@@ -324,11 +324,30 @@ impl Interpreter {
                 self.get_property(obj_value, &property)
             }
 
-            Expr::Lambda { .. } => {
-                // We'll implement lambdas later
-                Err(VeldError::RuntimeError(
-                    "Lambdas not yet implemented".into(),
-                ))
+            Expr::Lambda { params, body, return_type } => {
+                // Convert lambdas to function value
+                let param_list = params.iter().map(|(name, type_opt)| {
+                    // Convert optional type annotations to Concrete type(s)
+                    let type_annotation = if let Some(ty) = type_opt {
+                        ty.clone()
+                    } else { 
+                        // Use placeholder for type inference
+                        TypeAnnotation::Basic("any".to_string())
+                    };
+                    (name.clone(), type_annotation)
+                }).collect();
+                
+                // Create simple statement that returns the body
+                let body_stmt = vec![Statement::Return(Some(*body.clone()))];
+                
+                // Use Unit as default return type if not specified
+                let ret_type = return_type.clone().unwrap_or(TypeAnnotation::Unit);
+                
+                Ok(Value::Function {
+                    params: param_list,
+                    body: body_stmt,
+                    return_type: ret_type,
+                })
             }
 
             Expr::MethodCall {
