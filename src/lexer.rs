@@ -7,8 +7,6 @@ pub enum Token {
     // Keywords
     #[token("fn")]
     Fn,
-    // #[token("mod")]
-    // Mod,
     #[token("proc")]
     Proc,
     #[token("let")]
@@ -43,9 +41,11 @@ pub enum Token {
     #[token("from")]
     From,
 
-    // #[token("and")]
-    // And,
-
+    #[token("var")]
+    Var,
+    #[token("mut")]
+    Mut,
+    
     // Operators
     #[token("=")]
     Equals,
@@ -63,6 +63,17 @@ pub enum Token {
     FatArrow,
     #[token("*^")]
     ExpOp,
+    
+    #[token("%")]
+    Modulo,
+    #[token("+=")]
+    PlusEq,
+    #[token("-=")]
+    MinusEq,
+    #[token("*=")]
+    StarEq,
+    #[token("/=")]
+    SlashEq,
 
     // Comparison operators
     #[token("<=")]

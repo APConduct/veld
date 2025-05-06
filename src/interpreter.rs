@@ -657,6 +657,37 @@ impl Interpreter {
         }
     }
 
+    fn call_function_with_single_argument(&mut self, func: &Value, arg: Value) -> Result<Value> {
+        match func {
+            Value::Function { params, body, .. } => {
+                // Direct invocation of function value
+                self.push_scope();
+
+                // Bind the argument to the first parameter
+                if params.is_empty() {
+                    return Err(VeldError::RuntimeError(
+                        "Function must take at least one parameter".to_string()
+                    ));
+                }
+
+                self.current_scope_mut().set(params[0].0.clone(), arg);
+
+                // Execute function body
+                let mut result = Value::Unit;
+                for stmt in body {
+                    result = self.execute_statement(stmt.clone())?;
+                    if matches!(result, Value::Return(_)) {
+                        break;
+                    }
+                }
+
+                self.pop_scope();
+                Ok(result.unwrap_return())
+            },
+            _ => Err(VeldError::RuntimeError("Cannot call non-function value".to_string())),
+        }
+    }
+
     fn call_method_value(
         &mut self,
         object: Value,
@@ -666,42 +697,6 @@ impl Interpreter {
         // Special handling for array methods
         if let Value::Array(elements) = &object {
             match method_name.as_str() {
-                // "push" => {
-                //     if args.len() != 1 {
-                //         return Err(VeldError::RuntimeError(
-                //             "push() takes exactly one argument".to_string(),
-                //         ));
-                //     }
-                //     
-                //     // Create a mutable clone of the array
-                //     let mut new_elements = elements.clone();
-                //     new_elements.push(args[0].clone());
-                //     
-                //     return Ok(Value::Array(new_elements));
-                // },
-                // "pop" => {
-                //     if !args.is_empty() {
-                //         return Err(VeldError::RuntimeError(
-                //             "pop() takes no arguments".to_string(),
-                //         ));
-                //     }
-                //     
-                //     // Check if the array is empty
-                //     return if elements.is_empty() {
-                //         Err(VeldError::RuntimeError(
-                //             "pop() called on an empty array".to_string(),
-                //         ))
-                //     } else {
-                //         // Create a mutable clone and pop the last element
-                //         let mut new_elements = elements.clone();
-                //         let popped = new_elements.pop().unwrap();
-                // 
-                //         // Return the modified array as the parent Value
-                //         // and the popped value as the return value
-                //         Ok(popped)
-                //     }
-                // },
-
                 "last" => {
                     if !args.is_empty() {
                         return Err(VeldError::RuntimeError(
@@ -834,59 +829,37 @@ impl Interpreter {
                 "map" => {
                     if args.len() != 1 {
                         return Err(VeldError::RuntimeError(
-                            "map() takes exactly one argument".to_string()
+                            "map() takes exactly one function argument".to_string()
                         ));
                     }
-                    
-                    // Get the function to apply
+
                     let func = &args[0];
-                    
-                    // Apply the function to each element
                     let mut result = Vec::new();
+
                     for element in elements {
-                        match func {
-                            Value::Function {..} => {
-                                // Call the function with the element as argument
-                                let arg = vec![element.clone()];
-                                let mapped = self.call_function_with_values("lambda".to_string(), // dummy name
-                                                                            vec![func.clone(), element.clone()]
-                                )?;
-                                result.push(mapped);
-                            },
-                            _ => return Err(VeldError::RuntimeError("map() expects a function argument".to_string())),
-                        }
+                        let mapped = self.call_function_with_single_argument(func, element.clone())?;
+                        result.push(mapped);
                     }
+
                     return Ok(Value::Array(result));
                 },
                 "filter" => {
                     if args.len() != 1 {
                         return Err(VeldError::RuntimeError(
-                            "filter() takes exactly one argument".to_string()
+                            "filter() takes exactly one function argument".to_string()
                         ));
                     }
-                    
-                    // Get the function 
+
                     let func = &args[0];
-                    
-                    // Apply predicate to each element
                     let mut result = Vec::new();
+
                     for element in elements {
-                        match func {
-                            Value::Function {..} => {
-                                // Call the function with element
-                                let filtered = self.call_function_with_values("lambda".to_string(), // dummy name
-                                                                            vec![func.clone(), element.clone()]
-                                
-                                )?;
-                                
-                                // If the result is truthy, keep the element
-                                if self.is_truthy(filtered) { 
-                                    result.push(element.clone());
-                                }
-                            },
-                            _ => return Err(VeldError::RuntimeError("filter() expects a function argument".to_string())),
+                        let pred_result = self.call_function_with_single_argument(func, element.clone())?;
+                        if self.is_truthy(pred_result) {
+                            result.push(element.clone());
                         }
                     }
+
                     return Ok(Value::Array(result));
                 },
                 _ => (), // Fallthrough to regular method handling
