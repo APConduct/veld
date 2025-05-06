@@ -45,7 +45,7 @@ end
 
 ### Multi-line Function Example
 ```veld
-fn complex_function(x: i32) -> i32 =
+fn complex_function(x: i32) -> i32
     let temp = something();
     temp + x
 end
