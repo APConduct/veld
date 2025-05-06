@@ -8,7 +8,7 @@ let b: bool = true;
 let unit_value: () = ();
 
 -- Function returning unit (proc)
-fn log_message(msg: str) -> () =
+fn log_message(msg: str) -> ()
     println~("LOG: {}", msg)
 end
 
@@ -24,7 +24,7 @@ fn add(a: i32, b: i32) -> i32
 end
 
 -- Single-line function
-fn multiply(a: i32, b: i32) -> i32 = a * b;
+fn multiply(a: i32, b: i32) -> i32 a * b;
 
 -- Anonymous function
 let div = fn(a: i32, b: i32) -> i32
@@ -112,12 +112,12 @@ struct Rectangle
     width: f64,
     height: f64,
 impl
-    fn area(self) -> f64 = self.width * self.height;
-    fn scale(self, factor: f64) -> Rectangle =
-        Rectangle{
+    fn area(self) -> f64 self.width * self.height;
+    fn scale(self, factor: f64) -> Rectangle
+        Rectangle(
             width: self.width * factor,
             height: self.height * factor,
-        }
+        )
     end
 end
 
@@ -128,7 +128,7 @@ enum Result<T, E>
 end
 
 -- Using enum
-let result: Result<i32, str> = Ok(42);
+let result: Result<i32, str> Ok(42);
 
 -- Pattern matching on enum
 match result
@@ -157,11 +157,11 @@ struct User
 end
 
 impl User: Serializable
-    fn serialize(self) -> [u8] =
+    fn serialize(self) -> [u8]
         -- implementation
     end
 
-    fn deserialize(data: [u8]) -> User =
+    fn deserialize(data: [u8]) -> User
         -- implementation
     end
 end
@@ -172,11 +172,11 @@ struct Message
     timestamp: u64,
 
     -- Methods defined inline satisfy kind requirements
-    fn serialize(self) -> [u8] =
+    fn serialize(self) -> [u8]
         -- implementation
     end
 
-    fn deserialize(data: [u8]) -> Message =
+    fn deserialize(data: [u8]) -> Message
         -- implementation
     end
 end
@@ -188,19 +188,19 @@ kind Container<T>
     fn size(self) -> usize
 
     -- Default method using other required methods
-    fn is_empty(self) -> bool = self.size() == 0
+    fn is_empty(self) -> bool self.size() == 0;
 end
 
 
 -- Function annotation
 @deprecated("Use new_function instead")
-fn old_function() -> i32 = 42;
+fn old_function() -> i32 42;
 
 -- Implementation optimization hints
 @optimize(inline)
 impl Vector: Numeric
     @simd
-    fn dot_product(self, other: Vector) -> f64 =
+    fn dot_product(self, other: Vector) -> f64
         -- optimized implementation
     end
 end
@@ -215,7 +215,7 @@ end
 
 -- Conditional compilation
 @when(target = "wasm")
-fn web_specific() =
+fn web_specific()
     -- WASM-specific code
 end
 
@@ -228,7 +228,7 @@ end
 
 
 -- Declarative macro
-@~macro vec
+@~macro vec             -- NOT FINALIZED/ EXPERIMENTAL
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
@@ -275,7 +275,7 @@ fn find<T, U>(haystack: T, needle: U) -> bool
 where
     T: Container<U>,
     U: Equatable
-=
+do
     for item in haystack
         if item == needle
             return true
@@ -294,20 +294,20 @@ end
 impl List<T>: Iterator
     type Item = T
 
-    fn next(self) -> Option<T> =
+    fn next(self) -> Option<T>
         -- implementation
     end
 end
 
 -- Multiple constraints
-fn print_all<T>(items: List<T>) where T: ToString + Display =
+fn print_all<T>(items: List<T>) where T: ToString + Display
     for item in items
         println~("{}", item)
     end
 end
 
 -- Using Result enum
-fn divide(a: i32, b: i32) -> Result<i32, str> =
+fn divide(a: i32, b: i32) -> Result<i32, str>
     if b == 0
         Err("Division by zero")
     else
@@ -316,14 +316,14 @@ fn divide(a: i32, b: i32) -> Result<i32, str> =
 end
 
 -- Error propagation with ? operator
-fn calculate() -> Result<i32, str> =
+fn calculate() -> Result<i32, str>
     let x = divide(10, 2)?;  -- Returns error if divide fails
     let y = divide(20, x)?;  -- Same here
     Ok(y + 5)
 end
 
 -- Try-catch like pattern
-fn safe_operation() =
+fn safe_operation()
     try
         risky_function()
     catch e: IOException
@@ -336,19 +336,19 @@ fn safe_operation() =
 end
 
 -- With statement for resource management
-fn process_file(path: str) =
+fn process_file(path: str)
     with file = File.open(path) do
         -- file is automatically closed at end of block
         process(file.read_all())
     end
 end
 
-let handle = spawn fn() =
+let handle = spawn fn()
     perform_work()
 end
 
 -- Awaiting async functions
-fn fetch_data() async -> Data =
+fn fetch_data() async -> Data
     let response = http.get("https://api.example.com/data").await;
     parse_data(response)
 end
@@ -356,7 +356,7 @@ end
 -- Using channels
 let (sender, receiver) = channel::<Message>();
 
-spawn fn() =
+spawn fn()
     for i in 1..10
         sender.send(Message{id: i})
     end
@@ -367,12 +367,12 @@ for msg in receiver
 end
 
 -- Compile-time reflection
-fn generate_fields<T>() -> [str] =
+fn generate_fields<T>() -> [str]
     @reflect(T).fields().map(f => f.name)
 end
 
 -- Runtime type checking
-fn process(value: any) =
+fn process(value: any)
     if value is Serializable
         let bytes = value.serialize()
         -- process bytes
@@ -383,7 +383,7 @@ end
 
 -- Code generation
 @comptime
-fn derive_debug(type_name) =
+fn derive_debug(type_name)
     let type_info = @reflect(type_name);
     -- Generate Debug implementation
 end

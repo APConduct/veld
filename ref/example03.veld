@@ -3,10 +3,10 @@ struct Vector2
     y: f64,
 impl
     fn new() = Vector2(x: 0.0, y: 0.0)
-    fn new(x: f64, y: f64) = Vector2(x: x, y: y)  -- Params can differ from fields
+    fn new(x: f64, y: f64) Vector2(x: x, y: y);  -- Params can differ from fields
 
     -- Other constructors same as before
-    fn from_angle(theta: f64) = Vector2(
+    fn from_angle(theta: f64) Vector2(
         x: theta.cos(),
         y: theta.sin()
     )
@@ -18,9 +18,9 @@ let v3 = Vector2.new(1.0, 2.0)      -- new() can use positional!
 let v4 = Vector2.from_angle(0.5)     -- Other constructors are free
 
 -- Different terminator styles
-fn add(a: i32, b: i32) -> i32 = a + b
-fn sub(a: i32, b: i32) -> i32 = a - b;
-fn mul(a: i32, b: i32) -> i32 = a * b,
+fn add(a: i32, b: i32) -> i32 a + b
+fn sub(a: i32, b: i32) -> i32 a - b;
+fn mul(a: i32, b: i32) -> i32 a * b,
 
 struct Point
     x: f64
@@ -28,7 +28,7 @@ struct Point
     z: f64
 
     fn new(x: f64, y: f64, z: f64) = Point(x, y, z),  -- Parentheses for struct creation
-    fn dist(self) = (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+    fn dist(self) (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
 end
 
 impl Point
@@ -37,7 +37,7 @@ impl Point
         y: self.y * f,
         z: self.z * f
     ),
-    fn normalize(self) = self.scale(1.0 / self.dist())
+    fn normalize(self) self.scale(1.0 / self.dist());
 end
 
 -- Table example

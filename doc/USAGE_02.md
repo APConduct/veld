@@ -11,12 +11,12 @@ let b: bool = true;
 let unit_value: () = ();
 
 -- Function returning unit (proc)
-fn log_message(msg: str) -> () =
+fn log_message(msg: str) -> ()
     println~("LOG: {}", msg)
 end
 
 -- Shorthand for procedures
-proc greet(name: str) =
+proc greet(name: str)
     println~("Hello, {}!", name)
 end
 ```
@@ -25,15 +25,15 @@ end
 
 ```veld
 -- Standard function
-fn add(a: i32, b: i32) -> i32 =
+fn add(a: i32, b: i32) -> i32
     a + b
 end
 
 -- Single-line function
-fn multiply(a: i32, b: i32) -> i32 = a * b;
+fn multiply(a: i32, b: i32) -> i32 a * b;
 
 -- Anonymous function
-let div = fn(a: i32, b: i32) -> i32 =
+let div = fn(a: i32, b: i32) -> i32
     if b == 0
         error~("Division by zero")
     else
@@ -45,12 +45,12 @@ end
 let square = x => x * x;
 
 -- Function with generic parameters
-fn map<T, U>(value: T, f: fn(T) -> U) -> U =
+fn map<T, U>(value: T, f: fn(T) -> U) -> U
     f(value)
 end
 
 -- Function with where clause
-fn sort<T>(list: List<T>) -> List<T> where T: Comparable =
+fn sort<T>(list: List<T>) -> List<T> where T: Comparable
     -- implementation
 end
 ```

@@ -1,7 +1,7 @@
 ```veld
 -- Veld code
 mod math
-pub fn add(a: i32, b: i32) -> i32 = a + b;
+pub fn add(a: i32, b: i32) -> i32 a + b;
 ```
 
 Would compile to Lua as:
@@ -55,10 +55,10 @@ local add, subtract = math.add, math.subtract
    mod platform
 
    @when(target = "web")
-   pub fn get_platform() -> str = "web";
+   pub fn get_platform() -> str "web";
 
    @when(target = "desktop")
-   pub fn get_platform() -> str = "desktop";
+   pub fn get_platform() -> str "desktop";
    ```
 
 
@@ -76,7 +76,7 @@ local add, subtract = math.add, math.subtract
 end
 
 -- Procedural macro definition (no tilde)
-@comptime fn derive(trait_name) =
+@comptime fn derive(trait_name)
     match trait_name
         "Debug" => generate_debug_impl(),
         "Clone" => generate_clone_impl(),

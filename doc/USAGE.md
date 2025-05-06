@@ -87,7 +87,7 @@ end
 
 #### Single-line Kind
 ```veld
-kind Printable = fn print(self) -> str;
+kind Printable = fn print(self) -> str;     -- if a type has a matching function, it implements the kind
 ```
 
 ### Implementations
@@ -137,7 +137,7 @@ enum Direction(North, South, East, West);
 
 #### Basic Declarative Macro
 ```veld
-@~macro println(fmt, args...) =
+@~macro println(fmt, args...) =     -- EXPERIMENTAL/ NOT FINALIZED
     -- macro implementation
     format_and_print(fmt, args)
 end
@@ -145,7 +145,7 @@ end
 
 #### Pattern Matching Macro
 ```veld
-@~macro vec
+@~macro vec                         -- EXPERIMENTAL/ NOT FINALIZED
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
@@ -197,21 +197,21 @@ some_value
 
 #### Basic Generic Function
 ```veld
-fn map<T, U>(value: T, f: fn(T) -> U) -> U =
+fn map<T, U>(value: T, f: fn(T) -> U) -> U
     f(value)
 end
 ```
 
 #### Generic Function with Constraints
 ```veld
-fn sum<T: Number>(list: List<T>) -> T =
+fn sum<T: Number>(list: List<T>) -> T
     list.reduce(a, b => a + b)
 end
 ```
 
 #### Multiple Constraints
 ```veld
-fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool =
+fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool
     println~("{} vs {}", a, b);
     a == b
 end

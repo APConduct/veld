@@ -75,7 +75,7 @@ kind Shape
 end
 
 -- Single-line kind
-kind Printable = fn print(self) -> str;
+kind Printable = fn print(self) -> str;     -- NOT FINALIZED
 
 -- Single-line impl
 impl Point fn distance(self) -> f64 = (self.x * self.x + self.y * self.y).sqrt();
@@ -114,7 +114,7 @@ end
 
 -- Behavior declaration
 impl Square
-    fn area(self) -> f64 =    -- automatically inferred
+    fn area(self) -> f64         -- automatically inferred to be Shape impl (unless specified otherwise with attribute)
         self.side * self.side
     end
 end
@@ -123,7 +123,7 @@ end
 struct Circle
     radius: f64,
 impl
-    fn area(self) -> f64 =    -- automatically inferred to be Shape impl
+    fn area(self) -> f64        -- automatically inferred to be Shape impl (unless specified otherwise with attribute)
         3.14 * self.radius * self.radius
     end
 end
@@ -132,26 +132,26 @@ end
 struct MyType
     value: i32
 impl
-    fn print(self) = println!("{}", self.value);  -- implements Printable
+    fn print(self) = println!("{}", self.value);  -- could implement Printable NOT FINALIZED
     fn area(self) = self.value as f64            -- implements Shape
 end
 
 -- Example of a kind with default implementation
 kind HasVolume
     fn volume(self) -> f64
-    fn is_empty(self) -> bool = self.volume() == 0.0  -- default implementation
+    fn is_empty(self) -> bool self.volume() == 0.0;  -- default implementation
 end
 
 -- Macros -------------------------------------------------------------
 
 -- Declarative macro syntax
-@~macro println(fmt, args...) =
+@~macro println(fmt, args...) =     -- NOT FINALIZED/ EXPERIMENTAL
     -- macro implementation
     format_and_print(fmt, args)
 end
 
 -- Pattern matching macro
-@~macro vec
+@~macro vec                         -- NOT FINALIZED/ EXPERIMENTAL
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
@@ -196,19 +196,19 @@ struct Point
 end
 
 -- SQL query macro
-@~macro sql(query_string) =
+@~macro sql(query_string) =                 -- NOT FINALIZED/ EXPERIMENTAL
     parse_and_validate_sql(query_string)
 end
 
 let users = sql~(SELECT * FROM users WHERE age > 18);
 
 -- Test macro
-@~macro test(name, block) =
+@~macro test(name, block) =                 -- NOT FINALIZED/ EXPERIMENTAL
     register_test(name, block)
 end
 
-test~
-fn test_addition() =
+@test("Addition Test")
+fn test_addition()
     assert~(2 + 2 == 4);
     assert_eq~(add(2, 2), 4);
 end
@@ -224,12 +224,12 @@ end
 fn identity<T>(x: T) -> T = x;
 
 -- Generic function with constraints
-fn sum<T: Number>(list: List<T>) -> T =
+fn sum<T: Number>(list: List<T>) -> T
     list.reduce(a, b => a + b)
 end
 
 -- Multiple constraints
-fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool =
+fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool
     println~("{} vs {}", a, b);
     a == b
 end
@@ -238,7 +238,7 @@ end
 struct SortedList<T: Ord>
     items: List<T>
 impl
-    fn add(self, item: T) =
+    fn add(self, item: T)
         self.items.push(item);
         self.items.sort()
     end
