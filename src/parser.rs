@@ -987,6 +987,13 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<TypeAnnotation> {
+        // Handle array type notation
+        if self.match_token(&[Token::LBracket]) {
+            let element_type = self.parse_type()?;
+            self.consume(&Token::RBracket, "Expected ']' after array element type")?;
+            return Ok(TypeAnnotation::Array(Box::new(element_type)));
+        }
+        
         let base_type = self.consume_identifier("Expected type name")?;
 
         if self.match_token(&[Token::Less]) {
@@ -1406,6 +1413,15 @@ impl Parser {
                         "Internal error: expected identifier before '('".to_string(),
                     ));
                 }
+            } else if self.match_token(&[Token::LBracket]) {
+                // Array indexing with [index]
+                let index = self.expression()?;
+                self.consume(&Token::RBracket, "Expected ']' after array index")?;
+                
+                expr = Expr::IndexAccess {
+                    object: Box::new(expr),
+                    index: Box::new(index),
+                }
             } else {
                 break;
             }
@@ -1509,6 +1525,10 @@ impl Parser {
                     expr
                 }
             }
+            Token::LBracket => {
+                self.advance(); // consume '['
+                self.parse_array_literal()?
+            },
             _ => {
                 return Err(VeldError::ParserError(format!(
                     "Unexpected token: {:?}",
@@ -1900,5 +1920,33 @@ impl Parser {
             alias,
             is_public: false, // Default visibility
         })
+    }
+    fn parse_array_literal(&mut self) -> Result<Expr> {
+        println!("Parsing array literal");
+        let mut elements = Vec::new();
+        
+        // Empty array case
+        if self.check(&Token::RBracket) {
+            self.advance(); // Consume ']'
+            return Ok(Expr::ArrayLiteral(elements));
+        }
+        
+        // Parse array elements
+        loop {
+            elements.push(self.expression()?);
+            
+            if self.match_token(&[Token::Comma]) {
+                continue;
+            }
+            
+            // Allow trailing comma
+            if self.check(&Token::RBracket) {
+                break;
+            }
+        }
+        
+        self.consume(&Token::RBracket, "Expected ']' after array elements")?;
+        
+        Ok(Expr::ArrayLiteral(elements))
     }
 }

@@ -232,7 +232,7 @@ impl Repl {
             }
         }
     }
-    
+
     fn pretty_print_value(&self, value: &crate::interpreter::Value) {
         match value {
             crate::interpreter::Value::Unit => println!("=> ()"),
@@ -241,16 +241,22 @@ impl Repl {
             crate::interpreter::Value::Boolean(b) => println!("=> \x1B[35m{}\x1B[0m", b), // Magenta
             crate::interpreter::Value::String(s) => println!("=> \x1B[32m\"{}\"\x1B[0m", s), // Green
             crate::interpreter::Value::Function { .. } => println!("=> \x1B[36m<function>\x1B[0m"), // Cyan
+            crate::interpreter::Value::Array(elements) => {
+                println!("=> \x1B[34m[{}]\x1B[0m", // Blue for arrays
+                         elements.iter()
+                             .map(|v| self.value_to_string(v))
+                             .collect::<Vec<_>>()
+                             .join(", "));
+            },
             crate::interpreter::Value::Struct { name, fields } => {
                 println!("=> \x1B[36m{}:\x1B[0m {{\n    {}\n}}", name,
                          fields.iter().map(|(k, v)| format!("{}: {}", k, self.value_to_string(v)))
                              .collect::<Vec<_>>().join(",\n    ")
                 );
             }
-            _ => println!("=> {:?}", value), 
+            _ => println!("=> {:?}", value),
         }
     }
-
     fn value_to_string(&self, value: &crate::interpreter::Value) -> String {
         match value {
             crate::interpreter::Value::Integer(n) => format!("{}", n),
@@ -260,10 +266,15 @@ impl Repl {
             crate::interpreter::Value::Unit => "()".to_string(),
             crate::interpreter::Value::Function { .. } => "<function>".to_string(),
             crate::interpreter::Value::Struct { name, .. } => format!("<{}>", name),
+            crate::interpreter::Value::Array(elements) => {
+                let items: Vec<String> = elements.iter()
+                    .map(|e| self.value_to_string(e))
+                    .collect();
+                format!("[{}]", items.join(", "))
+            },
             _ => format!("{:?}", value),
         }
     }
-
     fn show_help(&self) {
         println!("Available commands:");
         println!("  exit, quit - Exit the REPL");

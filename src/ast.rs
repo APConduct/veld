@@ -33,6 +33,7 @@ pub enum TypeAnnotation {
         type_args: Vec<TypeAnnotation>,
         // type_params: Vec<String>,
     },
+    Array(Box<TypeAnnotation>), // Array type, e.g., [i32]
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +69,11 @@ pub enum Expr {
     StructCreate {
         struct_name: String,
         fields: Vec<(String, Expr)>,
+    },
+    ArrayLiteral(Vec<Expr>),
+    IndexAccess {
+        object: Box<Expr>,
+        index: Box<Expr>,
     },
 }
 

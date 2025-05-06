@@ -21,6 +21,7 @@ pub enum Value {
         name: String,
         fields: HashMap<String, Value>,
     },
+    Array(Vec<Value>),
 }
 
 impl Value {
@@ -65,14 +66,18 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
-        Self {
+        let mut interpreter = Self {
             scopes: vec![Scope::new()],
             structs: HashMap::new(),
             struct_methods: HashMap::new(),
             module_manager: ModuleManager::new(root_dir),
             current_module: "main".to_string(),
             imported_modules: Default::default(),
-        }
+        };
+        
+        // Initialize Built-in array methods
+        interpreter.initialize_array_methods();
+        interpreter
     }
 
     pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<Value> {
@@ -357,23 +362,43 @@ impl Interpreter {
             } => {
                 let obj_value = self.evaluate_expression(*object)?;
 
-                // Empty arguments list means it's a property access
-                if arguments.is_empty() {
-                    self.get_property(obj_value, &method)
-                } else {
-                    // Evaluate all arguments
-                    let mut arg_values = Vec::new();
-                    for arg in arguments {
-                        // Extract and evaluate the expression from the Argument
-                        let expr = match arg {
-                            Argument::Positional(expr) => expr,
-                            Argument::Named { name: _, value } => value,
-                        };
-                        let value = self.evaluate_expression(expr)?;
-                        arg_values.push(value);
-                    }
+                // Handle array methods
+                match &obj_value {
+                    Value::Array(_) => {
+                        // Evaluate all arguments
+                        let mut arg_values = Vec::new();
+                        for arg in arguments {
+                            let expr = match arg {
+                                Argument::Positional(expr) => expr,
+                                Argument::Named { name: _, value } => value,
+                            };
+                            let value = self.evaluate_expression(expr)?;
+                            arg_values.push(value);
+                        }
+                        
+                        // Call the array method directly
+                        self.call_method_value(obj_value, method, arg_values)
+                    },
+                    _ => {
+                        // Empty arguments list means it's a property access
+                        if arguments.is_empty() {
+                            self.get_property(obj_value, &method)
+                        } else {
+                            // Evaluate all arguments
+                            let mut arg_values = Vec::new();
+                            for arg in arguments {
+                                // Extract and evaluate the expression from the Argument
+                                let expr = match arg {
+                                    Argument::Positional(expr) => expr,
+                                    Argument::Named { name: _, value } => value,
+                                };
+                                let value = self.evaluate_expression(expr)?;
+                                arg_values.push(value);
+                            }
 
-                    self.call_method_value(obj_value, method, arg_values)
+                            self.call_method_value(obj_value, method, arg_values)
+                        }
+                    }
                 }
             }
 
@@ -402,7 +427,121 @@ impl Interpreter {
                     fields: field_values,
                 })
             }
+            Expr::ArrayLiteral(elements) => {
+                let mut values = Vec::new();
+                for element in elements {
+                    values.push(self.evaluate_expression(element)?.unwrap_return());
+                }
+                Ok(Value::Array(values))
+            },
+            Expr::IndexAccess {object, index} => {
+                let obj_value = self.evaluate_expression(*object)?.unwrap_return();
+                let idx_value = self.evaluate_expression(*index)?.unwrap_return();
+                
+                match obj_value {
+                    Value::Array(elements) => {
+                        match idx_value {
+                            Value::Integer(i) => {
+                                if i < 0 || i >= elements.len() as i64 {
+                                    return Err(VeldError::RuntimeError(format!("Array index out of bounds: {}", i)));
+                                }
+                                Ok(elements[i as usize].clone())
+                            },
+                            _ => Err(VeldError::RuntimeError("Array index must be an integer".to_string())), 
+                        }
+                    },
+                    Value::String(s) => {
+                        // Allow indexing into strings
+                        match idx_value {
+                            Value::Integer(i) => {
+                                if i < 0 || i >= s.len() as i64 {
+                                    return Err(VeldError::RuntimeError(format!("String index out of bounds: {}", i)));
+                                }
+                                
+                                let char_value = s.chars().nth(i as usize).unwrap().to_string();
+                                Ok(Value::String(char_value))
+                            },
+                            _ => Err(VeldError::RuntimeError("String index must be an integer".to_string())),
+                        }
+                    },
+                    _ => Err(VeldError::RuntimeError("Cannot index into non-array value".to_string())),
+                }
+            }
         }
+    }
+    
+    fn initialize_array_methods(&mut self) {
+        // Create array prototype with methods
+        let mut array_methods = HashMap::new();
+        
+        // push method
+        array_methods.insert("push".to_string(), Value::Function { 
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+                ("element".to_string(), TypeAnnotation::Basic("any".to_string())), 
+            ],
+            body: vec![], // Built-in method with custom implementation
+            return_type: TypeAnnotation::Unit,
+        });
+        
+        // pop method
+        array_methods.insert("pop".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+            ],
+            body: vec![], // Built-in method with custom implementation
+            return_type: TypeAnnotation::Basic("any".to_string()),
+        });
+        
+        // length method
+        array_methods.insert("len".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+            ],
+            body: vec![], // Built-in method with custom implementation
+            return_type: TypeAnnotation::Basic("i32".to_string()),
+        });
+        
+        // map method
+        array_methods.insert("map".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+                ("fn".to_string(), TypeAnnotation::Basic("any".to_string())),
+            ],
+            body: vec![], // Built-in method with custom implementation
+            return_type: TypeAnnotation::Basic("Array".to_string()),
+        });
+        
+        // array_methods.insert("map".to_string(), Value::Function {
+        //     params: vec![
+        //         ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+        //         ("callback".to_string(), TypeAnnotation::Basic("function".to_string())),
+        //     ],
+        //     body: vec![], // Built-in method with custom implementation
+        //     return_type: TypeAnnotation::Basic("Array".to_string()),
+        // });
+
+        // filter method
+        array_methods.insert("filter".to_string(), Value::Function {
+            params: vec![
+                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+                ("fn".to_string(), TypeAnnotation::Basic("any".to_string())),
+            ],
+            body: vec![], // Built-in method with custom implementation
+            return_type: TypeAnnotation::Basic("Array".to_string()),
+        });
+        
+        // Store methods in struct_methods HashMap with a special key
+        self.struct_methods.insert("Array".to_string(), array_methods);
+        
+        // array_methods.insert("filter".to_string(), Value::Function {
+        //     params: vec![
+        //         ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+        //         ("callback".to_string(), TypeAnnotation::Basic("function".to_string())),
+        //     ],
+        //     body: vec![], // Built-in method with custom implementation
+        //     return_type: TypeAnnotation::Basic("Array".to_string()),
+        // });
     }
 
     // Helper method to call functions with pre-evaluated arguments
@@ -463,10 +602,27 @@ impl Interpreter {
                         property
                     )))
                 }
+            },
+            Value::Array(elements) => {
+                // Handle array properties
+                match property {
+                    "len" => Ok(Value::Integer(elements.len() as i64)),
+                    "push" | "pop" | "map" | "filter" => {
+                        // Return a special function that, when called, 
+                        // will invoke the corresponding array method
+                        Ok(Value::Function {
+                            params: vec![
+                                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+                                ("arg".to_string(), TypeAnnotation::Unit),
+                            ],
+                            body: vec![], // Empty body for built-in methods
+                            return_type: TypeAnnotation::Basic("any".to_string()),
+                        })
+                    },
+                    _ => Err(VeldError::RuntimeError(format!("Property '{}' not found", property))),
+                }
             }
-            _ => Err(VeldError::RuntimeError(format!(
-                "Cannot access property on non-struct value"
-            ))),
+            _ => Err(VeldError::RuntimeError("Cannot access property on non-struct value".to_string())),
         }
     }
 
@@ -476,6 +632,115 @@ impl Interpreter {
         method_name: String,
         args: Vec<Value>,
     ) -> Result<Value> {
+        // Special handling for array methods
+        if let Value::Array(elements) = &object {
+            match method_name.as_str() {
+                "push" => {
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "push() takes exactly one argument".to_string(),
+                        ));
+                    }
+                    
+                    // Create a mutable clone of the array
+                    let mut new_elements = elements.clone();
+                    new_elements.push(args[0].clone());
+                    
+                    return Ok(Value::Array(new_elements));
+                },
+                "pop" => {
+                    if !args.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "pop() takes no arguments".to_string(),
+                        ));
+                    }
+                    
+                    // Check if the array is empty
+                    return if elements.is_empty() {
+                        Err(VeldError::RuntimeError(
+                            "pop() called on an empty array".to_string(),
+                        ))
+                    } else {
+                        // Create a mutable clone and pop the last element
+                        let mut new_elements = elements.clone();
+                        let popped = new_elements.pop().unwrap();
+
+                        // Return the modified array as the parent Value
+                        // and the popped value as the return value
+                        Ok(popped)
+                    }
+                },
+                "len" => {
+                    if !args.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "len() takes no arguments".to_string(),
+                        ));
+                    }
+                    
+                    return Ok(Value::Integer(elements.len() as i64));
+                },
+                "map" => {
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "map() takes exactly one argument".to_string()
+                        ));
+                    }
+                    
+                    // Get the function to apply
+                    let func = &args[0];
+                    
+                    // Apply the function to each element
+                    let mut result = Vec::new();
+                    for element in elements {
+                        match func {
+                            Value::Function {..} => {
+                                // Call the function with the element as argument
+                                let arg = vec![element.clone()];
+                                let mapped = self.call_function_with_values("lambda".to_string(), // dummy name
+                                                                            vec![func.clone(), element.clone()]
+                                )?;
+                                result.push(mapped);
+                            },
+                            _ => return Err(VeldError::RuntimeError("map() expects a function argument".to_string())),
+                        }
+                    }
+                    return Ok(Value::Array(result));
+                },
+                "filter" => {
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "filter() takes exactly one argument".to_string()
+                        ));
+                    }
+                    
+                    // Get the function 
+                    let func = &args[0];
+                    
+                    // Apply predicate to each element
+                    let mut result = Vec::new();
+                    for element in elements {
+                        match func {
+                            Value::Function {..} => {
+                                // Call the function with element
+                                let filtered = self.call_function_with_values("lambda".to_string(), // dummy name
+                                                                            vec![func.clone(), element.clone()]
+                                
+                                )?;
+                                
+                                // If the result is truthy, keep the element
+                                if self.is_truthy(filtered) { 
+                                    result.push(element.clone());
+                                }
+                            },
+                            _ => return Err(VeldError::RuntimeError("filter() expects a function argument".to_string())),
+                        }
+                    }
+                    return Ok(Value::Array(result));
+                },
+                _ => (), // Fallthrough to regular method handling
+            }
+        }
+        
         // For built-in methods like "sqrt" on numeric values
         match (&object, method_name.as_str()) {
             (Value::Float(f), "sqrt") => {
