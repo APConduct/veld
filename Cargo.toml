@@ -1,4 +1,4 @@
 [workspace]
 members = [
     "repl"
-]
+, "veld-core"]

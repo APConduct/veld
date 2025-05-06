@@ -1,0 +1,9 @@
+[package]
+name = "veld-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+logos = "0.13"  # For lexing
+thiserror = "1.0" # For error handling
+chumsky = { version = "0.9", optional = true } # For parsing (optional, you can use other parsing libraries)
