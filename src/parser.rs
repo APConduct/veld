@@ -12,6 +12,16 @@ pub struct Parser {
 }
 
 impl Parser {
+    pub(crate) fn get_current_position(&self) -> Option<usize> {
+        if self.current < self.tokens.len() {
+            Some(self.current)
+        } else {
+            None
+        }
+    }
+}
+
+impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
@@ -132,8 +142,7 @@ impl Parser {
             });
         }
 
-        // Parse function with implementation
-        self.consume(&Token::Equals, "Expected '=' after function signature")?;
+        self.match_token(&[Token::Equals]);
         println!("Function declaration: Found equals sign, parsing body");
 
         // Check for empty function
@@ -168,7 +177,10 @@ impl Parser {
             }
 
             // Is this at the end or followed by a new declaration?
-            if self.is_at_end() || self.check_declaration_start() {
+            if self.is_at_end() || self.check_declaration_start() || self.check(&Token::End) {
+                // If there is an 'end' token, consume it
+                self.match_token(&[Token::End]);
+                
                 println!("Function declaration: End of single-line function");
                 return Ok(Statement::FunctionDeclaration {
                     name,
@@ -220,6 +232,53 @@ impl Parser {
         })
 
     }
+    
+    fn lamda_expression(&mut self) -> Result<Expr> {
+        println!("Lambda expression Starting...");
+        let mut params = Vec::new();
+        
+        // Check for paren-style parameters (x: i32, y: i32) => x + y
+        if self.match_token(&[Token::LParen]) {
+            if !self.check(&Token::RParen) {
+                loop {
+                    let param_name = self.consume_identifier("Expected parameter name in lambda expression")?;
+                    
+                    // Type annotation optional in lambdas
+                    let type_annotation = if self.match_token(&[Token::Colon]) {
+                        Some(self.parse_type()?)
+                    } else { 
+                        None
+                    };
+                    
+                    params.push((param_name, type_annotation));
+                    
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+            
+            self.consume(&Token::RParen, "Expected ')' after lambda parameters")?;
+        } else { 
+            // Simple form: x => x + 1
+            let param_name = self.consume_identifier("Expected parameter name in lambda expression")?;
+            params.push((param_name, None));
+        }
+        
+        // Lambda operator
+        self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
+        
+        // Lambda body
+        let expr = self.expression()?;
+        let body = Box::new(expr);
+        
+        println!("Lambda expression: Completed");
+        Ok(Expr::Lambda {
+            params,
+            body,
+            return_type: None // Inferred
+        })
+    } 
     
     fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         println!("Struct declaration: Starting...");
@@ -344,9 +403,8 @@ impl Parser {
             });
         }
 
-        // Parse function with implementation
-        self.consume(&Token::Equals, "Expected '=' after function signature")?;
-        println!("Function declaration: Found equals sign, parsing body");
+        self.match_token(&[Token::Equals]);
+        println!("Function declaration: Preparing to parse body");
 
         // Check for empty function
         if self.check(&Token::End) {
@@ -370,7 +428,6 @@ impl Parser {
                 self.debug_token_context()
             );
 
-            // This is where we need to parse expressions like (1.0 + 2.0).sqrt()
             let expr = self.expression()?;
             println!("Function declaration: Parsed expression: {:?}", expr);
 
@@ -380,7 +437,10 @@ impl Parser {
             }
 
             // Is this at the end or followed by a new declaration?
-            if self.is_at_end() || self.check_declaration_start() {
+            if self.is_at_end() || self.check_declaration_start() || self.check(&Token::End) {
+                // If there is an 'end' token, consume it
+                self.match_token(&[Token::End]);
+                
                 println!("Function declaration: End of single-line function");
                 return Ok(Statement::FunctionDeclaration {
                     name,
@@ -1143,12 +1203,43 @@ impl Parser {
                 "Parser recursion limit exceeded".to_string(),
             ));
         }
+        
+        if self.check_lambda_start() { 
+            let result = self.lamda_expression();
+            self.recursive_depth -= 1;
+            return result;
+        }
 
         let result = self.logical();
         self.recursive_depth -= 1;
 
         println!("Expression: Completed with result: {:?}", result);
         result
+    }
+    
+    fn check_lambda_start(&self) -> bool {
+        if self.is_at_end() { 
+            return false;
+        }
+        
+        if let Some(Token::Identifier(_)) = self.tokens.get(self.current) {
+            return  self.tokens.get(self.current + 1) == Some(&Token::FatArrow);
+        }
+        
+        if self.check(&Token::LParen) {
+            // This is a rough estimate, TODO - scan ahead more precisely later
+            let mut i = self.current + 1;
+            while i + 1 < self.tokens.len() {
+                if let Token::FatArrow = self.tokens[i] {
+                    return true;
+                }
+                if let Token::RParen = self.tokens[i] {
+                    return i + 1 < self.tokens.len() && self.tokens[i+1] == Token::FatArrow
+                }
+                i += 1;
+            }
+        }
+        false
     }
 
     fn logical(&mut self) -> Result<Expr> {

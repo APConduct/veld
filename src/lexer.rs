@@ -59,6 +59,8 @@ pub enum Token {
     Slash,
     #[token("->")]
     Arrow,
+    #[token("=>")]
+    FatArrow,
     #[token("*^")]
     ExpOp,
 
