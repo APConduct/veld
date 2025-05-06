@@ -6,7 +6,7 @@ There are multiple equivalent ways to declare functions in Veld:
 
 ### Standard Function Declaration
 ```veld
-fn add(a: i32, b: i32) -> i32 =
+fn add(a: i32, b: i32) -> i32
     a + b
 end
 ```
@@ -20,19 +20,27 @@ end
 
 ### First-class Function with Type Annotation
 ```veld
-let add: fn(i32, i32) -> i32 =
+let add: (i32, i32) -> i32 = fn(a, b)
     a + b
 end
 ```
 
 ### Single-line Function (Demi-lambda)
 ```veld
-fn add(a, b) = a + b;     -- Type inference available
+fn add(a, b) a + b end -- Type inference available
 ```
 
 ### Lambda Function
 ```veld
-let add = a, b => a + b;  -- Type inference available
+let add = a, b => a + b     -- Type inference available, completes after expression
+```
+
+### Multi-line Lambda Function
+```veld
+let add = a, b => do    -- Starts a block to be the expression, finishes with end
+    let result = a + b;
+    result
+end
 ```
 
 ### Multi-line Function Example
@@ -86,13 +94,13 @@ kind Printable = fn print(self) -> str;
 
 #### Single-line Implementation
 ```veld
-impl Point fn distance(self) -> f64 = (self.x * self.x + self.y * self.y).sqrt();
+impl Point fn distance(self) -> f64 (self.x * self.x + self.y * self.y).sqrt();
 ```
 
 #### Multi-line Implementation
 ```veld
 impl Circle
-    fn area(self) -> f64 =
+    fn area(self) -> f64
         3.14 * self.radius * self.radius
     end
 end
