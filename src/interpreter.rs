@@ -2,7 +2,7 @@ use crate::ast::{Argument, BinaryOperator, Expr, ImportItem, Literal, Statement,
 use crate::error::{Result, VeldError};
 use std::collections::HashMap;
 use std::path::Path;
-use crate::module::ModuleManager;
+use crate::module::{ModuleManager, ExportedItem};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -244,6 +244,12 @@ impl Interpreter {
                     Value::Unit // Implicit return of unit
                 };
                 Ok(Value::Return(Box::new(value)))
+            }
+            Statement::ModuleDeclaration {name, body, is_public} => {
+                self.execute_module_declaration(name, body, is_public)
+            }
+            Statement::ImportDeclaration {path, items, alias, is_public} => {
+                self.execute_import_declaration(path, items, alias, is_public)
             }
             // Skip other declarations for now
             _ => Ok(Value::Unit),
@@ -792,5 +798,87 @@ impl Interpreter {
             }
         }
         None
+    }
+    
+    fn execute_module_declaration(&mut self, name: String, body: Option<Vec<Statement>>, is_public: bool) -> Result<Value> {
+        if let Some(statements) = body {
+            // Save current module name
+            let previous_module = self.current_module.clone();
+            self.current_module = name.clone();
+            
+            // Create new scope for module
+            self.push_scope();
+            
+            // Execute all statements in the module
+            let mut result = Value::Unit;
+            for stmt in statements.clone() {
+                result = self.execute_statement(stmt)?;
+                if matches!(result, Value::Return(_)) {
+                    break;
+                }
+            }
+            
+            // Register the module
+            self.module_manager.create_module(&name, statements)?;
+            
+            // Restore previous context
+            self.push_scope();
+            self.current_module = previous_module;
+            
+            Ok(Value::Unit)
+        } else { 
+            // Just a module declaration referencing a file
+            // Try to load the module from filesystem
+            self.module_manager.load_module(&[name])?;
+            Ok(Value::Unit)
+        }
+    }
+    
+    fn execute_import_declaration(&mut self, path: Vec<String>, items: Vec<ImportItem>, alias: Option<String>, is_public: bool) -> Result<Value> {
+        let module_path_str = path.join(".");
+        
+        // First, ensure the module is loaded
+        self.module_manager.load_module(&path)?;
+        
+        // Process imports based on alias or direct imports
+        if let Some(alias_name) = alias {
+            // Store the module alias -> actual name mapping
+            self.imported_modules.insert(alias_name, module_path_str);
+        } else { 
+            // No alias, so we're importing specific items or the entire module
+            
+            // Get the exports we want
+            let exports = self.module_manager.get_exports(&module_path_str, &items)?;
+            
+            // Process each export and add to current scope
+            for (name, export_item) in exports {
+                // Get module to extract statements from 
+                let module = self.module_manager.get_module(&module_path_str)
+                    .ok_or_else(|| VeldError::RuntimeError("Module not found".to_string()))?;
+                
+                match export_item {
+                    ExportedItem::Function(idx) => {
+                        if let Statement::FunctionDeclaration {name: fn_name,params, return_type, body, ..} = &module.statements[idx] {
+                            let function = Value::Function {
+                                params: params.clone(),
+                                body: body.clone(),
+                                return_type: return_type.clone(),
+                            };
+                            self.current_scope_mut().set(name.clone(), function);
+                        }
+                    },
+                    ExportedItem::Struct(idx) => {
+                        // Handle struct imports - for now just remember the name
+                        if let Statement::StructDeclaration {name: struct_name, fields, ..} = &module.statements[idx] {
+                            // Register the struct type in this scope
+                            self.structs.insert(name, fields.clone());
+                        }
+                    },
+                    // TODO - Handle other items here
+                    _ => {}
+                }
+            }
+        }
+        Ok(Value::Unit)
     }
 }

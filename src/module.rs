@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::format;
 use std::fs;
 use std::path::{Path, PathBuf};
 use crate::Lexer;
@@ -154,6 +155,45 @@ impl ModuleManager {
     
     pub fn is_module_loaded(&self, name: &str) -> bool {
         self.modules.contains_key(name)
+    }
+
+    pub fn get_exports(&self, module_name: &str, items: &[ImportItem]) -> Result<HashMap<String, ExportedItem>, VeldError> {
+        let module = self.get_module(module_name)
+            .ok_or_else(|| VeldError::RuntimeError(format!("Module '{}' not found", module_name)))?;
+        
+        let mut result = HashMap::new();
+        
+        if items.is_empty() {
+            // Return whole module as is
+            return Ok(module.exports.clone());
+        }
+        
+        // Process selective imports
+        for item in items { 
+            match item {
+                ImportItem::All => {
+                    // Import item
+                    return Ok(module.exports.clone());
+                },
+                ImportItem::Named(name) => {
+                    // Import specific item 
+                    if let Some(export) = module.exports.get(name) {
+                        result.insert(name.clone(), export.clone());
+                    } else {
+                        return Err(VeldError::RuntimeError(format!("Export '{}' not found in module '{}'", name, module_name)));
+                    }
+                },
+                ImportItem::NamedWithAlias { name, alias } => {
+                    // Import with alias
+                    if let Some(export) = module.exports.get(name) {
+                        result.insert(alias.clone(), export.clone());
+                    } else { 
+                        return Err(VeldError::RuntimeError(format!("Export '{}' not found in module {}", name, module_name)));
+                    }
+                }
+            }
+        }
+        Ok(result)
     }
     
 }
