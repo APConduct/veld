@@ -216,6 +216,7 @@ dependencies = [
  "chumsky",
  "logos",
  "thiserror",
+ "veld-core",
 ]
 
 [[package]]

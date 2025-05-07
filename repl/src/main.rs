@@ -1,17 +1,14 @@
-mod ast;
-mod error;
+
 mod interpreter;
-mod lexer;
-mod parser;
+
 mod repl;
-mod module;
-// Add this line
+
 
 use crate::interpreter::Interpreter;
-use crate::lexer::Lexer;
-use crate::parser::Parser;
+use veld_core::lexer::Lexer;
+use veld_core::parser::Parser;
 use crate::repl::Repl;  // Add this line
-use error::Result;
+use veld_core::error::{Result, VeldError};
 use std::env;
 use std::fs;
 
@@ -51,7 +48,7 @@ fn run_file(filename: &str) -> Result<()> {
     let mut lexer = Lexer::new(&source);
     let tokens = lexer
         .collect_tokens()
-        .map_err(|e| error::VeldError::LexerError(e))?;
+        .map_err(|e| VeldError::LexerError(e))?;
 
     // Parsing
     let mut parser = Parser::new(tokens.clone());

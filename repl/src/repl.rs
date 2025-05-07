@@ -1,7 +1,7 @@
-use crate::error::{ErrorContext, Result, VeldError, VeldErrorWithContext, ContextResult};
+use veld_core::error::{ErrorContext, Result, VeldError, VeldErrorWithContext, ContextResult};
 use crate::interpreter::Interpreter;
-use crate::lexer::Lexer;
-use crate::parser::Parser;
+use veld_core::lexer::Lexer;
+use veld_core::parser::Parser;
 use std::io::{self, Write};
 use std::collections::HashMap;
 

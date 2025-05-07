@@ -1,8 +1,8 @@
-use crate::ast::{Argument, BinaryOperator, Expr, ImportItem, Literal, Statement, TypeAnnotation};
-use crate::error::{Result, VeldError};
+use veld_core::ast::{Argument, BinaryOperator, Expr, ImportItem, Literal, Statement, TypeAnnotation};
+use veld_core::error::{Result, VeldError};
 use std::collections::HashMap;
 use std::path::Path;
-use crate::module::{ModuleManager, ExportedItem};
+use veld_core::module::{ModuleManager, ExportedItem};
 
 #[derive(Debug, Clone)]
 pub enum Value {
