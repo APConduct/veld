@@ -1212,98 +1212,55 @@ impl Parser {
     }
 
     fn postfix(&mut self) -> Result<Expr> {
-        let mut expr = self.primary()?;
-
-        while self.match_token(&[Token::Dot]) {
-            // Check for numeric tuple index
-            if let Token::IntegerLiteral(idx) = self.tokens.clone().get(self.current).unwrap_or(&Token::Identifier("".to_string())) {
-                self.advance(); // Consume the integer
-                expr = Expr::TupleAccess {
-                    tuple: Box::new(expr),
-                    index: *idx as usize,
-                };
-            } else {
-                let method =
-                    self.consume_identifier("Expected property or method name after '.'")?;
-                println!("Postfix: Method/property name: {}", method);
-
-                if self.match_token(&[Token::LParen]) {
-                    // Method call with arguments
-                    let mut args = Vec::new();
-                    if !self.check(&Token::RParen) {
-                        if self.check_named_arguments() {
-                            args = self.parse_named_arguments()?;
-                        } else {
-                            loop {
-                                args.push(Argument::Positional(self.expression()?));
-                                if !self.match_token(&[Token::Comma]) {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    self.consume(&Token::RParen, "Expected ')' after method arguments")?;
-                    expr = Expr::MethodCall {
-                        object: Box::new(expr),
-                        method,
-                        arguments: args,
-                    };
-                } else {
-                    expr = Expr::PropertyAccess {
-                        object: Box::new(expr),
-                        property: method,
-                    };
-                }
-            }
-        }
-        
         println!("Postfix: Starting...");
-
         let mut expr = self.primary()?;
         println!("Postfix: Got primary expression: {:?}", expr);
 
         loop {
-            println!(
-                "Postfix: Current token: {:?}",
-                self.tokens.get(self.current)
-            );
-
             if self.is_at_end() {
                 break;
             }
 
             if self.match_token(&[Token::Dot]) {
-                // Method call or property access
-                let method =
-                    self.consume_identifier("Expected property or method name after '.'")?;
-                println!("Postfix: Method/property name: {}", method);
+                // Check for numeric tuple index
+                if let Some(Token::IntegerLiteral(idx)) = self.tokens.clone().get(self.current) {
+                    self.advance(); // consume the integer
+                    expr = Expr::TupleAccess {
+                        tuple: Box::new(expr),
+                        index: *idx as usize,
+                    };
+                } else {
+                    // Method call or property access
+                    let method = self.consume_identifier("Expected property or method name after '.'")?;
+                    println!("Postfix: Method/property name: {}", method);
 
-                if self.match_token(&[Token::LParen]) {
-                    // Method call with arguments
-                    let mut args = Vec::new();
-                    if !self.check(&Token::RParen) {
-                        if self.check_named_arguments() {
-                            args = self.parse_named_arguments()?;
-                        } else {
-                            loop {
-                                args.push(Argument::Positional(self.expression()?));
-                                if !self.match_token(&[Token::Comma]) {
-                                    break;
+                    if self.match_token(&[Token::LParen]) {
+                        // Method call with arguments
+                        let mut args = Vec::new();
+                        if !self.check(&Token::RParen) {
+                            if self.check_named_arguments() {
+                                args = self.parse_named_arguments()?;
+                            } else {
+                                loop {
+                                    args.push(Argument::Positional(self.expression()?));
+                                    if !self.match_token(&[Token::Comma]) {
+                                        break;
+                                    }
                                 }
                             }
                         }
+                        self.consume(&Token::RParen, "Expected ')' after method arguments")?;
+                        expr = Expr::MethodCall {
+                            object: Box::new(expr),
+                            method,
+                            arguments: args,
+                        };
+                    } else {
+                        expr = Expr::PropertyAccess {
+                            object: Box::new(expr),
+                            property: method,
+                        };
                     }
-                    self.consume(&Token::RParen, "Expected ')' after method arguments")?;
-                    expr = Expr::MethodCall {
-                        object: Box::new(expr),
-                        method,
-                        arguments: args,
-                    };
-                } else {
-                    expr = Expr::PropertyAccess {
-                        object: Box::new(expr),
-                        property: method,
-                    };
                 }
             } else if self.match_token(&[Token::LParen]) && matches!(expr, Expr::Identifier(_)) {
                 // Function call
@@ -1342,7 +1299,7 @@ impl Parser {
                 // Array indexing with [index]
                 let index = self.expression()?;
                 self.consume(&Token::RBracket, "Expected ']' after array index")?;
-                
+
                 expr = Expr::IndexAccess {
                     object: Box::new(expr),
                     index: Box::new(index),
@@ -1355,7 +1312,6 @@ impl Parser {
         println!("Postfix: Completed with result: {:?}", expr);
         Ok(expr)
     }
-
     fn check_named_arguments(&self) -> bool {
         // We need at least 3 tokens: identifier, colon, and value
         if self.current + 2 >= self.tokens.len() {
@@ -1406,16 +1362,14 @@ impl Parser {
             if self.match_token(&[Token::RParen]) {
                 return Ok(Expr::UnitLiteral);
             }
-            
+
             // Parse first element of tuple
             let first = self.expression()?;
-            let mut saw_comma = false;
-            
+
             // If comma, it's a tuple 
             if self.match_token(&[Token::Comma]) {
-                saw_comma = true;
                 let mut elements = vec![first];
-                
+
                 // Parse remaining elements
                 if !self.check(&Token::RParen) {
                     loop {
@@ -1431,10 +1385,10 @@ impl Parser {
                         }
                     }
                 }
-                
+
                 self.consume(&Token::RParen, "Expected ')' after tuple elements")?;
                 return Ok(Expr::TupleLiteral(elements))
-            } else { 
+            } else {
                 // Just parenthesized expression
                 self.consume(&Token::RParen, "Expected ')' after expression")?;
                 return Ok(first)
