@@ -92,6 +92,7 @@ pub enum BinaryOperator {
     And,
     Or,
     Exponent,
+    Modulo,
 }
 
 #[derive(Debug, Clone)]
@@ -169,6 +170,17 @@ pub enum Statement {
         alias: Option<String>, // For "import math as m"
         is_public: bool, // to track visibility
     },
+    CompoundAssignment {
+        name: String,
+        operator: BinaryOperator,
+        value: Box<Expr>,
+    },
+    Assignment {
+        name: String,
+        value: Box<Expr>,
+    },
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone)]
@@ -210,3 +222,4 @@ pub struct MethodImpl {
     pub body: Vec<Statement>,
     pub is_public: bool, // New field to track visibility
 }
+

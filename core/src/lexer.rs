@@ -46,6 +46,11 @@ pub enum Token {
     #[token("mut")]
     Mut,
     
+    #[token("break")]
+    Break,
+    #[token("continue")]
+    Continue,
+    
     // Operators
     #[token("=")]
     Equals,

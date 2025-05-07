@@ -256,6 +256,14 @@ impl Interpreter {
             Statement::ImportDeclaration {path, items, alias, is_public} => {
                 self.execute_import_declaration(path, items, alias, is_public)
             }
+            Statement::CompoundAssignment {name, operator, value} => {
+                let current = self.get_variable(&name).ok_or_else(|| VeldError::RuntimeError(format!("Undefined variable '{}'", name)))?;
+                let new_value = self.evaluate_expression(*value)?;
+                let result = self.evaluate_binary_op(current, operator, new_value)?;
+                
+                self.current_scope_mut().set(name, result.clone());
+                Ok(Value::Unit)
+            }
             // Skip other declarations for now
             _ => Ok(Value::Unit),
         }
@@ -1038,6 +1046,61 @@ impl Interpreter {
             }
             (Value::Float(a), BinaryOperator::Add, Value::Integer(b)) => {
                 Ok(Value::Float(a + b as f64))
+            }
+            (Value::Integer(a), BinaryOperator::Modulo, Value::Integer(b)) => {
+                if b == 0 {
+                    Err(VeldError::RuntimeError("Modulo by zero".to_string()))
+                } else { 
+                    Ok(Value::Integer(a % b))
+                }
+            }
+            
+            // Float modulo (remainder operation)
+            (Value::Float(a), BinaryOperator::Modulo, Value::Float(b)) => {
+                if b == 0.0 {
+                    Err(VeldError::RuntimeError("Modulo by zero".to_string()))
+                } else {
+                    Ok(Value::Float(a % b))
+                }
+            }
+            
+            // Mixed types - convert integer to float
+            (Value::Integer(a), BinaryOperator::Modulo, Value::Float(b)) => {
+                if b == 0.0 {
+                    Err(VeldError::RuntimeError("Modulo by zero".to_string()))
+                } else {
+                    Ok(Value::Float((a as f64) % b))
+                }
+            }
+
+            (Value::Float(a), BinaryOperator::Modulo, Value::Integer(b)) => {
+                if b == 0 {
+                    Err(VeldError::RuntimeError("Modulo by zero".to_string()))
+                } else { 
+                    Ok(Value::Float(a % (b as f64)))
+                }
+            }
+            // String operations
+            (Value::String(a), BinaryOperator::Add, Value::String(b)) => {
+                Ok(Value::String(a + &b))
+            }
+            (Value::String(a), BinaryOperator::EqualEqual, Value::String(b)) => {
+                Ok(Value::Boolean(a == b))
+            }
+            (Value::String(a), BinaryOperator::NotEqual, Value::String(b)) => {
+                Ok(Value::Boolean(a != b))
+            }
+            (Value::String(a), BinaryOperator::Less, Value::String(b)) => {
+                Ok(Value::Boolean(a < b))
+            }
+            (Value::String(a), BinaryOperator::Greater, Value::String(b)) => {
+                Ok(Value::Boolean(a > b))
+            }
+            (Value::String(a), BinaryOperator::LessEq, Value::String(b)) => {
+                Ok(Value::Boolean(a <= b))
+            }
+            (Value::String(a), BinaryOperator::GreaterEq, Value::String(b)) => {
+                Ok(Value::Boolean(a >= b))
             }
             _ => Err(VeldError::RuntimeError("Invalid operation".to_string())),
         }

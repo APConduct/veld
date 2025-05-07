@@ -233,7 +233,7 @@ impl Parser {
 
     }
     
-    fn lamda_expression(&mut self) -> Result<Expr> {
+    fn lambda_expression(&mut self) -> Result<Expr> {
         println!("Lambda expression Starting...");
         let mut params = Vec::new();
         
@@ -1116,6 +1116,12 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement> {
+        // if self.match_token(&[Token::Break]) {
+        //     return Ok(Statement::Break);
+        // } else if self.match_token(&[Token::Continue]) {
+        //     return Ok(Statement::Continue);
+        // } else
+        // TODO - handle break/continue statements
         if self.match_token(&[Token::If]) {
             self.if_statement()
         } else if self.match_token(&[Token::While]) {
@@ -1212,7 +1218,7 @@ impl Parser {
         }
         
         if self.check_lambda_start() { 
-            let result = self.lamda_expression();
+            let result = self.lambda_expression();
             self.recursive_depth -= 1;
             return result;
         }
@@ -1679,10 +1685,11 @@ impl Parser {
     fn factor(&mut self) -> Result<Expr> {
         let mut expr = self.exponent()?;
 
-        while self.match_token(&[Token::Star, Token::Slash]) {
+        while self.match_token(&[Token::Star, Token::Slash, Token::Modulo]) {
             let operator = match self.previous() {
                 Token::Star => BinaryOperator::Multiply,
                 Token::Slash => BinaryOperator::Divide,
+                Token::Modulo => BinaryOperator::Modulo,
                 _ => unreachable!(),
             };
             let right = self.exponent()?;
@@ -1710,6 +1717,48 @@ impl Parser {
         }
 
         Ok(expr)
+    }
+    
+    fn assignment_statement(&mut self) -> Result<Statement> {
+        let name = self.consume_identifier("Expected variable name")?;
+        
+        if self.match_token(&[Token::PlusEq]) {
+            let value = self.expression()?;
+            return Ok(Statement::CompoundAssignment {
+                name,
+                operator: BinaryOperator::Add,
+                value: Box::new(value),
+            });
+        } else if self.match_token(&[Token::MinusEq]) {
+            let value = self.expression()?;
+            return Ok(Statement::CompoundAssignment {
+                name,
+                operator: BinaryOperator::Subtract,
+                value: Box::new(value),
+            });
+        } else if self.match_token(&[Token::StarEq]) {
+            let value = self.expression()?;
+            return Ok(Statement::CompoundAssignment {
+                name,
+                operator: BinaryOperator::Multiply,
+                value: Box::new(value),
+            });
+        } else if self.match_token(&[Token::SlashEq]) {
+            let value = self.expression()?;
+            return Ok(Statement::CompoundAssignment {
+                name,
+                operator: BinaryOperator::Divide,
+                value: Box::new(value),
+            });
+        } else { 
+            // Regular assignment
+            self.consume(&Token::Equals, "Expected '=' after variable name")?;
+            let value = self.expression()?;
+            return Ok(Statement::Assignment {
+                name,
+                value: Box::new(value),
+            });
+        }
     }
 
     fn call(&mut self) -> Result<Expr> {
