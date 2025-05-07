@@ -1,5 +1,5 @@
 
-use crate::ast::{Argument, BinaryOperator, Expr, ImportItem, KindMethod, Literal, MethodImpl, Statement, StructMethod, TypeAnnotation};
+use crate::ast::{Argument, BinaryOperator, EnumVariant, Expr, ImportItem, KindMethod, Literal, MethodImpl, Statement, StructMethod, TypeAnnotation};
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
 use crate::module::Module;
@@ -62,7 +62,9 @@ impl Parser {
     }
 
     pub fn declaration(&mut self) -> Result<Statement> {
-        if self.match_token(&[Token::Mod]) { 
+        if self.match_token(&[Token::Enum]) {
+            self.enum_declaration()
+        } else if self.match_token(&[Token::Mod]) { 
             self.module_declaration()
         } else if self.match_token(&[Token::Import]) {
             self.import_declaration()
@@ -814,63 +816,109 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<TypeAnnotation> {
-        // Handle array type notation
-        if self.match_token(&[Token::LBracket]) {
-            let element_type = self.parse_type()?;
-            self.consume(&Token::RBracket, "Expected ']' after array element type")?;
-            return Ok(TypeAnnotation::Array(Box::new(element_type)));
+        if self.match_token(&[Token::LParen]) {
+            let mut types = Vec::new();
+            let mut saw_comma = false;
+            
+            // Empty tuple: ()
+            if self.match_token(&[Token::RParen]) {
+                return Ok(TypeAnnotation::Unit);
+            }
+            
+            // Parse first type
+            types.push(self.parse_type()?);
+            
+            // If comma, it's a tuple type
+            if self.match_token(&[Token::Comma]) {
+                saw_comma = true;
+                
+                // Parse remaining types if not immediately followed by ')'
+                if !self.check(&Token::RParen) {
+                    loop {
+                        types.push(self.parse_type()?);
+
+                        if !self.match_token(&[Token::Comma]) {
+                            break;
+                        }
+
+                        // Allow trailing comma by checking if the next token is ')'
+                        if self.check(&Token::RParen) {
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            self.consume(&Token::RParen, "Expected ')' after tuple type")?;
+            
+            // If there is only one type without a comma, it's a parenthesized type, not a tuple
+            if types.len() == 1 && !saw_comma {
+                Ok(types[0].clone())
+            } else { 
+                Ok(TypeAnnotation::Tuple(types))
+            }
+        } else {
+            // Handle array type notation
+            if self.match_token(&[Token::LBracket]) {
+                let element_type = self.parse_type()?;
+                self.consume(&Token::RBracket, "Expected ']' after array element type")?;
+                return Ok(TypeAnnotation::Array(Box::new(element_type)));
+            }
+
+            let base_type = self.consume_identifier("Expected type name")?;
+
+            if self.match_token(&[Token::Less]) {
+                // Generic type parameters
+                let mut type_args = Vec::new();
+
+                if !self.check(&Token::Greater) {
+                    loop {
+                        type_args.push(self.parse_type()?);
+
+                        if !self.match_token(&[Token::Comma]) {
+                            break;
+                        }
+                    }
+                }
+
+                self.consume(&Token::Greater, "Expected '>' after type arguments")?;
+
+                Ok(TypeAnnotation::Generic {
+                    base: base_type,
+                    type_args,
+                })
+            }
+            else if base_type == "fn" {
+                // Function type
+                self.consume(&Token::LParen, "Expected '(' in function type")?;
+
+                let mut params = Vec::new();
+                if !self.check(&Token::RParen) {
+                    loop {
+                        params.push(self.parse_type()?);
+
+                        if !self.match_token(&[Token::Comma]) {
+                            break;
+                        }
+                    }
+                }
+
+                self.consume(&Token::RParen, "Expected ')' after parameter types")?;
+                self.consume(&Token::Arrow, "Expected '->' in function type")?;
+
+                let return_type = Box::new(self.parse_type()?);
+
+                Ok(TypeAnnotation::Function {
+                    params,
+                    return_type,
+                })
+            } else {
+                // Basic type
+                Ok(TypeAnnotation::Basic(base_type))
+            }
         }
         
-        let base_type = self.consume_identifier("Expected type name")?;
-
-        if self.match_token(&[Token::Less]) {
-            // Generic type parameters
-            let mut type_args = Vec::new();
-
-            if !self.check(&Token::Greater) {
-                loop {
-                    type_args.push(self.parse_type()?);
-
-                    if !self.match_token(&[Token::Comma]) {
-                        break;
-                    }
-                }
-            }
-
-            self.consume(&Token::Greater, "Expected '>' after type arguments")?;
-
-            Ok(TypeAnnotation::Generic {
-                base: base_type,
-                type_args,
-            })
-        } else if base_type == "fn" {
-            // Function type
-            self.consume(&Token::LParen, "Expected '(' in function type")?;
-
-            let mut params = Vec::new();
-            if !self.check(&Token::RParen) {
-                loop {
-                    params.push(self.parse_type()?);
-
-                    if !self.match_token(&[Token::Comma]) {
-                        break;
-                    }
-                }
-            }
-
-            self.consume(&Token::RParen, "Expected ')' after parameter types")?;
-            self.consume(&Token::Arrow, "Expected '->' in function type")?;
-
-            let return_type = Box::new(self.parse_type()?);
-
-            Ok(TypeAnnotation::Function {
-                params,
-                return_type,
-            })
-        } else {
-            // Basic type
-            Ok(TypeAnnotation::Basic(base_type))
-        }
+        
     }
 
     // Helper methods
@@ -1164,6 +1212,51 @@ impl Parser {
     }
 
     fn postfix(&mut self) -> Result<Expr> {
+        let mut expr = self.primary()?;
+
+        while self.match_token(&[Token::Dot]) {
+            // Check for numeric tuple index
+            if let Token::IntegerLiteral(idx) = self.tokens.clone().get(self.current).unwrap_or(&Token::Identifier("".to_string())) {
+                self.advance(); // Consume the integer
+                expr = Expr::TupleAccess {
+                    tuple: Box::new(expr),
+                    index: *idx as usize,
+                };
+            } else {
+                let method =
+                    self.consume_identifier("Expected property or method name after '.'")?;
+                println!("Postfix: Method/property name: {}", method);
+
+                if self.match_token(&[Token::LParen]) {
+                    // Method call with arguments
+                    let mut args = Vec::new();
+                    if !self.check(&Token::RParen) {
+                        if self.check_named_arguments() {
+                            args = self.parse_named_arguments()?;
+                        } else {
+                            loop {
+                                args.push(Argument::Positional(self.expression()?));
+                                if !self.match_token(&[Token::Comma]) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    self.consume(&Token::RParen, "Expected ')' after method arguments")?;
+                    expr = Expr::MethodCall {
+                        object: Box::new(expr),
+                        method,
+                        arguments: args,
+                    };
+                } else {
+                    expr = Expr::PropertyAccess {
+                        object: Box::new(expr),
+                        property: method,
+                    };
+                }
+            }
+        }
+        
         println!("Postfix: Starting...");
 
         let mut expr = self.primary()?;
@@ -1181,7 +1274,6 @@ impl Parser {
 
             if self.match_token(&[Token::Dot]) {
                 // Method call or property access
-                // (existing code unchanged)
                 let method =
                     self.consume_identifier("Expected property or method name after '.'")?;
                 println!("Postfix: Method/property name: {}", method);
@@ -1309,6 +1401,46 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr> {
+        if self.match_token(&[Token::LParen]){
+            // Empty tuple
+            if self.match_token(&[Token::RParen]) {
+                return Ok(Expr::UnitLiteral);
+            }
+            
+            // Parse first element of tuple
+            let first = self.expression()?;
+            let mut saw_comma = false;
+            
+            // If comma, it's a tuple 
+            if self.match_token(&[Token::Comma]) {
+                saw_comma = true;
+                let mut elements = vec![first];
+                
+                // Parse remaining elements
+                if !self.check(&Token::RParen) {
+                    loop {
+                        elements.push(self.expression()?);
+
+                        if !self.match_token(&[Token::Comma]) {
+                            break;
+                        }
+
+                        // Allow trailing comma
+                        if self.check(&Token::RParen) {
+                            break;
+                        }
+                    }
+                }
+                
+                self.consume(&Token::RParen, "Expected ')' after tuple elements")?;
+                return Ok(Expr::TupleLiteral(elements))
+            } else { 
+                // Just parenthesized expression
+                self.consume(&Token::RParen, "Expected ')' after expression")?;
+                return Ok(first)
+            }
+        }
+        
         if self.is_at_end() {
             return Err(VeldError::ParserError(
                 "Unexpected end of input".to_string(),
@@ -1824,5 +1956,65 @@ impl Parser {
         self.consume(&Token::RBracket, "Expected ']' after array elements")?;
         
         Ok(Expr::ArrayLiteral(elements))
+    }
+    
+    fn enum_declaration(&mut self) -> Result<Statement> {
+        println!("Parsing enum declaration...");
+        let name = self.consume_identifier("Expected enum name after 'enum'")?;
+        
+        let mut variants = Vec::new();
+        
+        // Handle single-line enums: enum Color(Red, Green, Blue)
+        if self.match_token(&[Token::LParen]) {
+            loop {
+                let variant_name = self.consume_identifier("Expected variant name")?;
+                variants.push(EnumVariant {
+                    name: variant_name,
+                    fields: None
+                });
+                
+                if !self.match_token(&[Token::Comma]) {
+                    break;
+                }
+            }
+            
+            self.consume(&Token::RParen, "Expected ')' after enum variant(s)")?;
+        } else { 
+            // Multi-line enum
+            while !self.check(&Token::End) && !self.is_at_end() {
+                let variant_name = self.consume_identifier("Expected variant name")?;
+                
+                // Check for tuple variant: Red(f64, f64)
+                let fields = if self.match_token(&[Token::LParen]) {
+                    let mut field_types = Vec::new();
+                    if !self.check(&Token::RParen) {
+                        loop {
+                            field_types.push(self.parse_type()?);
+                            
+                            if !self.match_token(&[Token::Comma]) {
+                                break;
+                            }
+                        }
+                    }
+                    
+                    self.consume(&Token::RParen, "Expected ')' after enum variant fields")?;
+                    Some(field_types)
+                } else { 
+                    None
+                };
+                variants.push(EnumVariant { name: variant_name, fields});
+                
+                // Optional comma
+                self.match_token(&[Token::Comma]);
+            }
+            
+            self.consume(&Token::End, "Expected 'end' after enum body")?;
+        }
+        
+        Ok(Statement::EnumDeclaration {
+            name,
+            variants,
+            is_public: false, // Default visibility
+        })
     }
 }

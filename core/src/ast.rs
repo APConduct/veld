@@ -34,6 +34,7 @@ pub enum TypeAnnotation {
         // type_params: Vec<String>,
     },
     Array(Box<TypeAnnotation>), // Array type, e.g., [i32]
+    Tuple(Vec<TypeAnnotation>), // (e.g., (i32, f64, str))
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +76,16 @@ pub enum Expr {
         object: Box<Expr>,
         index: Box<Expr>,
     },
+    EnumVariant {
+        enum_name: String,
+        variant_name: String,
+        fields: Vec<Expr>, // Fields for the variant if any
+    },
+    TupleLiteral(Vec<Expr>), // (1, 2.0, "hello")
+    TupleAccess {
+        tuple: Box<Expr>,
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -101,6 +112,29 @@ pub struct StructMethod {
     pub params: Vec<(String, TypeAnnotation)>,
     pub return_type: TypeAnnotation,
     pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumVariant {
+    pub name: String,
+    pub fields: Option<Vec<TypeAnnotation>>, // For variants with fields
+}
+
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    Literal(Literal),
+    Identifier(String),
+    Wildcard, // _ (underscore)
+    EnumPattern {
+        enum_name: String,
+        variant_name: String,
+        fields: Vec<Pattern>, // Fields for the variant if any
+    },
+    TuplePattern(Vec<Pattern>), // (1, 2.0, "hello")
+    StructPattern {
+        struct_name: String,
+        fields: Vec<(String, Pattern)>, // Field name and its pattern
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -181,6 +215,15 @@ pub enum Statement {
     },
     Break,
     Continue,
+    EnumDeclaration {
+        name: String,
+        variants: Vec<EnumVariant>,
+        is_public: bool,
+    },
+    Match {
+        scrutinee: Expr,
+        arms: Vec<(Pattern, Option<Expr>, Vec<Statement>)>, // (pattern, guard, body)
+    },
 }
 
 #[derive(Debug, Clone)]

@@ -1,4 +1,4 @@
-use veld_core::ast::{Argument, BinaryOperator, Expr, ImportItem, Literal, Statement, TypeAnnotation};
+use veld_core::ast::{Argument, BinaryOperator, EnumVariant, Expr, ImportItem, Literal, Statement, TypeAnnotation};
 use veld_core::error::{Result, VeldError};
 use std::collections::HashMap;
 use std::path::Path;
@@ -22,6 +22,12 @@ pub enum Value {
         fields: HashMap<String, Value>,
     },
     Array(Vec<Value>),
+    Enum {
+        enum_name: String,
+        variant_name: String,
+        fields: Vec<Value>,
+    },
+    Tuple(Vec<Value>),
 }
 
 impl Value {
@@ -62,6 +68,7 @@ pub struct Interpreter {
     module_manager: ModuleManager,
     current_module: String,
     imported_modules: HashMap<String, String>, // alias -> module name
+    enums: HashMap<String, Vec<EnumVariant>>,
 }
 
 impl Interpreter {
@@ -73,6 +80,7 @@ impl Interpreter {
             module_manager: ModuleManager::new(root_dir),
             current_module: "main".to_string(),
             imported_modules: Default::default(),
+            enums: HashMap::new(),
         };
         
         // Initialize Built-in array methods
@@ -262,6 +270,10 @@ impl Interpreter {
                 let result = self.evaluate_binary_op(current, operator, new_value)?;
                 
                 self.current_scope_mut().set(name, result.clone());
+                Ok(Value::Unit)
+            }
+            Statement::EnumDeclaration {name, variants, ..} => {
+                self.enums.insert(name, variants);
                 Ok(Value::Unit)
             }
             // Skip other declarations for now
@@ -473,6 +485,46 @@ impl Interpreter {
                         }
                     },
                     _ => Err(VeldError::RuntimeError("Cannot index into non-array value".to_string())),
+                }
+            }
+            Expr::EnumVariant {enum_name, variant_name, fields} => {
+                // Check if enum exists
+                if !self.enums.contains_key(&enum_name) {
+                    return Err(VeldError::RuntimeError(format!("Undefined enum '{}'", enum_name)));
+                }
+                
+                // Evaluate fields
+                let mut field_values = Vec::new();
+                for field in fields {
+                    let val = self.evaluate_expression(field)?;
+                    field_values.push(val.unwrap_return());
+                }
+                
+                Ok(Value::Enum {
+                    enum_name,
+                    variant_name,
+                    fields: field_values,
+                })
+            },
+            Expr::TupleLiteral(elements) => {
+                let mut values = Vec::new();
+                for element in elements{
+                    values.push(self.evaluate_expression(element)?.unwrap_return());
+                }
+                Ok(Value::Tuple(values))
+            },
+            Expr::TupleAccess {tuple, index} => {
+                let tuple_val = self.evaluate_expression(*tuple)?.unwrap_return();
+                
+                match tuple_val {
+                    Value::Tuple(elements) => {
+                        if index < elements.len() {
+                            Ok(elements[index].clone())
+                        } else { 
+                            Err(VeldError::RuntimeError(format!("Tuple index out of bounds: {}", index)))
+                        }
+                    },
+                    _ => Err(VeldError::RuntimeError("Cannot access tuple field on non-tuple value".to_string())),
                 }
             }
         }

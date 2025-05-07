@@ -24,3 +24,64 @@ end
 -- the normal way to write this code would be to use nested function calls, like this:
 -- let result = add(multiply(add(2, 3), 4), 10);
 
+
+
+-- Tuple creation and access
+let point = (10, 20)
+point.0  -- Should return 10
+point.1  -- Should return 20
+
+-- Tuple with mixed types
+let person = ("John", 30, true)
+person.0  -- Name
+person.2  -- Boolean flag
+
+-- Basic enum
+enum Color(Red, Green, Blue)
+let color = Color.Red  -- Using a simple enum variant
+
+-- Enum with data
+enum Shape
+    Circle(f64),  -- Radius
+    Rectangle(f64, f64),  -- Width, Height
+    Point,
+end
+
+let circle = Shape.Circle(5.0)
+let rect = Shape.Rectangle(10.0, 20.0)
+let point = Shape.Point
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- Test break and continue
+fn test_break()
+    let i = 0
+    while true
+        i = i + 1
+        if i > 5
+            break
+        end
+    end
+    return i  -- Should be 6
+end
+
+-- Test match statement
+fn test_match(value)
+    match value
+        0 => "zero",
+        1 => "one",
+        n where n > 1 => "many",
+        _ => "negative",
+    end
+end
+

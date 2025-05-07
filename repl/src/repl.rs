@@ -253,7 +253,27 @@ impl Repl {
                          fields.iter().map(|(k, v)| format!("{}: {}", k, self.value_to_string(v)))
                              .collect::<Vec<_>>().join(",\n    ")
                 );
-            }
+            },
+            crate::interpreter::Value::Tuple(elements) => {
+                println!("=> \x1B[34m({})\x1B[0m", // Blue for tuples
+                         elements.iter()
+                             .map(|v| self.value_to_string(v))
+                             .collect::<Vec<_>>()
+                             .join(", "));
+            },
+            crate::interpreter::Value::Enum { enum_name, variant_name, fields } => {
+                if fields.is_empty() {
+                    println!("=> \x1B[35m{}.{}\x1B[0m", enum_name, variant_name);
+                } else {
+                    println!("=> \x1B[35m{}.{}({})\x1B[0m",
+                             enum_name,
+                             variant_name,
+                             fields.iter()
+                                 .map(|v| self.value_to_string(v))
+                                 .collect::<Vec<_>>()
+                                 .join(", "));
+                }
+            },
             _ => println!("=> {:?}", value),
         }
     }

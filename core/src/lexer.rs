@@ -51,6 +51,9 @@ pub enum Token {
     #[token("continue")]
     Continue,
     
+    #[token("enum")]
+    Enum,
+    
     // Operators
     #[token("=")]
     Equals,
