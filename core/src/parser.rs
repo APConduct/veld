@@ -145,82 +145,13 @@ impl Parser {
         self.match_token(&[Token::Equals]);
         println!("Function declaration: Found equals sign, parsing body");
 
-        // Check for empty function
-        if self.check(&Token::End) {
-            self.consume(&Token::End, "Expected 'end' after function body")?;
-            println!("Function declaration: Empty function body");
-            return Ok(Statement::FunctionDeclaration {
-                name,
-                params,
-                return_type: return_type.clone(),
-                body: Vec::new(),
-                is_proc: return_type == TypeAnnotation::Unit,
-                is_public,
-            });
-        }
-
-        // Try parsing a single expression for single-line function
-        if !self.check_statement_start() {
-            println!("Function declaration: Single-line function, parsing expression");
-            println!(
-                "Function declaration: Current token context: {}",
-                self.debug_token_context()
-            );
-
-            // This is where we need to parse expressions like (1.0 + 2.0).sqrt()
-            let expr = self.expression()?;
-            println!("Function declaration: Parsed expression: {:?}", expr);
-
-            // For single-line functions, consume semicolon if present but don't require it
-            if self.match_token(&[Token::Semicolon]) {
-                println!("Function declaration: Found semicolon after expression");
-            }
-
-            // Is this at the end or followed by a new declaration?
-            if self.is_at_end() || self.check_declaration_start() || self.check(&Token::End) {
-                // If there is an 'end' token, consume it
-                self.match_token(&[Token::End]);
-                
-                println!("Function declaration: End of single-line function");
-                return Ok(Statement::FunctionDeclaration {
-                    name,
-                    params,
-                    return_type: return_type.clone(),
-                    body: vec![Statement::Return(Some(expr))],
-                    is_proc: return_type == TypeAnnotation::Unit,
-                    is_public,
-                });
-            }
-
-            // Otherwise, it's a multi-line function starting with an expression
-            println!("Function declaration: Starting multi-line function body");
-            let mut body = vec![Statement::ExprStatement(expr)];
-
-            // Parse the rest of the multi-line body
-            while !self.check(&Token::End) && !self.is_at_end() {
-                body.push(self.statement()?);
-            }
-
-            self.consume(&Token::End, "Expected 'end' after function body")?;
-            return Ok(Statement::FunctionDeclaration {
-                name,
-                params,
-                return_type: return_type.clone(),
-                body,
-                is_proc: return_type == TypeAnnotation::Unit,
-                is_public,
-            });
-        }
-
-        // Multi-line function with statements
-        println!("Function declaration: Parsing multi-line function body");
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
         }
-
+        
         self.consume(&Token::End, "Expected 'end' after function body")?;
-
+        
         println!("Function declaration: Completed");
         Ok(Statement::FunctionDeclaration {
             name,
@@ -406,81 +337,13 @@ impl Parser {
         self.match_token(&[Token::Equals]);
         println!("Function declaration: Preparing to parse body");
 
-        // Check for empty function
-        if self.check(&Token::End) {
-            self.consume(&Token::End, "Expected 'end' after function body")?;
-            println!("Function declaration: Empty function body");
-            return Ok(Statement::FunctionDeclaration {
-                name,
-                params,
-                return_type: return_type.clone(),
-                body: Vec::new(),
-                is_proc: return_type == TypeAnnotation::Unit,
-                is_public: false, // Default visibility
-            });
-        }
-
-        // Try parsing a single expression for single-line function
-        if !self.check_statement_start() {
-            println!("Function declaration: Single-line function, parsing expression");
-            println!(
-                "Function declaration: Current token context: {}",
-                self.debug_token_context()
-            );
-
-            let expr = self.expression()?;
-            println!("Function declaration: Parsed expression: {:?}", expr);
-
-            // For single-line functions, consume semicolon if present but don't require it
-            if self.match_token(&[Token::Semicolon]) {
-                println!("Function declaration: Found semicolon after expression");
-            }
-
-            // Is this at the end or followed by a new declaration?
-            if self.is_at_end() || self.check_declaration_start() || self.check(&Token::End) {
-                // If there is an 'end' token, consume it
-                self.match_token(&[Token::End]);
-                
-                println!("Function declaration: End of single-line function");
-                return Ok(Statement::FunctionDeclaration {
-                    name,
-                    params,
-                    return_type: return_type.clone(),
-                    body: vec![Statement::Return(Some(expr))],
-                    is_proc: return_type == TypeAnnotation::Unit,
-                    is_public: false, // Default visibility
-                });
-            }
-
-            // Otherwise, it's a multi-line function starting with an expression
-            println!("Function declaration: Starting multi-line function body");
-            let mut body = vec![Statement::ExprStatement(expr)];
-
-            // Parse the rest of the multi-line body
-            while !self.check(&Token::End) && !self.is_at_end() {
-                body.push(self.statement()?);
-            }
-
-            self.consume(&Token::End, "Expected 'end' after function body")?;
-            return Ok(Statement::FunctionDeclaration {
-                name,
-                params,
-                return_type: return_type.clone(),
-                body,
-                is_proc: return_type == TypeAnnotation::Unit,
-                is_public: false, // Default visibility
-            });
-        }
-
-        // Multi-line function with statements
-        println!("Function declaration: Parsing multi-line function body");
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
         }
-
+        
         self.consume(&Token::End, "Expected 'end' after function body")?;
-
+        
         println!("Function declaration: Completed");
         Ok(Statement::FunctionDeclaration {
             name,
@@ -529,57 +392,21 @@ impl Parser {
         }
 
         self.consume(&Token::RParen, "Expected ')' after parameters")?;
-        self.consume(&Token::Equals, "Expected '=' after procedure signature")?;
+        // Optional equals sign
+        self.match_token(&[Token::Equals]);
 
-        // Check for empty procedure
-        if self.check(&Token::End) {
-            // Empty procedure body
-            self.consume(&Token::End, "Expected 'end' after procedure body")?;
-            return Ok(Statement::ProcDeclaration {
-                name,
-                params,
-                body: Vec::new(),
-            });
-        }
-
-        // Try parsing a single expression for single-line procedure
-        if !self.check_statement_start() {
-            let expr = self.expression()?;
-
-            // For single-line procedures, consume semicolon if present but don't require it
-            self.match_token(&[Token::Semicolon]);
-
-            // If we're at end of input or the next token looks like a new declaration,
-            // this is a single-line procedure without 'end'
-            if self.is_at_end() || self.check_declaration_start() {
-                return Ok(Statement::ProcDeclaration {
-                    name,
-                    params,
-                    body: vec![Statement::ExprStatement(expr)],
-                });
-            }
-
-            // Otherwise, it's a multi-line procedure starting with an expression
-            let mut body = vec![Statement::ExprStatement(expr)];
-
-            // Parse the rest of the multi-line body
-            while !self.check(&Token::End) && !self.is_at_end() {
-                body.push(self.statement()?);
-            }
-
-            self.consume(&Token::End, "Expected 'end' after procedure body")?;
-            return Ok(Statement::ProcDeclaration { name, params, body });
-        }
-
-        // Multi-line procedure
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
         }
-
+        
         self.consume(&Token::End, "Expected 'end' after procedure body")?;
-
-        Ok(Statement::ProcDeclaration { name, params, body })
+        
+        Ok(Statement::ProcDeclaration {
+            name,
+            params,
+            body,
+        })
     }
 
     fn struct_declaration(&mut self) -> Result<Statement> {
