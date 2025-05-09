@@ -160,6 +160,9 @@ pub enum Token {
 
     #[token("and")]
     And,
+    
+    #[token("match")]
+    Match,
 }
 
 pub struct Lexer<'a> {

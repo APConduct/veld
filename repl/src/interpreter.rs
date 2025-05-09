@@ -1,4 +1,4 @@
-use veld_core::ast::{Argument, BinaryOperator, EnumVariant, Expr, ImportItem, Literal, Statement, TypeAnnotation};
+use veld_core::ast::{Argument, BinaryOperator, EnumVariant, Expr, ImportItem, Literal, MatchPattern, Statement, TypeAnnotation};
 use veld_core::error::{Result, VeldError};
 use std::collections::HashMap;
 use std::path::Path;
@@ -28,6 +28,10 @@ pub enum Value {
         fields: Vec<Value>,
     },
     Tuple(Vec<Value>),
+    
+    Break,
+    Continue,
+    
 }
 
 impl Value {
@@ -130,6 +134,14 @@ impl Interpreter {
                 };
                 self.current_scope_mut().set(name, function);
                 Ok(Value::Unit)
+            }
+            Statement::Return(expr_opt) => {
+                let val = if let Some(e) = expr_opt {
+                    self.evaluate_expression(e)?
+                } else {
+                    Value::Unit
+                };
+                Ok(Value::Return(Box::new(val)))
             }
             Statement::ProcDeclaration { name, params, body } => {
                 // Convert to a regular function with Unit return type
@@ -235,8 +247,11 @@ impl Interpreter {
 
                     for stmt in body.clone() {
                         let result = self.execute_statement(stmt)?;
-                        if matches!(result, Value::Return(_)) {
-                            return Ok(result);
+                        match result {
+                            Value::Return(_) => return Ok(result),
+                            Value::Break => return Ok(Value::Unit),
+                            Value::Continue => break,
+                            _ => {}
                         }
                     }
                 }
@@ -247,16 +262,42 @@ impl Interpreter {
                 iterable,
                 body,
             } => {
-                // We'll implement this later
+                let iterable_value = self.evaluate_expression(iterable.clone())?.unwrap_return();
+                
+                match iterable_value {
+                    Value::Array(elements) => {
+                        for element in elements {
+                            self.current_scope_mut().set(iterator.clone(), element);
+                            
+                            for stmt in body.clone() {
+                                let result = self.execute_statement(stmt)?;
+                                match result {
+                                    Value::Return(_) => return Ok(result),
+                                    Value::Break => return Ok(Value::Unit),
+                                    Value::Continue => break,
+                                    _ => {}
+                                }
+                            }
+                        }
+                    },
+                    Value::String(s) => {
+                        for c in s.chars() {
+                            self.current_scope_mut().set(iterator.clone(), Value::String(c.to_string()));
+                            
+                            for stmt in body.clone() {
+                                let result = self.execute_statement(stmt)?;
+                                match result {
+                                    Value::Return(_) => return Ok(result),
+                                    Value::Break => return Ok(Value::Unit),
+                                    Value::Continue => break,
+                                    _ => {}
+                                }
+                            }
+                        }
+                    },
+                    _ => return Err(VeldError::RuntimeError(format!("Cannot iterate over value of type {:?}", iterable_value))),
+                }
                 Ok(Value::Unit)
-            }
-            Statement::Return(expr) => {
-                let value = if let Some(e) = expr {
-                    self.evaluate_expression(e)?
-                } else {
-                    Value::Unit // Implicit return of unit
-                };
-                Ok(Value::Return(Box::new(value)))
             }
             Statement::ModuleDeclaration {name, body, is_public} => {
                 self.execute_module_declaration(name, body, is_public)
@@ -276,8 +317,97 @@ impl Interpreter {
                 self.enums.insert(name, variants);
                 Ok(Value::Unit)
             }
-            // Skip other declarations for now
+            Statement::Break => Ok(Value::Break),
+            Statement::Continue => Ok(Value::Continue),
+            Statement::Match {value, arms} => {
+                let match_value = self.evaluate_expression(value)?.unwrap_return();
+                
+                for arm in arms {
+                    if let Some(bindings) = self.patter_matches(&arm.pat, &match_value)? {
+                        if let Some(gaurd) = arm.gaurd {
+                            self.push_scope();
+                            
+                            for (name, val) in &bindings {
+                                self.current_scope_mut().set(name.clone(), val.clone());
+                            }
+                            
+                            let guard_result = self.evaluate_expression(gaurd)?.unwrap_return();
+                            let gaurd_passed = self.is_truthy(guard_result);
+                            
+                            self.pop_scope();
+                            
+                            if !gaurd_passed {
+                                continue;
+                            }
+                        }
+                        
+                        self.push_scope();
+
+                        for (name, val) in bindings {
+                            self.current_scope_mut().set(name, val)
+                        }
+
+                        let result = self.evaluate_expression(arm.body)?.unwrap_return();
+                        
+                        self.pop_scope();
+                        return Ok(result);
+
+                    }
+                }
+                Err(VeldError::RuntimeError("No match arm matched the value".to_string()))
+            },
             _ => Ok(Value::Unit),
+        }
+    }
+    
+    fn patter_matches(&self, pattern: &MatchPattern, value: &Value) -> Result<Option<HashMap<String, Value>>> {
+        match pattern {
+            MatchPattern::Wildcard => Ok(Some(HashMap::new())),
+            MatchPattern::Literal(lit) => {
+                match (lit, value) {
+                    (Literal::Integer(a), Value::Integer(b)) if a == b => Ok(Some(HashMap::new())),
+                    (Literal::Float(a), Value::Float(b)) if a == b => Ok(Some(HashMap::new())),
+                    (Literal::String(a), Value::String(b)) if a == b => Ok(Some(HashMap::new())),
+                    (Literal::Boolean(a), Value::Boolean(b)) if a == b => Ok(Some(HashMap::new())),
+                    (Literal::Unit, Value::Unit) => Ok(Some(HashMap::new())),
+                    _ => Ok(None),
+                }
+            },
+            MatchPattern::Identifier(name) => {
+                let mut bindings = HashMap::new();
+                bindings.insert(name.clone(), value.clone());
+                Ok(Some(bindings))
+            },
+            MatchPattern::Struct { name, fields } => {
+                if let Value::Struct {name: value_name, fields: value_fields} = value {
+                    if name != value_name {
+                        return Ok(None); // Wrong struct name
+                    }
+                    
+                    let mut all_bindings = HashMap::new();
+                    
+                    for (field_name, field_pattern) in fields {
+                        if let Some(field_value) = value_fields.get(field_name) {
+                            if let Some(pattern) = field_pattern {
+                                if let Some(bindings) = self.patter_matches(&**pattern, field_value)? {
+                                    all_bindings.extend(bindings);
+                                } else { 
+                                    return Ok(None); // Field did not match
+                                }
+                            } else { 
+                                all_bindings.insert(field_name.clone(), field_value.clone());
+                            }
+                        } else { 
+                            return Ok(None);
+                        }
+                    }
+                    Ok(Some(all_bindings))
+                } else { 
+                    Ok(None) // Not a struct
+                }
+            },
+            // TODO - Implement Enum pattern matching
+            _ => Ok(None), // Not implemented yet
         }
     }
 
@@ -419,6 +549,7 @@ impl Interpreter {
                             self.call_method_value(obj_value, method, arg_values)
                         }
                     }
+                    
                 }
             }
 

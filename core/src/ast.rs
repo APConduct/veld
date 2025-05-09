@@ -221,9 +221,32 @@ pub enum Statement {
         is_public: bool,
     },
     Match {
-        scrutinee: Expr,
-        arms: Vec<(Pattern, Option<Expr>, Vec<Statement>)>, // (pattern, guard, body)
+        value: Expr,
+        arms: Vec<MatchArm>, // (pattern, guard, body)
     },
+}
+
+#[derive(Debug, Clone)]
+pub struct MatchArm{
+    pub pat: MatchPattern,
+    pub gaurd: Option<Expr>,
+    pub body: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub enum MatchPattern{
+    Literal(Literal),
+    Identifier(String),
+    Struct {
+        name: String,
+        fields: Vec<(String, Option<Box<MatchPattern>>)>,
+    },
+    Enum {
+        name: String,
+        variant: String,
+        fields: Vec<(String, Option<Box<MatchPattern>>)>,
+    },
+    Wildcard,
 }
 
 #[derive(Debug, Clone)]

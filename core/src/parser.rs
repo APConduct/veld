@@ -1,5 +1,5 @@
 
-use crate::ast::{Argument, BinaryOperator, EnumVariant, Expr, ImportItem, KindMethod, Literal, MethodImpl, Statement, StructMethod, TypeAnnotation};
+use crate::ast::{Argument, BinaryOperator, EnumVariant, Expr, ImportItem, KindMethod, Literal, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod, TypeAnnotation};
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
 use crate::module::Module;
@@ -996,8 +996,9 @@ impl Parser {
         // } else if self.match_token(&[Token::Continue]) {
         //     return Ok(Statement::Continue);
         // } else
-        // TODO - handle break/continue statements
-        if self.match_token(&[Token::If]) {
+        if self.match_token(&[Token::Match]) {
+            self.match_statement()
+        } else if self.match_token(&[Token::If]) {
             self.if_statement()
         } else if self.match_token(&[Token::While]) {
             self.while_statement()
@@ -1005,10 +1006,93 @@ impl Parser {
             self.for_statement()
         } else if self.match_token(&[Token::Return]) {
             self.return_statement()
-        } else {
+        } else if self.match_token(&[Token::Break]){
+            Ok(Statement::Break)
+        } else if self.match_token(&[Token::Continue]){
+            Ok(Statement::Continue)
+        } else{
             let expr = self.expression()?;
             Ok(Statement::ExprStatement(expr))
         }
+    }
+    
+    fn parse_match_pattern(&mut self) -> Result<MatchPattern> {
+        // Check for wildcard pattern (_)
+        if self.match_token(&[Token::Identifier("_".to_string())]) {
+            return Ok(MatchPattern::Wildcard);
+        }
+        
+        // Check for literal patterns
+        if self.check(&Token::IntegerLiteral(0)) || 
+            self.check(&Token::FloatLiteral(0.0)) ||
+            self.check(&Token::StringLiteral("".to_string())) ||
+            self.check(&Token::True) ||
+            self.check(&Token::False) {
+            
+            let expr = self.primary()?;
+            if let Expr::Literal(lit) = expr {
+                return Ok(MatchPattern::Literal(lit));
+            }
+        }
+        
+        let ident = self.consume_identifier("Expected identifier in match pattern")?;
+        
+        if self.match_token(&[Token::LParen]) {
+            let mut fields = Vec::new();
+            
+            if !self.check(&Token::RParen) {
+                loop {
+                    let field_name = self.consume_identifier("Expected field name in struct pattern")?;
+                    
+                    let field_pattern = if self.match_token(&[Token::Colon]) {
+                        let pattern = self.parse_match_pattern()?;
+                        Some(Box::new(pattern))
+                    } else { 
+                        None // Shorthand syntax for like 'Person(name)' binds 'name' directly
+                    };
+                    
+                    fields.push((field_name, field_pattern));
+                    
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+            
+            self.consume(&Token::RParen, "Expected ')' after struct pattern")?;
+            
+            return Ok(MatchPattern::Struct {
+                name: ident,
+                fields,
+            });
+        }
+        
+        // Simple variable binding
+        Ok(MatchPattern::Identifier(ident))
+    }
+
+    fn match_statement(&mut self)->Result<Statement>{
+        let value = self.expression()?;
+        let mut arms = Vec::new();
+        while !self.check(&Token::End) && !self.is_at_end() {
+            let pattern = self.parse_match_pattern()?;
+            
+            let gaurd = if self.match_token(&[Token::Where]){
+                Some(self.expression()?)
+            } else {
+                None 
+            };
+            
+            self.consume(&Token::FatArrow, "Expeected '=>' after match pattern")?;
+            let body = self.expression()?;
+            
+            arms.push(MatchArm{pat: pattern, gaurd, body});
+            
+            self.match_token(&[Token::Comma]);
+        }
+        
+        self.consume(&Token::End, "Expected 'end' after match statement")?;
+        Ok(Statement::Match {value, arms})
     }
 
     fn if_statement(&mut self) -> Result<Statement> {
