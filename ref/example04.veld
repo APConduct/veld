@@ -68,7 +68,7 @@ fn test_break()
     let i = 0
     while true
         i = i + 1
-        if i > 5
+        if i > 5 then
             break
         end
     end
@@ -78,9 +78,9 @@ end
 -- Test match statement
 fn test_match(value)
     match value
-        0 => "zero",
-        1 => "one",
-        n where n > 1 => "many",
+        0 => "zero"
+        1 => "one"
+        n where n > 1 => "many"
         _ => "negative",
     end
 end

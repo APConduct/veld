@@ -2,13 +2,13 @@
 
 ```veld
 -- Basic types
-let i: i32 = 42;
-let f: f64 = 3.14;
-let s: str = "hello";
-let b: bool = true;
+let i: i32 = 42
+let f: f64 = 3.14
+let s: str = "hello"
+let b: bool = true
 
 -- Unit type (similar to void/nil but type-safe)
-let unit_value: () = ();
+let unit_value: () = ()
 
 -- Function returning unit (proc)
 fn log_message(msg: str) -> ()
@@ -30,11 +30,11 @@ fn add(a: i32, b: i32) -> i32
 end
 
 -- Single-line function
-fn multiply(a: i32, b: i32) -> i32 a * b;
+fn multiply(a: i32, b: i32) -> i32 a * b
 
 -- Anonymous function
 let div = fn(a: i32, b: i32) -> i32
-    if b == 0
+    if b == 0 then
         error~("Division by zero")
     else
         a / b
@@ -42,7 +42,7 @@ let div = fn(a: i32, b: i32) -> i32
 end
 
 -- Lambda expression
-let square = x => x * x;
+let square = x => x * x
 
 -- Function with generic parameters
 fn map<T, U>(value: T, f: fn(T) -> U) -> U
@@ -59,10 +59,10 @@ end
 
 ```veld
 -- If expression
-let max = if a > b then a else b;
+let max = if a > b then a else b end
 
 -- Multi-line if statement
-if user.is_admin()
+if user.is_admin() then
     grant_access()
     log_access()
 else if user.has_permission("read")
@@ -73,8 +73,8 @@ end
 
 -- Pattern matching with guards
 match value
-    Person{name, age} where age >= 18 => handle_adult(name),
-    Person{name, age} => handle_minor(name, age),
+    Person{name, age} where age >= 18 => handle_adult(name)
+    Person{name, age} => handle_minor(name, age)
     _ => handle_unknown()
 end
 
@@ -95,7 +95,7 @@ end
 
 -- Infinite loop
 for
-    if should_exit()
+    if should_exit() then
         break
     end
     do_work()
@@ -117,15 +117,15 @@ struct Point
 end
 
 -- Single-line struct
-struct Color(r: u8, g: u8, b: u8);
+struct Color(r: u8, g: u8, b: u8)
 
 -- Struct with methods
 struct Rectangle
     width: f64,
     height: f64,
 impl
-    fn area(self) -> f64 = self.width * self.height;
-    fn scale(self, factor: f64) -> Rectangle =
+    fn area(self) -> f64 = self.width * self.height
+    fn scale(self, factor: f64) -> Rectangle
         Rectangle{
             width: self.width * factor,
             height: self.height * factor,
@@ -140,7 +140,7 @@ enum Result<T, E>
 end
 
 -- Using enum
-let result: Result<i32, str> = Ok(42);
+let result: Result<i32, str> = Ok(42)
 
 -- Pattern matching on enum
 match result
@@ -172,11 +172,11 @@ struct User
 end
 
 impl User: Serializable
-    fn serialize(self) -> [u8] =
+    fn serialize(self) -> [u8]
         -- implementation
     end
 
-    fn deserialize(data: [u8]) -> User =
+    fn deserialize(data: [u8]) -> User
         -- implementation
     end
 end
@@ -187,11 +187,11 @@ struct Message
     timestamp: u64,
 
     -- Methods defined inline satisfy kind requirements
-    fn serialize(self) -> [u8] =
+    fn serialize(self) -> [u8]
         -- implementation
     end
 
-    fn deserialize(data: [u8]) -> Message =
+    fn deserialize(data: [u8]) -> Message
         -- implementation
     end
 end
@@ -212,7 +212,9 @@ end
 ```veld
 -- Function annotation
 @deprecated("Use new_function instead")
-fn old_function() -> i32 = 42;
+fn old_function() -> i32 = 42
+    -- implementation
+end
 
 -- Implementation optimization hints
 @optimize(inline)
@@ -226,8 +228,8 @@ end
 -- Attribute for exhaustive match checking
 @exhaustive
 match value
-    Case1 => handle_case1(),
-    Case2 => handle_case2(),
+    Case1 => handle_case1()
+    Case2 => handle_case2()
     -- Compiler error if any case is missing
 end
 
@@ -299,7 +301,7 @@ where
     U: Equatable
 =
     for item in haystack
-        if item == needle
+        if item == needle then
             return true
         end
     end
@@ -316,13 +318,13 @@ end
 impl List<T>: Iterator
     type Item = T
 
-    fn next(self) -> Option<T> =
+    fn next(self) -> Option<T>
         -- implementation
     end
 end
 
 -- Multiple constraints
-fn print_all<T>(items: List<T>) where T: ToString + Display =
+fn print_all<T>(items: List<T>) where T: ToString + Display
     for item in items
         println~("{}", item)
     end
@@ -333,8 +335,8 @@ end
 
 ```veld
 -- Using Result enum
-fn divide(a: i32, b: i32) -> Result<i32, str> =
-    if b == 0
+fn divide(a: i32, b: i32) -> Result<i32, str>
+    if b == 0 then
         Err("Division by zero")
     else
         Ok(a / b)
@@ -342,14 +344,14 @@ fn divide(a: i32, b: i32) -> Result<i32, str> =
 end
 
 -- Error propagation with ? operator
-fn calculate() -> Result<i32, str> =
+fn calculate() -> Result<i32, str>
     let x = divide(10, 2)?;  -- Returns error if divide fails
     let y = divide(20, x)?;  -- Same here
     Ok(y + 5)
 end
 
 -- Try-catch like pattern
-fn safe_operation() =
+fn safe_operation()
     try
         risky_function()
     catch e: IOException
@@ -362,7 +364,7 @@ fn safe_operation() =
 end
 
 -- With statement for resource management
-fn process_file(path: str) =
+fn process_file(path: str)
     with file = File.open(path) do
         -- file is automatically closed at end of block
         process(file.read_all())
@@ -374,22 +376,22 @@ end
 
 ```veld
 -- Spawning a task
-let handle = spawn fn() =
+let handle = spawn fn()
     perform_work()
 end
 
 -- Awaiting async functions
-fn fetch_data() async -> Data =
+fn fetch_data() async -> Data
     let response = http.get("https://api.example.com/data").await;
     parse_data(response)
 end
 
 -- Using channels
-let (sender, receiver) = channel::<Message>();
+let (sender, receiver) = channel::<Message>()
 
 spawn fn() =
     for i in 1..10
-        sender.send(Message{id: i})
+        sender.send(Message(id: i))
     end
 end
 
@@ -402,13 +404,13 @@ end
 
 ```veld
 -- Compile-time reflection
-fn generate_fields<T>() -> [str] =
+fn generate_fields<T>() -> [str]
     @reflect(T).fields().map(f => f.name)
 end
 
 -- Runtime type checking
-fn process(value: any) =
-    if value is Serializable
+fn process(value: any)
+    if value is Serializable then
         let bytes = value.serialize()
         -- process bytes
     else

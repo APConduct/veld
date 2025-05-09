@@ -38,7 +38,7 @@ let add = a, b => a + b     -- Type inference available, completes after express
 ### Multi-line Lambda Function
 ```veld
 let add = a, b => do    -- Starts a block to be the expression, finishes with end
-    let result = a + b;
+    let result = a + b
     result
 end
 ```
@@ -46,8 +46,8 @@ end
 ### Multi-line Function Example
 ```veld
 fn complex_function(x: i32) -> i32
-    let temp = something();
-    temp + x
+    let temp = something()
+    temp + x        -- Implicit return
 end
 ```
 
@@ -65,7 +65,7 @@ end
 
 #### Single-line Struct (Tuple-style)
 ```veld
-struct Point(x: f64, y: f64);
+struct Point(x: f64, y: f64)
 ```
 
 ### Kinds (Traits/Interfaces)
@@ -73,15 +73,15 @@ struct Point(x: f64, y: f64);
 #### Basic Kind Declaration
 ```veld
 kind Shape
-    fn area(self) ...  -- No default implementation
+    fn area(self)  -- No default implementation
 end
 ```
 
 #### Multi-line Kind
 ```veld
 kind Shape
-    fn area(self) -> f64,
-    fn perimeter(self) -> f64,
+    fn area(self) -> f64
+    fn perimeter(self) -> f64
 end
 ```
 
@@ -94,7 +94,7 @@ kind Printable = fn print(self) -> str;     -- if a type has a matching function
 
 #### Single-line Implementation
 ```veld
-impl Point fn distance(self) -> f64 (self.x * self.x + self.y * self.y).sqrt();
+impl Point fn distance(self) -> f64 (self.x * self.x + self.y * self.y).sqrt() end
 ```
 
 #### Multi-line Implementation
@@ -128,7 +128,7 @@ end
 
 #### Single-line Enum
 ```veld
-enum Direction(North, South, East, West);
+enum Direction(North, South, East, West)
 ```
 
 ## Macros
@@ -205,14 +205,14 @@ end
 #### Generic Function with Constraints
 ```veld
 fn sum<T: Number>(list: List<T>) -> T
-    list.reduce(a, b => a + b)
+    list.reduce((a, b) => a + b)
 end
 ```
 
 #### Multiple Constraints
 ```veld
 fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool
-    println~("{} vs {}", a, b);
+    println~("{} vs {}", a, b)
     a == b
 end
 ```
@@ -224,7 +224,7 @@ end
 struct SortedList<T: Ord>
     items: List<T>
 impl
-    fn add(self, item: T) =
+    fn add(self, item: T)
         self.items.push(item);
         self.items.sort()
     end

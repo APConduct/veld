@@ -1,7 +1,7 @@
 ```veld
 -- Veld code
 mod math
-pub fn add(a: i32, b: i32) -> i32 a + b;
+pub fn add(a: i32, b: i32) -> i32 a + b
 ```
 
 Would compile to Lua as:
@@ -39,7 +39,7 @@ local add, subtract = math.add, math.subtract
    -- Module initialization code runs when imported
    println~("Config module loaded");
 
-   pub let settings = load_settings();
+   pub let settings = load_settings()
    ```
 
 2. **Re-exports**
@@ -55,10 +55,10 @@ local add, subtract = math.add, math.subtract
    mod platform
 
    @when(target = "web")
-   pub fn get_platform() -> str "web";
+   pub fn get_platform() -> str "web" end
 
    @when(target = "desktop")
-   pub fn get_platform() -> str "desktop";
+   pub fn get_platform() -> str "desktop"; end
    ```
 
 
@@ -84,7 +84,7 @@ end
 end
 
 -- Usage examples
-let numbers = vec~(1, 2, 3);  // Declarative macro with tilde
+let numbers = vec~(1, 2, 3)  // Declarative macro with tilde
 
 @derive(Debug, Clone)         // Procedural macro as attribute
 struct Point

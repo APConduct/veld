@@ -17,27 +17,24 @@ let v2 = Vector2.new()               -- Empty is fine
 let v3 = Vector2.new(1.0, 2.0)      -- new() can use positional!
 let v4 = Vector2.from_angle(0.5)     -- Other constructors are free
 
--- Different terminator styles
-fn add(a: i32, b: i32) -> i32 a + b
-fn sub(a: i32, b: i32) -> i32 a - b;
-fn mul(a: i32, b: i32) -> i32 a * b,
-
 struct Point
-    x: f64
+    x: f64,
     y: f64,
-    z: f64
+    z: f64,
 
     fn new(x: f64, y: f64, z: f64) = Point(x, y, z),  -- Parentheses for struct creation
-    fn dist(self) (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+    fn dist(self) (self.x * self.x + self.y * self.y + self.z * self.z).sqrt() end,
 end
 
 impl Point
-    fn scale(self, f: f64) = Point(
-        x: self.x * f,
-        y: self.y * f,
-        z: self.z * f
-    ),
-    fn normalize(self) self.scale(1.0 / self.dist());
+    fn scale(self, f: f64)
+        Point(
+            x: self.x * f,
+            y: self.y * f,
+            z: self.z * f
+        )
+    end,
+    fn normalize(self) self.scale(1.0 / self.dist()) end,
 end
 
 -- Table example
@@ -48,7 +45,7 @@ let config = {
 
 -- Code generation
 @comptime
-fn derive_debug(type_name) =
+fn derive_debug(type_name)
     let type_info = @reflect(type_name);
     -- Generate Debug implementation
 end

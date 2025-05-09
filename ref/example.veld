@@ -216,12 +216,12 @@ end
 -- Generic Functions and Types ------------------------------------------
 
 -- Basic generic function
-fn map<T, U>(value: T, f: fn(T) -> U) -> U =
+fn map<T, U>(value: T, f: fn(T) -> U) -> U
     f(value)
 end
 
 -- Single-line generic function
-fn identity<T>(x: T) -> T = x;
+fn identity<T>(x: T) -> T = x
 
 -- Generic function with constraints
 fn sum<T: Number>(list: List<T>) -> T
@@ -230,7 +230,7 @@ end
 
 -- Multiple constraints
 fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool
-    println~("{} vs {}", a, b);
+    println~("{} vs {}", a, b)
     a == b
 end
 
@@ -239,7 +239,7 @@ struct SortedList<T: Ord>
     items: List<T>
 impl
     fn add(self, item: T)
-        self.items.push(item);
+        self.items.push(item)
         self.items.sort()
     end
 end

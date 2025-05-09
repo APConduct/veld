@@ -1,11 +1,11 @@
 -- Basic types
-let i: i32 = 42;
-let f: f64 = 3.14;
-let s: str = "hello";
-let b: bool = true;
+let i: i32 = 42
+let f: f64 = 3.14
+let s: str = "hello"
+let b: bool = true
 
 -- Unit type (similar to void/nil but type-safe)
-let unit_value: () = ();
+let unit_value: () = ()
 
 -- Function returning unit (proc)
 fn log_message(msg: str) -> ()
@@ -13,7 +13,7 @@ fn log_message(msg: str) -> ()
 end
 
 -- Shorthand for procedures
-proc greet(name: str) =
+proc greet(name: str)
     println~("Hello, {}!", name)
 end
 
@@ -24,11 +24,11 @@ fn add(a: i32, b: i32) -> i32
 end
 
 -- Single-line function
-fn multiply(a: i32, b: i32) -> i32 a * b;
+fn multiply(a: i32, b: i32) -> i32 a * b end
 
 -- Anonymous function
 let div = fn(a: i32, b: i32) -> i32
-    if b == 0
+    if b == 0 then
         error~("Division by zero")
     else
         a / b
@@ -50,10 +50,16 @@ end
 
 
 -- If expression
-let max = if a > b then a else b;
+let max = if a > b then a else b end
+
+-- can also be written like
+let min = match a
+    a < b => a
+    _ => b
+end
 
 -- Multi-line if statement
-if user.is_admin()
+if user.is_admin() then
     grant_access()
     log_access()
 else if user.has_permission("read")
@@ -64,8 +70,8 @@ end
 
 -- Pattern matching with guards
 match value
-    Person{name, age} where age >= 18 => handle_adult(name),
-    Person{name, age} => handle_minor(name, age),
+    Person{name, age} where age >= 18 => handle_adult(name)
+    Person{name, age} => handle_minor(name, age)
     _ => handle_unknown()
 end
 
@@ -85,8 +91,8 @@ for item, index in collection.with_index()
 end
 
 -- Infinite loop
-for
-    if should_exit()
+for ever()~
+    if should_exit() then
         break
     end
     do_work()
@@ -105,14 +111,14 @@ struct Point
 end
 
 -- Single-line struct
-struct Color(r: u8, g: u8, b: u8);
+struct Color(r: u8, g: u8, b: u8)
 
 -- Struct with methods
 struct Rectangle
     width: f64,
     height: f64,
 impl
-    fn area(self) -> f64 self.width * self.height;
+    fn area(self) -> f64 self.width * self.height
     fn scale(self, factor: f64) -> Rectangle
         Rectangle(
             width: self.width * factor,
@@ -128,7 +134,7 @@ enum Result<T, E>
 end
 
 -- Using enum
-let result: Result<i32, str> Ok(42);
+let result: Result<i32, str> Ok(42)
 
 -- Pattern matching on enum
 match result
@@ -188,13 +194,13 @@ kind Container<T>
     fn size(self) -> usize
 
     -- Default method using other required methods
-    fn is_empty(self) -> bool self.size() == 0;
+    fn is_empty(self) -> bool self.size() == 0
 end
 
 
 -- Function annotation
 @deprecated("Use new_function instead")
-fn old_function() -> i32 42;
+fn old_function() -> i32 42
 
 -- Implementation optimization hints
 @optimize(inline)
@@ -208,8 +214,8 @@ end
 -- Attribute for exhaustive match checking
 @exhaustive
 match value
-    Case1 => handle_case1(),
-    Case2 => handle_case2(),
+    Case1 => handle_case1()
+    Case2 => handle_case2()
     -- Compiler error if any case is missing
 end
 
@@ -308,7 +314,7 @@ end
 
 -- Using Result enum
 fn divide(a: i32, b: i32) -> Result<i32, str>
-    if b == 0
+    if b == 0 then
         Err("Division by zero")
     else
         Ok(a / b)
@@ -317,8 +323,8 @@ end
 
 -- Error propagation with ? operator
 fn calculate() -> Result<i32, str>
-    let x = divide(10, 2)?;  -- Returns error if divide fails
-    let y = divide(20, x)?;  -- Same here
+    let x = divide(10, 2)?  -- Returns error if divide fails
+    let y = divide(20, x)?  -- Same here
     Ok(y + 5)
 end
 
@@ -354,7 +360,7 @@ fn fetch_data() async -> Data
 end
 
 -- Using channels
-let (sender, receiver) = channel::<Message>();
+let (sender, receiver) = channel::<Message>()
 
 spawn fn()
     for i in 1..10
@@ -384,7 +390,7 @@ end
 -- Code generation
 @comptime
 fn derive_debug(type_name)
-    let type_info = @reflect(type_name);
+    let type_info = @reflect(type_name)
     -- Generate Debug implementation
 end
 
