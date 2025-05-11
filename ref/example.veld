@@ -3,26 +3,21 @@
 
 -- multiple ways to declare functions
 
-fn add(a: i32, b: i32) -> i32 =
-    a + b
-end
 
--- is the same as
-
-fn add(a: i32, b: i32) -> i32 =
+fn add(a: i32, b: i32) -> i32
     a + b
 end
 
 
 -- is the same as:
 
-fn add(a: i32, b: i32) -> i32 =
+fn add(a: i32, b: i32) -> i32
     return a + b
 end
 
 -- is the same as:
 
-fn add(a: i32, b: i32) -> i32 = return a + b end
+fn add(a: i32, b: i32) -> i32 return a + b end
 
 -- is the same as:
 
