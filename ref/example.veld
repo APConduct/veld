@@ -27,25 +27,25 @@ end
 
 -- is the same as:
 
-let add: fn(i32, i32) -> i32 =    -- first class function
+let add: (i32, i32) -> i32 = = fn(a, b)   -- first class function
     a + b
 end
 
 -- is the same as:
 
-fn add(a, b) = a + b;     -- demi-lambda function (semicolons are allowed for single-line functions)
+fn add(a, b) = a + b     -- demi-lambda function (semicolons are allowed for single-line functions)
 
 -- is the same as:
 
-fn add(a: i32, b: i32) -> i32 = a + b;
+fn add(a: i32, b: i32) -> i32 = a + b
 
 -- is the same as:
 
-let add = a, b => a + b;  -- lambda function (no type annotations)
+let add = a, b => a + b  -- lambda function (no type annotations)
 
 -- Multi-line function
 fn complex_function(x: i32) -> i32
-    let temp = something();
+    let temp = something()
     temp + x
 end
 
@@ -60,7 +60,7 @@ struct Point(x: f64, y: f64);
 
 -- kind declaration(similar to traits or interfaces)
 kind Shape
-    fn area(self) ... -- no default implementation (must implement)
+    fn area(self) -- no default implementation (must implement)
 end
 
 -- Multi-line kind declaration
@@ -70,14 +70,14 @@ kind Shape
 end
 
 -- Single-line kind
-kind Printable = fn print(self) -> str;     -- NOT FINALIZED
+kind Printable = fn print(self) -> str     -- NOT FINALIZED
 
 -- Single-line impl
-impl Point fn distance(self) -> f64 = (self.x * self.x + self.y * self.y).sqrt();
+impl Point fn distance(self) -> f64 (self.x * self.x + self.y * self.y).sqrt() end
 
 -- Multi-line impl needs end
 impl Circle
-    fn area(self) -> f64 =
+    fn area(self) -> f64
         3.14 * self.radius * self.radius
     end
 end
@@ -97,7 +97,7 @@ enum Color
 end
 
 -- Single-line enum
-enum Direction (North, South, East, West);
+enum Direction (North, South, East, West)
 
 
 -- Explicit struct behavior declaration
@@ -127,14 +127,14 @@ end
 struct MyType
     value: i32
 impl
-    fn print(self) = println!("{}", self.value);  -- could implement Printable NOT FINALIZED
+    fn print(self) = println!("{}", self.value)  -- could implement Printable NOT FINALIZED
     fn area(self) = self.value as f64            -- implements Shape
 end
 
 -- Example of a kind with default implementation
 kind HasVolume
     fn volume(self) -> f64
-    fn is_empty(self) -> bool self.volume() == 0.0;  -- default implementation
+    fn is_empty(self) -> bool self.volume() == 0.0  -- default implementation
 end
 
 -- Macros -------------------------------------------------------------
@@ -164,7 +164,7 @@ end
 
 -- Procedural macro for deriving traits
 @comptime
-fn derive(trait_name) =
+fn derive(trait_name)
     match trait_name
         "Debug" => generate_debug_impl(),
         "Clone" => generate_clone_impl(),
@@ -191,14 +191,14 @@ struct Point
 end
 
 -- SQL query macro
-@~macro sql(query_string) =                 -- NOT FINALIZED/ EXPERIMENTAL
+@~macro sql(query_string)                 -- NOT FINALIZED/ EXPERIMENTAL
     parse_and_validate_sql(query_string)
 end
 
 let users = sql~(SELECT * FROM users WHERE age > 18);
 
 -- Test macro
-@~macro test(name, block) =                 -- NOT FINALIZED/ EXPERIMENTAL
+@~macro test(name, block)                 -- NOT FINALIZED/ EXPERIMENTAL
     register_test(name, block)
 end
 
@@ -216,7 +216,7 @@ fn map<T, U>(value: T, f: fn(T) -> U) -> U
 end
 
 -- Single-line generic function
-fn identity<T>(x: T) -> T = x
+fn identity<T>(x: T) -> T x end
 
 -- Generic function with constraints
 fn sum<T: Number>(list: List<T>) -> T
@@ -247,7 +247,7 @@ end
 
 -- Generic kind with associated types
 kind Iterator
-    type Item
-    fn next(self) -> Option<Self.Item>
-    fn map<U>(self, f: fn(Self.Item) -> U) -> MapIterator<Self, U>
+    type Item,
+    fn next(self) -> Option<Self.Item>,
+    fn map<U>(self, f: fn(Self.Item) -> U) -> MapIterator<Self, U>,
 end

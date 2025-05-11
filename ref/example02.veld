@@ -54,8 +54,8 @@ let max = if a > b then a else b end
 
 -- can also be written like
 let min = match a
-    a < b => a
-    _ => b
+    a < b => a,
+    _ => b,
 end
 
 -- Multi-line if statement
@@ -70,9 +70,9 @@ end
 
 -- Pattern matching with guards
 match value
-    Person{name, age} where age >= 18 => handle_adult(name)
-    Person{name, age} => handle_minor(name, age)
-    _ => handle_unknown()
+    Person{name, age} where age >= 18 => handle_adult(name),
+    Person{name, age} => handle_minor(name, age),
+    _ => handle_unknown(),
 end
 
 -- While loop
@@ -152,8 +152,8 @@ let config = {
 
 -- Kind declaration (interface)
 kind Serializable
-    fn serialize(self) -> [u8]
-    fn deserialize(data: [u8]) -> Self
+    fn serialize(self) -> [u8],
+    fn deserialize(data: [u8]) -> Self,
 end
 
 -- Explicit implementation
@@ -214,8 +214,8 @@ end
 -- Attribute for exhaustive match checking
 @exhaustive
 match value
-    Case1 => handle_case1()
-    Case2 => handle_case2()
+    Case1 => handle_case1(),
+    Case2 => handle_case2(),
     -- Compiler error if any case is missing
 end
 
@@ -251,7 +251,7 @@ end
 end
 
 -- Using a macro
-let numbers = vec~(1, 2, 3, 4);
+let numbers = vec~(1, 2, 3, 4)
 
 -- Macro with infix notation
 let html = html~(
@@ -355,7 +355,7 @@ end
 
 -- Awaiting async functions
 fn fetch_data() async -> Data
-    let response = http.get("https://api.example.com/data").await;
+    let response = http.get("https://api.example.com/data").await
     parse_data(response)
 end
 
