@@ -909,22 +909,7 @@ impl TypeChecker {
             (Type::Any, _) | (_, Type::Any) => true,
 
             (TypeVar(_), _) | (_, TypeVar(_)) => true,
-
-            (Type::I32, Type::I64) | (Type::I64, Type::I32) => true,
-            (Type::F32, Type::F64) | (Type::F64, Type::F32) => true,
-            (Type::I32, Type::F32) | (Type::F32, Type::I32) => true,
-            (Type::I64, Type::F32) | (Type::F32, Type::I64) => true,
-            (Type::I32, Type::F64) | (Type::F64, Type::I32) => true,
-            (Type::I64, Type::F64) | (Type::F64, Type::I64) => true,
-            (Type::I32, Type::U32) | (Type::U32, Type::I32) => true,
-            (Type::I64, Type::U64) | (Type::U64, Type::I64) => true,
-            (Type::I8, Type::I16) | (Type::I16, Type::I8) => true,
-            (Type::I8, Type::I32) | (Type::I32, Type::I8) => true,
-            (Type::I16, Type::I32) | (Type::I32, Type::I16) => true,
-            (Type::I8, Type::I64) | (Type::I64, Type::I8) => true,
-            (Type::I16, Type::I64) | (Type::I64, Type::I16) => true,
-            (Type::I8, Type::U8) | (Type::U8, Type::I8) => true,
-            (Type::I16, Type::U16) | (Type::U16, Type::I16) => true,
+            
             _ if self.is_numeric_type(&t1) && self.is_numeric_type(&t2) => true,
             _ => false,
         }
