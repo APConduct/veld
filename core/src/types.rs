@@ -1,6 +1,7 @@
+use std::any::type_name;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
-use crate::ast::{Statement, TypeAnnotation};
+use crate::ast::{Argument, BinaryOperator, Expr, Literal, Statement, TypeAnnotation};
 use crate::error::{Result, VeldError};
 use crate::types::Type::TypeParam;
 
@@ -471,9 +472,166 @@ impl TypeEnvironment {
             Type::Array(elem) => {
                 self.occurs_check(id, elem)
             },
-            _ => {
-                false
-            }
+            _ => false
         }
     }
 }
+
+pub struct TypeChecker {
+    env: TypeEnvironment,
+    current_function_return_type: Option<Type>,
+}
+
+impl TypeChecker {
+    pub fn new() -> Self {
+        Self {
+            env: TypeEnvironment::new(),
+            current_function_return_type: None,
+        }
+    }
+
+    pub fn check_program(&mut self, statements: &[Statement]) -> Result<()> {
+        todo!()
+    }
+
+    pub fn type_check_statement(&mut self, stmt: &Statement) -> Result<()> {
+        todo!()
+    }
+
+    pub fn type_check_function(
+        &mut self,
+        name: &str,
+        params: &[(String, TypeAnnotation)],
+        return_type: &TypeAnnotation,
+        body: &[Statement]
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn type_check_variable_declaration(
+        &mut self,
+        name: &str,
+        type_annotation: Option<&TypeAnnotation>,
+        value: &Expr,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn type_check_if(
+        &mut self,
+        condition: &Expr,
+        then_branch: &[Statement],
+        else_branch: &Option<Vec<Statement>>,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn type_check_while(
+        &mut self,
+        condition: &Expr,
+        body: &[Statement],
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn type_check_for(
+        &mut self,
+        iterator: &str,
+        iterable: &Expr,
+        body: &[Statement],
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub fn infer_expression_type(&mut self, expr: &Expr) -> Result<()> {
+        todo!()
+    }
+
+    fn infer_literal_type(&mut self, lit: &Literal) -> Result<Type> {
+        todo!()
+    }
+
+    fn infer_binary_op_type(
+        &mut self,
+        left: &Expr,
+        op: &BinaryOperator,
+        right: &Expr,
+    ) -> Result<Type> {
+        todo!()
+    }
+    
+    fn is_numeric_type(&self, ty: &Type) -> bool {
+        todo!()
+    } 
+    
+    fn types_compatible(&self, t1: &Type, t2: &Type) -> bool {
+        todo!()
+    }
+    
+    fn infer_function_call_type(
+        &mut self,
+        name: &str,
+        args: &[Argument],
+    ) -> Result<Type> {
+        todo!()
+    }
+    
+    fn infer_lambda_type(
+        &mut self,
+        params: &[(String, Option<TypeAnnotation>)],
+        body: &Expr,
+        return_type_anno: Option<&TypeAnnotation>,
+    ) -> Result<Type> {
+        todo!()
+    }
+    
+    fn infer_method_call_type(
+        &mut self,
+        object: &Expr,
+        method: &str,
+        args: &[Argument],
+    ) -> Result<Type> {
+        todo!()
+    }
+    
+    fn infer_array_method_call_type(
+        &mut self,
+        elem_type: &Type,
+        method: &str,
+        args: &[Argument],
+    ) -> Result<Type> {
+        todo!()
+    }
+    
+    fn infer_property_access_type(
+        &mut self,
+        object: &Expr,
+        property: &str,
+    ) -> Result<Type> {
+        todo!()
+    }
+    
+    fn infer_struct_create_type(
+        &mut self,
+        struct_name: &str,
+        fields: &[(String, Expr)],
+    ) -> Result<Type> {
+        todo!()
+    }
+    
+    fn infer_array_literal_type(
+        &mut self,
+        elements: &[Expr],
+    ) -> Result<Type> {
+        todo!()
+    }
+    
+    fn infer_index_access_type(
+        &mut self,
+        object: &Expr,
+        index: &Expr,
+    ) -> Result<Type> {
+        todo!()
+    }
+}
+
