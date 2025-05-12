@@ -234,7 +234,7 @@ end
 
 
 -- Declarative macro
-@~macro vec             -- NOT FINALIZED/ EXPERIMENTAL
+macro~ vec             -- NOT FINALIZED/ EXPERIMENTAL
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
