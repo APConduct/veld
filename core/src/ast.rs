@@ -1,6 +1,9 @@
+use std::fmt::Display;
+
 #[derive(Debug, Clone)]
 pub enum Literal {
     Integer(i64),
+    Char(char),
     Float(f64),
     String(String),
     Boolean(bool),
@@ -104,6 +107,28 @@ pub enum BinaryOperator {
     Or,
     Exponent,
     Modulo,
+}
+
+impl Display for BinaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let op = match self {
+            BinaryOperator::Add => "+",
+            BinaryOperator::Subtract => "-",
+            BinaryOperator::Multiply => "*",
+            BinaryOperator::Divide => "/",
+            BinaryOperator::LessEq => "<=",
+            BinaryOperator::GreaterEq => ">=",
+            BinaryOperator::Less => "<",
+            BinaryOperator::Greater => ">",
+            BinaryOperator::EqualEqual => "==",
+            BinaryOperator::NotEqual => "!=",
+            BinaryOperator::And => "&&",
+            BinaryOperator::Or => "||",
+            BinaryOperator::Exponent => "^",
+            BinaryOperator::Modulo => "%",
+        };
+        write!(f, "{}", op)
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -10,6 +10,7 @@ pub enum Value {
     Float(f64),
     String(String),
     Boolean(bool),
+    Char(char),
     Return(Box<Value>),
     Unit,
     Function {
@@ -418,6 +419,7 @@ impl Interpreter {
                 Literal::Float(n) => Value::Float(n),
                 Literal::String(s) => Value::String(s),
                 Literal::Boolean(b) => Value::Boolean(b),
+                Literal::Char( c) => Value::Char(c),
                 Literal::Unit => Value::Unit,
             }),
             Expr::UnitLiteral => Ok(Value::Unit),

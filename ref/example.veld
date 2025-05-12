@@ -140,13 +140,13 @@ end
 -- Macros -------------------------------------------------------------
 
 -- Declarative macro syntax
-@~macro println(fmt, args...) =     -- NOT FINALIZED/ EXPERIMENTAL
+macro~ println(fmt, args...) =     -- NOT FINALIZED/ EXPERIMENTAL
     -- macro implementation
     format_and_print(fmt, args)
 end
 
 -- Pattern matching macro
-@~macro vec                         -- NOT FINALIZED/ EXPERIMENTAL
+macro~ vec                         -- NOT FINALIZED/ EXPERIMENTAL
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
@@ -191,14 +191,14 @@ struct Point
 end
 
 -- SQL query macro
-@~macro sql(query_string)                 -- NOT FINALIZED/ EXPERIMENTAL
+macro~ sql(query_string)                 -- NOT FINALIZED/ EXPERIMENTAL
     parse_and_validate_sql(query_string)
 end
 
 let users = sql~(SELECT * FROM users WHERE age > 18);
 
 -- Test macro
-@~macro test(name, block)                 -- NOT FINALIZED/ EXPERIMENTAL
+macro~ test(name, block)                 -- NOT FINALIZED/ EXPERIMENTAL
     register_test(name, block)
 end
 
@@ -217,6 +217,29 @@ end
 
 -- Single-line generic function
 fn identity<T>(x: T) -> T x end
+
+const persona = (thing) => do       -- this is a lambda function (multi-line)
+    println~("Hello, {}!", thing)
+    thing
+end
+
+-- Constrained generic function
+-- Number is a trait that can be implemented by various numeric types (and primitive types)
+fn add<T: Number>(a: T, b: T) -> T
+    a + b
+end
+
+-- Generic function with default type
+fn print_list<T: Display>(list: List<T>)
+    for item in list do
+        println~("Item: {}", item)
+    end
+end
+
+
+let personalized_greeting = fn(name: str) -> str
+    format~("Hello, {}!", name)
+end
 
 -- Generic function with constraints
 fn sum<T: Number>(list: List<T>) -> T
@@ -241,8 +264,8 @@ end
 
 -- Generic kind
 kind Container<T>
-    fn get(self) -> T
-    fn set(self, value: T)
+    fn get(self) -> T,
+    fn set(self, value: T),
 end
 
 -- Generic kind with associated types
