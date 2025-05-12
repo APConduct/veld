@@ -1,8 +1,12 @@
-use veld_core::ast::{Argument, BinaryOperator, EnumVariant, Expr, ImportItem, Literal, MatchPattern, Statement, TypeAnnotation};
-use veld_core::error::{Result, VeldError};
 use std::collections::HashMap;
 use std::path::Path;
-use veld_core::module::{ModuleManager, ExportedItem};
+use veld_core::ast::{
+    Argument, BinaryOperator, EnumVariant, Expr, ImportItem, Literal, MatchPattern, Statement,
+    TypeAnnotation,
+};
+use veld_core::error::{Result, VeldError};
+use veld_core::module::{ExportedItem, ModuleManager};
+use veld_core::types::TypeChecker;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -29,10 +33,9 @@ pub enum Value {
         fields: Vec<Value>,
     },
     Tuple(Vec<Value>),
-    
+
     Break,
     Continue,
-    
 }
 
 impl Value {
@@ -74,6 +77,7 @@ pub struct Interpreter {
     current_module: String,
     imported_modules: HashMap<String, String>, // alias -> module name
     enums: HashMap<String, Vec<EnumVariant>>,
+    type_checker: TypeChecker,
 }
 
 impl Interpreter {
@@ -86,8 +90,9 @@ impl Interpreter {
             current_module: "main".to_string(),
             imported_modules: Default::default(),
             enums: HashMap::new(),
+            type_checker: TypeChecker::new(),
         };
-        
+
         // Initialize Built-in array methods
         interpreter.initialize_array_methods();
         interpreter
@@ -98,6 +103,11 @@ impl Interpreter {
             "Starting interpretation with {} statements",
             statements.len()
         );
+
+        if let Err(e) = self.type_checker.check_program(&statements) {
+            return Err(e);
+        }
+
         let mut last_value = Value::Unit;
         for (i, stmt) in statements.iter().enumerate() {
             println!(
@@ -264,12 +274,12 @@ impl Interpreter {
                 body,
             } => {
                 let iterable_value = self.evaluate_expression(iterable.clone())?.unwrap_return();
-                
+
                 match iterable_value {
                     Value::Array(elements) => {
                         for element in elements {
                             self.current_scope_mut().set(iterator.clone(), element);
-                            
+
                             for stmt in body.clone() {
                                 let result = self.execute_statement(stmt)?;
                                 match result {
@@ -280,11 +290,12 @@ impl Interpreter {
                                 }
                             }
                         }
-                    },
+                    }
                     Value::String(s) => {
                         for c in s.chars() {
-                            self.current_scope_mut().set(iterator.clone(), Value::String(c.to_string()));
-                            
+                            self.current_scope_mut()
+                                .set(iterator.clone(), Value::String(c.to_string()));
+
                             for stmt in body.clone() {
                                 let result = self.execute_statement(stmt)?;
                                 match result {
@@ -295,53 +306,69 @@ impl Interpreter {
                                 }
                             }
                         }
-                    },
-                    _ => return Err(VeldError::RuntimeError(format!("Cannot iterate over value of type {:?}", iterable_value))),
+                    }
+                    _ => {
+                        return Err(VeldError::RuntimeError(format!(
+                            "Cannot iterate over value of type {:?}",
+                            iterable_value
+                        )))
+                    }
                 }
                 Ok(Value::Unit)
             }
-            Statement::ModuleDeclaration {name, body, is_public} => {
-                self.execute_module_declaration(name, body, is_public)
-            }
-            Statement::ImportDeclaration {path, items, alias, is_public} => {
-                self.execute_import_declaration(path, items, alias, is_public)
-            }
-            Statement::CompoundAssignment {name, operator, value} => {
-                let current = self.get_variable(&name).ok_or_else(|| VeldError::RuntimeError(format!("Undefined variable '{}'", name)))?;
+            Statement::ModuleDeclaration {
+                name,
+                body,
+                is_public,
+            } => self.execute_module_declaration(name, body, is_public),
+            Statement::ImportDeclaration {
+                path,
+                items,
+                alias,
+                is_public,
+            } => self.execute_import_declaration(path, items, alias, is_public),
+            Statement::CompoundAssignment {
+                name,
+                operator,
+                value,
+            } => {
+                let current = self.get_variable(&name).ok_or_else(|| {
+                    VeldError::RuntimeError(format!("Undefined variable '{}'", name))
+                })?;
                 let new_value = self.evaluate_expression(*value)?;
                 let result = self.evaluate_binary_op(current, operator, new_value)?;
-                
+
                 self.current_scope_mut().set(name, result.clone());
                 Ok(Value::Unit)
             }
-            Statement::EnumDeclaration {name, variants, ..} => {
+            Statement::EnumDeclaration { name, variants, .. } => {
                 self.enums.insert(name, variants);
                 Ok(Value::Unit)
             }
             Statement::Break => Ok(Value::Break),
             Statement::Continue => Ok(Value::Continue),
-            Statement::Match {value, arms} => {
+            Statement::Match { value, arms } => {
                 let match_value = self.evaluate_expression(value)?.unwrap_return();
-                
+
                 for arm in arms {
                     if let Some(bindings) = self.patter_matches(&arm.pat, &match_value)? {
                         if let Some(gaurd) = arm.gaurd {
                             self.push_scope();
-                            
+
                             for (name, val) in &bindings {
                                 self.current_scope_mut().set(name.clone(), val.clone());
                             }
-                            
+
                             let guard_result = self.evaluate_expression(gaurd)?.unwrap_return();
                             let gaurd_passed = self.is_truthy(guard_result);
-                            
+
                             self.pop_scope();
-                            
+
                             if !gaurd_passed {
                                 continue;
                             }
                         }
-                        
+
                         self.push_scope();
 
                         for (name, val) in bindings {
@@ -349,64 +376,73 @@ impl Interpreter {
                         }
 
                         let result = self.evaluate_expression(arm.body)?.unwrap_return();
-                        
+
                         self.pop_scope();
                         return Ok(result);
-
                     }
                 }
-                Err(VeldError::RuntimeError("No match arm matched the value".to_string()))
-            },
+                Err(VeldError::RuntimeError(
+                    "No match arm matched the value".to_string(),
+                ))
+            }
             _ => Ok(Value::Unit),
         }
     }
-    
-    fn patter_matches(&self, pattern: &MatchPattern, value: &Value) -> Result<Option<HashMap<String, Value>>> {
+
+    fn patter_matches(
+        &self,
+        pattern: &MatchPattern,
+        value: &Value,
+    ) -> Result<Option<HashMap<String, Value>>> {
         match pattern {
             MatchPattern::Wildcard => Ok(Some(HashMap::new())),
-            MatchPattern::Literal(lit) => {
-                match (lit, value) {
-                    (Literal::Integer(a), Value::Integer(b)) if a == b => Ok(Some(HashMap::new())),
-                    (Literal::Float(a), Value::Float(b)) if a == b => Ok(Some(HashMap::new())),
-                    (Literal::String(a), Value::String(b)) if a == b => Ok(Some(HashMap::new())),
-                    (Literal::Boolean(a), Value::Boolean(b)) if a == b => Ok(Some(HashMap::new())),
-                    (Literal::Unit, Value::Unit) => Ok(Some(HashMap::new())),
-                    _ => Ok(None),
-                }
+            MatchPattern::Literal(lit) => match (lit, value) {
+                (Literal::Integer(a), Value::Integer(b)) if a == b => Ok(Some(HashMap::new())),
+                (Literal::Float(a), Value::Float(b)) if a == b => Ok(Some(HashMap::new())),
+                (Literal::String(a), Value::String(b)) if a == b => Ok(Some(HashMap::new())),
+                (Literal::Boolean(a), Value::Boolean(b)) if a == b => Ok(Some(HashMap::new())),
+                (Literal::Unit, Value::Unit) => Ok(Some(HashMap::new())),
+                _ => Ok(None),
             },
             MatchPattern::Identifier(name) => {
                 let mut bindings = HashMap::new();
                 bindings.insert(name.clone(), value.clone());
                 Ok(Some(bindings))
-            },
+            }
             MatchPattern::Struct { name, fields } => {
-                if let Value::Struct {name: value_name, fields: value_fields} = value {
+                if let Value::Struct {
+                    name: value_name,
+                    fields: value_fields,
+                } = value
+                {
                     if name != value_name {
                         return Ok(None); // Wrong struct name
                     }
-                    
+
                     let mut all_bindings = HashMap::new();
-                    
+
                     for (field_name, field_pattern) in fields {
                         if let Some(field_value) = value_fields.get(field_name) {
                             if let Some(pattern) = field_pattern {
-                                if let Some(bindings) = self.patter_matches(&**pattern, field_value)? {
+                                if let Some(bindings) =
+                                    self.patter_matches(&**pattern, field_value)?
+                                {
                                     all_bindings.extend(bindings);
-                                } else { 
+                                } else {
                                     return Ok(None); // Field did not match
                                 }
-                            } else { 
+                            } else {
                                 all_bindings.insert(field_name.clone(), field_value.clone());
                             }
-                        } else { 
+                        } else {
                             return Ok(None);
                         }
                     }
                     Ok(Some(all_bindings))
-                } else { 
+                } else {
                     Ok(None) // Not a struct
                 }
-            },
+            }
             // TODO - Implement Enum pattern matching
             _ => Ok(None), // Not implemented yet
         }
@@ -419,7 +455,7 @@ impl Interpreter {
                 Literal::Float(n) => Value::Float(n),
                 Literal::String(s) => Value::String(s),
                 Literal::Boolean(b) => Value::Boolean(b),
-                Literal::Char( c) => Value::Char(c),
+                Literal::Char(c) => Value::Char(c),
                 Literal::Unit => Value::Unit,
             }),
             Expr::UnitLiteral => Ok(Value::Unit),
@@ -481,25 +517,32 @@ impl Interpreter {
                 self.get_property(obj_value, &property)
             }
 
-            Expr::Lambda { params, body, return_type } => {
+            Expr::Lambda {
+                params,
+                body,
+                return_type,
+            } => {
                 // Convert lambdas to function value
-                let param_list = params.iter().map(|(name, type_opt)| {
-                    // Convert optional type annotations to Concrete type(s)
-                    let type_annotation = if let Some(ty) = type_opt {
-                        ty.clone()
-                    } else { 
-                        // Use placeholder for type inference
-                        TypeAnnotation::Basic("any".to_string())
-                    };
-                    (name.clone(), type_annotation)
-                }).collect();
-                
+                let param_list = params
+                    .iter()
+                    .map(|(name, type_opt)| {
+                        // Convert optional type annotations to Concrete type(s)
+                        let type_annotation = if let Some(ty) = type_opt {
+                            ty.clone()
+                        } else {
+                            // Use placeholder for type inference
+                            TypeAnnotation::Basic("any".to_string())
+                        };
+                        (name.clone(), type_annotation)
+                    })
+                    .collect();
+
                 // Create simple statement that returns the body
                 let body_stmt = vec![Statement::Return(Some(*body.clone()))];
-                
+
                 // Use Unit as default return type if not specified
                 let ret_type = return_type.clone().unwrap_or(TypeAnnotation::Unit);
-                
+
                 Ok(Value::Function {
                     params: param_list,
                     body: body_stmt,
@@ -527,10 +570,10 @@ impl Interpreter {
                             let value = self.evaluate_expression(expr)?;
                             arg_values.push(value);
                         }
-                        
+
                         // Call the array method directly
                         self.call_method_value(obj_value, method, arg_values)
-                    },
+                    }
                     _ => {
                         // Empty arguments list means it's a property access
                         if arguments.is_empty() {
@@ -551,7 +594,6 @@ impl Interpreter {
                             self.call_method_value(obj_value, method, arg_values)
                         }
                     }
-                    
                 }
             }
 
@@ -586,184 +628,261 @@ impl Interpreter {
                     values.push(self.evaluate_expression(element)?.unwrap_return());
                 }
                 Ok(Value::Array(values))
-            },
-            Expr::IndexAccess {object, index} => {
+            }
+            Expr::IndexAccess { object, index } => {
                 let obj_value = self.evaluate_expression(*object)?.unwrap_return();
                 let idx_value = self.evaluate_expression(*index)?.unwrap_return();
-                
+
                 match obj_value {
-                    Value::Array(elements) => {
-                        match idx_value {
-                            Value::Integer(i) => {
-                                if i < 0 || i >= elements.len() as i64 {
-                                    return Err(VeldError::RuntimeError(format!("Array index out of bounds: {}", i)));
-                                }
-                                Ok(elements[i as usize].clone())
-                            },
-                            _ => Err(VeldError::RuntimeError("Array index must be an integer".to_string())), 
+                    Value::Array(elements) => match idx_value {
+                        Value::Integer(i) => {
+                            if i < 0 || i >= elements.len() as i64 {
+                                return Err(VeldError::RuntimeError(format!(
+                                    "Array index out of bounds: {}",
+                                    i
+                                )));
+                            }
+                            Ok(elements[i as usize].clone())
                         }
+                        _ => Err(VeldError::RuntimeError(
+                            "Array index must be an integer".to_string(),
+                        )),
                     },
                     Value::String(s) => {
                         // Allow indexing into strings
                         match idx_value {
                             Value::Integer(i) => {
                                 if i < 0 || i >= s.len() as i64 {
-                                    return Err(VeldError::RuntimeError(format!("String index out of bounds: {}", i)));
+                                    return Err(VeldError::RuntimeError(format!(
+                                        "String index out of bounds: {}",
+                                        i
+                                    )));
                                 }
-                                
+
                                 let char_value = s.chars().nth(i as usize).unwrap().to_string();
                                 Ok(Value::String(char_value))
-                            },
-                            _ => Err(VeldError::RuntimeError("String index must be an integer".to_string())),
+                            }
+                            _ => Err(VeldError::RuntimeError(
+                                "String index must be an integer".to_string(),
+                            )),
                         }
-                    },
-                    _ => Err(VeldError::RuntimeError("Cannot index into non-array value".to_string())),
+                    }
+                    _ => Err(VeldError::RuntimeError(
+                        "Cannot index into non-array value".to_string(),
+                    )),
                 }
             }
-            Expr::EnumVariant {enum_name, variant_name, fields} => {
+            Expr::EnumVariant {
+                enum_name,
+                variant_name,
+                fields,
+            } => {
                 // Check if enum exists
                 if !self.enums.contains_key(&enum_name) {
-                    return Err(VeldError::RuntimeError(format!("Undefined enum '{}'", enum_name)));
+                    return Err(VeldError::RuntimeError(format!(
+                        "Undefined enum '{}'",
+                        enum_name
+                    )));
                 }
-                
+
                 // Evaluate fields
                 let mut field_values = Vec::new();
                 for field in fields {
                     let val = self.evaluate_expression(field)?;
                     field_values.push(val.unwrap_return());
                 }
-                
+
                 Ok(Value::Enum {
                     enum_name,
                     variant_name,
                     fields: field_values,
                 })
-            },
+            }
             Expr::TupleLiteral(elements) => {
                 let mut values = Vec::new();
-                for element in elements{
+                for element in elements {
                     values.push(self.evaluate_expression(element)?.unwrap_return());
                 }
                 Ok(Value::Tuple(values))
-            },
-            Expr::TupleAccess {tuple, index} => {
+            }
+            Expr::TupleAccess { tuple, index } => {
                 let tuple_val = self.evaluate_expression(*tuple)?.unwrap_return();
-                
+
                 match tuple_val {
                     Value::Tuple(elements) => {
                         if index < elements.len() {
                             Ok(elements[index].clone())
-                        } else { 
-                            Err(VeldError::RuntimeError(format!("Tuple index out of bounds: {}", index)))
+                        } else {
+                            Err(VeldError::RuntimeError(format!(
+                                "Tuple index out of bounds: {}",
+                                index
+                            )))
                         }
-                    },
-                    _ => Err(VeldError::RuntimeError("Cannot access tuple field on non-tuple value".to_string())),
+                    }
+                    _ => Err(VeldError::RuntimeError(
+                        "Cannot access tuple field on non-tuple value".to_string(),
+                    )),
                 }
             }
+            Expr::MacroExpr { name, arguments } => todo!(),
         }
     }
-    
+
     fn initialize_array_methods(&mut self) {
         // Create array prototype with methods
         let mut array_methods = HashMap::new();
-        
+
         // Get the last element of the array
-        array_methods.insert("last".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-            ],
-            body: vec![],  // Built-in method with custom implementation
-            return_type: TypeAnnotation::Basic("any".to_string()),
-        });
-        
+        array_methods.insert(
+            "last".to_string(),
+            Value::Function {
+                params: vec![(
+                    "self".to_string(),
+                    TypeAnnotation::Basic("Array".to_string()),
+                )],
+                body: vec![], // Built-in method with custom implementation
+                return_type: TypeAnnotation::Basic("any".to_string()),
+            },
+        );
+
         // Get the first element of the array
-        array_methods.insert("first".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-            ],
-            body: vec![],
-            return_type: TypeAnnotation::Basic("any".to_string()),
-        });
-        
+        array_methods.insert(
+            "first".to_string(),
+            Value::Function {
+                params: vec![(
+                    "self".to_string(),
+                    TypeAnnotation::Basic("Array".to_string()),
+                )],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("any".to_string()),
+            },
+        );
+
         // Return new array without the last element
-        array_methods.insert("init".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-            ],
-            body: vec![],
-            return_type: TypeAnnotation::Basic("Array".to_string()),
-        });
-        
+        array_methods.insert(
+            "init".to_string(),
+            Value::Function {
+                params: vec![(
+                    "self".to_string(),
+                    TypeAnnotation::Basic("Array".to_string()),
+                )],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("Array".to_string()),
+            },
+        );
+
         // Return new array without the first element
-        array_methods.insert("tail".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-            ],
-            body: vec![],
-            return_type: TypeAnnotation::Basic("Array".to_string()),
-        });
+        array_methods.insert(
+            "tail".to_string(),
+            Value::Function {
+                params: vec![(
+                    "self".to_string(),
+                    TypeAnnotation::Basic("Array".to_string()),
+                )],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("Array".to_string()),
+            },
+        );
 
         // Return new array with value added at the end
-        array_methods.insert("with".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-                ("value".to_string(), TypeAnnotation::Basic("any".to_string())),
-            ],
-            body: vec![],
-            return_type: TypeAnnotation::Basic("Array".to_string()),
-        });
-        
+        array_methods.insert(
+            "with".to_string(),
+            Value::Function {
+                params: vec![
+                    (
+                        "self".to_string(),
+                        TypeAnnotation::Basic("Array".to_string()),
+                    ),
+                    (
+                        "value".to_string(),
+                        TypeAnnotation::Basic("any".to_string()),
+                    ),
+                ],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("Array".to_string()),
+            },
+        );
+
         // Take the first n elements of the array
-        array_methods.insert("take".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-                ("n".to_string(), TypeAnnotation::Basic("i32".to_string())),
-            ],
-            body: vec![],
-            return_type: TypeAnnotation::Basic("Array".to_string()),
-        });
-        
+        array_methods.insert(
+            "take".to_string(),
+            Value::Function {
+                params: vec![
+                    (
+                        "self".to_string(),
+                        TypeAnnotation::Basic("Array".to_string()),
+                    ),
+                    ("n".to_string(), TypeAnnotation::Basic("i32".to_string())),
+                ],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("Array".to_string()),
+            },
+        );
+
         // Drop the first n elements of the array
-        array_methods.insert("drop".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-                ("n".to_string(), TypeAnnotation::Basic("i32".to_string())),
-            ],
-            body: vec![],
-            return_type: TypeAnnotation::Basic("Array".to_string()),
-        });
-        
+        array_methods.insert(
+            "drop".to_string(),
+            Value::Function {
+                params: vec![
+                    (
+                        "self".to_string(),
+                        TypeAnnotation::Basic("Array".to_string()),
+                    ),
+                    ("n".to_string(), TypeAnnotation::Basic("i32".to_string())),
+                ],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("Array".to_string()),
+            },
+        );
+
         // length method
-        array_methods.insert("len".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-            ],
-            body: vec![], // Built-in method with custom implementation
-            return_type: TypeAnnotation::Basic("i32".to_string()),
-        });
-        
+        array_methods.insert(
+            "len".to_string(),
+            Value::Function {
+                params: vec![(
+                    "self".to_string(),
+                    TypeAnnotation::Basic("Array".to_string()),
+                )],
+                body: vec![], // Built-in method with custom implementation
+                return_type: TypeAnnotation::Basic("i32".to_string()),
+            },
+        );
+
         // map method
-        array_methods.insert("map".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-                ("fn".to_string(), TypeAnnotation::Basic("any".to_string())),
-            ],
-            body: vec![], // Built-in method with custom implementation
-            return_type: TypeAnnotation::Basic("Array".to_string()),
-        });
+        array_methods.insert(
+            "map".to_string(),
+            Value::Function {
+                params: vec![
+                    (
+                        "self".to_string(),
+                        TypeAnnotation::Basic("Array".to_string()),
+                    ),
+                    ("fn".to_string(), TypeAnnotation::Basic("any".to_string())),
+                ],
+                body: vec![], // Built-in method with custom implementation
+                return_type: TypeAnnotation::Basic("Array".to_string()),
+            },
+        );
 
         // filter method
-        array_methods.insert("filter".to_string(), Value::Function {
-            params: vec![
-                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
-                ("fn".to_string(), TypeAnnotation::Basic("any".to_string())),
-            ],
-            body: vec![], // Built-in method with custom implementation
-            return_type: TypeAnnotation::Basic("Array".to_string()),
-        });
-        
+        array_methods.insert(
+            "filter".to_string(),
+            Value::Function {
+                params: vec![
+                    (
+                        "self".to_string(),
+                        TypeAnnotation::Basic("Array".to_string()),
+                    ),
+                    ("fn".to_string(), TypeAnnotation::Basic("any".to_string())),
+                ],
+                body: vec![], // Built-in method with custom implementation
+                return_type: TypeAnnotation::Basic("Array".to_string()),
+            },
+        );
+
         // Store methods in struct_methods HashMap with a special key
-        self.struct_methods.insert("Array".to_string(), array_methods);
+        self.struct_methods
+            .insert("Array".to_string(), array_methods);
     }
 
     // Helper method to call functions with pre-evaluated arguments
@@ -824,29 +943,35 @@ impl Interpreter {
                         property
                     )))
                 }
-            },
+            }
             Value::Array(elements) => {
                 // Handle array properties
                 match property {
                     "len" => Ok(Value::Integer(elements.len() as i64)),
-                    "last" | "first" | "init" | "tail" | "with" | "take" | "drop" | "map" | "filter" => {
+                    "last" | "first" | "init" | "tail" | "with" | "take" | "drop" | "map"
+                    | "filter" => {
                         // Return a special function that, when called, will invoke the corresponding array method
                         Ok(Value::Function {
                             params: vec![
-                                ("self".to_string(), TypeAnnotation::Basic("Array".to_string())),
+                                (
+                                    "self".to_string(),
+                                    TypeAnnotation::Basic("Array".to_string()),
+                                ),
                                 ("arg".to_string(), TypeAnnotation::Unit),
                             ],
-                            body: vec![],  // Empty body for built-in methods
+                            body: vec![], // Empty body for built-in methods
                             return_type: TypeAnnotation::Basic("any".to_string()),
                         })
-                    },
+                    }
                     _ => Err(VeldError::RuntimeError(format!(
                         "Property '{}' not found on array",
                         property
-                    )))
+                    ))),
                 }
-            },    
-            _ => Err(VeldError::RuntimeError("Cannot access property on non-struct value".to_string())),
+            }
+            _ => Err(VeldError::RuntimeError(
+                "Cannot access property on non-struct value".to_string(),
+            )),
         }
     }
 
@@ -859,7 +984,7 @@ impl Interpreter {
                 // Bind the argument to the first parameter
                 if params.is_empty() {
                     return Err(VeldError::RuntimeError(
-                        "Function must take at least one parameter".to_string()
+                        "Function must take at least one parameter".to_string(),
                     ));
                 }
 
@@ -876,8 +1001,10 @@ impl Interpreter {
 
                 self.pop_scope();
                 Ok(result.unwrap_return())
-            },
-            _ => Err(VeldError::RuntimeError("Cannot call non-function value".to_string())),
+            }
+            _ => Err(VeldError::RuntimeError(
+                "Cannot call non-function value".to_string(),
+            )),
         }
     }
 
@@ -904,7 +1031,7 @@ impl Interpreter {
                     }
 
                     return Ok(elements.last().unwrap().clone());
-                },
+                }
 
                 "first" => {
                     if !args.is_empty() {
@@ -920,7 +1047,7 @@ impl Interpreter {
                     }
 
                     return Ok(elements.first().unwrap().clone());
-                },
+                }
                 "init" => {
                     if !args.is_empty() {
                         return Err(VeldError::RuntimeError(
@@ -935,7 +1062,7 @@ impl Interpreter {
                     let mut new_elements = elements.clone();
                     new_elements.pop();
                     return Ok(Value::Array(new_elements));
-                },
+                }
 
                 "tail" => {
                     if !args.is_empty() {
@@ -950,7 +1077,7 @@ impl Interpreter {
 
                     let new_elements = elements.iter().skip(1).cloned().collect();
                     return Ok(Value::Array(new_elements));
-                },
+                }
                 "with" => {
                     if args.len() != 1 {
                         return Err(VeldError::RuntimeError(
@@ -961,7 +1088,7 @@ impl Interpreter {
                     let mut new_elements = elements.clone();
                     new_elements.push(args[0].clone());
                     return Ok(Value::Array(new_elements));
-                },
+                }
 
                 "take" => {
                     if args.len() != 1 {
@@ -985,7 +1112,7 @@ impl Interpreter {
                             "take() argument must be an integer".to_string(),
                         ));
                     }
-                },
+                }
 
                 "drop" => {
                     if args.len() != 1 {
@@ -1009,20 +1136,20 @@ impl Interpreter {
                             "drop() argument must be an integer".to_string(),
                         ));
                     }
-                },
+                }
                 "len" => {
                     if !args.is_empty() {
                         return Err(VeldError::RuntimeError(
                             "len() takes no arguments".to_string(),
                         ));
                     }
-                    
+
                     return Ok(Value::Integer(elements.len() as i64));
-                },
+                }
                 "map" => {
                     if args.len() != 1 {
                         return Err(VeldError::RuntimeError(
-                            "map() takes exactly one function argument".to_string()
+                            "map() takes exactly one function argument".to_string(),
                         ));
                     }
 
@@ -1030,16 +1157,17 @@ impl Interpreter {
                     let mut result = Vec::new();
 
                     for element in elements {
-                        let mapped = self.call_function_with_single_argument(func, element.clone())?;
+                        let mapped =
+                            self.call_function_with_single_argument(func, element.clone())?;
                         result.push(mapped);
                     }
 
                     return Ok(Value::Array(result));
-                },
+                }
                 "filter" => {
                     if args.len() != 1 {
                         return Err(VeldError::RuntimeError(
-                            "filter() takes exactly one function argument".to_string()
+                            "filter() takes exactly one function argument".to_string(),
                         ));
                     }
 
@@ -1047,18 +1175,19 @@ impl Interpreter {
                     let mut result = Vec::new();
 
                     for element in elements {
-                        let pred_result = self.call_function_with_single_argument(func, element.clone())?;
+                        let pred_result =
+                            self.call_function_with_single_argument(func, element.clone())?;
                         if self.is_truthy(pred_result) {
                             result.push(element.clone());
                         }
                     }
 
                     return Ok(Value::Array(result));
-                },
+                }
                 _ => (), // Fallthrough to regular method handling
             }
         }
-        
+
         // For built-in methods like "sqrt" on numeric values
         match (&object, method_name.as_str()) {
             (Value::Float(f), "sqrt") => {
@@ -1235,11 +1364,11 @@ impl Interpreter {
             (Value::Integer(a), BinaryOperator::Modulo, Value::Integer(b)) => {
                 if b == 0 {
                     Err(VeldError::RuntimeError("Modulo by zero".to_string()))
-                } else { 
+                } else {
                     Ok(Value::Integer(a % b))
                 }
             }
-            
+
             // Float modulo (remainder operation)
             (Value::Float(a), BinaryOperator::Modulo, Value::Float(b)) => {
                 if b == 0.0 {
@@ -1248,7 +1377,7 @@ impl Interpreter {
                     Ok(Value::Float(a % b))
                 }
             }
-            
+
             // Mixed types - convert integer to float
             (Value::Integer(a), BinaryOperator::Modulo, Value::Float(b)) => {
                 if b == 0.0 {
@@ -1261,23 +1390,19 @@ impl Interpreter {
             (Value::Float(a), BinaryOperator::Modulo, Value::Integer(b)) => {
                 if b == 0 {
                     Err(VeldError::RuntimeError("Modulo by zero".to_string()))
-                } else { 
+                } else {
                     Ok(Value::Float(a % (b as f64)))
                 }
             }
             // String operations
-            (Value::String(a), BinaryOperator::Add, Value::String(b)) => {
-                Ok(Value::String(a + &b))
-            }
+            (Value::String(a), BinaryOperator::Add, Value::String(b)) => Ok(Value::String(a + &b)),
             (Value::String(a), BinaryOperator::EqualEqual, Value::String(b)) => {
                 Ok(Value::Boolean(a == b))
             }
             (Value::String(a), BinaryOperator::NotEqual, Value::String(b)) => {
                 Ok(Value::Boolean(a != b))
             }
-            (Value::String(a), BinaryOperator::Less, Value::String(b)) => {
-                Ok(Value::Boolean(a < b))
-            }
+            (Value::String(a), BinaryOperator::Less, Value::String(b)) => Ok(Value::Boolean(a < b)),
             (Value::String(a), BinaryOperator::Greater, Value::String(b)) => {
                 Ok(Value::Boolean(a > b))
             }
@@ -1456,16 +1581,21 @@ impl Interpreter {
         }
         None
     }
-    
-    fn execute_module_declaration(&mut self, name: String, body: Option<Vec<Statement>>, is_public: bool) -> Result<Value> {
+
+    fn execute_module_declaration(
+        &mut self,
+        name: String,
+        body: Option<Vec<Statement>>,
+        is_public: bool,
+    ) -> Result<Value> {
         if let Some(statements) = body {
             // Save current module name
             let previous_module = self.current_module.clone();
             self.current_module = name.clone();
-            
+
             // Create new scope for module
             self.push_scope();
-            
+
             // Execute all statements in the module
             let mut result = Value::Unit;
             for stmt in statements.clone() {
@@ -1474,48 +1604,63 @@ impl Interpreter {
                     break;
                 }
             }
-            
+
             // Register the module
             self.module_manager.create_module(&name, statements)?;
-            
+
             // Restore previous context
             self.push_scope();
             self.current_module = previous_module;
-            
+
             Ok(Value::Unit)
-        } else { 
+        } else {
             // Just a module declaration referencing a file
             // Try to load the module from filesystem
             self.module_manager.load_module(&[name])?;
             Ok(Value::Unit)
         }
     }
-    
-    fn execute_import_declaration(&mut self, path: Vec<String>, items: Vec<ImportItem>, alias: Option<String>, is_public: bool) -> Result<Value> {
+
+    fn execute_import_declaration(
+        &mut self,
+        path: Vec<String>,
+        items: Vec<ImportItem>,
+        alias: Option<String>,
+        is_public: bool,
+    ) -> Result<Value> {
         let module_path_str = path.join(".");
-        
+
         // First, ensure the module is loaded
         self.module_manager.load_module(&path)?;
-        
+
         // Process imports based on alias or direct imports
         if let Some(alias_name) = alias {
             // Store the module alias -> actual name mapping
             self.imported_modules.insert(alias_name, module_path_str);
-        } else { 
+        } else {
             // No alias, so we're importing specific items or the entire module
-            
+
             // Get the exports we want
             let exports = self.module_manager.get_exports(&module_path_str, &items)?;
-            
+
             // Process each export and add to current scope
             for (name, export_item) in exports {
-                // Get module to extract statements from 
-                let module = self.module_manager.get_module(&module_path_str)
+                // Get module to extract statements from
+                let module = self
+                    .module_manager
+                    .get_module(&module_path_str)
                     .ok_or_else(|| VeldError::RuntimeError("Module not found".to_string()))?;
-                
+
                 match export_item {
                     ExportedItem::Function(idx) => {
-                        if let Statement::FunctionDeclaration {name: fn_name,params, return_type, body, ..} = &module.statements[idx] {
+                        if let Statement::FunctionDeclaration {
+                            name: fn_name,
+                            params,
+                            return_type,
+                            body,
+                            ..
+                        } = &module.statements[idx]
+                        {
                             let function = Value::Function {
                                 params: params.clone(),
                                 body: body.clone(),
@@ -1523,14 +1668,19 @@ impl Interpreter {
                             };
                             self.current_scope_mut().set(name.clone(), function);
                         }
-                    },
+                    }
                     ExportedItem::Struct(idx) => {
                         // Handle struct imports - for now just remember the name
-                        if let Statement::StructDeclaration {name: struct_name, fields, ..} = &module.statements[idx] {
+                        if let Statement::StructDeclaration {
+                            name: struct_name,
+                            fields,
+                            ..
+                        } = &module.statements[idx]
+                        {
                             // Register the struct type in this scope
                             self.structs.insert(name, fields.clone());
                         }
-                    },
+                    }
                     // TODO - Handle other items here
                     _ => {}
                 }

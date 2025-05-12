@@ -1,6 +1,12 @@
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
+pub struct MacroPattern(pub String);
+
+#[derive(Debug, Clone)]
+pub struct MacroExpansion(pub Vec<Statement>);
+
+#[derive(Debug, Clone)]
 pub enum Literal {
     Integer(i64),
     Char(char),
@@ -89,6 +95,10 @@ pub enum Expr {
         tuple: Box<Expr>,
         index: usize,
     },
+    MacroExpr {
+        name: String,
+        arguments: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -170,7 +180,7 @@ pub enum Statement {
         params: Vec<(String, TypeAnnotation)>, // (name, type)
         return_type: TypeAnnotation,
         body: Vec<Statement>,
-        is_proc: bool, // Mark as procedure (returns void/unit)
+        is_proc: bool,   // Mark as procedure (returns void/unit)
         is_public: bool, // New field to track visibility
     },
     ProcDeclaration {
@@ -227,7 +237,7 @@ pub enum Statement {
         path: Vec<String>, // Module path components (e.g., "math.vector")
         items: Vec<ImportItem>,
         alias: Option<String>, // For "import math as m"
-        is_public: bool, // to track visibility
+        is_public: bool,       // to track visibility
     },
     CompoundAssignment {
         name: String,
@@ -249,17 +259,26 @@ pub enum Statement {
         value: Expr,
         arms: Vec<MatchArm>, // (pattern, guard, body)
     },
+    MacroDeclaration {
+        name: String,
+        patterns: Vec<(MacroPattern, MacroExpansion)>,
+        body: Option<Vec<Statement>>,
+    },
+    MacroInvocation {
+        name: String,
+        arguments: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]
-pub struct MatchArm{
+pub struct MatchArm {
     pub pat: MatchPattern,
     pub gaurd: Option<Expr>,
     pub body: Expr,
 }
 
 #[derive(Debug, Clone)]
-pub enum MatchPattern{
+pub enum MatchPattern {
     Literal(Literal),
     Identifier(String),
     Struct {
@@ -282,7 +301,6 @@ pub enum ImportItem {
         // import math.{Vector as Vec}
         name: String,
         alias: String,
-        
     },
 }
 
@@ -313,4 +331,3 @@ pub struct MethodImpl {
     pub body: Vec<Statement>,
     pub is_public: bool, // New field to track visibility
 }
-

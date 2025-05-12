@@ -45,15 +45,15 @@ pub enum Token {
     Var,
     #[token("mut")]
     Mut,
-    
+
     #[token("break")]
     Break,
     #[token("continue")]
     Continue,
-    
+
     #[token("enum")]
     Enum,
-    
+
     // Operators
     #[token("=")]
     Equals,
@@ -71,7 +71,7 @@ pub enum Token {
     FatArrow,
     #[token("*^")]
     ExpOp,
-    
+
     #[token("%")]
     Modulo,
     #[token("+=")]
@@ -121,6 +121,15 @@ pub enum Token {
     #[token(".")]
     Dot,
 
+    #[token("..")]
+    DotDot,
+    #[token("...")]
+    DotDotDot,
+    #[token("~")]
+    Tilde,
+    #[token("--|")]
+    DashDashPipe,
+
     // Literals and Identifiers
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     Identifier(String),
@@ -142,7 +151,6 @@ pub enum Token {
 
     #[token("if")]
     If,
-
     #[token("else")]
     Else,
 
@@ -154,15 +162,39 @@ pub enum Token {
 
     #[token("true")]
     True,
-
     #[token("false")]
     False,
 
     #[token("and")]
     And,
-    
+
     #[token("match")]
     Match,
+
+    #[token("do")]
+    Do,
+    #[token("then")]
+    Then,
+    #[token("with")]
+    With,
+
+    #[token("macro")]
+    Macro,
+
+    #[token("async")]
+    Async,
+    #[token("await")]
+    Await,
+    #[token("spawn")]
+    Spawn,
+    // #[token("yield")]
+    // Yield,
+    #[token("const")]
+    Const,
+    #[token("static")]
+    Static,
+    // #[token("self")]
+    // Self,
 }
 
 pub struct Lexer<'a> {

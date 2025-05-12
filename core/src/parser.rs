@@ -1,5 +1,7 @@
-
-use crate::ast::{Argument, BinaryOperator, EnumVariant, Expr, ImportItem, KindMethod, Literal, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod, TypeAnnotation};
+use crate::ast::{
+    Argument, BinaryOperator, EnumVariant, Expr, ImportItem, KindMethod, Literal, MacroExpansion,
+    MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod, TypeAnnotation,
+};
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
 use crate::module::Module;
@@ -64,23 +66,24 @@ impl Parser {
     pub fn declaration(&mut self) -> Result<Statement> {
         if self.match_token(&[Token::Enum]) {
             self.enum_declaration()
-        } else if self.match_token(&[Token::Mod]) { 
+        } else if self.match_token(&[Token::Mod]) {
             self.module_declaration()
         } else if self.match_token(&[Token::Import]) {
             self.import_declaration()
+        } else if self.match_token(&[Token::Macro]) {
+            self.macro_declaration()
         } else if self.match_token(&[Token::Pub]) {
             // Handle public declarations
             if self.match_token(&[Token::Fn]) {
                 self.function_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Struct]) {
                 self.struct_declaration_with_visibility(true)
-            } else { 
+            } else {
                 Err(VeldError::ParserError(
                     "Expected function or struct declaration after 'pub'".to_string(),
                 ))
             }
-        }
-        else if self.match_token(&[Token::Fn]) {
+        } else if self.match_token(&[Token::Fn]) {
             self.function_declaration()
         } else if self.match_token(&[Token::Proc]) {
             self.proc_declaration()
@@ -96,7 +99,84 @@ impl Parser {
             self.statement()
         }
     }
-    
+
+    fn parse_macro_pattern(&mut self) -> Result<MacroPattern> {
+        todo!()
+    }
+    fn parse_macro_expansion(&mut self) -> Result<MacroExpansion> {
+        todo!()
+    }
+
+    fn macro_declaration(&mut self) -> Result<Statement> {
+        // Consume the tilde after 'macro'
+        self.consume(&Token::Tilde, "Expected '~' after 'macro'")?;
+
+        let name = self.consume_identifier("Expected macro name")?;
+
+        // Check for pattern matching style macro
+        if self.match_token(&[Token::LBrace]) {
+            // Parse pattern matching macro rules
+            let mut patterns = Vec::new();
+
+            while !self.check(&Token::RBrace) && !self.is_at_end() {
+                // Parse pattern
+                let pattern = self.parse_macro_pattern()?;
+
+                // Parse fat arrow and expansion
+                self.consume(&Token::FatArrow, "Expected '=>' after macro pattern")?;
+                let expansion = self.parse_macro_expansion()?;
+
+                patterns.push((pattern, expansion));
+
+                // Optional comma between patterns
+                self.match_token(&[Token::Comma]);
+            }
+
+            self.consume(&Token::RBrace, "Expected '}' after macro patterns")?;
+
+            Ok(Statement::MacroDeclaration {
+                name,
+                patterns,
+                body: None,
+            })
+        } else {
+            // Parse simple macro with signature and body
+            // For now, parse parameters similar to a function
+            self.consume(&Token::LParen, "Expected '(' after macro name")?;
+
+            let mut params = Vec::new();
+            if !self.check(&Token::RParen) {
+                loop {
+                    let param_name = self.consume_identifier("Expected parameter name")?;
+                    params.push(param_name);
+
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+
+            self.consume(&Token::RParen, "Expected ')' after macro parameters")?;
+
+            // Parse equals and body
+            self.consume(&Token::Equals, "Expected '=' after macro parameters")?;
+
+            // Parse macro body as arbitrary statements
+            let mut body = Vec::new();
+            while !self.check(&Token::End) && !self.is_at_end() {
+                body.push(self.statement()?);
+            }
+
+            self.consume(&Token::End, "Expected 'end' after macro body")?;
+
+            Ok(Statement::MacroDeclaration {
+                name,
+                patterns: Vec::new(), // No patterns for simple macros
+                body: Some(body),
+            })
+        }
+    }
+
     fn function_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         let name = self.consume_identifier("Expected function name")?;
 
@@ -151,9 +231,9 @@ impl Parser {
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
         }
-        
+
         self.consume(&Token::End, "Expected 'end' after function body")?;
-        
+
         println!("Function declaration: Completed");
         Ok(Statement::FunctionDeclaration {
             name,
@@ -163,56 +243,57 @@ impl Parser {
             is_proc: return_type == TypeAnnotation::Unit,
             is_public,
         })
-
     }
-    
+
     fn lambda_expression(&mut self) -> Result<Expr> {
         println!("Lambda expression Starting...");
         let mut params = Vec::new();
-        
+
         // Check for paren-style parameters (x: i32, y: i32) => x + y
         if self.match_token(&[Token::LParen]) {
             if !self.check(&Token::RParen) {
                 loop {
-                    let param_name = self.consume_identifier("Expected parameter name in lambda expression")?;
-                    
+                    let param_name =
+                        self.consume_identifier("Expected parameter name in lambda expression")?;
+
                     // Type annotation optional in lambdas
                     let type_annotation = if self.match_token(&[Token::Colon]) {
                         Some(self.parse_type()?)
-                    } else { 
+                    } else {
                         None
                     };
-                    
+
                     params.push((param_name, type_annotation));
-                    
+
                     if !self.match_token(&[Token::Comma]) {
                         break;
                     }
                 }
             }
-            
+
             self.consume(&Token::RParen, "Expected ')' after lambda parameters")?;
-        } else { 
+        } else {
             // Simple form: x => x + 1
-            let param_name = self.consume_identifier("Expected parameter name in lambda expression")?;
+            let param_name =
+                self.consume_identifier("Expected parameter name in lambda expression")?;
             params.push((param_name, None));
         }
-        
+
         // Lambda operator
         self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
-        
+
         // Lambda body
         let expr = self.expression()?;
         let body = Box::new(expr);
-        
+
         println!("Lambda expression: Completed");
         Ok(Expr::Lambda {
             params,
             body,
-            return_type: None // Inferred
+            return_type: None, // Inferred
         })
-    } 
-    
+    }
+
     fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         println!("Struct declaration: Starting...");
         let name = self.consume_identifier("Expected struct name")?;
@@ -288,7 +369,6 @@ impl Parser {
             methods,
             is_public,
         })
-
     }
 
     fn function_declaration(&mut self) -> Result<Statement> {
@@ -343,9 +423,9 @@ impl Parser {
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
         }
-        
+
         self.consume(&Token::End, "Expected 'end' after function body")?;
-        
+
         println!("Function declaration: Completed");
         Ok(Statement::FunctionDeclaration {
             name,
@@ -401,14 +481,10 @@ impl Parser {
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
         }
-        
+
         self.consume(&Token::End, "Expected 'end' after procedure body")?;
-        
-        Ok(Statement::ProcDeclaration {
-            name,
-            params,
-            body,
-        })
+
+        Ok(Statement::ProcDeclaration { name, params, body })
     }
 
     fn struct_declaration(&mut self) -> Result<Statement> {
@@ -641,7 +717,6 @@ impl Parser {
                 return_type,
                 default_impl: None,
                 is_public: false, // Default visibility
-                
             });
         } else {
             while !self.check(&Token::End) && !self.is_at_end() {
@@ -697,7 +772,7 @@ impl Parser {
                     params,
                     return_type,
                     default_impl,
-                     is_public: false, // Default visibility
+                    is_public: false, // Default visibility
                 });
 
                 self.match_token(&[Token::Comma]);
@@ -706,7 +781,7 @@ impl Parser {
             self.consume(&Token::End, "Expected 'end' after kind methods")?;
         }
         Ok(Statement::KindDeclaration {
-            name, 
+            name,
             methods,
             is_public: false, // Default visibility
         })
@@ -819,19 +894,19 @@ impl Parser {
         if self.match_token(&[Token::LParen]) {
             let mut types = Vec::new();
             let mut saw_comma = false;
-            
+
             // Empty tuple: ()
             if self.match_token(&[Token::RParen]) {
                 return Ok(TypeAnnotation::Unit);
             }
-            
+
             // Parse first type
             types.push(self.parse_type()?);
-            
+
             // If comma, it's a tuple type
             if self.match_token(&[Token::Comma]) {
                 saw_comma = true;
-                
+
                 // Parse remaining types if not immediately followed by ')'
                 if !self.check(&Token::RParen) {
                     loop {
@@ -848,13 +923,13 @@ impl Parser {
                     }
                 }
             }
-            
+
             self.consume(&Token::RParen, "Expected ')' after tuple type")?;
-            
+
             // If there is only one type without a comma, it's a parenthesized type, not a tuple
             if types.len() == 1 && !saw_comma {
                 Ok(types[0].clone())
-            } else { 
+            } else {
                 Ok(TypeAnnotation::Tuple(types))
             }
         } else {
@@ -887,8 +962,7 @@ impl Parser {
                     base: base_type,
                     type_args,
                 })
-            }
-            else if base_type == "fn" {
+            } else if base_type == "fn" {
                 // Function type
                 self.consume(&Token::LParen, "Expected '(' in function type")?;
 
@@ -917,8 +991,6 @@ impl Parser {
                 Ok(TypeAnnotation::Basic(base_type))
             }
         }
-        
-        
     }
 
     // Helper methods
@@ -1006,93 +1078,98 @@ impl Parser {
             self.for_statement()
         } else if self.match_token(&[Token::Return]) {
             self.return_statement()
-        } else if self.match_token(&[Token::Break]){
+        } else if self.match_token(&[Token::Break]) {
             Ok(Statement::Break)
-        } else if self.match_token(&[Token::Continue]){
+        } else if self.match_token(&[Token::Continue]) {
             Ok(Statement::Continue)
-        } else{
+        } else {
             let expr = self.expression()?;
             Ok(Statement::ExprStatement(expr))
         }
     }
-    
+
     fn parse_match_pattern(&mut self) -> Result<MatchPattern> {
         // Check for wildcard pattern (_)
         if self.match_token(&[Token::Identifier("_".to_string())]) {
             return Ok(MatchPattern::Wildcard);
         }
-        
+
         // Check for literal patterns
-        if self.check(&Token::IntegerLiteral(0)) || 
-            self.check(&Token::FloatLiteral(0.0)) ||
-            self.check(&Token::StringLiteral("".to_string())) ||
-            self.check(&Token::True) ||
-            self.check(&Token::False) {
-            
+        if self.check(&Token::IntegerLiteral(0))
+            || self.check(&Token::FloatLiteral(0.0))
+            || self.check(&Token::StringLiteral("".to_string()))
+            || self.check(&Token::True)
+            || self.check(&Token::False)
+        {
             let expr = self.primary()?;
             if let Expr::Literal(lit) = expr {
                 return Ok(MatchPattern::Literal(lit));
             }
         }
-        
+
         let ident = self.consume_identifier("Expected identifier in match pattern")?;
-        
+
         if self.match_token(&[Token::LParen]) {
             let mut fields = Vec::new();
-            
+
             if !self.check(&Token::RParen) {
                 loop {
-                    let field_name = self.consume_identifier("Expected field name in struct pattern")?;
-                    
+                    let field_name =
+                        self.consume_identifier("Expected field name in struct pattern")?;
+
                     let field_pattern = if self.match_token(&[Token::Colon]) {
                         let pattern = self.parse_match_pattern()?;
                         Some(Box::new(pattern))
-                    } else { 
+                    } else {
                         None // Shorthand syntax for like 'Person(name)' binds 'name' directly
                     };
-                    
+
                     fields.push((field_name, field_pattern));
-                    
+
                     if !self.match_token(&[Token::Comma]) {
                         break;
                     }
                 }
             }
-            
+
             self.consume(&Token::RParen, "Expected ')' after struct pattern")?;
-            
+
             return Ok(MatchPattern::Struct {
                 name: ident,
                 fields,
             });
         }
-        
+
         // Simple variable binding
         Ok(MatchPattern::Identifier(ident))
     }
 
-    fn match_statement(&mut self)->Result<Statement>{
+    fn match_statement(&mut self) -> Result<Statement> {
         let value = self.expression()?;
         let mut arms = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
             let pattern = self.parse_match_pattern()?;
-            
-            let gaurd = if self.match_token(&[Token::Where]){
+
+            let gaurd = if self.match_token(&[Token::Where]) {
                 Some(self.expression()?)
             } else {
-                None 
+                None
             };
-            
+
             self.consume(&Token::FatArrow, "Expeected '=>' after match pattern")?;
             let body = self.expression()?;
-            
-            arms.push(MatchArm{pat: pattern, gaurd, body});
-            
+
+            arms.push(MatchArm {
+                pat: pattern,
+                gaurd,
+                body,
+            });
+
             self.match_token(&[Token::Comma]);
         }
-        
+
         self.consume(&Token::End, "Expected 'end' after match statement")?;
-        Ok(Statement::Match {value, arms})
+        Ok(Statement::Match { value, arms })
     }
 
     fn if_statement(&mut self) -> Result<Statement> {
@@ -1175,8 +1252,8 @@ impl Parser {
                 "Parser recursion limit exceeded".to_string(),
             ));
         }
-        
-        if self.check_lambda_start() { 
+
+        if self.check_lambda_start() {
             let result = self.lambda_expression();
             self.recursive_depth -= 1;
             return result;
@@ -1188,16 +1265,16 @@ impl Parser {
         println!("Expression: Completed with result: {:?}", result);
         result
     }
-    
+
     fn check_lambda_start(&self) -> bool {
-        if self.is_at_end() { 
+        if self.is_at_end() {
             return false;
         }
-        
+
         if let Some(Token::Identifier(_)) = self.tokens.get(self.current) {
-            return  self.tokens.get(self.current + 1) == Some(&Token::FatArrow);
+            return self.tokens.get(self.current + 1) == Some(&Token::FatArrow);
         }
-        
+
         if self.check(&Token::LParen) {
             // This is a rough estimate, TODO - scan ahead more precisely later
             let mut i = self.current + 1;
@@ -1206,7 +1283,7 @@ impl Parser {
                     return true;
                 }
                 if let Token::RParen = self.tokens[i] {
-                    return i + 1 < self.tokens.len() && self.tokens[i+1] == Token::FatArrow
+                    return i + 1 < self.tokens.len() && self.tokens[i + 1] == Token::FatArrow;
                 }
                 i += 1;
             }
@@ -1315,7 +1392,8 @@ impl Parser {
                     };
                 } else {
                     // Method call or property access
-                    let method = self.consume_identifier("Expected property or method name after '.'")?;
+                    let method =
+                        self.consume_identifier("Expected property or method name after '.'")?;
                     println!("Postfix: Method/property name: {}", method);
 
                     if self.match_token(&[Token::LParen]) {
@@ -1441,7 +1519,7 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr> {
-        if self.match_token(&[Token::LParen]){
+        if self.match_token(&[Token::LParen]) {
             // Empty tuple
             if self.match_token(&[Token::RParen]) {
                 return Ok(Expr::UnitLiteral);
@@ -1450,7 +1528,7 @@ impl Parser {
             // Parse first element of tuple
             let first = self.expression()?;
 
-            // If comma, it's a tuple 
+            // If comma, it's a tuple
             if self.match_token(&[Token::Comma]) {
                 let mut elements = vec![first];
 
@@ -1471,14 +1549,14 @@ impl Parser {
                 }
 
                 self.consume(&Token::RParen, "Expected ')' after tuple elements")?;
-                return Ok(Expr::TupleLiteral(elements))
+                return Ok(Expr::TupleLiteral(elements));
             } else {
                 // Just parenthesized expression
                 self.consume(&Token::RParen, "Expected ')' after expression")?;
-                return Ok(first)
+                return Ok(first);
             }
         }
-        
+
         if self.is_at_end() {
             return Err(VeldError::ParserError(
                 "Unexpected end of input".to_string(),
@@ -1531,7 +1609,7 @@ impl Parser {
             Token::LBracket => {
                 self.advance(); // consume '['
                 self.parse_array_literal()?
-            },
+            }
             _ => {
                 return Err(VeldError::ParserError(format!(
                     "Unexpected token: {:?}",
@@ -1542,51 +1620,50 @@ impl Parser {
 
         Ok(expr)
     }
-    
+
     fn parse_function_expression(&mut self) -> Result<Expr> {
         // Parse parameters
         self.consume(&Token::LParen, "Expected '(' after 'fn'")?;
-        
+
         let mut params = Vec::new();
         if !self.check(&Token::RParen) {
             loop {
                 let param_name = self.consume_identifier("Expected parameter name")?;
-                
+
                 // Type annotation
                 let type_annotation = if self.match_token(&[Token::Colon]) {
                     Some(self.parse_type()?)
-                } else { 
+                } else {
                     None
                 };
-                
+
                 params.push((param_name, type_annotation));
-                
-                if !self.match_token(&[Token::Comma]) { 
+
+                if !self.match_token(&[Token::Comma]) {
                     break;
                 }
             }
         }
         self.consume(&Token::RParen, "Expected ')' after parameters")?;
-        
+
         // Return type
         let return_type = if self.match_token(&[Token::Arrow]) {
             Some(self.parse_type()?)
         } else {
             None
         };
-        
+
         // Body - expect and expression
         let body = self.expression()?;
-        
+
         // If there's an 'end' token, consume it
         self.match_token(&[Token::End]);
-        
+
         Ok(Expr::Lambda {
             params,
             body: Box::new(body),
             return_type,
         })
-        
     }
 
     fn peek(&self) -> &Token {
@@ -1715,10 +1792,10 @@ impl Parser {
 
         Ok(expr)
     }
-    
+
     fn assignment_statement(&mut self) -> Result<Statement> {
         let name = self.consume_identifier("Expected variable name")?;
-        
+
         if self.match_token(&[Token::PlusEq]) {
             let value = self.expression()?;
             return Ok(Statement::CompoundAssignment {
@@ -1747,7 +1824,7 @@ impl Parser {
                 operator: BinaryOperator::Divide,
                 value: Box::new(value),
             });
-        } else { 
+        } else {
             // Regular assignment
             self.consume(&Token::Equals, "Expected '=' after variable name")?;
             let value = self.expression()?;
@@ -1861,74 +1938,74 @@ impl Parser {
         }
         context
     }
-    
+
     fn module_declaration(&mut self) -> Result<Statement> {
         let name = self.consume_identifier("Expected module name after 'mod'")?;
-        
-        if self.match_token(&[Token::Semicolon]){
+
+        if self.match_token(&[Token::Semicolon]) {
             return Ok(Statement::ModuleDeclaration {
                 name,
                 body: None,
                 is_public: false, // Default visibility
             });
         }
-        
+
         let mut body = Vec::new();
 
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.declaration()?);
         }
-        
+
         self.consume(&Token::End, "Expected 'end' after module body")?;
-        
+
         Ok(Statement::ModuleDeclaration {
             name,
             body: Some(body),
             is_public: false, // Default visibility
         })
     }
-    
+
     fn import_declaration(&mut self) -> Result<Statement> {
         // parse import path
         let mut path = Vec::new();
-        
+
         // First component is required
         path.push(self.consume_identifier("Expected module name after 'import'")?);
-        
+
         // Parse additional path components if present
         while self.match_token(&[Token::Dot]) {
-            if self.match_token(&[Token::Star]){
+            if self.match_token(&[Token::Star]) {
                 // We got a wildcard import
                 let items = vec![ImportItem::All];
-                
+
                 // Check for alias (math.* as m)
-                let alias = if self.match_token(&[Token::As]){
+                let alias = if self.match_token(&[Token::As]) {
                     Some(self.consume_identifier("Expected alias after 'as'")?)
                 } else {
                     None
                 };
-                
+
                 self.consume(&Token::Semicolon, "Expected ';' after import")?;
-                
+
                 return Ok(Statement::ImportDeclaration {
                     path,
                     items,
                     alias,
                     is_public: false, // Default visibility
                 });
-            } else { 
+            } else {
                 // Add the next path component
                 path.push(self.consume_identifier("Expected identifier after '.'")?);
             }
         }
-        
+
         // Check for selective imports with braces: import math.{sin, cos}
-        let items = if self.match_token(&[Token::LBrace]){
+        let items = if self.match_token(&[Token::LBrace]) {
             let mut items = Vec::new();
 
             loop {
                 let name = self.consume_identifier("Expected import item name")?;
-                
+
                 // Check for alias: sqrt as square_root
                 let item = if self.match_token(&[Token::As]) {
                     let alias = self.consume_identifier("Expected alias after 'as'")?;
@@ -1937,11 +2014,11 @@ impl Parser {
                     ImportItem::Named(name)
                 };
                 items.push(item);
-                
+
                 if !self.match_token(&[Token::Comma]) {
                     break;
                 }
-                
+
                 // Allow trailing comma
                 if self.check(&Token::RBrace) {
                     break;
@@ -1949,11 +2026,11 @@ impl Parser {
             }
             self.consume(&Token::RBrace, "Expected '}' after import item(s)")?;
             items
-        } else { 
+        } else {
             // Simple import of the whole module
             Vec::new()
         };
-        
+
         let alias = if self.match_token(&[Token::As]) {
             Some(self.consume_identifier("Expected alias after 'as'")?)
         } else {
@@ -1970,85 +2047,88 @@ impl Parser {
     fn parse_array_literal(&mut self) -> Result<Expr> {
         println!("Parsing array literal");
         let mut elements = Vec::new();
-        
+
         // Empty array case
         if self.check(&Token::RBracket) {
             self.advance(); // Consume ']'
             return Ok(Expr::ArrayLiteral(elements));
         }
-        
+
         // Parse array elements
         loop {
             elements.push(self.expression()?);
-            
+
             if self.match_token(&[Token::Comma]) {
                 continue;
             }
-            
+
             // Allow trailing comma
             if self.check(&Token::RBracket) {
                 break;
             }
         }
-        
+
         self.consume(&Token::RBracket, "Expected ']' after array elements")?;
-        
+
         Ok(Expr::ArrayLiteral(elements))
     }
-    
+
     fn enum_declaration(&mut self) -> Result<Statement> {
         println!("Parsing enum declaration...");
         let name = self.consume_identifier("Expected enum name after 'enum'")?;
-        
+
         let mut variants = Vec::new();
-        
+
         // Handle single-line enums: enum Color(Red, Green, Blue)
         if self.match_token(&[Token::LParen]) {
             loop {
                 let variant_name = self.consume_identifier("Expected variant name")?;
                 variants.push(EnumVariant {
                     name: variant_name,
-                    fields: None
+                    fields: None,
                 });
-                
+
                 if !self.match_token(&[Token::Comma]) {
                     break;
                 }
             }
-            
+
             self.consume(&Token::RParen, "Expected ')' after enum variant(s)")?;
-        } else { 
+        } else {
             // Multi-line enum
             while !self.check(&Token::End) && !self.is_at_end() {
                 let variant_name = self.consume_identifier("Expected variant name")?;
-                
+
                 // Check for tuple variant: Red(f64, f64)
                 let fields = if self.match_token(&[Token::LParen]) {
                     let mut field_types = Vec::new();
                     if !self.check(&Token::RParen) {
                         loop {
                             field_types.push(self.parse_type()?);
-                            
+
                             if !self.match_token(&[Token::Comma]) {
                                 break;
                             }
                         }
                     }
-                    
+
                     self.consume(&Token::RParen, "Expected ')' after enum variant fields")?;
                     Some(field_types)
-                } else { 
+                } else {
                     None
                 };
-                variants.push(EnumVariant { name: variant_name, fields});
-                
+                variants.push(EnumVariant {
+                    name: variant_name,
+                    fields,
+                });
+
                 // Optional comma
                 self.match_token(&[Token::Comma]);
             }
-            
+
             self.consume(&Token::End, "Expected 'end' after enum body")?;
         }
-        
+
         Ok(Statement::EnumDeclaration {
             name,
             variants,

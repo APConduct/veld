@@ -909,7 +909,7 @@ impl TypeChecker {
             (Type::Any, _) | (_, Type::Any) => true,
 
             (TypeVar(_), _) | (_, TypeVar(_)) => true,
-            
+
             _ if self.is_numeric_type(&t1) && self.is_numeric_type(&t2) => true,
             _ => false,
         }
@@ -1353,17 +1353,16 @@ impl TypeChecker {
         self.env.add_constraint(idx_type, Type::I32);
 
         match &obj_type {
-            Type::Array(elem_type) => {
-                Ok(*elem_type.clone())
-            },
+            Type::Array(elem_type) => Ok(*elem_type.clone()),
 
             Type::String => {
                 // Indexing into string gives single character string
                 Ok(Type::String)
-            },
+            }
 
             _ => Err(VeldError::TypeError(format!(
-                "Cannot index into type: {}", obj_type
+                "Cannot index into type: {}",
+                obj_type
             ))),
         }
     }
