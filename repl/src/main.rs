@@ -1,10 +1,7 @@
-
-mod interpreter;
-
 mod repl;
 
 
-use crate::interpreter::Interpreter;
+use veld_core::interpreter::Interpreter;
 use veld_core::lexer::Lexer;
 use veld_core::parser::Parser;
 use crate::repl::Repl;  // Add this line

@@ -66,7 +66,7 @@ local add, subtract = math.add, math.subtract
 
 ```veld
 // Declarative macro definition (uses tilde)
-@~macro vec
+macro~ vec
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();

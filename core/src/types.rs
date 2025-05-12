@@ -1,5 +1,6 @@
 use crate::ast::{Argument, BinaryOperator, Expr, Literal, Statement, TypeAnnotation};
 use crate::error::{Result, VeldError};
+use crate::interpreter::Value;
 use crate::types::Type::TypeVar;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
@@ -912,6 +913,66 @@ impl TypeChecker {
 
             _ if self.is_numeric_type(&t1) && self.is_numeric_type(&t2) => true,
             _ => false,
+        }
+    }
+
+    pub fn validate_value(&self, value: &Value, expected_type: &Type) -> Result<()> {
+        match (value, expected_type) {
+            (Value::Integer(_), Type::I32) | (Value::Integer(_), Type::I64) => Ok(()),
+
+            (Value::Float(_), Type::F32) | (Value::Float(_), Type::F64) => Ok(()),
+
+            (Value::String(_), Type::String) => Ok(()),
+
+            (Value::Boolean(_), Type::Bool) => Ok(()),
+
+            (Value::Char(_), Type::Char) => Ok(()),
+
+            (Value::Unit, Type::Unit) => Ok(()),
+
+            (Value::Array(elements), Type::Array(elem_type)) => {
+                for elem in elements {
+                    self.validate_value(elem, elem_type)?;
+                }
+                Ok(())
+            }
+
+            (
+                Value::Struct {
+                    name: struct_name,
+                    fields,
+                },
+                Type::Struct {
+                    name: type_name,
+                    fields: type_fields,
+                },
+            ) => {
+                if struct_name != type_name {
+                    return Err(VeldError::TypeError(format!(
+                        "Expected struct of type {}, got {}",
+                        type_name, struct_name
+                    )));
+                }
+
+                for (field_name, field_type) in type_fields {
+                    if let Some(field_value) = fields.get(field_name) {
+                        self.validate_value(field_value, field_type)?;
+                    } else {
+                        return Err(VeldError::TypeError(format!(
+                            "Missing field {} in struct {}",
+                            field_name, struct_name
+                        )));
+                    }
+                }
+
+                Ok(())
+            }
+
+            // Add other type validation cases as needed
+            _ => Err(VeldError::TypeError(format!(
+                "Type mismatch: value {:?} does not match type {}",
+                value, expected_type
+            ))),
         }
     }
 

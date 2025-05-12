@@ -137,7 +137,7 @@ enum Direction(North, South, East, West)
 
 #### Basic Declarative Macro
 ```veld
-@~macro println(fmt, args...) =     -- EXPERIMENTAL/ NOT FINALIZED
+macro~ println(fmt, args...)     -- EXPERIMENTAL/ NOT FINALIZED
     -- macro implementation
     format_and_print(fmt, args)
 end
@@ -145,7 +145,7 @@ end
 
 #### Pattern Matching Macro
 ```veld
-@~macro vec                         -- EXPERIMENTAL/ NOT FINALIZED
+macro~ vec                         -- EXPERIMENTAL/ NOT FINALIZED
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();

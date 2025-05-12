@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
-use veld_core::ast::{
+use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, ImportItem, Literal, MatchPattern, Statement,
     TypeAnnotation,
 };
-use veld_core::error::{Result, VeldError};
-use veld_core::module::{ExportedItem, ModuleManager};
-use veld_core::types::TypeChecker;
+use crate::error::{Result, VeldError};
+use crate::module::{ExportedItem, ModuleManager};
+use crate::types::TypeChecker;
 
 #[derive(Debug, Clone)]
 pub enum Value {

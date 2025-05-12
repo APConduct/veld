@@ -251,7 +251,7 @@ end
 
 ```veld
 -- Declarative macro
-@~macro vec
+macro~ vec
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();

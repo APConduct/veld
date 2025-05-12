@@ -1,5 +1,5 @@
 use veld_core::error::{ErrorContext, Result, VeldError, VeldErrorWithContext, ContextResult};
-use crate::interpreter::Interpreter;
+use veld_core::interpreter::Interpreter;
 use veld_core::lexer::Lexer;
 use veld_core::parser::Parser;
 use std::io::{self, Write};
@@ -146,7 +146,7 @@ impl Repl {
         Ok(())
     }
 
-    fn evaluate_input(&mut self, input: &str, start_line: usize) -> ContextResult<crate::interpreter::Value> {
+    fn evaluate_input(&mut self, input: &str, start_line: usize) -> ContextResult<veld_core::interpreter::Value> {
        // If debug is enabled, show the input
         if self.get_var("debug") == "true" {
             println!("DEBUG: Evaluating input:\n{}", input);
@@ -220,7 +220,7 @@ impl Repl {
         }
     }
     
-    fn handle_result(&self, result: std::result::Result<crate::interpreter::Value, VeldErrorWithContext>) {
+    fn handle_result(&self, result: std::result::Result<veld_core::interpreter::Value, VeldErrorWithContext>) {
         match result {
             Ok(value) => {
                 // Format the output nicely basely based on value type
@@ -233,35 +233,35 @@ impl Repl {
         }
     }
 
-    fn pretty_print_value(&self, value: &crate::interpreter::Value) {
+    fn pretty_print_value(&self, value: &veld_core::interpreter::Value) {
         match value {
-            crate::interpreter::Value::Unit => println!("=> ()"),
-            crate::interpreter::Value::Integer(n) => println!("=> \x1B[33m{}\x1B[0m", n), // Yellow
-            crate::interpreter::Value::Float(f) => println!("=> \x1B[33m{}\x1B[0m", f), // Yellow
-            crate::interpreter::Value::Boolean(b) => println!("=> \x1B[35m{}\x1B[0m", b), // Magenta
-            crate::interpreter::Value::String(s) => println!("=> \x1B[32m\"{}\"\x1B[0m", s), // Green
-            crate::interpreter::Value::Function { .. } => println!("=> \x1B[36m<function>\x1B[0m"), // Cyan
-            crate::interpreter::Value::Array(elements) => {
+            veld_core::interpreter::Value::Unit => println!("=> ()"),
+            veld_core::interpreter::Value::Integer(n) => println!("=> \x1B[33m{}\x1B[0m", n), // Yellow
+            veld_core::interpreter::Value::Float(f) => println!("=> \x1B[33m{}\x1B[0m", f), // Yellow
+            veld_core::interpreter::Value::Boolean(b) => println!("=> \x1B[35m{}\x1B[0m", b), // Magenta
+            veld_core::interpreter::Value::String(s) => println!("=> \x1B[32m\"{}\"\x1B[0m", s), // Green
+            veld_core::interpreter::Value::Function { .. } => println!("=> \x1B[36m<function>\x1B[0m"), // Cyan
+            veld_core::interpreter::Value::Array(elements) => {
                 println!("=> \x1B[34m[{}]\x1B[0m", // Blue for arrays
                          elements.iter()
                              .map(|v| self.value_to_string(v))
                              .collect::<Vec<_>>()
                              .join(", "));
             },
-            crate::interpreter::Value::Struct { name, fields } => {
+            veld_core::interpreter::Value::Struct { name, fields } => {
                 println!("=> \x1B[36m{}:\x1B[0m {{\n    {}\n}}", name,
                          fields.iter().map(|(k, v)| format!("{}: {}", k, self.value_to_string(v)))
                              .collect::<Vec<_>>().join(",\n    ")
                 );
             },
-            crate::interpreter::Value::Tuple(elements) => {
+            veld_core::interpreter::Value::Tuple(elements) => {
                 println!("=> \x1B[34m({})\x1B[0m", // Blue for tuples
                          elements.iter()
                              .map(|v| self.value_to_string(v))
                              .collect::<Vec<_>>()
                              .join(", "));
             },
-            crate::interpreter::Value::Enum { enum_name, variant_name, fields } => {
+            veld_core::interpreter::Value::Enum { enum_name, variant_name, fields } => {
                 if fields.is_empty() {
                     println!("=> \x1B[35m{}.{}\x1B[0m", enum_name, variant_name);
                 } else {
@@ -277,16 +277,16 @@ impl Repl {
             _ => println!("=> {:?}", value),
         }
     }
-    fn value_to_string(&self, value: &crate::interpreter::Value) -> String {
+    fn value_to_string(&self, value: &veld_core::interpreter::Value) -> String {
         match value {
-            crate::interpreter::Value::Integer(n) => format!("{}", n),
-            crate::interpreter::Value::Float(f) => format!("{}", f),
-            crate::interpreter::Value::String(s) => format!("\"{}\"", s),
-            crate::interpreter::Value::Boolean(b) => format!("{}", b),
-            crate::interpreter::Value::Unit => "()".to_string(),
-            crate::interpreter::Value::Function { .. } => "<function>".to_string(),
-            crate::interpreter::Value::Struct { name, .. } => format!("<{}>", name),
-            crate::interpreter::Value::Array(elements) => {
+            veld_core::interpreter::Value::Integer(n) => format!("{}", n),
+            veld_core::interpreter::Value::Float(f) => format!("{}", f),
+            veld_core::interpreter::Value::String(s) => format!("\"{}\"", s),
+            veld_core::interpreter::Value::Boolean(b) => format!("{}", b),
+            veld_core::interpreter::Value::Unit => "()".to_string(),
+            veld_core::interpreter::Value::Function { .. } => "<function>".to_string(),
+            veld_core::interpreter::Value::Struct { name, .. } => format!("<{}>", name),
+            veld_core::interpreter::Value::Array(elements) => {
                 let items: Vec<String> = elements.iter()
                     .map(|e| self.value_to_string(e))
                     .collect();
