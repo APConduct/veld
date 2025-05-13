@@ -673,6 +673,21 @@ impl TypeEnvironment {
         methods.insert(method_name.to_string(), method_type);
     }
 
+    pub fn add_kind(
+        &mut self,
+        name: &str,
+        methods: HashMap<String, Type>,
+        default_impls: HashMap<String, Vec<Statement>>,
+    ) {
+        self.kinds.insert(
+            name.to_string(),
+            KindDefenition {
+                methods,
+                default_impls,
+            },
+        );
+    }
+
     pub fn add_enum(&mut self, name: &str, variants: HashMap<String, EnumVariant>) {
         self.enums.insert(name.to_string(), variants);
     }
@@ -1014,6 +1029,81 @@ impl TypeEnvironment {
             }
         }
         None
+    }
+
+    fn types_match(&self, t1: &Type, t2: &Type) -> bool {
+        let t1 = self.apply_substitutions(t1);
+        let t2 = self.apply_substitutions(t2);
+
+        match (&t1, &t2) {
+            (
+                Type::Function {
+                    params: p1,
+                    return_type: r1,
+                },
+                Type::Function {
+                    params: p2,
+                    return_type: r2,
+                },
+            ) => {
+                if p1.len() != p2.len() {
+                    return false;
+                }
+                for (params1, param2) in p1.iter().zip(p2.iter()) {
+                    if !self.types_match(params1, param2) {
+                        return false;
+                    }
+                }
+                self.types_match(r1, r2)
+            }
+            (Type::Generic { base: b1, .. }, Type::Generic { base: b2, .. }) => b1 == b2,
+            (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
+            (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
+            (Type::Tuple(t1), Type::Tuple(t2)) => {
+                if t1.len() != t2.len() {
+                    return false;
+                }
+                for (t1, t2) in t1.iter().zip(t2.iter()) {
+                    if !self.types_match(t1, t2) {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Type::Array(t1), Type::Array(t2)) => self.types_match(t1, t2),
+            // TODO: Handle other types
+            _ => t1 == t2,
+        }
+    }
+
+    // Check if a type structurally implements a kind
+    pub fn type_structurally_implements_kind(&self, ty: &Type, kind_name: &str) -> bool {
+        let kind = match self.kinds.get(kind_name) {
+            Some(kind) => kind,
+            None => return false,
+        };
+
+        match ty {
+            Type::Struct { name, .. } => {
+                for (method_name, required_type) in &kind.methods {
+                    if let Some(methods) = self.struct_methods.get(name) {
+                        if let Some(method_type) = methods.get(method_name) {
+                            if !self.types_match(method_type, required_type) {
+                                return false;
+                            }
+                        } else {
+                            return false; // Method not found
+                        }
+                    } else {
+                        return false; // No methods for this struct
+                    }
+                }
+                true
+            }
+            Type::Enum { name, .. } => todo!("Handle enum implementations"),
+            // TODO: Handle other types
+            _ => false,
+        }
     }
 
     pub fn get_struct_implementations(&self, struct_name: &str) -> Option<Vec<ImplementationInfo>> {
