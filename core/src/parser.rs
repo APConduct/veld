@@ -252,6 +252,46 @@ impl Parser {
         println!("Lambda expression Starting...");
         let mut params = Vec::new();
 
+        if self.match_token(&[Token::Fn]) {
+            self.consume(&Token::LParen, "Expected '(' after 'fn'")?;
+
+            if !self.check(&Token::RParen) {
+                loop {
+                    let param_name = self.consume_identifier("Expected parameter name")?;
+
+                    let type_annotation = if self.match_token(&[Token::Colon]) {
+                        Some(self.parse_type()?)
+                    } else {
+                        None
+                    };
+
+                    params.push((param_name, type_annotation));
+
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+            self.consume(&Token::RParen, "Expected ')' after parameters")?;
+
+            let return_type = if self.match_token(&[Token::Arrow]) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+
+            self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
+
+            let expr = self.expression()?;
+            let body = Box::new(expr);
+
+            return Ok(Expr::Lambda {
+                params,
+                body,
+                return_type,
+            });
+        }
+
         // Check for paren-style parameters (x: i32, y: i32) => x + y
         if self.match_token(&[Token::LParen]) {
             if !self.check(&Token::RParen) {
@@ -445,12 +485,19 @@ impl Parser {
             // Optional semicolon at the end
             self.match_token(&[Token::Semicolon]);
 
+            let inferred_return_type = if return_type == TypeAnnotation::Unit {
+                // Set a marker for type inference
+                TypeAnnotation::Basic("infer".to_string())
+            } else {
+                return_type.clone()
+            };
+
             return Ok(Statement::FunctionDeclaration {
                 name,
                 params,
-                return_type: return_type.clone(),
+                return_type: inferred_return_type,
                 body: vec![Statement::Return(Some(expr))],
-                is_proc: return_type == TypeAnnotation::Unit,
+                is_proc: false, // Default to false for now
                 is_public: false,
             });
         }
@@ -1399,8 +1446,50 @@ impl Parser {
             return false;
         }
 
+        if self.check(&Token::Fn) {
+            return true;
+        }
+
         if let Some(Token::Identifier(_)) = self.tokens.get(self.current) {
             return self.tokens.get(self.current + 1) == Some(&Token::FatArrow);
+        }
+
+        if self.check(&Token::Fn) {
+            let mut i = self.current + 1;
+            let mut paren_depth = 0;
+            let mut found_lparen = false;
+
+            while i < self.tokens.len() {
+                match &self.tokens[i] {
+                    Token::LParen => {
+                        found_lparen = true;
+                        paren_depth += 1;
+                    }
+                    Token::RParen => {
+                        paren_depth -= 1;
+                        if paren_depth == 0 && found_lparen {
+                            if i + 1 < self.tokens.len() && self.tokens[i + 1] == Token::FatArrow {
+                                return true;
+                            }
+                            if i + 1 < self.tokens.len() && self.tokens[i + 1] == Token::Arrow {
+                                let mut j = i + 2;
+                                while j < self.tokens.len() {
+                                    if self.tokens[j] == Token::FatArrow {
+                                        return true;
+                                    }
+                                    if matches!(self.tokens[j], Token::Semicolon | Token::End) {
+                                        break;
+                                    }
+                                    j += 1;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
         }
 
         if self.check(&Token::LParen) {

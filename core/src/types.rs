@@ -580,6 +580,7 @@ impl ImplementationInfo {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct TypeEnvironment {
     scopes: Vec<HashMap<String, Type>>,
 
@@ -1249,6 +1250,18 @@ impl TypeChecker {
         }
     }
 
+    fn infer_expression_type_with_env(
+        &self,
+        expr: &Expr,
+        env: &mut TypeEnvironment,
+    ) -> Result<Type> {
+        let mut type_checker = TypeChecker {
+            env: env.clone(),
+            current_function_return_type: self.current_function_return_type.clone(),
+        };
+        type_checker.infer_expression_type(expr)
+    }
+
     pub fn type_check_function(
         &mut self,
         name: &str,
@@ -1261,29 +1274,73 @@ impl TypeChecker {
             .map(|(_, type_anno)| self.env.from_annotation(type_anno))
             .collect::<Result<Vec<_>>>()?;
 
-        let mut ret_type = self.env.from_annotation(return_type)?;
+        let declared_type = if let TypeAnnotation::Basic(type_name) = return_type {
+            if type_name == "infer" {
+                if body.len() == 1 {
+                    if let Statement::Return(Some(expr)) = &body[0] {
+                        // Create a temporary scope for parameters
+                        self.env.push_scope();
+
+                        // Add parameters to the scope
+                        for (i, (param_name, _)) in params.iter().enumerate() {
+                            self.env.define(param_name, param_types[i].clone());
+                        }
+
+                        // Infer the expression type
+                        let expr_type = self.infer_expression_type(expr)?;
+
+                        // Clean up
+                        self.env.pop_scope();
+
+                        expr_type
+                    } else {
+                        Type::Unit
+                    }
+                } else {
+                    Type::Unit
+                }
+            } else {
+                self.env.from_annotation(return_type)?
+            }
+        } else {
+            self.env.from_annotation(return_type)?
+        };
+
+        self.env.push_scope();
+
+        for (i, (param_name, _)) in params.iter().enumerate() {
+            self.env.define(param_name, param_types[i].clone());
+        }
+
+        let mut inferred_type = declared_type.clone();
 
         if body.len() == 1 {
             if let Statement::Return(Some(expr)) = &body[0] {
                 let expr_type = self.infer_expression_type(expr)?;
 
-                if ret_type == Type::Unit {
-                    ret_type = expr_type.clone();
+                if declared_type == Type::Unit {
+                    inferred_type = expr_type;
                 } else {
-                    self.env.add_constraint(expr_type.clone(), ret_type.clone());
+                    self.env
+                        .add_constraint(expr_type.clone(), declared_type.clone());
+                    self.env.solve_constraints()?;
                 }
             }
         }
 
+        self.env.pop_scope();
+
+        let is_proc = inferred_type == Type::Unit;
+
         let function_type = Type::Function {
             params: param_types.clone(),
-            return_type: Box::new(ret_type.clone()),
+            return_type: Box::new(inferred_type.clone()),
         };
 
         self.env.define(name, function_type);
 
         let old_return_type = self.current_function_return_type.clone();
-        self.current_function_return_type = Some(ret_type);
+        self.current_function_return_type = Some(inferred_type);
 
         self.env.push_scope();
 

@@ -913,8 +913,9 @@ impl Interpreter {
 
                 // Bind parameters to arguments
                 for (i, arg) in arg_values.iter().enumerate() {
-                    self.current_scope_mut()
-                        .set(params[i].0.clone(), arg.clone());
+                    let param_name = params[i].0.clone();
+                    let arg_value = arg.clone();
+                    self.current_scope_mut().set(param_name, arg_value);
                 }
 
                 // Execute function body
