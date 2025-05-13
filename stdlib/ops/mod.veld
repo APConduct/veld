@@ -1,0 +1,71 @@
+--| Standard operators module for Veld
+
+-- Binary arithmetic operators
+kind Add<Rhs, Output>
+    fn add(self, rhs: Rhs) -> Output
+end
+
+kind Sub<Rhs, Output>
+    fn sub(self, rhs: Rhs) -> Output
+end
+
+kind Mul<Rhs, Output>
+    fn mul(self, rhs: Rhs) -> Output
+end
+
+kind Div<Rhs, Output>
+    fn div(self, rhs: Rhs) -> Output
+end
+
+kind Rem<Rhs, Output>
+    fn rem(self, rhs: Rhs) -> Output
+end
+
+-- Unary operators
+kind Neg<Output>
+    fn neg(self) -> Output
+end
+
+-- Bitwise operators
+kind BitAnd<Rhs, Output>
+    fn bitand(self, rhs: Rhs) -> Output
+end
+
+kind BitOr<Rhs, Output>
+    fn bitor(self, rhs: Rhs) -> Output
+end
+
+kind BitXor<Rhs, Output>
+    fn bitxor(self, rhs: Rhs) -> Output
+end
+
+-- Comparison operators
+kind Eq<Rhs>
+    fn eq(self, rhs: Rhs) -> bool
+
+    -- Default implementations
+    fn neq(self, rhs: Rhs) -> bool = !self.eq(rhs)
+end
+
+kind Ord<Rhs>
+    fn cmp(self, rhs: Rhs) -> Ordering
+
+    -- Default implementations
+    fn lt(self, rhs: Rhs) -> bool => self.cmp(rhs) == Ordering.Less
+    fn gt(self, rhs: Rhs) -> bool => self.cmp(rhs) == Ordering.Greater
+    fn le(self, rhs: Rhs) -> bool => !self.gt(rhs)
+    fn ge(self, rhs: Rhs) -> bool => !self.lt(rhs)
+end
+
+-- Indexing operators
+kind Index<Idx, Output>
+    fn index(self, idx: Idx) -> Output
+end
+
+kind IndexMut<Idx, Output>
+    fn index_mut(self, idx: Idx) -> Output
+    fn set_index(self, idx: Idx, val: Output)
+end
+
+-- Helper enum for ordering
+enum Ordering(Less, Equal, Greater)

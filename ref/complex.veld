@@ -1,0 +1,48 @@
+-- Import the operators
+import std.ops.{Add, Mul, Neg}
+
+-- Complex number implementation
+struct Complex
+    real: f64,
+    imag: f64,
+end
+
+-- Using arrow syntax for implementation
+impl Complex <- Add<Complex, Complex>
+    fn add(self, rhs: Complex) -> Complex
+        Complex(
+            real: self.real + rhs.real,
+            imag: self.imag + rhs.imag
+        )
+    end
+end
+
+-- Using for syntax for implementation
+impl Mul<Complex, Complex> for Complex
+    fn mul(self, rhs: Complex) -> Complex
+        Complex(
+            real: self.real * rhs.real - self.imag * rhs.imag,
+            imag: self.real * rhs.imag + self.imag * rhs.real
+        )
+    end
+end
+
+-- Unary negation
+impl Complex <- Neg<Complex>
+    fn neg(self) -> Complex
+        Complex(
+            real: -self.real,
+            imag: -self.imag
+        )
+    end
+end
+
+-- Usage example
+fn main()
+    let a = Complex(real: 1.0, imag: 2.0)
+    let b = Complex(real: 3.0, imag: 4.0)
+
+    let sum = a + b      -- Uses Add implementation
+    let product = a * b  -- Uses Mul implementation
+    let negated = -a     -- Uses Neg implementation
+end
