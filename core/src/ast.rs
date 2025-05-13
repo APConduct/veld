@@ -141,6 +141,38 @@ impl Display for BinaryOperator {
     }
 }
 
+/// Represents a generic argument in a generic parameter list
+/// Examples:
+/// - In `Add<T>`, T is an unnamed generic argument
+/// - In `Add<T, Output = U>`, T is unnamed and Output = U is named
+#[derive(Debug, Clone)]
+pub struct GenericArgument {
+    /// Optional name for named arguments (e.g., "Output" in `Output = T`)
+    /// None for positional/unnamed type arguments
+    pub name: Option<String>,
+
+    /// The type annotation for this generic argument
+    pub type_annotation: TypeAnnotation,
+}
+
+impl GenericArgument {
+    /// Create a new unnamed generic argument
+    pub fn new(type_annotation: TypeAnnotation) -> Self {
+        Self {
+            name: None,
+            type_annotation,
+        }
+    }
+
+    /// Create a new named generic argument
+    pub fn named(name: String, type_annotation: TypeAnnotation) -> Self {
+        Self {
+            name: Some(name),
+            type_annotation,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StructMethod {
     pub name: String,
@@ -224,6 +256,7 @@ pub enum Statement {
         type_name: String,
         kind_name: Option<String>,
         methods: Vec<MethodImpl>,
+        generic_args: Vec<GenericArgument>,
     },
 
     ModuleDeclaration {

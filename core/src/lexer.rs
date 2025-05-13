@@ -193,8 +193,20 @@ pub enum Token {
     Const,
     #[token("static")]
     Static,
-    // #[token("self")]
-    // Self,
+
+    #[token("self")]
+    SelfToken,
+
+    #[token("|>")]
+    Pipe,
+
+    #[token("[[")]
+    LDoubleBracket,
+    #[token("]]")]
+    RDoubleBracket,
+
+    #[token("<-")]
+    LeftArrow,
 }
 
 pub struct Lexer<'a> {

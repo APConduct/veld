@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::path::Path;
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, ImportItem, Literal, MatchPattern, Statement,
     TypeAnnotation,
@@ -7,6 +5,8 @@ use crate::ast::{
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
 use crate::types::TypeChecker;
+use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -196,6 +196,7 @@ impl Interpreter {
                 type_name,
                 kind_name: _,
                 methods,
+                generic_args: _,
             } => {
                 // Just register all methods for now, ignoring kinds
                 let method_map = self
@@ -311,7 +312,7 @@ impl Interpreter {
                         return Err(VeldError::RuntimeError(format!(
                             "Cannot iterate over value of type {:?}",
                             iterable_value
-                        )))
+                        )));
                     }
                 }
                 Ok(Value::Unit)
@@ -1496,7 +1497,7 @@ impl Interpreter {
                 return Err(VeldError::RuntimeError(format!(
                     "'{}' is not a struct",
                     struct_name
-                )))
+                )));
             }
         };
 

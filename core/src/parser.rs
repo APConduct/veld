@@ -1,6 +1,9 @@
+use std::any::type_name;
+
 use crate::ast::{
-    Argument, BinaryOperator, EnumVariant, Expr, ImportItem, KindMethod, Literal, MacroExpansion,
-    MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod, TypeAnnotation,
+    Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
+    MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod,
+    TypeAnnotation,
 };
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
@@ -787,48 +790,133 @@ impl Parser {
         })
     }
 
+    fn peek_next_token_is(&self, token: &Token) -> bool {
+        if self.current + 1 >= self.tokens.len() {
+            return false;
+        }
+        &self.tokens[self.current + 1] == token
+    }
+
+    fn parse_generic_args_if_present(&mut self) -> Result<Vec<GenericArgument>> {
+        let mut generic_args = Vec::new();
+
+        if !self.match_token(&[Token::Less]) {
+            return Ok(generic_args);
+        }
+
+        while !self.check(&Token::Greater) && !self.is_at_end() {
+            if self.peek_next_token_is(&Token::Equals) {
+                let param_name = self.consume_identifier("Expected parameter name")?;
+                self.consume(&Token::Equals, "Expected '=' after parameter name")?;
+                let type_annotation = self.parse_type()?;
+
+                generic_args.push(GenericArgument {
+                    name: Some(param_name),
+                    type_annotation,
+                });
+            } else {
+                let type_annotation = self.parse_type()?;
+                generic_args.push(GenericArgument {
+                    name: None,
+                    type_annotation,
+                });
+            }
+            if !self.match_token(&[Token::Comma]) {
+                break;
+            }
+        }
+        self.consume(&Token::Greater, "Expected '>' after generic arguments")?;
+        Ok(generic_args)
+    }
+
+    fn peek_next_is_identifier(&self) -> bool {
+        if self.current + 1 >= self.tokens.len() {
+            return false;
+        }
+        match &self.tokens[self.current + 1] {
+            Token::Identifier(_) => true,
+            _ => false,
+        }
+    }
+
+    fn peek_next(&self) -> Option<&Token> {
+        if self.current + 1 >= self.tokens.len() {
+            None
+        } else {
+            Some(&self.tokens[self.current + 1])
+        }
+    }
+
+    fn parse_implementation_methods(&mut self, type_name: String) -> Result<Vec<MethodImpl>> {
+        let mut methods = Vec::new();
+
+        while !self.check(&Token::End) && !self.is_at_end() {
+            if !self.match_token(&[Token::Fn]) {
+                return Err(VeldError::ParserError(
+                    "Expected 'fn' to start method defenition".to_string(),
+                ));
+            }
+            let method = self.parse_impl_method(type_name.clone())?;
+            methods.push(method);
+
+            self.match_token(&[Token::Comma]);
+        }
+        self.consume(&Token::End, "Expected 'end' after implementation methods");
+        Ok(methods)
+    }
+
     fn implementation_declaration(&mut self) -> Result<Statement> {
         println!("Implementation declaration: Starting...");
-        let type_name = self.consume_identifier("Expected type name for implementation")?;
-        println!("Implementation declaration: Type name = {}", type_name);
 
-        let kind_name = if self.match_token(&[Token::Colon]) {
-            println!("Implementation declaration: Explicit implementation with kind");
-            Some(self.consume_identifier("Expected kind name after ':'")?)
+        if self.check(&Token::Impl) && !self.peek_next_is_identifier() {
+            let kind_name = self.consume_identifier("Expected kind name")?;
+            let generic_args = self.parse_generic_args_if_present()?;
+            self.consume(&Token::For, "Expected 'for' after kind name")?;
+            let type_name = self.consume_identifier("Expected type name after 'for'")?;
+            let methods = self.parse_implementation_methods(type_name.clone())?;
+            return Ok(Statement::Implementation {
+                type_name,
+                kind_name: Some(kind_name),
+                methods,
+                generic_args,
+            });
+        }
+        self.advance(); // Consume 'impl' token
+        let type_name = self.consume_identifier("Expected type name")?;
+
+        let kind_name = if self.match_token(&[Token::LeftArrow]) {
+            Some(self.consume_identifier("Expected kind name after '->'")?)
         } else {
             None
         };
 
-        let mut methods = Vec::new();
+        let generic_args = if kind_name.is_some() {
+            self.parse_generic_args_if_present()?
+        } else {
+            Vec::new()
+        };
+
+        let methods = self.parse_implementation_methods(type_name.clone())?;
+
+        println!("Implementation declaration: Type name = {}", type_name);
 
         // Multi-line implementation
         println!("Implementation declaration: Parsing methods");
-        while !self.check(&Token::End) && !self.is_at_end() {
-            if self.match_token(&[Token::Fn]) {
-                println!("Implementation declaration: Parsing fn method");
-                let method = self.parse_impl_method(type_name.clone())?;
-                methods.push(method);
-            } else {
-                return Err(VeldError::ParserError(format!(
-                    "Expected 'fn' in implementation block, found {:?}",
-                    self.tokens.get(self.current)
-                )));
-            }
-        }
 
         // Consume the End token that terminates the implementation block
         println!("Implementation declaration: Expecting 'end' token");
-        self.consume(&Token::End, "Expected 'end' after implementation block")?;
         println!("Implementation declaration: Successfully consumed 'end' token");
 
         println!(
             "Implementation declaration: Completed with {} methods",
             methods.len()
         );
+
         Ok(Statement::Implementation {
             type_name,
             kind_name,
             methods,
+            generic_args,
         })
     }
 
