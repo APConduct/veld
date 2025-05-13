@@ -1,9 +1,12 @@
-use crate::ast::{Argument, BinaryOperator, Expr, Literal, Statement, TypeAnnotation};
+use crate::ast::{
+    Argument, BinaryOperator, Expr, GenericArgument, Literal, MethodImpl, Statement, StructMethod,
+    TypeAnnotation,
+};
 use crate::error::{Result, VeldError};
 use crate::interpreter::Value;
 use crate::types::Type::TypeVar;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Formatter;
+use std::fmt::{self, Formatter};
 
 pub const U8_MAX: u8 = 255;
 pub const U16_MAX: u16 = 65535;
@@ -25,6 +28,314 @@ pub const U8_MIN: u8 = 0;
 pub const U16_MIN: u16 = 0;
 pub const U32_MIN: u32 = 0;
 pub const U64_MIN: u64 = 0;
+
+pub trait IsInteger {
+    fn is_integer(&self) -> bool;
+}
+
+pub trait IsFloat {
+    fn is_float(&self) -> bool;
+}
+
+pub trait AsCommonInt {
+    fn as_common_int(&self) -> IntType;
+}
+
+pub trait IsSigned {
+    fn is_signed(&self) -> bool;
+}
+
+pub trait IsUnsigned {
+    fn is_unsigned(&self) -> bool;
+}
+
+pub trait AsCommonNum {
+    fn as_common_num(&self) -> CommonNum;
+}
+
+#[derive(Debug, Clone)]
+pub enum IntType {
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+}
+
+impl IsSigned for IntType {
+    fn is_signed(&self) -> bool {
+        match self {
+            IntType::I8 | IntType::I16 | IntType::I32 | IntType::I64 => true,
+            _ => false,
+        }
+    }
+}
+
+impl IsUnsigned for IntType {
+    fn is_unsigned(&self) -> bool {
+        match self {
+            IntType::U8 | IntType::U16 | IntType::U32 | IntType::U64 => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SignedInt {
+    I8,
+    I16,
+    I32,
+    I64,
+}
+
+impl AsCommonInt for SignedInt {
+    fn as_common_int(&self) -> IntType {
+        match self {
+            SignedInt::I8 => IntType::I8,
+            SignedInt::I16 => IntType::I16,
+            SignedInt::I32 => IntType::I32,
+            SignedInt::I64 => IntType::I64,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum UnsignedInt {
+    U8,
+    U16,
+    U32,
+    U64,
+}
+
+impl AsCommonInt for UnsignedInt {
+    fn as_common_int(&self) -> IntType {
+        match self {
+            UnsignedInt::U8 => IntType::U8,
+            UnsignedInt::U16 => IntType::U16,
+            UnsignedInt::U32 => IntType::U32,
+            UnsignedInt::U64 => IntType::U64,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CommonNumber {
+    Int(IntType),
+    Floating(Float),
+}
+
+impl IsFloat for CommonNumber {
+    fn is_float(&self) -> bool {
+        match self {
+            CommonNumber::Floating(_) => true,
+            _ => false,
+        }
+    }
+}
+
+impl IsInteger for CommonNumber {
+    fn is_integer(&self) -> bool {
+        match self {
+            CommonNumber::Int(_) => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CommonNum {
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64,
+}
+
+impl CommonNum {
+    pub fn max<T>(&self) -> T
+    where
+        T: From<i8>
+            + From<i16>
+            + From<i32>
+            + From<i64>
+            + From<u8>
+            + From<u16>
+            + From<u32>
+            + From<u64>
+            + From<f32>
+            + From<f64>,
+    {
+        match self {
+            CommonNum::I8 => T::from(I8_MAX),
+            CommonNum::I16 => T::from(I16_MAX),
+            CommonNum::I32 => T::from(I32_MAX),
+            CommonNum::I64 => T::from(I64_MAX),
+            CommonNum::U8 => T::from(U8_MAX),
+            CommonNum::U16 => T::from(U16_MAX),
+            CommonNum::U32 => T::from(U32_MAX),
+            CommonNum::U64 => T::from(U64_MAX),
+            CommonNum::F32 => T::from(F32_MAX),
+            CommonNum::F64 => T::from(F64_MAX),
+        }
+    }
+
+    pub fn min<T>(&self) -> T
+    where
+        T: From<i8>
+            + From<i16>
+            + From<i32>
+            + From<i64>
+            + From<u8>
+            + From<u16>
+            + From<u32>
+            + From<u64>
+            + From<f32>
+            + From<f64>,
+    {
+        match self {
+            CommonNum::I8 => T::from(I8_MIN),
+            CommonNum::I16 => T::from(I16_MIN),
+            CommonNum::I32 => T::from(I32_MIN),
+            CommonNum::I64 => T::from(I64_MIN),
+            CommonNum::U8 => T::from(U8_MIN),
+            CommonNum::U16 => T::from(U16_MIN),
+            CommonNum::U32 => T::from(U32_MIN),
+            CommonNum::U64 => T::from(U64_MIN),
+            CommonNum::F32 => T::from(F32_MIN),
+            CommonNum::F64 => T::from(F64_MIN),
+        }
+    }
+}
+
+impl IsFloat for CommonNum {
+    fn is_float(&self) -> bool {
+        match self {
+            CommonNum::F32 | CommonNum::F64 => true,
+            _ => false,
+        }
+    }
+}
+
+impl IsInteger for CommonNum {
+    fn is_integer(&self) -> bool {
+        match self {
+            CommonNum::I8
+            | CommonNum::I16
+            | CommonNum::I32
+            | CommonNum::I64
+            | CommonNum::U8
+            | CommonNum::U16
+            | CommonNum::U32
+            | CommonNum::U64 => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Float {
+    F32,
+    F64,
+}
+
+impl AsCommonNum for Float {
+    fn as_common_num(&self) -> CommonNum {
+        match self {
+            Float::F32 => CommonNum::F32,
+            Float::F64 => CommonNum::F64,
+        }
+    }
+}
+impl IsFloat for Float {
+    fn is_float(&self) -> bool {
+        true
+    }
+}
+impl IsInteger for Float {
+    fn is_integer(&self) -> bool {
+        false
+    }
+}
+
+impl AsCommonNum for IntType {
+    fn as_common_num(&self) -> CommonNum {
+        match self {
+            IntType::I8 => CommonNum::I8,
+            IntType::I16 => CommonNum::I16,
+            IntType::I32 => CommonNum::I32,
+            IntType::I64 => CommonNum::I64,
+            IntType::U8 => CommonNum::U8,
+            IntType::U16 => CommonNum::U16,
+            IntType::U32 => CommonNum::U32,
+            IntType::U64 => CommonNum::U64,
+        }
+    }
+}
+
+impl IsInteger for IntType {
+    fn is_integer(&self) -> bool {
+        true
+    }
+}
+
+impl IsFloat for IntType {
+    fn is_float(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum BitVal {
+    One,
+    Zero,
+}
+
+#[derive(Debug, Clone)]
+pub struct Bit {
+    bit: BitVal,
+}
+
+impl Bit {
+    pub fn new(bit: BitVal) -> Self {
+        Self { bit }
+    }
+    pub fn value(&self) -> BitVal {
+        self.bit.clone()
+    }
+
+    pub fn as_bool_value(&self) -> Value {
+        match self.bit {
+            BitVal::One => Value::Boolean(true),
+            BitVal::Zero => Value::Boolean(false),
+        }
+    }
+}
+
+impl fmt::Display for BitVal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            BitVal::One => write!(f, "1"),
+            BitVal::Zero => write!(f, "0"),
+        }
+    }
+}
+
+impl AsCommonInt for BitVal {
+    fn as_common_int(&self) -> IntType {
+        match self {
+            BitVal::One => IntType::U8,
+            BitVal::Zero => IntType::U8,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -77,6 +388,50 @@ pub enum Type {
 
     TypeVar(usize),
 }
+
+impl IsFloat for Type {
+    fn is_float(&self) -> bool {
+        match self {
+            Type::F32 | Type::F64 => true,
+            _ => false,
+        }
+    }
+}
+
+impl IsInteger for Type {
+    fn is_integer(&self) -> bool {
+        match self {
+            Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64 => true,
+            _ => false,
+        }
+    }
+}
+
+impl Type {
+    pub fn is_numeric(&self) -> bool {
+        match self {
+            Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::F32
+            | Type::F64 => true,
+            _ => false,
+        }
+    }
+}
+
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -167,6 +522,64 @@ impl std::fmt::Display for Type {
     }
 }
 
+#[derive(Debug, Clone)]
+struct ImplementationInfo {
+    type_name: String,
+    kind_name: String,
+    generic_args: Vec<GenericArgument>,
+    methods: HashMap<String, Type>,
+}
+
+impl ImplementationInfo {
+    fn from(
+        type_name: String,
+        kind_name: String,
+        generic_args: Vec<GenericArgument>,
+        methods: HashMap<String, Type>,
+    ) -> Self {
+        Self {
+            type_name,
+            kind_name,
+            generic_args,
+            methods,
+        }
+    }
+    fn new() -> Self {
+        Self {
+            type_name: String::new(),
+            kind_name: String::new(),
+            generic_args: Vec::new(),
+            methods: HashMap::new(),
+        }
+    }
+    fn add_generic_arg(&mut self, arg: GenericArgument) {
+        self.generic_args.push(arg);
+    }
+    fn generic_args(&self) -> Vec<GenericArgument> {
+        self.generic_args.clone()
+    }
+    fn type_name(&self) -> String {
+        self.type_name.clone()
+    }
+    fn add_method(&mut self, name: String, ty: Type) {
+        self.methods.insert(name, ty);
+    }
+    fn get_method(&self, name: &str) -> Option<&Type> {
+        self.methods.get(name)
+    }
+    fn kind_name(&self) -> String {
+        self.kind_name.clone()
+    }
+    fn methods(&self) -> HashMap<String, Type> {
+        self.methods.clone()
+    }
+    fn get_generic_arg(&self, name: &str) -> Option<&GenericArgument> {
+        self.generic_args
+            .iter()
+            .find(|arg| arg.name == Some(name.to_string()))
+    }
+}
+
 pub struct TypeEnvironment {
     scopes: Vec<HashMap<String, Type>>,
 
@@ -185,6 +598,8 @@ pub struct TypeEnvironment {
     constraints: Vec<(Type, Type)>,
 
     substitutions: HashMap<usize, Type>,
+
+    implementations: HashMap<String, Vec<ImplementationInfo>>,
 }
 
 #[derive(Debug, Clone)]
@@ -205,6 +620,7 @@ impl TypeEnvironment {
             next_type_var: 0,
             constraints: Vec::new(),
             substitutions: HashMap::new(),
+            implementations: HashMap::new(),
         }
     }
 
@@ -547,6 +963,62 @@ impl TypeEnvironment {
             _ => false,
         }
     }
+    pub fn add_implementation(
+        &mut self,
+        type_name: &str,
+        kind_name: &str,
+        generic_args: Vec<GenericArgument>,
+        methods: HashMap<String, Type>,
+    ) {
+        let impl_info = ImplementationInfo {
+            type_name: type_name.to_string(),
+            kind_name: kind_name.to_string(),
+            generic_args,
+            methods,
+        };
+        self.implementations
+            .entry(type_name.to_string())
+            .or_insert_with(Vec::new)
+            .push(impl_info);
+    }
+
+    pub fn get_implementations_for_type(
+        &self,
+        type_name: &str,
+    ) -> Option<&Vec<ImplementationInfo>> {
+        self.implementations.get(type_name)
+    }
+
+    pub fn find_implementation(
+        &self,
+        type_name: &str,
+        kind_name: &str,
+    ) -> Option<&ImplementationInfo> {
+        if let Some(impls) = self.get_implementations_for_type(type_name) {
+            return impls
+                .iter()
+                .find(|impl_info| impl_info.kind_name == kind_name);
+        }
+        None
+    }
+
+    pub fn find_implementation_method(
+        &self,
+        type_name: &str,
+        kind_name: &str,
+        method_name: &str,
+    ) -> Option<&Type> {
+        if let Some(impl_info) = self.find_implementation(type_name, kind_name) {
+            if let Some(method) = impl_info.methods.get(method_name) {
+                return Some(method);
+            }
+        }
+        None
+    }
+
+    pub fn get_struct_implementations(&self, struct_name: &str) -> Option<Vec<ImplementationInfo>> {
+        todo!()
+    }
 }
 
 pub struct TypeChecker {
@@ -560,6 +1032,58 @@ impl TypeChecker {
             env: TypeEnvironment::new(),
             current_function_return_type: None,
         }
+    }
+
+    fn method_to_type(&mut self, method: &MethodImpl) -> Result<Type> {
+        let mut param_types = Vec::new();
+
+        for (_, type_annotation) in &method.params {
+            let param_type = self.env.from_annotation(type_annotation)?;
+            param_types.push(param_type);
+        }
+
+        let return_type = self.env.from_annotation(&method.return_type)?;
+
+        Ok(Type::Function {
+            params: param_types,
+            return_type: Box::new(return_type),
+        })
+    }
+
+    fn struct_method_to_type(&mut self, method: &StructMethod) -> Result<Type> {
+        let mut param_types = Vec::new();
+
+        for (_, type_annotation) in &method.params {
+            let param_type = self.env.from_annotation(type_annotation)?;
+            param_types.push(param_type);
+        }
+        let return_type = self.env.from_annotation(&method.return_type)?;
+        Ok(Type::Function {
+            params: param_types,
+            return_type: Box::new(return_type),
+        })
+    }
+
+    fn process_implementation(
+        &mut self,
+        type_name: &str,
+        kind_name: Option<&str>,
+        methods: &[MethodImpl],
+        generic_args: &[GenericArgument],
+    ) -> Result<()> {
+        if kind_name.is_none() {
+            return Ok(());
+        }
+        let kind = kind_name.unwrap();
+
+        let mut method_types = HashMap::new();
+        for method in methods {
+            let method_type = self.method_to_type(method)?;
+            method_types.insert(method.name.clone(), method_type);
+        }
+        self.env
+            .add_implementation(type_name, kind, generic_args.to_vec(), method_types);
+        Ok(())
     }
 
     pub fn check_program(&mut self, statements: &[Statement]) -> Result<()> {
@@ -1406,6 +1930,37 @@ impl TypeChecker {
         Ok(Type::Array(Box::new(elem_type)))
     }
 
+    fn check_generic_arg_compatability(
+        &mut self,
+        generic_args: &[GenericArgument],
+        param_name: &str,
+        actual_type: &Type,
+    ) -> bool {
+        for arg in generic_args {
+            if let Some(name) = &arg.name {
+                if name == param_name {
+                    // Named parameter
+                    let arg_type = self.env.from_annotation(&arg.type_annotation).unwrap();
+                    return self.types_compatible(&arg_type, actual_type);
+                }
+            } else {
+                // Positional parameter
+                let arg_type = self.env.from_annotation(&arg.type_annotation).unwrap();
+                return self.types_compatible(&arg_type, actual_type);
+            }
+        }
+        false
+    }
+
+    fn try_resolve_operator(
+        &mut self,
+        left: &Type,
+        op: &BinaryOperator,
+        right: &Type,
+    ) -> Result<Option<Type>> {
+        todo!()
+    }
+
     fn infer_index_access_type(&mut self, object: &Expr, index: &Expr) -> Result<Type> {
         let obj_type = self.infer_expression_type(object)?;
         let idx_type = self.infer_expression_type(index)?;
@@ -1426,5 +1981,45 @@ impl TypeChecker {
                 obj_type
             ))),
         }
+    }
+
+    fn get_implementations_for_type(&self, type_name: &str) -> Option<&Vec<ImplementationInfo>> {
+        self.env.get_implementations_for_type(type_name)
+    }
+
+    fn find_implementation(&self, type_name: &str, kind_name: &str) -> Option<&ImplementationInfo> {
+        self.env.find_implementation(type_name, kind_name)
+    }
+
+    fn find_implementation_method(
+        &self,
+        type_name: &str,
+        kind_name: &str,
+        method_name: &str,
+    ) -> Option<&Type> {
+        self.env
+            .find_implementation_method(type_name, kind_name, method_name)
+    }
+
+    fn resolve_output_type(
+        &mut self,
+        impl_type: &Type,
+        generic_args: &[GenericArgument],
+    ) -> Result<Type> {
+        for arg in generic_args {
+            if let Some(name) = &arg.name {
+                if name == "Output" {
+                    let output_type = self.env.from_annotation(&arg.type_annotation)?;
+
+                    if let Type::TypeParam(param) = &output_type {
+                        if param == "Self" {
+                            return Ok(impl_type.clone());
+                        }
+                    }
+                    return Ok(output_type);
+                }
+            }
+        }
+        Ok(impl_type.clone())
     }
 }
