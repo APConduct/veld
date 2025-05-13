@@ -1198,6 +1198,8 @@ impl TypeChecker {
 
     pub fn type_check_statement(&mut self, stmt: &Statement) -> Result<()> {
         match stmt {
+            Statement::KindDeclaration { .. } => self.type_check_kind_declaration(stmt),
+            Statement::Implementation { .. } => self.type_check_implementation(stmt),
             Statement::FunctionDeclaration {
                 name,
                 params,
@@ -2111,5 +2113,104 @@ impl TypeChecker {
             }
         }
         Ok(impl_type.clone())
+    }
+
+    fn type_check_kind_declaration(&mut self, stmt: &Statement) -> Result<()> {
+        if let Statement::KindDeclaration { name, methods, .. } = stmt {
+            let mut method_types = HashMap::new();
+            let mut default_impls = HashMap::new();
+
+            for method in methods {
+                let mut param_types = Vec::new();
+
+                for (param_name, type_anno) in &method.params {
+                    let param_type = self.env.from_annotation(type_anno)?;
+                    param_types.push(param_type);
+                }
+
+                let return_type = self.env.from_annotation(&method.return_type)?;
+
+                let method_type = Type::Function {
+                    params: param_types,
+                    return_type: Box::new(return_type),
+                };
+
+                method_types.insert(method.name.clone(), method_type);
+
+                if let Some(default_body) = &method.default_impl {
+                    default_impls.insert(method.name.clone(), default_body.clone());
+                }
+            }
+            self.env.add_kind(name, method_types, default_impls);
+        }
+        Ok(())
+    }
+
+    fn type_check_implementation(&mut self, stmt: &Statement) -> Result<()> {
+        if let Statement::Implementation {
+            type_name,
+            kind_name,
+            methods,
+            generic_args,
+        } = stmt
+        {
+            if let Some(kind_name) = kind_name {
+                let kind = match self.env.kinds.get(kind_name) {
+                    Some(k) => k.clone(),
+                    None => {
+                        return Err(VeldError::TypeError(format!(
+                            "Cannot implement unknown kind: {}",
+                            kind_name
+                        )));
+                    }
+                };
+
+                let mut impl_method_types = HashMap::new();
+                for method in methods {
+                    let method_type = self.method_to_type(method)?;
+                    impl_method_types.insert(method.name.clone(), method_type);
+                }
+
+                for (method_name, required_type) in &kind.methods {
+                    if let Some(impl_type) = impl_method_types.get(method_name) {
+                        self.env
+                            .add_constraint(impl_type.clone(), required_type.clone());
+
+                        todo!("Implement handling to substitute 'Self' with actual type");
+                    } else if !kind.default_impls.contains_key(method_name) {
+                        return Err(VeldError::TypeError(format!(
+                            "Kind '{}' requires method '{}' which is not implemented",
+                            kind_name, method_name
+                        )));
+                    }
+                }
+
+                self.env.solve_constraints()?;
+
+                let processed_methods = methods
+                    .iter()
+                    .map(|m| (m.name.clone(), self.method_to_type(m).unwrap()))
+                    .collect();
+
+                self.env.add_implementation(
+                    type_name,
+                    kind_name,
+                    generic_args.clone(),
+                    processed_methods,
+                );
+            } else {
+                for method in methods {
+                    let method_type = self.method_to_type(method)?;
+                    let struct_methods = self
+                        .env
+                        .struct_methods
+                        .entry(type_name.clone())
+                        .or_insert_with(HashMap::new);
+
+                    struct_methods.insert(method.name.clone(), method_type);
+                }
+            }
+        }
+        Ok(())
     }
 }
