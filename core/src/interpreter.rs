@@ -7,6 +7,7 @@ use crate::module::{ExportedItem, ModuleManager};
 use crate::types::TypeChecker;
 use std::collections::HashMap;
 use std::path::Path;
+use std::result;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -77,7 +78,7 @@ pub struct Interpreter {
     current_module: String,
     imported_modules: HashMap<String, String>, // alias -> module name
     enums: HashMap<String, Vec<EnumVariant>>,
-    type_checker: TypeChecker,
+    pub type_checker: TypeChecker,
 }
 
 impl Interpreter {
@@ -95,6 +96,10 @@ impl Interpreter {
 
         // Initialize Built-in array methods
         interpreter.initialize_array_methods();
+
+        if let Err(e) = interpreter.initialize_operator_kinds() {
+            eprintln!("Warning: Failed to initialize operator kinds: {}", e);
+        }
         interpreter
     }
 
@@ -1284,6 +1289,10 @@ impl Interpreter {
         operator: BinaryOperator,
         right: Value,
     ) -> Result<Value> {
+        if let Some(result) = self.try_call_operator_method(&left, &operator, &right)? {
+            return Ok(result);
+        }
+
         match (left, operator, right) {
             (Value::Float(a), BinaryOperator::Exponent, Value::Float(b)) => {
                 Ok(Value::Float(a.powf(b)))
@@ -1688,5 +1697,113 @@ impl Interpreter {
             }
         }
         Ok(Value::Unit)
+    }
+
+    fn initialize_operator_kinds(&mut self) -> Result<()> {
+        let mut ordering_variants = vec![
+            EnumVariant {
+                name: "Less".to_string(),
+                fields: None,
+            },
+            EnumVariant {
+                name: "Equal".to_string(),
+                fields: None,
+            },
+            EnumVariant {
+                name: "Greater".to_string(),
+                fields: None,
+            },
+        ];
+
+        self.enums.insert("Ordering".to_string(), ordering_variants);
+
+        let mut add_kind_methods = HashMap::new();
+        use crate::types::Type;
+
+        let add_method_type = Type::Function {
+            params: vec![
+                Type::TypeParam("Self".to_string()),
+                Type::TypeParam("Rhs".to_string()),
+            ],
+            return_type: Box::new(Type::TypeParam("Output".to_string())),
+        };
+
+        add_kind_methods.insert("add".to_string(), add_method_type);
+
+        self.type_checker
+            .env
+            .add_kind("Add", add_kind_methods, HashMap::new());
+
+        let mut sub_kind_methods = HashMap::new();
+        let sub_method_type = Type::Function {
+            params: vec![
+                Type::TypeParam("Self".to_string()),
+                Type::TypeParam("Rhs".to_string()),
+            ],
+            return_type: Box::new(Type::TypeParam("Output".to_string())),
+        };
+        sub_kind_methods.insert("sub".to_string(), sub_method_type);
+        self.type_checker
+            .env
+            .add_kind("Sub", sub_kind_methods, HashMap::new());
+
+        let mut mul_kind_methods = HashMap::new();
+        let mul_method_type = Type::Function {
+            params: vec![
+                Type::TypeParam("Self".to_string()),
+                Type::TypeParam("Rhs".to_string()),
+            ],
+            return_type: Box::new(Type::TypeParam("Output".to_string())),
+        };
+        mul_kind_methods.insert("mul".to_string(), mul_method_type);
+        self.type_checker
+            .env
+            .add_kind("Mul", mul_kind_methods, HashMap::new());
+
+        let mut div_kind_methods = HashMap::new();
+        let div_method_type = Type::Function {
+            params: vec![
+                Type::TypeParam("Self".to_string()),
+                Type::TypeParam("Rhs".to_string()),
+            ],
+            return_type: Box::new(Type::TypeParam("Output".to_string())),
+        };
+        div_kind_methods.insert("div".to_string(), div_method_type);
+        self.type_checker
+            .env
+            .add_kind("Div", div_kind_methods, HashMap::new());
+
+        Ok(())
+    }
+
+    fn try_call_operator_method(
+        &mut self,
+        left: &Value,
+        op: &BinaryOperator,
+        right: &Value,
+    ) -> Result<Option<Value>> {
+        let method_name = match op {
+            BinaryOperator::Add => "add",
+            BinaryOperator::Subtract => "sub",
+            BinaryOperator::Multiply => "mul",
+            BinaryOperator::Divide => "div",
+            BinaryOperator::Modulo => "rem",
+            _ => return Ok(None), // Not an operator we can handle
+        };
+
+        if let Value::Struct {
+            name: struct_name, ..
+        } = left
+        {
+            if let Some(methods) = self.struct_methods.get(struct_name) {
+                if let Some(_) = methods.get(method_name) {
+                    let args = vec![right.clone()];
+                    let result =
+                        self.call_method_value(left.clone(), method_name.to_string(), args)?;
+                    return Ok(Some(result));
+                }
+            }
+        }
+        Ok(None) // No operator method found
     }
 }

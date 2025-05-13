@@ -1112,7 +1112,7 @@ impl TypeEnvironment {
 }
 
 pub struct TypeChecker {
-    env: TypeEnvironment,
+    pub env: TypeEnvironment,
     current_function_return_type: Option<Type>,
 }
 
@@ -2050,7 +2050,38 @@ impl TypeChecker {
         op: &BinaryOperator,
         right: &Type,
     ) -> Result<Option<Type>> {
-        todo!()
+        let trait_name = match op {
+            BinaryOperator::Add => "Add",
+            BinaryOperator::Subtract => "Sub",
+            BinaryOperator::Multiply => "Mul",
+            BinaryOperator::Divide => "Div",
+            BinaryOperator::Modulo => "Rem",
+            BinaryOperator::Exponent => "Pow",
+            // TODO: Add more operators
+            _ => return Ok(None),
+        };
+
+        if let Type::Struct {
+            name: left_name, ..
+        } = left
+        {
+            if let Some(impls) = self.env.get_implementations_for_type(left_name) {
+                for impl_info in impls.clone() {
+                    if impl_info.kind_name() == trait_name {
+                        if self.check_generic_arg_compatability(
+                            &impl_info.generic_args(),
+                            "Rhs",
+                            right,
+                        ) {
+                            return Ok(Some(
+                                self.resolve_output_type(left, &impl_info.generic_args())?,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 
     fn infer_index_access_type(&mut self, object: &Expr, index: &Expr) -> Result<Type> {
