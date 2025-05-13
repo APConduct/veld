@@ -406,6 +406,23 @@ impl Parser {
             TypeAnnotation::Unit
         };
 
+        if self.match_token(&[Token::FatArrow]) {
+            println!("Function declaration: Fat arrow syntax detected");
+            let expr = self.expression()?;
+            let is_proc = match &return_type {
+                TypeAnnotation::Unit => false,
+                _ => false,
+            };
+            return Ok(Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type,
+                body: vec![Statement::Return(Some(expr))],
+                is_proc,
+                is_public: false,
+            });
+        }
+
         // Check for function prototype (ends with semicolon)
         if self.match_token(&[Token::Semicolon]) {
             println!("Function declaration: Function prototype (no body)");

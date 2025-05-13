@@ -1261,7 +1261,19 @@ impl TypeChecker {
             .map(|(_, type_anno)| self.env.from_annotation(type_anno))
             .collect::<Result<Vec<_>>>()?;
 
-        let ret_type = self.env.from_annotation(return_type)?;
+        let mut ret_type = self.env.from_annotation(return_type)?;
+
+        if body.len() == 1 {
+            if let Statement::Return(Some(expr)) = &body[0] {
+                let expr_type = self.infer_expression_type(expr)?;
+
+                if ret_type == Type::Unit {
+                    ret_type = expr_type.clone();
+                } else {
+                    self.env.add_constraint(expr_type.clone(), ret_type.clone());
+                }
+            }
+        }
 
         let function_type = Type::Function {
             params: param_types.clone(),
@@ -1438,16 +1450,36 @@ impl TypeChecker {
         let left_type = self.infer_expression_type(left)?;
         let right_type = self.infer_expression_type(right)?;
 
+        if let Some(result_type) = self.try_resolve_operator(&left_type, op, &right_type)? {
+            return Ok(result_type);
+        }
+
         match op {
             BinaryOperator::Add
             | BinaryOperator::Subtract
             | BinaryOperator::Multiply
             | BinaryOperator::Divide => {
                 if self.is_numeric_type(&left_type) && self.is_numeric_type(&right_type) {
-                    if left_type == Type::F64 || right_type == Type::F64 {
-                        Ok(Type::F64)
+                    if left_type.is_float() || right_type.is_float() {
+                        if left_type == Type::F64 || right_type == Type::F64 {
+                            Ok(Type::F64)
+                        } else {
+                            Ok(Type::F32)
+                        }
                     } else {
-                        Ok(Type::I32)
+                        // Integer operations
+                        match (&left_type, &right_type) {
+                            (Type::I64, _) | (_, Type::I64) => Ok(Type::I64),
+                            (Type::U64, _) | (_, Type::U64) => Ok(Type::U64),
+                            (Type::I32, _) | (_, Type::I32) => Ok(Type::I32),
+                            (Type::U32, _) | (_, Type::U32) => Ok(Type::U32),
+                            (Type::I16, _) | (_, Type::I16) => Ok(Type::I16),
+                            (Type::U16, _) | (_, Type::U16) => Ok(Type::U16),
+                            (Type::I8, _) | (_, Type::I8) => Ok(Type::I8),
+                            (Type::U8, _) | (_, Type::U8) => Ok(Type::U8),
+                            (Type::TypeVar(_), _) | (_, Type::TypeVar(_)) => Ok(Type::I32), // Default to I32 for type vars
+                            _ => Ok(Type::I32), // Default to I32 for default case
+                        }
                     }
                 } else {
                     Err(VeldError::TypeError(format!(
