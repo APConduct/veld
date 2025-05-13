@@ -419,6 +419,25 @@ impl Parser {
             });
         }
 
+        // Check for arrow syntax (=>)
+        if self.match_token(&[Token::FatArrow]) {
+            println!("Function declaration: Fat array syntax detected");
+            // Parse a single expression as the body
+            let expr = self.expression()?;
+
+            // Optional semicolon at the end
+            self.match_token(&[Token::Semicolon]);
+
+            return Ok(Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type: return_type.clone(),
+                body: vec![Statement::Return(Some(expr))],
+                is_proc: return_type == TypeAnnotation::Unit,
+                is_public: false,
+            });
+        }
+
         self.match_token(&[Token::Equals]);
         println!("Function declaration: Preparing to parse body");
 
@@ -455,6 +474,10 @@ impl Parser {
             || self.check(&Token::Kind)
             || self.check(&Token::Impl)
             || self.check(&Token::Let)
+            || self.check(&Token::Enum)
+            || self.check(&Token::Mod)
+            || self.check(&Token::Const)
+            || self.check(&Token::Var)
     }
 
     fn proc_declaration(&mut self) -> Result<Statement> {
