@@ -2,7 +2,8 @@ use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Clone)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace
-#[logos(skip r"--.*")]
+#[logos(skip r"--.*")] // Skip single-line comments
+#[logos(skip r"--|")] // Skip multi-line comments
 pub enum Token {
     // Keywords
     #[token("fn")]
@@ -31,26 +32,20 @@ pub enum Token {
     Or,
     #[token("mod")]
     Mod,
-
     #[token("import")]
     Import,
-
     #[token("pub")]
     Pub,
-
     #[token("from")]
     From,
-
     #[token("var")]
     Var,
     #[token("mut")]
     Mut,
-
     #[token("break")]
     Break,
     #[token("continue")]
     Continue,
-
     #[token("enum")]
     Enum,
 
@@ -71,7 +66,6 @@ pub enum Token {
     FatArrow,
     #[token("*^")]
     ExpOp,
-
     #[token("%")]
     Modulo,
     #[token("+=")]
@@ -120,15 +114,14 @@ pub enum Token {
     At,
     #[token(".")]
     Dot,
-
     #[token("..")]
     DotDot,
     #[token("...")]
     DotDotDot,
     #[token("~")]
     Tilde,
-    #[token("--|")]
-    DashDashPipe,
+    #[token("!")]
+    Bang,
 
     // Literals and Identifiers
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
@@ -136,7 +129,6 @@ pub enum Token {
 
     #[regex(r#""[^"]*""#, |lex| {
         let mut content = lex.slice().to_string();
-        // Remove the surrounding quotes
         content.remove(0);
         content.pop();
         content
@@ -153,58 +145,44 @@ pub enum Token {
     If,
     #[token("else")]
     Else,
-
     #[token("while")]
     While,
-
     #[token("return")]
     Return,
-
     #[token("true")]
     True,
     #[token("false")]
     False,
-
     #[token("and")]
     And,
-
     #[token("match")]
     Match,
-
     #[token("do")]
     Do,
     #[token("then")]
     Then,
     #[token("with")]
     With,
-
     #[token("macro")]
     Macro,
-
     #[token("async")]
     Async,
     #[token("await")]
     Await,
     #[token("spawn")]
     Spawn,
-    // #[token("yield")]
-    // Yield,
     #[token("const")]
     Const,
     #[token("static")]
     Static,
-
     #[token("self")]
     SelfToken,
-
     #[token("|>")]
     Pipe,
-
     #[token("[[")]
     LDoubleBracket,
     #[token("]]")]
     RDoubleBracket,
-
     #[token("<-")]
     LeftArrow,
 }
@@ -214,9 +192,49 @@ pub struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
+    pub fn preprocess(input: &'a str) -> String {
+        let mut result = String::new();
+        let mut in_multiline_comment = false;
+        let mut nesting_level = 0;
+
+        for line in input.lines() {
+            // Check for both types of multiline comment starts
+            if let Some(pos) = line.find("--[[") {
+                if !in_multiline_comment {
+                    // Keep text before the comment start
+                    result.push_str(&line[0..pos]);
+                    in_multiline_comment = true;
+                    nesting_level = 1;
+                } else {
+                    // Nested comment
+                    nesting_level += 1;
+                }
+            } else if !in_multiline_comment {
+                // Keep the whole line if not in a comment
+                result.push_str(line);
+                result.push('\n');
+            }
+
+            // Check for comment end
+            if in_multiline_comment && line.contains("]]") {
+                nesting_level -= 1;
+                if nesting_level == 0 {
+                    in_multiline_comment = false;
+                    // If there's text after the comment end, add it
+                    if let Some(pos) = line.rfind("]]") {
+                        result.push_str(&line[(pos+2)..]);
+                        result.push('\n');
+                    }
+                }
+            }
+        }
+
+        result
+    }
     pub fn new(input: &'a str) -> Self {
+        let preprocessed_input = Self::preprocess(input);
         Self {
-            inner: Token::lexer(input),
+            inner: Token::lexer(Box::leak(preprocessed_input.into_boxed_str())),
         }
     }
 }
@@ -231,7 +249,6 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
-// Convenience method to collect all tokens
 impl<'a> Lexer<'a> {
     pub fn collect_tokens(&mut self) -> Result<Vec<Token>, String> {
         self.collect()

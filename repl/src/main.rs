@@ -17,14 +17,14 @@ fn main() -> Result<()> {
         // No arguments, run in REPL mode
         println!("Starting Veld in REPL mode...");
         let mut repl = Repl::new();
-        return repl.run();
+        repl.run()
     } else if args.len() == 2 {
         // One argument - interpret the file
         return run_file(&args[1]);
     } else {
         println!("Usage: veld [filename]");
         println!("       veld           # Run in REPL mode");
-        return Ok(());
+        Ok(())
     }
 }
 
