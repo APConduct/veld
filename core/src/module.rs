@@ -1,8 +1,6 @@
 use std::collections::HashMap;
-use std::fmt::format;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::lexer;
 use crate::ast::{Statement, ImportItem};
 use crate::error::VeldError;
 use crate::lexer::Lexer;

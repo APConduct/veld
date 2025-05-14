@@ -7,7 +7,6 @@ use crate::module::{ExportedItem, ModuleManager};
 use crate::types::TypeChecker;
 use std::collections::HashMap;
 use std::path::Path;
-use std::result;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -1701,7 +1700,7 @@ impl Interpreter {
     }
 
     fn initialize_operator_kinds(&mut self) -> Result<()> {
-        let mut ordering_variants = vec![
+        let ordering_variants = vec![
             EnumVariant {
                 name: "Less".to_string(),
                 fields: None,

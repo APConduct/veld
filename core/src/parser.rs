@@ -1,4 +1,3 @@
-use std::any::type_name;
 
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
@@ -7,7 +6,6 @@ use crate::ast::{
 };
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
-use crate::module::Module;
 
 pub struct Parser {
     tokens: Vec<Token>,
