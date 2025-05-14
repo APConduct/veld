@@ -192,6 +192,7 @@ pub struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
+    /// Preprocess the input string to remove comments and handle multiline comments.
     pub fn preprocess(input: &'a str) -> String {
         let mut result = String::new();
         let mut in_multiline_comment = false;
@@ -209,13 +210,23 @@ impl<'a> Lexer<'a> {
                     // Nested comment
                     nesting_level += 1;
                 }
+            } else if let Some(pos) = line.find("--|[[") { // Added check for doc comments
+                if !in_multiline_comment {
+                    // Keep text before the comment start
+                    result.push_str(&line[0..pos]);
+                    in_multiline_comment = true;
+                    nesting_level = 1;
+                } else {
+                    // Nested comment
+                    nesting_level += 1;
+                }
             } else if !in_multiline_comment {
                 // Keep the whole line if not in a comment
                 result.push_str(line);
                 result.push('\n');
             }
 
-            // Check for comment end
+            // Check for the comment end
             if in_multiline_comment && line.contains("]]") {
                 nesting_level -= 1;
                 if nesting_level == 0 {
