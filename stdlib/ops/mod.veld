@@ -44,7 +44,7 @@ kind Eq<Rhs>
     fn eq(self, rhs: Rhs) -> bool
 
     -- Default implementations
-    fn neq(self, rhs: Rhs) -> bool = !self.eq(rhs)
+    fn neq(self, rhs: Rhs) -> bool => !self.eq(rhs)
 end
 
 kind Ord<Rhs>
