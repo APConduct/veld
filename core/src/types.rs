@@ -1481,7 +1481,84 @@ impl TypeChecker {
             } => self.infer_struct_create_type(struct_name, fields),
             Expr::ArrayLiteral(elements) => self.infer_array_literal_type(elements),
             Expr::IndexAccess { object, index } => self.infer_index_access_type(object, index),
+            Expr::TypeCast { expr, target_type } => {
+                let source_type = self.infer_expression_type(expr)?;
+                let target = self.env.from_annotation(target_type)?;
+
+                if self.is_valid_cast(&source_type, &target) {
+                    Ok(target)
+                } else {
+                    Err(VeldError::TypeError(format!(
+                        "Cannot cast from {} to {}",
+                        source_type, target
+                    )))
+                }
+            }
             EnumVariant => todo!(),
+        }
+    }
+
+    fn is_valid_cast(&self, from: &Type, to: &Type) -> bool {
+        // Numeric casts
+        match (from, to) {
+            (
+                Type::I8
+                | Type::I16
+                | Type::I32
+                | Type::I64
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::F32
+                | Type::F64,
+                Type::I8
+                | Type::I16
+                | Type::I32
+                | Type::I64
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::F32
+                | Type::F64,
+            ) => true,
+
+            // String casts to numeric types if it can be parsed
+            (Type::String, Type::I32 | Type::I64 | Type::F32 | Type::F64) => true,
+
+            // Numeric types to string
+            (
+                Type::I8
+                | Type::I16
+                | Type::I32
+                | Type::I64
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::F32
+                | Type::F64,
+                Type::String,
+            ) => true,
+
+            // Char casts to string
+            (Type::Char, Type::String) => true,
+
+            // TODO: Specify the logic for string to numeric casts
+
+            // Any type to any
+            (Type::Any, _) | (_, Type::Any) => true,
+
+            // Structs and enums can be cast to their base type
+            (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
+            (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
+
+            // Same type is valid
+            _ if from == to => true,
+
+            // All other casts are invalid for now
+            _ => false,
         }
     }
 

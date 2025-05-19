@@ -1,4 +1,3 @@
-
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod,
@@ -1597,7 +1596,15 @@ impl Parser {
                 break;
             }
 
-            if self.match_token(&[Token::Dot]) {
+            if self.match_token(&[Token::As]) {
+                println!("Postfix: Found 'as' keyword for type casting");
+                let target_type = self.parse_type()?;
+                expr = Expr::TypeCast {
+                    expr: Box::new(expr),
+                    target_type: target_type.clone(),
+                };
+                println!("Postfix: Completed type cast to {:?}", target_type);
+            } else if self.match_token(&[Token::Dot]) {
                 // Check for numeric tuple index
                 if let Some(Token::IntegerLiteral(idx)) = self.tokens.clone().get(self.current) {
                     self.advance(); // consume the integer

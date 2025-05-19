@@ -4,7 +4,7 @@ use crate::ast::{
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
-use crate::types::TypeChecker;
+use crate::types::{Type, TypeChecker};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -522,6 +522,12 @@ impl Interpreter {
                 self.get_property(obj_value, &property)
             }
 
+            Expr::TypeCast { expr, target_type } => {
+                let value = self.evaluate_expression(*expr)?;
+                let target = self.type_checker.env.from_annotation(&target_type)?;
+                self.cast_value(value, &target)
+            }
+
             Expr::Lambda {
                 params,
                 body,
@@ -730,6 +736,138 @@ impl Interpreter {
                 }
             }
             Expr::MacroExpr { name, arguments } => todo!(),
+            Expr::TypeCast { expr, target_type } => todo!(),
+        }
+    }
+
+    fn cast_value(&self, value: Value, target_type: &Type) -> Result<Value> {
+        match (value.clone(), target_type) {
+            (Value::Integer(i), Type::I8) => Ok(Value::Integer(i as i8 as i64)),
+            (Value::Integer(i), Type::I16) => Ok(Value::Integer(i as i16 as i64)),
+            (Value::Integer(i), Type::I32) => Ok(Value::Integer(i as i32 as i64)),
+            (Value::Integer(i), Type::I64) => Ok(Value::Integer(i)),
+
+            // Integer to Unsigned types
+            (Value::Integer(i), Type::U8) => {
+                if i < 0 || i > u8::MAX as i64 {
+                    Err(VeldError::RuntimeError(format!(
+                        "Cannot cast {} to u8: out of range",
+                        i
+                    )))
+                } else {
+                    Ok(Value::Integer(i as u8 as i64))
+                }
+            }
+            (Value::Integer(i), Type::U16) => {
+                if i < 0 || i > u16::MAX as i64 {
+                    Err(VeldError::RuntimeError(format!(
+                        "Cannot cast {} to u16: out of range",
+                        i
+                    )))
+                } else {
+                    Ok(Value::Integer(i as u16 as i64))
+                }
+            }
+            (Value::Integer(i), Type::U32) => {
+                if i < 0 || i > u32::MAX as i64 {
+                    Err(VeldError::RuntimeError(format!(
+                        "Cannot cast {} to u32: out of range",
+                        i
+                    )))
+                } else {
+                    Ok(Value::Integer(i as u32 as i64))
+                }
+            }
+            (Value::Integer(i), Type::U64) => {
+                if i < 0 {
+                    Err(VeldError::RuntimeError(format!(
+                        "Cannot cast {} to u64: out of range",
+                        i
+                    )))
+                } else {
+                    Ok(Value::Integer(i as u64 as i64))
+                }
+            }
+            // Integer to Float types
+            (Value::Integer(i), Type::F32) => Ok(Value::Float(i as f64)),
+            (Value::Integer(i), Type::F64) => Ok(Value::Float(i as f64)),
+
+            // Float to Integer types
+            (Value::Float(f), Type::I8) => Ok(Value::Integer(f as i8 as i64)),
+            (Value::Float(f), Type::I16) => Ok(Value::Integer(f as i16 as i64)),
+            (Value::Float(f), Type::I32) => Ok(Value::Integer(f as i32 as i64)),
+            (Value::Float(f), Type::I64) => Ok(Value::Integer(f as i64)),
+
+            // Float to Float types
+            (Value::Float(f), Type::F32) => Ok(Value::Float(f as f32 as f64)),
+            (Value::Float(f), Type::F64) => Ok(Value::Float(f)),
+
+            // String conversions
+            (Value::String(s), Type::I32) => match s.parse::<i32>() {
+                Ok(i) => Ok(Value::Integer(i as i64)),
+                Err(_) => Err(VeldError::RuntimeError(format!(
+                    "Cannot parse '{}' as i32",
+                    s
+                ))),
+            },
+            (Value::String(s), Type::F32) => match s.parse::<f32>() {
+                Ok(f) => Ok(Value::Float(f as f64)),
+                Err(_) => Err(VeldError::RuntimeError(format!(
+                    "Cannot parse '{}' as f32",
+                    s
+                ))),
+            },
+            (Value::String(s), Type::F64) => match s.parse::<f64>() {
+                Ok(f) => Ok(Value::Float(f)),
+                Err(_) => Err(VeldError::RuntimeError(format!(
+                    "Cannot parse '{}' as f64",
+                    s
+                ))),
+            },
+            (Value::String(s), Type::I64) => match s.parse::<i64>() {
+                Ok(i) => Ok(Value::Integer(i)),
+                Err(_) => Err(VeldError::RuntimeError(format!(
+                    "Cannot parse '{}' as i64",
+                    s
+                ))),
+            },
+            (Value::String(s), Type::U8) => match s.parse::<u8>() {
+                Ok(i) => Ok(Value::Integer(i as i64)),
+                Err(_) => Err(VeldError::RuntimeError(format!(
+                    "Cannot parse '{}' as u8",
+                    s
+                ))),
+            },
+            (Value::String(s), Type::U16) => match s.parse::<u16>() {
+                Ok(i) => Ok(Value::Integer(i as i64)),
+                Err(_) => Err(VeldError::RuntimeError(format!(
+                    "Cannot parse '{}' as u16",
+                    s
+                ))),
+            },
+            (Value::String(s), Type::U32) => match s.parse::<u32>() {
+                Ok(i) => Ok(Value::Integer(i as i64)),
+                Err(_) => Err(VeldError::RuntimeError(format!(
+                    "Cannot parse '{}' as u32",
+                    s
+                ))),
+            },
+            (Value::String(s), Type::U64) => match s.parse::<u64>() {
+                Ok(i) => Ok(Value::Integer(i as i64)),
+                Err(_) => Err(VeldError::RuntimeError(format!(
+                    "Cannot parse '{}' as u64",
+                    s
+                ))),
+            },
+
+            (Value::Integer(i), Type::String) => Ok(Value::String(i.to_string())),
+            (Value::Float(f), Type::String) => Ok(Value::String(f.to_string())),
+
+            // Invalid cast
+            _ => Err(VeldError::RuntimeError(format!(
+                "Invalid cast from {:?} to {:?}",
+                value, target_type
+            ))),
         }
     }
 

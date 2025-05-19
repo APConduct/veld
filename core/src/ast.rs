@@ -99,6 +99,11 @@ pub enum Expr {
         name: String,
         arguments: Vec<Expr>,
     },
+
+    TypeCast {
+        expr: Box<Expr>,
+        target_type: TypeAnnotation,
+    },
 }
 
 #[derive(Debug, Clone)]
