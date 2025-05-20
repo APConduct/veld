@@ -339,6 +339,13 @@ impl Parser {
         let name = self.consume_identifier("Expected struct name")?;
         println!("Struct declaration: Name = {}", name);
 
+        println!(
+            "Checking for generic parameters, token {:?}",
+            self.tokens.get(self.current)
+        );
+        let generic_params = self.parse_generic_args_if_present()?;
+        println!("Parsed generic params: {:?}", generic_params);
+
         let mut fields = Vec::new();
         let mut methods = Vec::new();
 
@@ -408,6 +415,7 @@ impl Parser {
             fields,
             methods,
             is_public,
+            generic_params,
         })
     }
 
@@ -579,6 +587,13 @@ impl Parser {
         let name = self.consume_identifier("Expected struct name")?;
         println!("Struct declaration: Name = {}", name);
 
+        println!(
+            "Checking for generic parameters, token {:?}",
+            self.tokens.get(self.current)
+        );
+        let generic_params = self.parse_generic_args_if_present()?;
+        println!("Parsed generic params: {:?}", generic_params);
+
         let mut fields = Vec::new();
         let mut methods = Vec::new();
 
@@ -648,6 +663,7 @@ impl Parser {
             fields,
             methods,
             is_public: false, // Default visibility
+            generic_params,
         })
     }
 

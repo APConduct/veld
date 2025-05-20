@@ -606,6 +606,8 @@ pub struct TypeEnvironment {
     substitutions: HashMap<usize, Type>,
 
     implementations: HashMap<String, Vec<ImplementationInfo>>,
+    generic_structs: HashMap<String, (HashMap<String, Type>, Vec<GenericArgument>)>,
+    generic_struct_names: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -628,7 +630,20 @@ impl TypeEnvironment {
             constraints: Vec::new(),
             substitutions: HashMap::new(),
             implementations: HashMap::new(),
+            generic_structs: HashMap::new(),
+            generic_struct_names: HashSet::new(),
         }
+    }
+
+    pub fn add_generic_struct(
+        &mut self,
+        name: &str,
+        fields: HashMap<String, Type>,
+        generic_params: Vec<GenericArgument>,
+    ) {
+        self.generic_structs
+            .insert(name.to_string(), (fields, generic_params));
+        self.generic_struct_names.insert(name.to_string());
     }
 
     pub fn fresh_type_var(&mut self) -> Type {
@@ -757,10 +772,22 @@ impl TypeEnvironment {
                     "i8" => Ok(Type::I8),
                     "i16" => Ok(Type::I16),
                     "any" => Ok(Type::Any),
-                    name if self.structs.contains_key(name) => Ok(Type::Struct {
-                        name: name.to_string(),
-                        fields: self.structs.get(name).unwrap().clone(),
-                    }),
+                    name if self.structs.contains_key(name)
+                        || self.generic_struct_names.contains(name) =>
+                    {
+                        // For generic structs, just use the name
+                        if self.generic_struct_names.contains(name) {
+                            return Ok(Type::Struct {
+                                name: name.to_string(),
+                                fields: HashMap::new(),
+                            });
+                        }
+                        // For regular structs, use fields
+                        Ok(Type::Struct {
+                            name: name.to_string(),
+                            fields: self.structs.get(name).unwrap().clone(),
+                        })
+                    }
                     name if self.enums.contains_key(name) => Ok(Type::Enum {
                         name: name.to_string(),
                         variants: self.enums.get(name).unwrap().clone(),
@@ -796,7 +823,7 @@ impl TypeEnvironment {
                         ));
                     }
                     return Ok(Type::Array(Box::new(type_args[0].clone())));
-                } else if self.structs.contains_key(base) {
+                } else if self.structs.contains_key(base) || self.is_type_param_in_scope(base) {
                     Ok(Type::Generic {
                         base: base.clone(),
                         type_args,
@@ -1198,13 +1225,22 @@ impl TypeChecker {
     pub fn check_program(&mut self, statements: &[Statement]) -> Result<()> {
         for stmt in statements {
             match stmt {
-                Statement::StructDeclaration { name, fields, .. } => {
-                    let mut field_types = HashMap::new();
-                    for (field_name, field_type) in fields {
-                        let field_type = self.env.from_annotation(field_type, None)?;
-                        field_types.insert(field_name.clone(), field_type);
+                Statement::StructDeclaration {
+                    name,
+                    fields,
+                    generic_params,
+                    ..
+                } => {
+                    if !generic_params.is_empty() {
+                        self.env.generic_struct_names.insert(name.clone());
+                    } else {
+                        let mut field_types = HashMap::new();
+                        for (field_name, field_type) in fields {
+                            let field_type = self.env.from_annotation(field_type, None)?;
+                            field_types.insert(field_name.clone(), field_type);
+                        }
+                        self.env.add_struct(name, field_types);
                     }
-                    self.env.add_struct(name, field_types);
                 }
                 _ => {} // TODO: Handle enum declarations
             }
@@ -1264,6 +1300,38 @@ impl TypeChecker {
                 iterable,
                 body,
             } => self.type_check_for(iterator, iterable, body),
+            Statement::StructDeclaration {
+                name,
+                fields,
+                generic_params,
+                ..
+            } => {
+                if !generic_params.is_empty() {
+                    self.env.push_type_param_scope();
+                    for param in generic_params {
+                        let param_name = match &param.name {
+                            Some(name) => name.clone(),
+                            None => {
+                                if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                                    base_name.clone()
+                                } else {
+                                    "T".to_string()
+                                }
+                            }
+                        };
+                        self.env.add_type_param(&param_name);
+                    }
+                    let mut field_types = HashMap::new();
+                    for (field_name, field_type) in fields {
+                        let field_type = self.env.from_annotation(field_type, None)?;
+                        field_types.insert(field_name.clone(), field_type);
+                    }
+                    self.env
+                        .add_generic_struct(name, field_types, generic_params.clone());
+                    self.env.pop_type_param_scope();
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -1461,6 +1529,42 @@ impl TypeChecker {
 
         self.env.pop_scope();
         self.env.solve_constraints()?;
+        Ok(())
+    }
+
+    fn type_check_struct_declaration(&mut self, stmt: &Statement) -> Result<()> {
+        if let Statement::StructDeclaration {
+            name,
+            fields,
+            generic_params,
+            ..
+        } = stmt
+        {
+            self.env.push_type_param_scope();
+
+            for param in generic_params {
+                let param_name = match &param.name {
+                    Some(name) => name.clone(),
+                    None => {
+                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                            base_name.clone()
+                        } else {
+                            "T".to_string()
+                        }
+                    }
+                };
+                self.env.add_type_param(&param_name);
+            }
+
+            let mut field_types = HashMap::new();
+            for (field_name, field_type) in fields {
+                let field_type = self.env.from_annotation(field_type, None)?;
+                field_types.insert(field_name.clone(), field_type);
+            }
+            self.env.add_struct(name, field_types);
+
+            self.env.pop_type_param_scope();
+        }
         Ok(())
     }
 

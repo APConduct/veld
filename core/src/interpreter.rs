@@ -1,12 +1,18 @@
 use crate::ast::{
-    Argument, BinaryOperator, EnumVariant, Expr, ImportItem, Literal, MatchPattern, Statement,
-    TypeAnnotation,
+    Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, Literal,
+    MatchPattern, Statement, TypeAnnotation,
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
 use crate::types::{Type, TypeChecker};
 use std::collections::HashMap;
 use std::path::Path;
+
+#[derive(Debug, Clone)]
+struct StructInfo {
+    fields: Vec<(String, TypeAnnotation)>,
+    generic_params: Vec<GenericArgument>,
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -73,6 +79,7 @@ pub struct Interpreter {
     scopes: Vec<Scope>,
     structs: HashMap<String, Vec<(String, TypeAnnotation)>>, // struct name -> fields
     struct_methods: HashMap<String, HashMap<String, Value>>, // struct name -> (method name -> method)
+    generic_structs: HashMap<String, StructInfo>,
     module_manager: ModuleManager,
     current_module: String,
     imported_modules: HashMap<String, String>, // alias -> module name
@@ -86,6 +93,7 @@ impl Interpreter {
             scopes: vec![Scope::new()],
             structs: HashMap::new(),
             struct_methods: HashMap::new(),
+            generic_structs: HashMap::new(),
             module_manager: ModuleManager::new(root_dir),
             current_module: "main".to_string(),
             imported_modules: Default::default(),
@@ -131,6 +139,12 @@ impl Interpreter {
         Ok(last_value)
     }
 
+    fn register_generic_struct(&mut self, name: &str, info: StructInfo) -> Result<()> {
+        self.generic_structs.insert(name.to_string(), info.clone());
+        self.structs.insert(name.to_string(), info.fields);
+        Ok(())
+    }
+
     fn execute_statement(&mut self, statement: Statement) -> Result<Value> {
         println!("Executing statement: {:?}", statement);
 
@@ -172,10 +186,20 @@ impl Interpreter {
                 name,
                 fields,
                 methods,
+                generic_params,
                 is_public: _,
             } => {
                 // Register the struct type
-                self.structs.insert(name.clone(), fields);
+                if generic_params.is_empty() {
+                    self.structs.insert(name.clone(), fields);
+                } else {
+                    let struct_info = StructInfo {
+                        fields: fields.clone(),
+                        generic_params: generic_params.clone(),
+                    };
+                    self.generic_structs.insert(name.clone(), struct_info);
+                    self.structs.insert(name.clone(), vec![]);
+                };
 
                 // Register methods if any
                 if !methods.is_empty() {
