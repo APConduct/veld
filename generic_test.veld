@@ -1,0 +1,10 @@
+-- Minimal test for generic params
+
+kind Simple<T>
+    fn test(self) -> T
+end
+
+
+struct SimpleStruct<T>
+    val: T
+end

@@ -356,7 +356,7 @@ impl Interpreter {
                 let match_value = self.evaluate_expression(value)?.unwrap_return();
 
                 for arm in arms {
-                    if let Some(bindings) = self.patter_matches(&arm.pat, &match_value)? {
+                    if let Some(bindings) = self.pattern_matches(&arm.pat, &match_value)? {
                         if let Some(gaurd) = arm.gaurd {
                             self.push_scope();
 
@@ -395,7 +395,7 @@ impl Interpreter {
         }
     }
 
-    fn patter_matches(
+    fn pattern_matches(
         &self,
         pattern: &MatchPattern,
         value: &Value,
@@ -431,7 +431,7 @@ impl Interpreter {
                         if let Some(field_value) = value_fields.get(field_name) {
                             if let Some(pattern) = field_pattern {
                                 if let Some(bindings) =
-                                    self.patter_matches(&**pattern, field_value)?
+                                    self.pattern_matches(&**pattern, field_value)?
                                 {
                                     all_bindings.extend(bindings);
                                 } else {
