@@ -256,6 +256,7 @@ pub enum Statement {
         name: String,
         methods: Vec<KindMethod>,
         is_public: bool, // New field to track visibility
+        generic_params: Vec<GenericArgument>,
     },
     Implementation {
         type_name: String,

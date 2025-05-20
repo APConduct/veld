@@ -765,8 +765,22 @@ impl Parser {
 
     fn kind_declaration(&mut self) -> Result<Statement> {
         let name = self.consume_identifier("Expected kind name")?;
+        println!("Kind name: {}", name);
+
+        println!(
+            "Before parsing generic params, token: {:?}",
+            self.tokens.get(self.current)
+        );
+        let generic_params = self.parse_generic_args_if_present()?;
+        println!(
+            "After parsing generic params, token: {:?}",
+            self.tokens.get(self.current)
+        );
+
         let mut methods = Vec::new();
         if self.match_token(&[Token::Equals]) {
+            println!("Found equals token, parsing single method");
+
             self.consume(&Token::Fn, "Expected 'fn' after in method declaration")?;
             let method_name = self.consume_identifier("Expected method name")?;
             self.consume(&Token::LParen, "Expected '(' after method name")?;
@@ -806,23 +820,62 @@ impl Parser {
                 is_public: false, // Default visibility
             });
         } else {
+            println!("No equals token, looking for methods or 'end'");
+
+            if self.check(&Token::End) {
+                println!("Found end token - empty kind declaration");
+                self.advance(); // Consume 'end'
+                return Ok(Statement::KindDeclaration {
+                    name,
+                    methods,
+                    is_public: false,
+                    generic_params,
+                });
+            }
             while !self.check(&Token::End) && !self.is_at_end() {
-                self.consume(
-                    &Token::Fn,
-                    "Expected 'fn' keyword in kind method declaration",
-                )?;
+                if !self.match_token(&[Token::Fn]) {
+                    println!(
+                        "ERROR: Expected 'fn', found: {:?}",
+                        self.tokens.get(self.current)
+                    );
+                    return Err(VeldError::ParserError(
+                        "Expected 'fn' keyword in kind method declaration".to_string(),
+                    ));
+                }
+
+                // self.consume(
+                //     &Token::Fn,
+                //     "Expected 'fn' keyword in kind method declaration",
+                // )?;
                 let method_name = self.consume_identifier("Expected method name")?;
+                println!("Found method name: {}", method_name);
 
                 self.consume(&Token::LParen, "Expected '(' after method name")?;
+                println!(
+                    "Found '(' after method name, token: {:?}",
+                    self.tokens.get(self.current)
+                );
 
                 let mut params = Vec::new();
                 if !self.check(&Token::RParen) {
                     loop {
-                        let param_name = self.consume_identifier("Expected parameter name")?;
+                        let param_name = if self.check(&Token::SelfToken) {
+                            self.advance();
+                            "self".to_string()
+                        } else {
+                            self.consume_identifier("Expected parameter name")?
+                        };
+
                         let param_type = if self.match_token(&[Token::Colon]) {
                             self.parse_type()?
                         } else {
-                            TypeAnnotation::Basic("Self".to_string())
+                            if param_name == "self" {
+                                TypeAnnotation::Basic(name.clone())
+                            } else {
+                                return Err(VeldError::ParserError(
+                                    "Expected type annotation for parameter".to_string(),
+                                ));
+                            }
                         };
                         params.push((param_name, param_type));
 
@@ -871,6 +924,7 @@ impl Parser {
             name,
             methods,
             is_public: false, // Default visibility
+            generic_params,
         })
     }
 
@@ -878,7 +932,10 @@ impl Parser {
         if self.current + 1 >= self.tokens.len() {
             return false;
         }
-        &self.tokens[self.current + 1] == token
+        match &self.tokens[self.current + 1] {
+            t if t == token => true,
+            _ => false,
+        }
     }
 
     fn parse_generic_args_if_present(&mut self) -> Result<Vec<GenericArgument>> {
@@ -889,26 +946,33 @@ impl Parser {
         }
 
         while !self.check(&Token::Greater) && !self.is_at_end() {
-            if self.peek_next_token_is(&Token::Equals) {
-                let param_name = self.consume_identifier("Expected parameter name")?;
-                self.consume(&Token::Equals, "Expected '=' after parameter name")?;
-                let type_annotation = self.parse_type()?;
+            // Check if we have a named parameter (identifier followed by equals)
+            if let Token::Identifier(name) = &self.tokens[self.current].clone() {
+                if self.peek_next_token_is(&Token::Equals) {
+                    // Named parameter case: "Name = Type"
+                    let param_name = name.clone();
+                    self.advance(); // Consume identifier
+                    self.advance(); // Consume equals
+                    let type_annotation = self.parse_type()?;
 
-                generic_args.push(GenericArgument {
-                    name: Some(param_name),
-                    type_annotation,
-                });
+                    generic_args.push(GenericArgument::named(param_name, type_annotation));
+                } else {
+                    // Regular type parameter - parse a full type
+                    let type_annotation = self.parse_type()?;
+                    generic_args.push(GenericArgument::new(type_annotation));
+                }
             } else {
+                // Just a regular type parameter
                 let type_annotation = self.parse_type()?;
-                generic_args.push(GenericArgument {
-                    name: None,
-                    type_annotation,
-                });
+                generic_args.push(GenericArgument::new(type_annotation));
             }
+
+            // Check for comma separator
             if !self.match_token(&[Token::Comma]) {
                 break;
             }
         }
+
         self.consume(&Token::Greater, "Expected '>' after generic arguments")?;
         Ok(generic_args)
     }
@@ -1210,6 +1274,23 @@ impl Parser {
     fn consume_identifier(&mut self, message: &str) -> Result<String> {
         match self.advance() {
             Token::Identifier(s) => Ok(s),
+            _ => Err(VeldError::ParserError(message.to_string())),
+        }
+    }
+
+    fn consume_current_identifier(&mut self, message: &str) -> Result<String> {
+        if self.is_at_end() {
+            return Err(VeldError::ParserError(
+                "Unexpected end of input".to_string(),
+            ));
+        }
+
+        match &self.tokens[self.current] {
+            Token::Identifier(s) => {
+                let result = s.clone();
+                self.advance(); // Advance *after* confirming the identifier is an identifier
+                Ok(result)
+            }
             _ => Err(VeldError::ParserError(message.to_string())),
         }
     }

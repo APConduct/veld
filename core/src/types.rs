@@ -6,6 +6,7 @@ use crate::error::{Result, VeldError};
 use crate::interpreter::Value;
 use crate::types::Type::TypeVar;
 use std::collections::{HashMap, HashSet};
+use std::env::consts::OS;
 use std::fmt::{self, Formatter};
 
 pub const U8_MAX: u8 = 255;
@@ -387,6 +388,8 @@ pub enum Type {
     Any,
 
     TypeVar(usize),
+
+    KindSelf(String),
 }
 
 impl IsFloat for Type {
@@ -518,6 +521,8 @@ impl std::fmt::Display for Type {
             Type::U16 => write!(f, "u16"),
             Type::I8 => write!(f, "i8"),
             Type::I16 => write!(f, "i16"),
+
+            Type::KindSelf(name) => write!(f, "{}", name),
         }
     }
 }
@@ -607,6 +612,7 @@ pub struct TypeEnvironment {
 pub struct KindDefenition {
     pub methods: HashMap<String, Type>,
     pub default_impls: HashMap<String, Vec<Statement>>,
+    generic_params: Vec<String>,
 }
 
 impl TypeEnvironment {
@@ -679,12 +685,14 @@ impl TypeEnvironment {
         name: &str,
         methods: HashMap<String, Type>,
         default_impls: HashMap<String, Vec<Statement>>,
+        generic_params: Vec<String>,
     ) {
         self.kinds.insert(
             name.to_string(),
             KindDefenition {
                 methods,
                 default_impls,
+                generic_params,
             },
         );
     }
@@ -718,12 +726,21 @@ impl TypeEnvironment {
         false
     }
 
-    pub fn from_annotation(&mut self, annotation: &TypeAnnotation) -> Result<Type> {
+    pub fn from_annotation(
+        &mut self,
+        annotation: &TypeAnnotation,
+        current_kind: Option<&str>,
+    ) -> Result<Type> {
         match annotation {
             TypeAnnotation::Unit => Ok(Type::Unit),
             TypeAnnotation::Basic(name) => {
                 if self.is_type_param_in_scope(name) {
                     return Ok(Type::TypeParam(name.clone()));
+                }
+                if let Some(kind_name) = current_kind {
+                    if name == kind_name {
+                        return Ok(Type::KindSelf(name.clone()));
+                    }
                 }
                 match name.as_str() {
                     "i32" => Ok(Type::I32),
@@ -748,6 +765,7 @@ impl TypeEnvironment {
                         name: name.to_string(),
                         variants: self.enums.get(name).unwrap().clone(),
                     }),
+                    name if self.kinds.contains_key(name) => Ok(Type::KindSelf(name.to_string())),
                     _ => Err(VeldError::TypeError(format!("Unknown type: {}", name))),
                 }
             }
@@ -757,9 +775,9 @@ impl TypeEnvironment {
             } => {
                 let param_types = params
                     .iter()
-                    .map(|param| self.from_annotation(param))
+                    .map(|param| self.from_annotation(param, None))
                     .collect::<Result<Vec<_>>>()?;
-                let return_type = self.from_annotation(return_type)?;
+                let return_type = self.from_annotation(return_type, None)?;
                 Ok(Type::Function {
                     params: param_types,
                     return_type: Box::new(return_type),
@@ -768,7 +786,7 @@ impl TypeEnvironment {
             TypeAnnotation::Generic { base, type_args } => {
                 let type_args = type_args
                     .iter()
-                    .map(|arg| self.from_annotation(arg))
+                    .map(|arg| self.from_annotation(arg, None))
                     .collect::<Result<Vec<_>>>()?;
 
                 if base == "Array" {
@@ -791,13 +809,13 @@ impl TypeEnvironment {
                 }
             }
             TypeAnnotation::Array(elem_type) => {
-                let elem_type = self.from_annotation(elem_type)?;
+                let elem_type = self.from_annotation(elem_type, None)?;
                 Ok(Type::Array(Box::new(elem_type)))
             }
             TypeAnnotation::Tuple(types) => {
                 let types = types
                     .iter()
-                    .map(|t| self.from_annotation(t))
+                    .map(|t| self.from_annotation(t, None))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(Type::Tuple(types))
             }
@@ -1129,11 +1147,11 @@ impl TypeChecker {
         let mut param_types = Vec::new();
 
         for (_, type_annotation) in &method.params {
-            let param_type = self.env.from_annotation(type_annotation)?;
+            let param_type = self.env.from_annotation(type_annotation, None)?;
             param_types.push(param_type);
         }
 
-        let return_type = self.env.from_annotation(&method.return_type)?;
+        let return_type = self.env.from_annotation(&method.return_type, None)?;
 
         Ok(Type::Function {
             params: param_types,
@@ -1145,10 +1163,10 @@ impl TypeChecker {
         let mut param_types = Vec::new();
 
         for (_, type_annotation) in &method.params {
-            let param_type = self.env.from_annotation(type_annotation)?;
+            let param_type = self.env.from_annotation(type_annotation, None)?;
             param_types.push(param_type);
         }
-        let return_type = self.env.from_annotation(&method.return_type)?;
+        let return_type = self.env.from_annotation(&method.return_type, None)?;
         Ok(Type::Function {
             params: param_types,
             return_type: Box::new(return_type),
@@ -1183,7 +1201,7 @@ impl TypeChecker {
                 Statement::StructDeclaration { name, fields, .. } => {
                     let mut field_types = HashMap::new();
                     for (field_name, field_type) in fields {
-                        let field_type = self.env.from_annotation(field_type)?;
+                        let field_type = self.env.from_annotation(field_type, None)?;
                         field_types.insert(field_name.clone(), field_type);
                     }
                     self.env.add_struct(name, field_types);
@@ -1271,7 +1289,7 @@ impl TypeChecker {
     ) -> Result<()> {
         let param_types = params
             .iter()
-            .map(|(_, type_anno)| self.env.from_annotation(type_anno))
+            .map(|(_, type_anno)| self.env.from_annotation(type_anno, None))
             .collect::<Result<Vec<_>>>()?;
 
         let declared_type = if let TypeAnnotation::Basic(type_name) = return_type {
@@ -1300,10 +1318,10 @@ impl TypeChecker {
                     Type::Unit
                 }
             } else {
-                self.env.from_annotation(return_type)?
+                self.env.from_annotation(return_type, None)?
             }
         } else {
-            self.env.from_annotation(return_type)?
+            self.env.from_annotation(return_type, None)?
         };
 
         self.env.push_scope();
@@ -1366,7 +1384,7 @@ impl TypeChecker {
         let value_type = self.infer_expression_type(value)?;
 
         let var_type = if let Some(anno) = type_annotation {
-            let specified_type = self.env.from_annotation(anno)?;
+            let specified_type = self.env.from_annotation(anno, None)?;
             self.env
                 .add_constraint(value_type.clone(), specified_type.clone());
             specified_type
@@ -1483,7 +1501,7 @@ impl TypeChecker {
             Expr::IndexAccess { object, index } => self.infer_index_access_type(object, index),
             Expr::TypeCast { expr, target_type } => {
                 let source_type = self.infer_expression_type(expr)?;
-                let target = self.env.from_annotation(target_type)?;
+                let target = self.env.from_annotation(target_type, None)?;
 
                 if self.is_valid_cast(&source_type, &target) {
                     Ok(target)
@@ -1804,7 +1822,7 @@ impl TypeChecker {
         let mut param_types = Vec::new();
         for (name, type_anno) in params {
             let param_type = if let Some(anno) = type_anno {
-                self.env.from_annotation(anno)?
+                self.env.from_annotation(anno, None)?
             } else {
                 self.env.fresh_type_var()
             };
@@ -1813,7 +1831,7 @@ impl TypeChecker {
         }
         let body_type = self.infer_expression_type(body)?;
         let return_type = if let Some(anno) = return_type_anno {
-            let rt = self.env.from_annotation(anno)?;
+            let rt = self.env.from_annotation(anno, None)?;
             self.env.add_constraint(body_type, rt.clone());
             rt
         } else {
@@ -2198,12 +2216,18 @@ impl TypeChecker {
             if let Some(name) = &arg.name {
                 if name == param_name {
                     // Named parameter
-                    let arg_type = self.env.from_annotation(&arg.type_annotation).unwrap();
+                    let arg_type = self
+                        .env
+                        .from_annotation(&arg.type_annotation, None)
+                        .unwrap();
                     return self.types_compatible(&arg_type, actual_type);
                 }
             } else {
                 // Positional parameter
-                let arg_type = self.env.from_annotation(&arg.type_annotation).unwrap();
+                let arg_type = self
+                    .env
+                    .from_annotation(&arg.type_annotation, None)
+                    .unwrap();
                 return self.types_compatible(&arg_type, actual_type);
             }
         }
@@ -2298,7 +2322,7 @@ impl TypeChecker {
         for arg in generic_args {
             if let Some(name) = &arg.name {
                 if name == "Output" {
-                    let output_type = self.env.from_annotation(&arg.type_annotation)?;
+                    let output_type = self.env.from_annotation(&arg.type_annotation, None)?;
 
                     if let Type::TypeParam(param) = &output_type {
                         if param == "Self" {
@@ -2313,7 +2337,33 @@ impl TypeChecker {
     }
 
     fn type_check_kind_declaration(&mut self, stmt: &Statement) -> Result<()> {
-        if let Statement::KindDeclaration { name, methods, .. } = stmt {
+        if let Statement::KindDeclaration {
+            name,
+            methods,
+            generic_params,
+            ..
+        } = stmt
+        {
+            self.env.push_type_param_scope();
+
+            let mut generic_param_names = Vec::new();
+            for param in generic_params {
+                let param_name = match &param.name {
+                    Some(name) => name.clone(),
+                    None => {
+                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                            base_name.clone()
+                        } else {
+                            // Default to placeholder type if type annotation isnt a basic indentifier
+                            "T".to_string()
+                        }
+                    }
+                };
+
+                generic_param_names.push(param_name.clone());
+                self.env.add_type_param(&param_name);
+            }
+
             let mut method_types = HashMap::new();
             let mut default_impls = HashMap::new();
 
@@ -2321,11 +2371,11 @@ impl TypeChecker {
                 let mut param_types = Vec::new();
 
                 for (param_name, type_anno) in &method.params {
-                    let param_type = self.env.from_annotation(type_anno)?;
+                    let param_type = self.env.from_annotation(type_anno, Some(name))?;
                     param_types.push(param_type);
                 }
 
-                let return_type = self.env.from_annotation(&method.return_type)?;
+                let return_type = self.env.from_annotation(&method.return_type, Some(name))?;
 
                 let method_type = Type::Function {
                     params: param_types,
@@ -2338,7 +2388,10 @@ impl TypeChecker {
                     default_impls.insert(method.name.clone(), default_body.clone());
                 }
             }
-            self.env.add_kind(name, method_types, default_impls);
+            self.env
+                .add_kind(name, method_types, default_impls, generic_param_names);
+
+            self.env.pop_type_param_scope();
         }
         Ok(())
     }

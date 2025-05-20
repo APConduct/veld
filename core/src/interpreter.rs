@@ -390,6 +390,7 @@ impl Interpreter {
                     "No match arm matched the value".to_string(),
                 ))
             }
+
             _ => Ok(Value::Unit),
         }
     }
@@ -524,7 +525,7 @@ impl Interpreter {
 
             Expr::TypeCast { expr, target_type } => {
                 let value = self.evaluate_expression(*expr)?;
-                let target = self.type_checker.env.from_annotation(&target_type)?;
+                let target = self.type_checker.env.from_annotation(&target_type, None)?;
                 self.cast_value(value, &target)
             }
 
@@ -1868,9 +1869,12 @@ impl Interpreter {
 
         add_kind_methods.insert("add".to_string(), add_method_type);
 
-        self.type_checker
-            .env
-            .add_kind("Add", add_kind_methods, HashMap::new());
+        self.type_checker.env.add_kind(
+            "Add",
+            add_kind_methods,
+            HashMap::new(),
+            vec!["Self".to_string(), "Rhs".to_string(), "Output".to_string()],
+        );
 
         let mut sub_kind_methods = HashMap::new();
         let sub_method_type = Type::Function {
@@ -1881,9 +1885,12 @@ impl Interpreter {
             return_type: Box::new(Type::TypeParam("Output".to_string())),
         };
         sub_kind_methods.insert("sub".to_string(), sub_method_type);
-        self.type_checker
-            .env
-            .add_kind("Sub", sub_kind_methods, HashMap::new());
+        self.type_checker.env.add_kind(
+            "Sub",
+            sub_kind_methods,
+            HashMap::new(),
+            vec!["Self".to_string(), "Rhs".to_string(), "Output".to_string()],
+        );
 
         let mut mul_kind_methods = HashMap::new();
         let mul_method_type = Type::Function {
@@ -1894,9 +1901,12 @@ impl Interpreter {
             return_type: Box::new(Type::TypeParam("Output".to_string())),
         };
         mul_kind_methods.insert("mul".to_string(), mul_method_type);
-        self.type_checker
-            .env
-            .add_kind("Mul", mul_kind_methods, HashMap::new());
+        self.type_checker.env.add_kind(
+            "Mul",
+            mul_kind_methods,
+            HashMap::new(),
+            vec!["Self".to_string(), "Rhs".to_string(), "Output".to_string()],
+        );
 
         let mut div_kind_methods = HashMap::new();
         let div_method_type = Type::Function {
@@ -1907,9 +1917,12 @@ impl Interpreter {
             return_type: Box::new(Type::TypeParam("Output".to_string())),
         };
         div_kind_methods.insert("div".to_string(), div_method_type);
-        self.type_checker
-            .env
-            .add_kind("Div", div_kind_methods, HashMap::new());
+        self.type_checker.env.add_kind(
+            "Div",
+            div_kind_methods,
+            HashMap::new(),
+            vec!["Self".to_string(), "Rhs".to_string(), "Output".to_string()],
+        );
 
         Ok(())
     }
