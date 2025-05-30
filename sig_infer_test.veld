@@ -1,0 +1,16 @@
+--| test file for signature inference in functions
+
+let foo_str = fn() => "foo"
+
+fn foo_as_str() => "foo"
+
+fn foo_as_str_block()
+    "foo"
+end
+
+
+-- call the functions to ensure they work
+
+let result_foo_str = foo_str()
+let result_foo_as_str = foo_as_str()
+let result_foo_as_str_block = foo_as_str_block()
