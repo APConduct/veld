@@ -173,8 +173,9 @@ impl Interpreter {
                     body.clone()
                 };
 
-                let return_type = if let TypeAnnotation::Basic(ref name) = return_type {
-                    if name == "infer" {
+                let actual_return_type = match &return_type {
+                    TypeAnnotation::Basic(name) if name == "infer" => {
+                        // Try to infer from the body
                         if let Some(Statement::Return(Some(expr))) = processed_body.last() {
                             match expr {
                                 Expr::Literal(Literal::String(_)) => {
@@ -189,23 +190,27 @@ impl Interpreter {
                                 Expr::Literal(Literal::Boolean(_)) => {
                                     TypeAnnotation::Basic("bool".to_string())
                                 }
-                                // TODO: Handle other types as needed
-                                _ => TypeAnnotation::Unit,
+                                Expr::Literal(Literal::Char(_)) => {
+                                    TypeAnnotation::Basic("char".to_string())
+                                }
+                                _ => return_type.clone(),
                             }
                         } else {
                             TypeAnnotation::Unit
                         }
-                    } else {
-                        return_type
                     }
-                } else {
-                    return_type
+                    _ => return_type.clone(),
                 };
+
+                println!(
+                    "Function {} inferred return type: {:?}",
+                    name, actual_return_type
+                );
 
                 let function = Value::Function {
                     params: params.clone(),
                     body: processed_body,
-                    return_type,
+                    return_type: actual_return_type,
                 };
                 self.current_scope_mut().set(name.clone(), function);
                 Ok(Value::Unit)
@@ -604,31 +609,43 @@ impl Interpreter {
                 body,
                 return_type,
             } => {
-                // Convert lambdas to function value
-                let param_list = params
-                    .iter()
-                    .map(|(name, type_opt)| {
-                        // Convert optional type annotations to Concrete type(s)
-                        let type_annotation = if let Some(ty) = type_opt {
-                            ty.clone()
-                        } else {
-                            // Use placeholder for type inference
-                            TypeAnnotation::Basic("any".to_string())
-                        };
-                        (name.clone(), type_annotation)
-                    })
-                    .collect();
+                let actual_return_type = match return_type {
+                    Some(type_anno) => type_anno,
+                    None => {
+                        // Try to infer return type from body
+                        match *body {
+                            Expr::Literal(Literal::String(_)) => {
+                                TypeAnnotation::Basic("str".to_string())
+                            }
+                            Expr::Literal(Literal::Integer(_)) => {
+                                TypeAnnotation::Basic("i32".to_string())
+                            }
+                            Expr::Literal(Literal::Float(_)) => {
+                                TypeAnnotation::Basic("f64".to_string())
+                            }
+                            Expr::Literal(Literal::Boolean(_)) => {
+                                TypeAnnotation::Basic("bool".to_string())
+                            }
+                            Expr::Literal(Literal::Char(_)) => {
+                                TypeAnnotation::Basic("char".to_string())
+                            }
+                            _ => TypeAnnotation::Basic("infer".to_string()),
+                        }
+                    }
+                };
 
-                // Create simple statement that returns the body
-                let body_stmt = vec![Statement::Return(Some(*body.clone()))];
-
-                // Use Unit as default return type if not specified
-                let ret_type = return_type.clone().unwrap_or(TypeAnnotation::Unit);
+                println!(
+                    "Lambda expression inferred return type: {:?}",
+                    actual_return_type
+                );
 
                 Ok(Value::Function {
-                    params: param_list,
-                    body: body_stmt,
-                    return_type: ret_type,
+                    params: params
+                        .into_iter()
+                        .map(|(name, type_anno)| (name, type_anno.unwrap_or(TypeAnnotation::Unit)))
+                        .collect(),
+                    body: vec![Statement::Return(Some(*body))],
+                    return_type: actual_return_type,
                 })
             }
 
