@@ -270,23 +270,6 @@ impl Parser {
                 }
             }
             self.consume(&Token::RParen, "Expected ')' after parameters")?;
-
-            // let return_type = if self.match_token(&[Token::Arrow]) {
-            //     Some(self.parse_type()?)
-            // } else {
-            //     None
-            // };
-
-            // self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
-
-            // let expr = self.expression()?;
-            // let body = Box::new(expr);
-
-            // return Ok(Expr::Lambda {
-            //     params,
-            //     body,
-            //     return_type,
-            // });
         } else {
             let param_name =
                 self.consume_identifier("Expected parameter name in lambda expression")?;
@@ -761,18 +744,6 @@ impl Parser {
         })
     }
 
-    fn peek_is_statement_start(&self) -> bool {
-        if self.is_at_end() {
-            return false;
-        }
-
-        match &self.tokens.get(self.current) {
-            Some(Token::If) | Some(Token::While) | Some(Token::For) | Some(Token::Return)
-            | Some(Token::Let) => true,
-            _ => false,
-        }
-    }
-
     fn kind_declaration(&mut self) -> Result<Statement> {
         let name = self.consume_identifier("Expected kind name")?;
         println!("Kind name: {}", name);
@@ -994,14 +965,6 @@ impl Parser {
         match &self.tokens[self.current + 1] {
             Token::Identifier(_) => true,
             _ => false,
-        }
-    }
-
-    fn peek_next(&self) -> Option<&Token> {
-        if self.current + 1 >= self.tokens.len() {
-            None
-        } else {
-            Some(&self.tokens[self.current + 1])
         }
     }
 
@@ -1288,23 +1251,6 @@ impl Parser {
         }
     }
 
-    fn consume_current_identifier(&mut self, message: &str) -> Result<String> {
-        if self.is_at_end() {
-            return Err(VeldError::ParserError(
-                "Unexpected end of input".to_string(),
-            ));
-        }
-
-        match &self.tokens[self.current] {
-            Token::Identifier(s) => {
-                let result = s.clone();
-                self.advance(); // Advance *after* confirming the identifier is an identifier
-                Ok(result)
-            }
-            _ => Err(VeldError::ParserError(message.to_string())),
-        }
-    }
-
     fn variable_declaration(&mut self) -> Result<Statement> {
         let name = self.consume_identifier("Expected variable name")?;
 
@@ -1326,11 +1272,6 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement> {
-        // if self.match_token(&[Token::Break]) {
-        //     return Ok(Statement::Break);
-        // } else if self.match_token(&[Token::Continue]) {
-        //     return Ok(Statement::Continue);
-        // } else
         if self.match_token(&[Token::Match]) {
             self.match_statement()
         } else if self.match_token(&[Token::If]) {

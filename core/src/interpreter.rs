@@ -1659,7 +1659,7 @@ impl Interpreter {
     }
 
     fn call_function(&mut self, name: String, arguments: Vec<Argument>) -> Result<Value> {
-        println!("Calling function: {}", name); // Add this debug line
+        println!("Calling function: {}", name);
 
         // Check if this might be a method call on a struct
         if name.contains('.') {
