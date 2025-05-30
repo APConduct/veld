@@ -146,25 +146,21 @@ impl Interpreter {
             statements.len()
         );
 
-        if let Err(e) = self.type_checker.check_program(&statements) {
-            return Err(e);
+        // First pass: register all function declarations
+        for stmt in &statements {
+            if let Statement::FunctionDeclaration { .. } = stmt {
+                self.execute_statement(stmt.clone())?;
+            }
         }
 
+        // Second pass: execute everything else
         let mut last_value = Value::Unit;
-        for (i, stmt) in statements.iter().enumerate() {
-            println!(
-                "Executing statement {}/{}: {:?}",
-                i + 1,
-                statements.len(),
-                stmt
-            );
-            last_value = self.execute_statement(stmt.clone())?;
-            println!(
-                "Statement {} completed with result: {:?}",
-                i + 1,
-                last_value
-            );
+        for stmt in statements {
+            if !matches!(stmt, Statement::FunctionDeclaration { .. }) {
+                last_value = self.execute_statement(stmt)?;
+            }
         }
+
         println!("Interpretation complete");
         Ok(last_value)
     }
@@ -179,6 +175,12 @@ impl Interpreter {
         println!("Executing statement: {:?}", statement);
 
         match statement {
+            Statement::VariableDeclaration { name, value, .. } => {
+                let value = self.evaluate_expression(*value)?;
+                let value = value.unwrap_return();
+                self.current_scope_mut().set(name, value.clone());
+                Ok(value)
+            }
             Statement::FunctionDeclaration {
                 name,
                 params,
@@ -232,17 +234,14 @@ impl Interpreter {
                     _ => return_type.clone(),
                 };
 
-                println!(
-                    "Function {} inferred return type: {:?}",
-                    name, actual_return_type
-                );
-
                 let function = Value::Function {
                     params: params.clone(),
                     body: processed_body,
                     return_type: actual_return_type,
                 };
-                self.current_scope_mut().set(name.clone(), function);
+
+                // Register function in current scope
+                self.current_scope_mut().set(name, function);
                 Ok(Value::Unit)
             }
             Statement::Return(expr_opt) => {
@@ -325,12 +324,7 @@ impl Interpreter {
 
                 Ok(Value::Unit)
             }
-            Statement::VariableDeclaration { name, value, .. } => {
-                let value = self.evaluate_expression(*value)?;
-                let value = value.unwrap_return();
-                self.current_scope_mut().set(name, value.clone());
-                Ok(value)
-            }
+
             Statement::ExprStatement(expr) => {
                 let value = self.evaluate_expression(expr)?;
                 Ok(value.unwrap_return())
@@ -1833,7 +1827,14 @@ impl Interpreter {
         }
     }
     // Scope management
+    fn global_scope_mut(&mut self) -> &mut Scope {
+        &mut self.scopes[0]
+    }
+
     fn current_scope_mut(&mut self) -> &mut Scope {
+        if self.scopes.is_empty() {
+            self.scopes.push(Scope::new());
+        }
         self.scopes.last_mut().unwrap()
     }
 
