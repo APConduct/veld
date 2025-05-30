@@ -14,6 +14,39 @@ struct StructInfo {
     generic_params: Vec<GenericArgument>,
 }
 
+impl StructInfo {
+    pub fn new() -> Self {
+        Self {
+            fields: Vec::new(),
+            generic_params: Vec::new(),
+        }
+    }
+    pub fn with_fields(fields: Vec<(String, TypeAnnotation)>) -> Self {
+        Self {
+            fields,
+            generic_params: Vec::new(),
+        }
+    }
+    pub fn with_generic_params(
+        fields: Vec<(String, TypeAnnotation)>,
+        generic_params: Vec<GenericArgument>,
+    ) -> Self {
+        Self {
+            fields,
+            generic_params,
+        }
+    }
+    pub fn from(
+        fields: Vec<(String, TypeAnnotation)>,
+        generic_params: Vec<GenericArgument>,
+    ) -> Self {
+        Self {
+            fields,
+            generic_params,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Numeric(NumericValue),
