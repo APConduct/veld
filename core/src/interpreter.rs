@@ -4,7 +4,7 @@ use crate::ast::{
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
-use crate::types::{Type, TypeChecker};
+use crate::types::{NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -16,6 +16,7 @@ struct StructInfo {
 
 #[derive(Debug, Clone)]
 pub enum Value {
+    Numeric(NumericValue),
     Integer(i64),
     Float(f64),
     String(String),
@@ -50,6 +51,35 @@ impl Value {
         match self {
             Value::Return(val) => *val,
             val => val,
+        }
+    }
+
+    pub fn type_of(&self) -> Type {
+        match self {
+            Value::Numeric(numeric) => numeric.clone().type_of(),
+            Value::Integer(_) => Type::I64,
+            Value::Float(_) => Type::F64,
+            Value::String(_) => Type::String,
+            Value::Boolean(_) => Type::Bool,
+            Value::Char(_) => Type::Char,
+            Value::Return(_) => Type::Unit, // Return values are not a type
+            Value::Unit => Type::Unit,
+            Value::Array(_) => Type::Array(Box::new(Type::Any)), // Default to Any for arrays
+            Value::Break | Value::Continue => Type::Unit, // Break and Continue are control flow, not values
+            _ => todo!("Handle other Value types"),
+        }
+    }
+
+    pub fn perform_binary_op(&self, op: &BinaryOperator, rhs: &Value) -> Result<Value> {
+        match (self, rhs) {
+            (Value::Numeric(a), Value::Numeric(b)) => {
+                Ok(Value::Numeric(a.perform_operation(op, b)?))
+            }
+            // TODO: Handle other numeric types
+            _ => Err(VeldError::RuntimeError(format!(
+                "Invalid operation {:?} between {:?} and {:?}",
+                op, self, rhs
+            ))),
         }
     }
 }

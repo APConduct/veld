@@ -359,6 +359,11 @@ pub enum Type {
     I8,
     I16,
 
+    IntegerLiteral(i64),
+    FloatLiteral(f64),
+
+    Number,
+
     Function {
         params: Vec<Type>,
         return_type: Box<Type>,
@@ -521,6 +526,10 @@ impl std::fmt::Display for Type {
             Type::U16 => write!(f, "u16"),
             Type::I8 => write!(f, "i8"),
             Type::I16 => write!(f, "i16"),
+
+            Type::IntegerLiteral(value) => write!(f, "int"),
+            Type::FloatLiteral(value) => write!(f, "float"),
+            Type::Number => write!(f, "number"),
 
             Type::KindSelf(name) => write!(f, "{}", name),
         }
@@ -1162,11 +1171,81 @@ pub struct TypeChecker {
     current_function_return_type: Option<Type>,
 }
 
+#[derive(Debug, Clone)]
+struct VarInfo {
+    ty: Type,
+    is_mutable: bool,
+    is_const: bool,
+}
+
 impl TypeChecker {
     pub fn new() -> Self {
         Self {
             env: TypeEnvironment::new(),
             current_function_return_type: None,
+        }
+    }
+
+    pub fn find_operator_implementation(
+        &mut self,
+        op: &BinaryOperator,
+        left: &Type,
+        right: &Type,
+    ) -> Result<Option<Type>> {
+        // Check if the operator is defined for the given types
+        if let Some(impls) = self.env.get_implementations_for_type(&left.to_string()) {
+            for impl_info in impls {
+                if let Some(method_type) = impl_info.get_method(&op.to_string()) {
+                    if self.env.types_match(method_type, right) {
+                        return Ok(Some(method_type.clone()));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn check_numeric_operation(
+        &mut self,
+        op: &BinaryOperator,
+        left: &Type,
+        right: &Type,
+    ) -> Result<Type> {
+        // First check for kind implementations
+        if let Some(impl_type) = self.find_operator_implementation(op, left, right)? {
+            return Ok(impl_type);
+        }
+
+        // Default numeric operation rules
+        match op {
+            BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide => {
+                match (left, right) {
+                    // Same type operations
+                    (t1, t2) if t1 == t2 && t1.is_numeric() => Ok(t1.clone()),
+
+                    // Mixed integer operations promote to larger type
+                    (Type::I32, Type::I64) | (Type::I64, Type::I32) => Ok(Type::I64),
+
+                    // Integer and float operations promote to float
+                    (Type::I32, Type::F64) | (Type::F64, Type::I32) => Ok(Type::F64),
+
+                    // Literal type inference
+                    (Type::IntegerLiteral(_), t) | (t, Type::IntegerLiteral(_))
+                        if t.is_numeric() =>
+                    {
+                        Ok(t.clone())
+                    }
+
+                    _ => Err(VeldError::TypeError(format!(
+                        "Invalid numeric operation between {} and {}",
+                        left, right
+                    ))),
+                }
+            }
+            _ => Err(VeldError::TypeError("Unsupported operator".into())),
         }
     }
 

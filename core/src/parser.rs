@@ -6,6 +6,14 @@ use crate::ast::{
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum InitializerType {
+    Let,    // Immutable by default
+    Var,    // Mutable
+    Const,  // Cannot be reassigned
+    LetMut, // Explicitly mutable let
+}
+
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
