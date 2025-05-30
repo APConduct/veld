@@ -1360,85 +1360,52 @@ impl TypeChecker {
             .map(|(_, type_anno)| self.env.from_annotation(type_anno, None))
             .collect::<Result<Vec<_>>>()?;
 
-        let declared_type = if let TypeAnnotation::Basic(type_name) = return_type {
-            if type_name == "infer" {
-                if body.len() == 1 {
-                    if let Statement::Return(Some(expr)) = &body[0] {
-                        // Create a temporary scope for parameters
-                        self.env.push_scope();
-
-                        // Add parameters to the scope
-                        for (i, (param_name, _)) in params.iter().enumerate() {
-                            self.env.define(param_name, param_types[i].clone());
-                        }
-
-                        // Infer the expression type
-                        let expr_type = self.infer_expression_type(expr)?;
-
-                        // Clean up
-                        self.env.pop_scope();
-
-                        expr_type
-                    } else {
-                        Type::Unit
-                    }
-                } else {
-                    Type::Unit
-                }
-            } else {
-                self.env.from_annotation(return_type, None)?
-            }
-        } else {
-            self.env.from_annotation(return_type, None)?
-        };
-
         self.env.push_scope();
 
         for (i, (param_name, _)) in params.iter().enumerate() {
             self.env.define(param_name, param_types[i].clone());
         }
 
-        let mut inferred_type = declared_type.clone();
-
-        if body.len() == 1 {
-            if let Statement::Return(Some(expr)) = &body[0] {
-                let expr_type = self.infer_expression_type(expr)?;
-
-                if declared_type == Type::Unit {
-                    inferred_type = expr_type;
-                } else {
-                    self.env
-                        .add_constraint(expr_type.clone(), declared_type.clone());
-                    self.env.solve_constraints()?;
+        let inferred_return_type = if !body.is_empty() {
+            let mut found_type = None;
+            for stmt in body {
+                match stmt {
+                    Statement::Return(Some(expr)) => {
+                        let expr_type = self.infer_expression_type(expr)?;
+                        let resolved_type = self.env.apply_substitutions(&expr_type);
+                        found_type = Some(resolved_type);
+                        break;
+                    }
+                    Statement::ExprStatement(expr) if stmt == body.last().unwrap() => {
+                        let expr_type = self.infer_expression_type(expr)?;
+                        let resolved_type = self.env.apply_substitutions(&expr_type);
+                        found_type = Some(resolved_type);
+                    }
+                    _ => {}
                 }
             }
-        }
+            found_type.unwrap_or(Type::Unit)
+        } else {
+            Type::Unit
+        };
 
-        self.env.pop_scope();
+        let actual_return_type = match return_type {
+            TypeAnnotation::Basic(name) if name == "infer" => inferred_return_type.clone(),
+            _ => {
+                let specified_type = self.env.from_annotation(return_type, None)?;
+                self.env
+                    .add_constraint(inferred_return_type.clone(), specified_type.clone());
+                specified_type
+            }
+        };
 
-        let is_proc = inferred_type == Type::Unit;
+        self.env.solve_constraints()?;
 
         let function_type = Type::Function {
             params: param_types.clone(),
-            return_type: Box::new(inferred_type.clone()),
+            return_type: Box::new(actual_return_type),
         };
-
         self.env.define(name, function_type);
-
-        let old_return_type = self.current_function_return_type.clone();
-        self.current_function_return_type = Some(inferred_type);
-
-        self.env.push_scope();
-
-        for (i, (param_name, _)) in params.iter().enumerate() {
-            self.env.define(param_name, param_types[i].clone());
-        }
-
-        for stmt in body {
-            self.type_check_statement(stmt)?;
-        }
-
-        self.current_function_return_type = old_return_type;
         self.env.pop_scope();
         Ok(())
     }
@@ -1569,8 +1536,12 @@ impl TypeChecker {
     }
 
     pub fn infer_expression_type(&mut self, expr: &Expr) -> Result<Type> {
-        match expr {
-            Expr::Literal(lit) => self.infer_literal_type(lit),
+        let result = match expr {
+            Expr::Literal(lit) => {
+                let ty = self.infer_literal_type(lit)?;
+                println!("Inferred literal type: {:?} for {:?}", ty, lit);
+                Ok(ty)
+            }
             Expr::UnitLiteral => Ok(Type::Unit),
             Expr::Identifier(name) => self
                 .env
@@ -1588,7 +1559,15 @@ impl TypeChecker {
                 params,
                 body,
                 return_type,
-            } => self.infer_lambda_type(params, body, return_type.as_ref()),
+            } => {
+                println!(
+                    "Inferring lambda type with return_type hint: {:?}",
+                    return_type
+                );
+                let inferred = self.infer_lambda_type(params, body, return_type.as_ref())?;
+                println!("Inferred lambda type: {:?}", inferred);
+                Ok(inferred)
+            }
             Expr::MethodCall {
                 object,
                 method,
@@ -1617,7 +1596,11 @@ impl TypeChecker {
                 }
             }
             EnumVariant => todo!(),
+        };
+        if let Ok(ref t) = result {
+            println!("Final inferred type for expression: {:?} -> {:?}", expr, t);
         }
+        result
     }
 
     fn is_valid_cast(&self, from: &Type, to: &Type) -> bool {
@@ -1686,14 +1669,32 @@ impl TypeChecker {
 
     fn infer_literal_type(&mut self, lit: &Literal) -> Result<Type> {
         match lit {
-            Literal::Integer(_) => Ok(Type::I32),
+            Literal::Integer(_) => {
+                println!("Inferred integer literal as i32");
+                Ok(Type::I32)
+            }
             // TODO: Handle other integer types
-            Literal::Float(_) => Ok(Type::F64),
+            Literal::Float(_) => {
+                println!("Inferred float literal as f64");
+                Ok(Type::F64)
+            }
             // TODO: Handle other float types
-            Literal::String(_) => Ok(Type::String),
-            Literal::Boolean(_) => Ok(Type::Bool),
-            Literal::Unit => Ok(Type::Unit),
-            Literal::Char(_) => Ok(Type::Char),
+            Literal::String(_) => {
+                println!("Inferred string literal as str");
+                Ok(Type::String)
+            }
+            Literal::Boolean(_) => {
+                println!("Inferred boolean literal as bool");
+                Ok(Type::Bool)
+            }
+            Literal::Unit => {
+                println!("Inferred unit literal as unit");
+                Ok(Type::Unit)
+            }
+            Literal::Char(_) => {
+                println!("Inferred char literal as char");
+                Ok(Type::Char)
+            }
         }
     }
 
@@ -1924,31 +1925,51 @@ impl TypeChecker {
     ) -> Result<Type> {
         self.env.push_scope();
         let mut param_types = Vec::new();
+
         for (name, type_anno) in params {
             let param_type = if let Some(anno) = type_anno {
                 self.env.from_annotation(anno, None)?
             } else {
                 self.env.fresh_type_var()
             };
+            println!("Lambda parameter {} type: {:?}", name, param_type);
             param_types.push(param_type.clone());
             self.env.define(name, param_type);
         }
+
         let body_type = self.infer_expression_type(body)?;
+        println!("Lambda body type before constraints: {:?}", body_type);
+
+        let body_type = self.env.apply_substitutions(&body_type);
+        println!("Lambda body type after substitution: {:?}", body_type);
+
         let return_type = if let Some(anno) = return_type_anno {
             let rt = self.env.from_annotation(anno, None)?;
-            self.env.add_constraint(body_type, rt.clone());
+            println!("Using explicit return type: {:?}", rt);
+            self.env.add_constraint(body_type.clone(), rt.clone());
             rt
         } else {
+            println!("Using inferred return type: {:?}", body_type);
             body_type
         };
+
         self.env.pop_scope();
         self.env.solve_constraints()?;
+
+        let final_return_type = self.env.apply_substitutions(&return_type);
+        let final_param_types = param_types
+            .iter()
+            .map(|t| self.env.apply_substitutions(t))
+            .collect::<Vec<_>>();
+
+        println!(
+            "Final lambda type: fn({:?}) -> {:?}",
+            final_param_types, final_return_type
+        );
+
         Ok(Type::Function {
-            params: param_types
-                .iter()
-                .map(|t| self.env.apply_substitutions(t))
-                .collect(),
-            return_type: Box::new(self.env.apply_substitutions(&return_type)),
+            params: final_param_types,
+            return_type: Box::new(final_return_type),
         })
     }
 

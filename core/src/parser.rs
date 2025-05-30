@@ -271,66 +271,47 @@ impl Parser {
             }
             self.consume(&Token::RParen, "Expected ')' after parameters")?;
 
-            let return_type = if self.match_token(&[Token::Arrow]) {
-                Some(self.parse_type()?)
-            } else {
-                None
-            };
+            // let return_type = if self.match_token(&[Token::Arrow]) {
+            //     Some(self.parse_type()?)
+            // } else {
+            //     None
+            // };
 
-            self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
+            // self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
 
-            let expr = self.expression()?;
-            let body = Box::new(expr);
+            // let expr = self.expression()?;
+            // let body = Box::new(expr);
 
-            return Ok(Expr::Lambda {
-                params,
-                body,
-                return_type,
-            });
-        }
-
-        // Check for paren-style parameters (x: i32, y: i32) => x + y
-        if self.match_token(&[Token::LParen]) {
-            if !self.check(&Token::RParen) {
-                loop {
-                    let param_name =
-                        self.consume_identifier("Expected parameter name in lambda expression")?;
-
-                    // Type annotation optional in lambdas
-                    let type_annotation = if self.match_token(&[Token::Colon]) {
-                        Some(self.parse_type()?)
-                    } else {
-                        None
-                    };
-
-                    params.push((param_name, type_annotation));
-
-                    if !self.match_token(&[Token::Comma]) {
-                        break;
-                    }
-                }
-            }
-
-            self.consume(&Token::RParen, "Expected ')' after lambda parameters")?;
+            // return Ok(Expr::Lambda {
+            //     params,
+            //     body,
+            //     return_type,
+            // });
         } else {
-            // Simple form: x => x + 1
             let param_name =
                 self.consume_identifier("Expected parameter name in lambda expression")?;
             params.push((param_name, None));
         }
 
-        // Lambda operator
         self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
 
-        // Lambda body
         let expr = self.expression()?;
-        let body = Box::new(expr);
 
-        println!("Lambda expression: Completed");
+        let return_type = match &expr {
+            Expr::Literal(Literal::String(_)) => Some(TypeAnnotation::Basic("str".to_string())),
+            Expr::Literal(Literal::Integer(_)) => Some(TypeAnnotation::Basic("i32".to_string())),
+            Expr::Literal(Literal::Float(_)) => Some(TypeAnnotation::Basic("f64".to_string())),
+            Expr::Literal(Literal::Boolean(_)) => Some(TypeAnnotation::Basic("bool".to_string())),
+            Expr::Literal(Literal::Char(_)) => Some(TypeAnnotation::Basic("char".to_string())),
+            Expr::Identifier(_) => None, // Identifier type will be inferred later during type checking
+            _ => None,                   // Other expressions will also be inferred
+        };
+
+        println!("Lambda expression: inferred return type: {:?}", return_type);
         Ok(Expr::Lambda {
             params,
-            body,
-            return_type: None, // Inferred
+            body: Box::new(expr),
+            return_type, // Inferred return type
         })
     }
 
@@ -431,8 +412,11 @@ impl Parser {
             loop {
                 let param_name = self.consume_identifier("Expected parameter name")?;
                 println!("Function declaration: Param name = {}", param_name);
-                self.consume(&Token::Colon, "Expected ':' after parameter name")?;
-                let param_type = self.parse_type()?;
+                let param_type = if self.match_token(&[Token::Colon]) {
+                    self.parse_type()?
+                } else {
+                    TypeAnnotation::Basic("infer".to_string()) // Default to infer if no type specified
+                };
                 params.push((param_name, param_type));
 
                 if !self.match_token(&[Token::Comma]) {
@@ -443,30 +427,13 @@ impl Parser {
 
         self.consume(&Token::RParen, "Expected ')' after parameters")?;
 
-        let return_type = if self.match_token(&[Token::Arrow]) {
+        let mut return_type = if self.match_token(&[Token::Arrow]) {
             println!("Function declaration: Parsing return type");
             self.parse_type()?
         } else {
-            println!("Function declaration: No return type specified, using Unit");
-            TypeAnnotation::Unit
+            println!("Function declaration: No return type specified, using infer");
+            TypeAnnotation::Basic("infer".to_string())
         };
-
-        if self.match_token(&[Token::FatArrow]) {
-            println!("Function declaration: Fat arrow syntax detected");
-            let expr = self.expression()?;
-            let is_proc = match &return_type {
-                TypeAnnotation::Unit => false,
-                _ => false,
-            };
-            return Ok(Statement::FunctionDeclaration {
-                name,
-                params,
-                return_type,
-                body: vec![Statement::Return(Some(expr))],
-                is_proc,
-                is_public: false,
-            });
-        }
 
         // Check for function prototype (ends with semicolon)
         if self.match_token(&[Token::Semicolon]) {
@@ -481,49 +448,76 @@ impl Parser {
             });
         }
 
+        let mut body = Vec::new();
+
         // Check for arrow syntax (=>)
         if self.match_token(&[Token::FatArrow]) {
             println!("Function declaration: Fat array syntax detected");
             // Parse a single expression as the body
             let expr = self.expression()?;
 
-            // Optional semicolon at the end
-            self.match_token(&[Token::Semicolon]);
+            if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
+                return_type = match &expr {
+                    Expr::Literal(Literal::String(_)) => TypeAnnotation::Basic("str".to_string()),
+                    Expr::Literal(Literal::Integer(_)) => TypeAnnotation::Basic("i32".to_string()),
+                    Expr::Literal(Literal::Float(_)) => TypeAnnotation::Basic("f64".to_string()),
+                    Expr::Literal(Literal::Boolean(_)) => TypeAnnotation::Basic("bool".to_string()),
+                    Expr::Literal(Literal::Char(_)) => TypeAnnotation::Basic("char".to_string()),
+                    _ => TypeAnnotation::Basic("infer".to_string()),
+                };
+            }
 
-            let inferred_return_type = if return_type == TypeAnnotation::Unit {
-                // Set a marker for type inference
-                TypeAnnotation::Basic("infer".to_string())
-            } else {
-                return_type.clone()
-            };
+            body.push(Statement::Return(Some(expr)));
+        } else {
+            // Regular block-style function body
+            self.match_token(&[Token::Equals]);
+            println!("Function declaration: Preparing to parse body");
 
-            return Ok(Statement::FunctionDeclaration {
-                name,
-                params,
-                return_type: inferred_return_type,
-                body: vec![Statement::Return(Some(expr))],
-                is_proc: false, // Default to false for now
-                is_public: false,
-            });
+            // If last statement is an expression, treat it as an implicit return
+            while !self.check(&Token::End) && !self.is_at_end() {
+                let stmt = self.statement()?;
+                if let Statement::ExprStatement(expr) = stmt {
+                    if self.check(&Token::End) {
+                        if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
+                            return_type = match &expr {
+                                Expr::Literal(Literal::String(_)) => {
+                                    TypeAnnotation::Basic("str".to_string())
+                                }
+                                Expr::Literal(Literal::Integer(_)) => {
+                                    TypeAnnotation::Basic("i32".to_string())
+                                }
+                                Expr::Literal(Literal::Float(_)) => {
+                                    TypeAnnotation::Basic("f64".to_string())
+                                }
+                                Expr::Literal(Literal::Boolean(_)) => {
+                                    TypeAnnotation::Basic("bool".to_string())
+                                }
+                                Expr::Literal(Literal::Char(_)) => {
+                                    TypeAnnotation::Basic("char".to_string())
+                                }
+                                _ => TypeAnnotation::Basic("infer".to_string()),
+                            };
+                        }
+                        body.push(Statement::Return(Some(expr)));
+                    } else {
+                        body.push(Statement::ExprStatement(expr));
+                    }
+                } else {
+                    body.push(stmt);
+                }
+            }
+            self.consume(&Token::End, "Expected 'end' after function body")?;
         }
 
-        self.match_token(&[Token::Equals]);
-        println!("Function declaration: Preparing to parse body");
-
-        let mut body = Vec::new();
-        while !self.check(&Token::End) && !self.is_at_end() {
-            body.push(self.statement()?);
-        }
-
-        self.consume(&Token::End, "Expected 'end' after function body")?;
+        println!("Function declaration: Final return type: {:?}", return_type);
 
         println!("Function declaration: Completed");
         Ok(Statement::FunctionDeclaration {
             name,
             params,
-            return_type: return_type.clone(),
+            return_type,
             body,
-            is_proc: return_type == TypeAnnotation::Unit,
+            is_proc: false,
             is_public: false, // Default visibility
         })
     }

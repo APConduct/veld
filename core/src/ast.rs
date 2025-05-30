@@ -1,12 +1,12 @@
 use std::fmt::Display;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MacroPattern(pub String);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MacroExpansion(pub Vec<Statement>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Integer(i64),
     Char(char),
@@ -23,7 +23,7 @@ pub enum Literal {
 //     Pair(Literal, Literal),
 // }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Argument {
     Positional(Expr),
     Named { name: String, value: Expr },
@@ -46,7 +46,7 @@ pub enum TypeAnnotation {
     Tuple(Vec<TypeAnnotation>), // (e.g., (i32, f64, str))
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal(Literal),
     Identifier(String),
@@ -106,7 +106,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOperator {
     Add,
     Subtract,
@@ -150,7 +150,7 @@ impl Display for BinaryOperator {
 /// Examples:
 /// - In `Add<T>`, T is an unnamed generic argument
 /// - In `Add<T, Output = U>`, T is unnamed and Output = U is named
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GenericArgument {
     /// Optional name for named arguments (e.g., "Output" in `Output = T`)
     /// None for positional/unnamed type arguments
@@ -178,7 +178,7 @@ impl GenericArgument {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructMethod {
     pub name: String,
     pub params: Vec<(String, TypeAnnotation)>,
@@ -186,7 +186,7 @@ pub struct StructMethod {
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumVariant {
     pub name: String,
     pub fields: Option<Vec<TypeAnnotation>>, // For variants with fields
@@ -209,7 +209,7 @@ pub enum Pattern {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     ExprStatement(Expr),
     FunctionDeclaration {
@@ -310,14 +310,14 @@ pub enum Statement {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MatchArm {
     pub pat: MatchPattern,
     pub gaurd: Option<Expr>,
     pub body: Expr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MatchPattern {
     Literal(Literal),
     Identifier(String),
@@ -333,7 +333,7 @@ pub enum MatchPattern {
     Wildcard,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ImportItem {
     All,           // import math.*
     Named(String), // import math.{sqrt}
@@ -354,7 +354,7 @@ pub struct FunctionDeclaration {
     pub is_public: bool, // New field to track visibility
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct KindMethod {
     pub name: String,
     pub params: Vec<(String, TypeAnnotation)>,
@@ -363,7 +363,7 @@ pub struct KindMethod {
     pub is_public: bool, //   To track visibility
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MethodImpl {
     pub name: String,
     pub params: Vec<(String, TypeAnnotation)>,

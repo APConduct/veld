@@ -156,12 +156,58 @@ impl Interpreter {
                 body,
                 ..
             } => {
+                let processed_body = if !body.is_empty() {
+                    // If we don't have any explicit returns and the last statement is an expression,
+                    // convert it to a return
+                    if !body.iter().any(|s| matches!(s, Statement::Return(_))) {
+                        let mut new_body = body.clone();
+                        if let Some(Statement::ExprStatement(expr)) = new_body.clone().last() {
+                            new_body.pop();
+                            new_body.push(Statement::Return(Some(expr.clone())));
+                        }
+                        new_body
+                    } else {
+                        body.clone()
+                    }
+                } else {
+                    body.clone()
+                };
+
+                let return_type = if let TypeAnnotation::Basic(ref name) = return_type {
+                    if name == "infer" {
+                        if let Some(Statement::Return(Some(expr))) = processed_body.last() {
+                            match expr {
+                                Expr::Literal(Literal::String(_)) => {
+                                    TypeAnnotation::Basic("str".to_string())
+                                }
+                                Expr::Literal(Literal::Integer(_)) => {
+                                    TypeAnnotation::Basic("i32".to_string())
+                                }
+                                Expr::Literal(Literal::Float(_)) => {
+                                    TypeAnnotation::Basic("f64".to_string())
+                                }
+                                Expr::Literal(Literal::Boolean(_)) => {
+                                    TypeAnnotation::Basic("bool".to_string())
+                                }
+                                // TODO: Handle other types as needed
+                                _ => TypeAnnotation::Unit,
+                            }
+                        } else {
+                            TypeAnnotation::Unit
+                        }
+                    } else {
+                        return_type
+                    }
+                } else {
+                    return_type
+                };
+
                 let function = Value::Function {
-                    params,
-                    body,
+                    params: params.clone(),
+                    body: processed_body,
                     return_type,
                 };
-                self.current_scope_mut().set(name, function);
+                self.current_scope_mut().set(name.clone(), function);
                 Ok(Value::Unit)
             }
             Statement::Return(expr_opt) => {
@@ -1091,6 +1137,12 @@ impl Interpreter {
 
                 // Remove function scope
                 self.pop_scope();
+
+                // For functions without explicit returns, if the last statement produced a value,
+                // consider it the return value
+                if !matches!(result, Value::Return(_)) && !matches!(result, Value::Unit) {
+                    result = Value::Return(Box::new(result));
+                }
 
                 Ok(result.unwrap_return())
             }
