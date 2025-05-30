@@ -1,0 +1,53 @@
+let block_demi = fn()
+    -- test for demi-lamba block functions
+    let x = 10
+    x
+end
+
+let block_lambda = x => do
+    -- test for lambda block functions
+    x + 10
+end
+
+let demi_hybrid = fn(x) => do
+    -- test for demi-lambda hybrid functions
+    x + 20
+end
+
+fn verbose_func() => do
+    -- test for verbose function syntax
+    let x = 30
+    x + 30
+end
+
+let verbose_lambda_no_params = () => do
+    -- test for verbose lambda with no parameters
+    40
+end
+
+let lamba_no_param_or_parentheses ==> do
+    -- test for lambda with no parameters or parentheses
+    50
+end
+
+let proc_lambda_sugar = do
+    -- test for procedural lambda sugar
+    let x = 60
+    x + 60
+end
+
+-- call the functions to ensure they work
+
+let result_block_demi = block_demi()
+
+let result_block_lambda = block_lambda(5)
+
+let result_demi_hybrid = demi_hybrid(15)
+
+let result_verbose_func = verbose_func()
+
+let result_verbose_lambda_no_params = verbose_lambda_no_params()
+
+let result_lambda_no_param_or_parentheses = lamba_no_param_or_parentheses()
+
+let result_proc_lambda_sugar = proc_lambda_sugar()
