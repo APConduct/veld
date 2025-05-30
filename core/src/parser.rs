@@ -257,6 +257,7 @@ impl Parser {
         println!("Lambda expression Starting...");
         let mut params = Vec::new();
 
+        // Handle 'fn' keyword if present
         if self.match_token(&[Token::Fn]) {
             self.consume(&Token::LParen, "Expected '(' after 'fn'")?;
 
@@ -279,9 +280,29 @@ impl Parser {
             }
             self.consume(&Token::RParen, "Expected ')' after parameters")?;
         } else {
-            let param_name =
-                self.consume_identifier("Expected parameter name in lambda expression")?;
-            params.push((param_name, None));
+            // Handle parameters without 'fn' keyword
+            if self.check(&Token::LParen) {
+                self.advance(); // Consume '('
+
+                // Check for empty parameter list: () =>
+                if self.match_token(&[Token::RParen]) {
+                    // Leave params empty
+                } else {
+                    // Multiple parameters
+                    loop {
+                        let param_name = self.consume_identifier("Expected parameter name")?;
+                        params.push((param_name, None)); // No type annotation for now
+
+                        if !self.match_token(&[Token::Comma]) {
+                            break;
+                        }
+                    }
+                    self.consume(&Token::RParen, "Expected ')' after parameters")?;
+                }
+            } else {
+                let param_name = self.consume_identifier("Expected parameter name")?;
+                params.push((param_name, None));
+            }
         }
 
         self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
