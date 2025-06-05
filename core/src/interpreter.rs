@@ -1,6 +1,6 @@
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, Literal,
-    MatchPattern, Statement, TypeAnnotation,
+    MatchPattern, Statement, TypeAnnotation, VarKind,
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
@@ -120,12 +120,14 @@ impl Value {
 #[derive(Debug, Default)]
 struct Scope {
     values: HashMap<String, Value>,
+    var_kinds: HashMap<String, VarKind>,
 }
 
 impl Scope {
     fn new() -> Self {
         Self {
             values: HashMap::new(),
+            var_kinds: HashMap::new(),
         }
     }
 
@@ -135,6 +137,18 @@ impl Scope {
 
     fn set(&mut self, name: String, value: Value) {
         self.values.insert(name, value);
+    }
+
+    fn set_with_kind(&mut self, name: String, value: Value, kind: VarKind) {
+        self.values.insert(name.clone(), value);
+        self.var_kinds.insert(name, kind);
+    }
+
+    fn is_mutable(&self, name: &str) -> bool {
+        match self.var_kinds.get(name) {
+            Some(VarKind::Var) | Some(VarKind::LetMut) => true,
+            _ => false,
+        }
     }
 }
 
@@ -208,10 +222,16 @@ impl Interpreter {
         println!("Executing statement: {:?}", statement);
 
         match statement {
-            Statement::VariableDeclaration { name, value, .. } => {
+            Statement::VariableDeclaration {
+                name,
+                var_kind,
+                value,
+                ..
+            } => {
                 let value = self.evaluate_expression(*value)?;
                 let value = value.unwrap_return();
-                self.current_scope_mut().set(name, value.clone());
+                self.current_scope_mut()
+                    .set_with_kind(name, value.clone(), var_kind);
                 Ok(value)
             }
             Statement::FunctionDeclaration {

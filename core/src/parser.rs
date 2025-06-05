@@ -1,7 +1,9 @@
+use std::env::VarError;
+
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod,
-    TypeAnnotation,
+    TypeAnnotation, VarKind,
 };
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
@@ -1281,6 +1283,22 @@ impl Parser {
     }
 
     fn variable_declaration(&mut self) -> Result<Statement> {
+        let var_kind = if self.match_token(&[Token::Let]) {
+            if self.match_token(&[Token::Mut]) {
+                VarKind::LetMut
+            } else {
+                VarKind::Let
+            }
+        } else if self.match_token(&[Token::Var]) {
+            VarKind::Var
+        } else if self.match_token(&[Token::Const]) {
+            VarKind::Const
+        } else {
+            return Err(VeldError::ParserError(
+                "Expected item declaration keyword".to_string(),
+            ));
+        };
+
         let name = self.consume_identifier("Expected variable name")?;
 
         let type_annotation = if self.match_token(&[Token::Colon]) {
@@ -1295,6 +1313,7 @@ impl Parser {
 
         Ok(Statement::VariableDeclaration {
             name,
+            var_kind,
             type_annotation,
             value: Box::new(value),
         })

@@ -7,6 +7,14 @@ pub struct MacroPattern(pub String);
 pub struct MacroExpansion(pub Vec<Statement>);
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum VarKind {
+    Let,
+    Var,
+    Const,
+    LetMut,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Integer(i64),
     Char(char),
@@ -228,6 +236,7 @@ pub enum Statement {
     },
     VariableDeclaration {
         name: String,
+        var_kind: VarKind,
         type_annotation: Option<TypeAnnotation>,
         value: Box<Expr>,
     },

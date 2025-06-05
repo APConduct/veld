@@ -1,6 +1,6 @@
 use crate::ast::{
     Argument, BinaryOperator, Expr, GenericArgument, Literal, MethodImpl, Statement, StructMethod,
-    TypeAnnotation,
+    TypeAnnotation, VarKind,
 };
 use crate::error::{Result, VeldError};
 use crate::interpreter::Value;
@@ -1169,13 +1169,14 @@ impl TypeEnvironment {
 pub struct TypeChecker {
     pub env: TypeEnvironment,
     current_function_return_type: Option<Type>,
+    var_info: HashMap<String, VarInfo>,
 }
 
 #[derive(Debug, Clone)]
 struct VarInfo {
     ty: Type,
-    is_mutable: bool,
-    is_const: bool,
+    var_kind: VarKind,
+    value: Option<Value>,
 }
 
 impl TypeChecker {
@@ -1183,6 +1184,7 @@ impl TypeChecker {
         Self {
             env: TypeEnvironment::new(),
             current_function_return_type: None,
+            var_info: HashMap::new(),
         }
     }
 
@@ -1344,9 +1346,15 @@ impl TypeChecker {
 
             Statement::VariableDeclaration {
                 name,
+                var_kind,
                 type_annotation,
                 value,
-            } => self.type_check_variable_declaration(name, type_annotation.as_ref(), value),
+            } => self.type_check_variable_declaration(
+                name,
+                var_kind,
+                type_annotation.as_ref(),
+                value,
+            ),
 
             Statement::ExprStatement(expr) => {
                 self.infer_expression_type(expr)?;
@@ -1423,6 +1431,7 @@ impl TypeChecker {
         let mut type_checker = TypeChecker {
             env: env.clone(),
             current_function_return_type: self.current_function_return_type.clone(),
+            var_info: self.var_info.clone(),
         };
         type_checker.infer_expression_type(expr)
     }
@@ -1489,13 +1498,84 @@ impl TypeChecker {
         Ok(())
     }
 
+    fn check_assignment(&self, name: &str, value: &Expr) -> Result<()> {
+        if let Some(var_info) = self.var_info.get(name) {
+            match var_info.var_kind {
+                VarKind::Const => {
+                    return Err(VeldError::TypeError(format!(
+                        "Cannot assign to constant '{}'",
+                        name
+                    )));
+                }
+                VarKind::Let => {
+                    return Err(VeldError::TypeError(format!(
+                        "Cannot assign immutable variable '{}'",
+                        name
+                    )));
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn evaluate_const_expr(&self, expr: &Expr) -> Result<Value> {
+        match expr {
+            Expr::Literal(lit) => Ok(match lit {
+                Literal::Integer(n) => Value::Integer(*n),
+                Literal::Float(n) => Value::Float(*n),
+                Literal::String(s) => Value::String(s.clone()),
+                Literal::Boolean(b) => Value::Boolean(*b),
+                Literal::Char(c) => Value::Char(*c),
+                Literal::Unit => Value::Unit,
+            }),
+            Expr::Identifier(name) => {
+                if let Some(var_info) = self.var_info.get(name) {
+                    if let Some(value) = &var_info.value {
+                        Ok(value.clone())
+                    } else {
+                        Err(VeldError::TypeError(format!(
+                            "Cannot use non-constant '{}' in expression",
+                            name
+                        )))
+                    }
+                } else {
+                    Err(VeldError::TypeError(format!(
+                        "Undefined constant '{}'",
+                        name
+                    )))
+                }
+            }
+            Expr::BinaryOp {
+                left,
+                operator,
+                right,
+            } => {
+                let left_val = self.evaluate_const_expr(left)?;
+                let right_val = self.evaluate_const_expr(right)?;
+                todo!("inplement const binary operations")
+            }
+            _ => Err(VeldError::TypeError(format!(
+                "Cannot evaluate constant expression for: {:?}",
+                expr
+            ))),
+        }
+    }
+
     fn type_check_variable_declaration(
         &mut self,
         name: &str,
+        var_kind: &VarKind,
         type_annotation: Option<&TypeAnnotation>,
         value: &Expr,
     ) -> Result<()> {
         let value_type = self.infer_expression_type(value)?;
+
+        let const_value = if matches!(var_kind, VarKind::Const) {
+            Some(self.evaluate_const_expr(value)?)
+        } else {
+            None
+        };
 
         let var_type = if let Some(anno) = type_annotation {
             let specified_type = self.env.from_annotation(anno, None)?;
@@ -1507,6 +1587,16 @@ impl TypeChecker {
         };
 
         let final_type = self.env.apply_substitutions(&var_type);
+
+        self.var_info.insert(
+            name.to_string(),
+            VarInfo {
+                ty: final_type.clone(),
+                var_kind: var_kind.clone(),
+                value: const_value,
+            },
+        );
+
         self.env.define(name, final_type);
         Ok(())
     }
