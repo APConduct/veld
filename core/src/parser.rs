@@ -73,8 +73,17 @@ impl Parser {
         Ok(statements)
     }
 
+    fn is_declaration_keyword(&self) -> bool {
+        match self.peek() {
+            Token::Let | Token::Var | Token::Const => true,
+            _ => false,
+        }
+    }
+
     pub fn declaration(&mut self) -> Result<Statement> {
-        if self.match_token(&[Token::Enum]) {
+        if self.is_declaration_keyword() {
+            self.variable_declaration()
+        } else if self.match_token(&[Token::Enum]) {
             self.enum_declaration()
         } else if self.match_token(&[Token::Mod]) {
             self.module_declaration()
@@ -97,8 +106,6 @@ impl Parser {
             self.function_declaration()
         } else if self.match_token(&[Token::Proc]) {
             self.proc_declaration()
-        } else if self.match_token(&[Token::Let]) {
-            self.variable_declaration()
         } else if self.match_token(&[Token::Struct]) {
             self.struct_declaration()
         } else if self.match_token(&[Token::Kind]) {

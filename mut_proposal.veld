@@ -1,0 +1,29 @@
+fn example()
+    -- Basic declarations
+    let a = 1          -- Immutable, block-scoped
+    let mut b = 2      -- Mutable, block-scoped
+    var c = 3          -- Mutable, function-scoped
+    const D = 4        -- Immutable, module-scoped
+
+    -- Inside a block
+    do
+        -- Shadowing with new declarations
+        let a = 10     -- OK: New block-scoped variable
+        let mut b = 20 -- OK: New block-scoped variable
+        var c = 30     -- Modifies outer c due to function scope
+
+        print~(a)       -- 10
+        print~(b)       -- 20
+        print~(c)       -- 30
+
+        -- Direct modification
+        a = 11         -- Error: Can't modify immutable let
+        b = 21         -- OK: Can modify let mut
+        c = 31         -- OK: Can modify var
+    end
+
+    -- After the block
+    print~(a)           -- 1  (block let created new variable)
+    print~(b)           -- 2  (block let mut created new variable)
+    print~(c)           -- 31 (block var modified this variable)
+end
