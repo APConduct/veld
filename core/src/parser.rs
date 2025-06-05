@@ -1341,9 +1341,26 @@ impl Parser {
             Ok(Statement::Break)
         } else if self.match_token(&[Token::Continue]) {
             Ok(Statement::Continue)
+        } else if self.check_assignment() {
+            self.assignment_statement()
         } else {
             let expr = self.expression()?;
             Ok(Statement::ExprStatement(expr))
+        }
+    }
+
+    fn check_assignment(&self) -> bool {
+        if self.current + 1 >= self.tokens.len() {
+            return false;
+        }
+
+        // Check if current token is identifier and next token is an assignment operator
+        match &self.tokens[self.current] {
+            Token::Identifier(_) => matches!(
+                self.tokens[self.current + 1],
+                Token::Equals | Token::PlusEq | Token::MinusEq | Token::StarEq | Token::SlashEq
+            ),
+            _ => false,
         }
     }
 

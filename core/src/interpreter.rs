@@ -8,6 +8,31 @@ use crate::types::{NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::path::Path;
 
+#[derive(Debug, Clone, PartialEq)]
+struct VariableInfo {
+    value: Value,
+    var_kind: VarKind,
+    is_initialized: bool,
+}
+
+impl VariableInfo {
+    fn new(value: Value, var_kind: VarKind) -> Self {
+        Self {
+            value,
+            var_kind,
+            is_initialized: true,
+        }
+    }
+
+    fn can_mutate(&self) -> bool {
+        matches!(self.var_kind, VarKind::Var | VarKind::LetMut)
+    }
+
+    fn can_shadow(&self) -> bool {
+        matches!(self.var_kind, VarKind::Let)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct StructInfo {
     fields: Vec<(String, TypeAnnotation)>,
@@ -47,7 +72,7 @@ impl StructInfo {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Numeric(NumericValue),
     Integer(i64),
@@ -121,13 +146,15 @@ impl Value {
 struct Scope {
     values: HashMap<String, Value>,
     var_kinds: HashMap<String, VarKind>,
+    scope_level: usize,
 }
 
 impl Scope {
-    fn new() -> Self {
+    fn new(level: usize) -> Self {
         Self {
             values: HashMap::new(),
             var_kinds: HashMap::new(),
+            scope_level: level,
         }
     }
 
@@ -150,6 +177,41 @@ impl Scope {
             _ => false,
         }
     }
+
+    fn declare(&mut self, name: String, value: Value, kind: VarKind) -> Result<()> {
+        // Check for const reassignment
+        if let Some(existing_kind) = self.var_kinds.get(&name) {
+            if matches!(existing_kind, VarKind::Const) {
+                return Err(VeldError::RuntimeError(format!(
+                    "Cannot reassign constant '{}'",
+                    name
+                )));
+            }
+        }
+        self.values.insert(name.clone(), value);
+        self.var_kinds.insert(name, kind);
+        Ok(())
+    }
+
+    fn assign(&mut self, name: &str, value: Value) -> Result<()> {
+        // Check if variable exists and is mutable
+        match self.var_kinds.get(name) {
+            Some(kind) => {
+                if !matches!(kind, VarKind::Var | VarKind::LetMut) {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Cannot assign to immutable value '{}'",
+                        name
+                    )));
+                }
+                self.values.insert(name.to_string(), value);
+                Ok(())
+            }
+            None => Err(VeldError::RuntimeError(format!(
+                "Cannot assign to undefined value '{}'",
+                name
+            ))),
+        }
+    }
 }
 
 pub struct Interpreter {
@@ -167,7 +229,7 @@ pub struct Interpreter {
 impl Interpreter {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
         let mut interpreter = Self {
-            scopes: vec![Scope::new()],
+            scopes: vec![Scope::new(0)],
             structs: HashMap::new(),
             struct_methods: HashMap::new(),
             generic_structs: HashMap::new(),
@@ -230,6 +292,14 @@ impl Interpreter {
             } => {
                 let value = self.evaluate_expression(*value)?;
                 let value = value.unwrap_return();
+
+                // Only allow const at module level (gloabal scope)
+                if matches!(var_kind, VarKind::Const) && self.scopes.len() > 1 {
+                    return Err(VeldError::RuntimeError(
+                        "Constants can only be declared at module level".to_string(),
+                    ));
+                }
+
                 self.current_scope_mut()
                     .set_with_kind(name, value.clone(), var_kind);
                 Ok(value)
@@ -542,7 +612,28 @@ impl Interpreter {
                     "No match arm matched the value".to_string(),
                 ))
             }
+            Statement::Assignment { name, value } => {
+                let value = self.evaluate_expression(*value)?;
+                let value = value.unwrap_return();
 
+                // Try to assign in current scope, then outer scopes
+                for scope in self.scopes.iter_mut().rev() {
+                    if scope.values.contains_key(&name) {
+                        return match scope.assign(&name, value) {
+                            Ok(_) => Ok(Value::Unit),
+                            _ => Err(VeldError::RuntimeError(format!(
+                                "Cannot assign to undefined variable '{}'",
+                                name
+                            ))),
+                        };
+                    }
+                }
+
+                Err(VeldError::RuntimeError(format!(
+                    "Cannot assign to undefined variable '{}'",
+                    name
+                )))
+            }
             _ => Ok(Value::Unit),
         }
     }
@@ -1956,17 +2047,21 @@ impl Interpreter {
 
     fn current_scope_mut(&mut self) -> &mut Scope {
         if self.scopes.is_empty() {
-            self.scopes.push(Scope::new());
+            let new_level = self.scopes.len();
+            self.scopes.push(Scope::new(new_level));
         }
         self.scopes.last_mut().unwrap()
     }
 
     fn push_scope(&mut self) {
-        self.scopes.push(Scope::new());
+        let new_level = self.scopes.len();
+        self.scopes.push(Scope::new(new_level));
     }
 
     fn pop_scope(&mut self) {
-        self.scopes.pop();
+        if self.scopes.len() > 1 {
+            self.scopes.pop();
+        }
     }
 
     fn get_variable(&self, name: &str) -> Option<Value> {
