@@ -1661,19 +1661,7 @@ impl TypeChecker {
             } => self.infer_struct_create_type(struct_name, fields),
             Expr::ArrayLiteral(elements) => self.infer_array_literal_type(elements),
             Expr::IndexAccess { object, index } => self.infer_index_access_type(object, index),
-            Expr::TypeCast { expr, target_type } => {
-                let source_type = self.infer_expression_type(expr)?;
-                let target = self.env.from_annotation(target_type, None)?;
-
-                if self.is_valid_cast(&source_type, &target) {
-                    Ok(target)
-                } else {
-                    Err(VeldError::TypeError(format!(
-                        "Cannot cast from {} to {}",
-                        source_type, target
-                    )))
-                }
-            }
+            Expr::TypeCast { expr, target_type } => self.type_check_cast(expr, target_type),
             EnumVariant => todo!(),
         };
         if let Ok(ref t) = result {
@@ -1685,6 +1673,27 @@ impl TypeChecker {
     fn is_valid_cast(&self, from: &Type, to: &Type) -> bool {
         // Numeric casts
         match (from, to) {
+            // Numeric casts between integers
+            (
+                Type::I8 | Type::I16 | Type::I32 | Type::I64,
+                Type::I8 | Type::I16 | Type::I32 | Type::I64,
+            ) => true,
+            (
+                Type::U8 | Type::U16 | Type::U32 | Type::U64,
+                Type::U8 | Type::U16 | Type::U32 | Type::U64,
+            ) => true,
+
+            // Mixed signed/unsigned casts
+            (
+                Type::I8 | Type::I16 | Type::I32 | Type::I64,
+                Type::U8 | Type::U16 | Type::U32 | Type::U64,
+            ) => true,
+            (
+                Type::U8 | Type::U16 | Type::U32 | Type::U64,
+                Type::I8 | Type::I16 | Type::I32 | Type::I64,
+            ) => true,
+
+            // Integer to float casts
             (
                 Type::I8
                 | Type::I16
@@ -1693,9 +1702,13 @@ impl TypeChecker {
                 | Type::U8
                 | Type::U16
                 | Type::U32
-                | Type::U64
-                | Type::F32
-                | Type::F64,
+                | Type::U64,
+                Type::F32 | Type::F64,
+            ) => true,
+
+            // Float to integer casts
+            (
+                Type::F32 | Type::F64,
                 Type::I8
                 | Type::I16
                 | Type::I32
@@ -1703,15 +1716,16 @@ impl TypeChecker {
                 | Type::U8
                 | Type::U16
                 | Type::U32
-                | Type::U64
-                | Type::F32
-                | Type::F64,
+                | Type::U64,
             ) => true,
+
+            // Float to float casts
+            (Type::F32 | Type::F64, Type::F32 | Type::F64) => true,
 
             // String casts to numeric types if it can be parsed
             (Type::String, Type::I32 | Type::I64 | Type::F32 | Type::F64) => true,
 
-            // Numeric types to string
+            // String conversions (from numeric types)
             (
                 Type::I8
                 | Type::I16
@@ -1729,8 +1743,6 @@ impl TypeChecker {
             // Char casts to string
             (Type::Char, Type::String) => true,
 
-            // TODO: Specify the logic for string to numeric casts
-
             // Any type to any
             (Type::Any, _) | (_, Type::Any) => true,
 
@@ -1743,6 +1755,20 @@ impl TypeChecker {
 
             // All other casts are invalid for now
             _ => false,
+        }
+    }
+
+    fn type_check_cast(&mut self, expr: &Expr, target_type: &TypeAnnotation) -> Result<Type> {
+        let expr_type = self.infer_expression_type(expr)?;
+        let target = self.env.from_annotation(target_type, None)?;
+
+        if self.is_valid_cast(&expr_type, &target) {
+            Ok(target)
+        } else {
+            Err(VeldError::TypeError(format!(
+                "Invalid cast from {} to {}",
+                expr_type, target
+            )))
         }
     }
 
