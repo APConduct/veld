@@ -1,4 +1,3 @@
-
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod,
@@ -266,9 +265,19 @@ impl Parser {
                 // Single expression: fn name() => expr
                 let expr = self.expression()?;
                 if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
-                    return_type = self
-                        .infer_lambda_return_type(&expr)
-                        .unwrap_or(TypeAnnotation::Unit);
+                    return_type = if let Some(last_stmt) = body.last() {
+                        match last_stmt {
+                            Statement::Return(Some(expr)) => self
+                                .infer_lambda_return_type(expr)
+                                .unwrap_or(TypeAnnotation::Unit),
+                            Statement::ExprStatement(expr) => self
+                                .infer_lambda_return_type(expr)
+                                .unwrap_or(TypeAnnotation::Unit),
+                            _ => TypeAnnotation::Unit,
+                        }
+                    } else {
+                        TypeAnnotation::Unit
+                    };
                 }
                 body.push(Statement::Return(Some(expr)));
             }
@@ -1264,29 +1273,7 @@ impl Parser {
                 return Ok(TypeAnnotation::Array(Box::new(element_type)));
             }
 
-            let base_type = self.consume_identifier("Expected type name")?;
-
-            if self.match_token(&[Token::Less]) {
-                // Generic type parameters
-                let mut type_args = Vec::new();
-
-                if !self.check(&Token::Greater) {
-                    loop {
-                        type_args.push(self.parse_type()?);
-
-                        if !self.match_token(&[Token::Comma]) {
-                            break;
-                        }
-                    }
-                }
-
-                self.consume(&Token::Greater, "Expected '>' after type arguments")?;
-
-                Ok(TypeAnnotation::Generic {
-                    base: base_type,
-                    type_args,
-                })
-            } else if base_type == "fn" {
+            if self.match_token(&[Token::Fn]) {
                 // Function type
                 self.consume(&Token::LParen, "Expected '(' in function type")?;
 
@@ -1311,8 +1298,32 @@ impl Parser {
                     return_type,
                 })
             } else {
-                // Basic type
-                Ok(TypeAnnotation::Basic(base_type))
+                let base_type = self.consume_identifier("Expected type name")?;
+
+                if self.match_token(&[Token::Less]) {
+                    // Generic type parameters
+                    let mut type_args = Vec::new();
+
+                    if !self.check(&Token::Greater) {
+                        loop {
+                            type_args.push(self.parse_type()?);
+
+                            if !self.match_token(&[Token::Comma]) {
+                                break;
+                            }
+                        }
+                    }
+
+                    self.consume(&Token::Greater, "Expected '>' after type arguments")?;
+
+                    Ok(TypeAnnotation::Generic {
+                        base: base_type,
+                        type_args,
+                    })
+                } else {
+                    // Basic type
+                    Ok(TypeAnnotation::Basic(base_type))
+                }
             }
         }
     }
@@ -1409,10 +1420,7 @@ impl Parser {
             self.tokens.get(self.current)
         );
 
-        if self.match_token(&[Token::Do]) {
-            // This is a block scope, not a lambda
-            self.block_scope_statement()
-        } else if self.match_token(&[Token::Match]) {
+        if self.match_token(&[Token::Match]) {
             self.match_statement()
         } else if self.match_token(&[Token::If]) {
             self.if_statement()
@@ -1944,13 +1952,23 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr> {
+        if self.match_token(&[Token::Do]) {
+            // Parse block expression: do statements... [expr] end
+            return self.parse_block_expression();
+        }
+
+        if self.match_token(&[Token::If]) {
+            // Parse if expression: if condition then expr [else expr] end
+            return self.parse_if_expression();
+        }
+
         if self.match_token(&[Token::LParen]) {
-            // Empty tuple
+            // Empty tuple or grouped expression
             if self.match_token(&[Token::RParen]) {
                 return Ok(Expr::UnitLiteral);
             }
 
-            // Parse first element of tuple
+            // Parse first element of tuple or grouped expression
             let first = self.expression()?;
 
             // If comma, it's a tuple
@@ -2018,19 +2036,6 @@ impl Parser {
                 self.advance(); // consume 'fn'
                 self.parse_function_expression()?
             }
-            Token::LParen => {
-                self.advance(); // consume '('
-
-                // Check for unit literal ()
-                if self.match_token(&[Token::RParen]) {
-                    Expr::UnitLiteral
-                } else {
-                    // Parse grouped expression
-                    let expr = self.expression()?;
-                    self.consume(&Token::RParen, "Expected ')' after expression")?;
-                    expr
-                }
-            }
             Token::LBracket => {
                 self.advance(); // consume '['
                 self.parse_array_literal()?
@@ -2044,6 +2049,143 @@ impl Parser {
         };
 
         Ok(expr)
+    }
+
+    fn parse_block_expression(&mut self) -> Result<Expr> {
+        println!("Parsing block expression");
+
+        let mut statements = Vec::new();
+        let mut final_expr = None;
+
+        while !self.check(&Token::End) && !self.is_at_end() {
+            // Look ahead to see if this might be the final expression
+            if self.is_likely_final_expression() {
+                final_expr = Some(Box::new(self.expression()?));
+                break;
+            } else {
+                statements.push(self.statement()?);
+            }
+        }
+
+        self.consume(&Token::End, "Expected 'end' after block expression")?;
+
+        Ok(Expr::BlockExpression {
+            statements,
+            final_expr,
+        })
+    }
+
+    fn is_likely_final_expression(&self) -> bool {
+        // Heuristic: if the next token after this line would be 'end',
+        // then this is likely the final expression
+        if self.is_at_end() {
+            return false;
+        }
+
+        // Simple check: if current token starts an expression and we're not seeing
+        // obvious statement keywords, treat it as final expression
+        match self.peek() {
+            Token::Let
+            | Token::Var
+            | Token::Const
+            | Token::If
+            | Token::While
+            | Token::For
+            | Token::Return
+            | Token::Break
+            | Token::Continue
+            | Token::Do
+            | Token::Fn
+            | Token::Proc => false,
+            _ => {
+                // Look ahead to see if 'end' comes after this expression
+                self.expression_followed_by_end()
+            }
+        }
+    }
+
+    fn expression_followed_by_end(&self) -> bool {
+        // This is a simplified heuristic - you might want to make it more sophisticated
+        // For now, just check if we have relatively few tokens left before 'end'
+        let mut i = self.current;
+        let mut depth = 0;
+
+        while i < self.tokens.len() {
+            match &self.tokens[i] {
+                Token::LParen | Token::LBracket | Token::LBrace => depth += 1,
+                Token::RParen | Token::RBracket | Token::RBrace => depth -= 1,
+                Token::End if depth == 0 => return true,
+                Token::Let
+                | Token::Var
+                | Token::Const
+                | Token::If
+                | Token::While
+                | Token::For
+                | Token::Return
+                | Token::Break
+                | Token::Continue
+                | Token::Do
+                | Token::Fn
+                | Token::Proc
+                    if depth == 0 =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+            i += 1;
+
+            // Don't look too far ahead
+            if i - self.current > 10 {
+                break;
+            }
+        }
+
+        false
+    }
+
+    // Parse if expression: if condition then expr else expr end
+    fn parse_if_expression(&mut self) -> Result<Expr> {
+        println!("Parsing if expression");
+
+        // Parse condition (we already consumed 'if')
+        let condition = self.expression()?;
+
+        self.consume(&Token::Then, "Expected 'then' after if condition")?;
+
+        // Parse then expression
+        let then_expr = if self.match_token(&[Token::Do]) {
+            self.parse_block_expression()?
+        } else {
+            // Parse a simple expression (no control flow)
+            self.logical()?
+        };
+
+        // Parse optional else branch
+        let else_expr = if self.match_token(&[Token::Else]) {
+            if self.match_token(&[Token::Do]) {
+                Some(Box::new(self.parse_block_expression()?))
+            } else {
+                // Parse a simple expression (no control flow)
+                Some(Box::new(self.logical()?))
+            }
+        } else {
+            None
+        };
+
+        self.consume(&Token::End, "Expected 'end' after if expression")?;
+
+        Ok(Expr::IfExpression {
+            condition: Box::new(condition),
+            then_expr: Box::new(then_expr),
+            else_expr,
+        })
+    }
+
+    // Helper method that parses expressions but stops at control flow keywords
+    fn parse_limited_expression(&mut self) -> Result<Expr> {
+        // This is like expression() but doesn't try to parse if/else/end as expressions
+        self.logical()
     }
 
     fn parse_function_expression(&mut self) -> Result<Expr> {

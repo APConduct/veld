@@ -56,6 +56,15 @@ pub enum TypeAnnotation {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    BlockExpression {
+        statements: Vec<Statement>,
+        final_expr: Option<Box<Expr>>,
+    },
+    IfExpression {
+        condition: Box<Expr>,
+        then_expr: Box<Expr>,
+        else_expr: Option<Box<Expr>>,
+    },
     BlockLambda {
         params: Vec<(String, Option<TypeAnnotation>)>,
         body: Vec<Statement>,

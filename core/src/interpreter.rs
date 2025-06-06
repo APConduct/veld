@@ -970,6 +970,21 @@ impl Interpreter {
 
     fn evaluate_expression(&mut self, expr: Expr) -> Result<Value> {
         match expr {
+            Expr::IfExpression {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                let cond_value = self.evaluate_expression(*condition)?.unwrap_return();
+
+                if self.is_truthy(cond_value) {
+                    self.evaluate_expression(*then_expr)
+                } else if let Some(else_expr) = else_expr {
+                    self.evaluate_expression(*else_expr)
+                } else {
+                    Ok(Value::Unit)
+                }
+            }
             Expr::BlockLambda {
                 params,
                 body,
@@ -1290,6 +1305,42 @@ impl Interpreter {
                         "Cannot access tuple field on non-tuple value".to_string(),
                     )),
                 }
+            }
+            Expr::BlockExpression {
+                statements,
+                final_expr,
+            } => {
+                println!(
+                    "Evaluating block expression with {} statements",
+                    statements.len()
+                );
+
+                // Create new scope for the block
+                self.push_scope();
+
+                // Execute all statements
+                for stmt in statements {
+                    let result = self.execute_statement(stmt)?;
+
+                    // Handle early returns
+                    match result {
+                        Value::Return(_) | Value::Break | Value::Continue => {
+                            self.pop_scope();
+                            return Ok(result);
+                        }
+                        _ => {} // Continue with next statement
+                    }
+                }
+
+                // Evaluate final expression or return unit
+                let result = if let Some(expr) = final_expr {
+                    self.evaluate_expression(*expr)?
+                } else {
+                    Value::Unit
+                };
+
+                self.pop_scope();
+                Ok(result)
             }
             Expr::MacroExpr { name, arguments } => todo!(),
         }

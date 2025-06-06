@@ -1154,7 +1154,7 @@ impl TypeEnvironment {
                 }
                 true
             }
-            Type::Enum {  .. } => todo!("Handle enum implementations"),
+            Type::Enum { .. } => todo!("Handle enum implementations"),
             // TODO: Handle other types
             _ => false,
         }
@@ -1801,6 +1801,28 @@ impl TypeChecker {
 
     pub fn infer_expression_type(&mut self, expr: &Expr) -> Result<Type> {
         let result = match expr {
+            Expr::IfExpression {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                let cond_type = self.infer_expression_type(condition)?;
+                self.env.add_constraint(cond_type, Type::Bool);
+
+                let then_type = self.infer_expression_type(then_expr)?;
+
+                if let Some(else_expr) = else_expr {
+                    let else_type = self.infer_expression_type(else_expr)?;
+                    self.env.add_constraint(then_type.clone(), else_type);
+                    self.env.solve_constraints()?;
+                    Ok(self.env.apply_substitutions(&then_type))
+                } else {
+                    // No else branch means it returns Unit when condition is false
+                    self.env.add_constraint(then_type.clone(), Type::Unit);
+                    self.env.solve_constraints()?;
+                    Ok(Type::Unit)
+                }
+            }
             Expr::BlockLambda {
                 params,
                 body,
@@ -1852,6 +1874,27 @@ impl TypeChecker {
             Expr::ArrayLiteral(elements) => self.infer_array_literal_type(elements),
             Expr::IndexAccess { object, index } => self.infer_index_access_type(object, index),
             Expr::TypeCast { expr, target_type } => self.type_check_cast(expr, target_type),
+            Expr::BlockExpression {
+                statements,
+                final_expr,
+            } => {
+                self.env.push_scope();
+
+                // Type check all statements
+                for stmt in statements {
+                    self.type_check_statement(stmt)?;
+                }
+
+                // Infer type from final expression or return unit
+                let result_type = if let Some(expr) = final_expr {
+                    self.infer_expression_type(expr)?
+                } else {
+                    Type::Unit
+                };
+
+                self.env.pop_scope();
+                Ok(result_type)
+            }
             EnumVariant => todo!(),
         };
         if let Ok(ref t) = result {
