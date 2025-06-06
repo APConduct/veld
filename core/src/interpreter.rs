@@ -6,6 +6,7 @@ use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,6 +87,7 @@ pub enum Value {
         params: Vec<(String, TypeAnnotation)>,
         body: Vec<Statement>,
         return_type: TypeAnnotation,
+        captured_vars: HashMap<String, Value>, // Captured variables for closures
     },
     Struct {
         name: String,
@@ -288,6 +290,337 @@ impl Interpreter {
         Ok(last_value)
     }
 
+    fn collect_free_variables_expr(
+        &self,
+        expr: &Expr,
+        bound_vars: &HashSet<String>,
+        free_vars: &mut HashSet<String>,
+    ) {
+        match expr {
+            Expr::Identifier(name) => {
+                if !bound_vars.contains(name) {
+                    free_vars.insert(name.clone());
+                }
+            }
+            Expr::BinaryOp {
+                left,
+                operator: _,
+                right,
+            } => {
+                self.collect_free_variables_expr(left, bound_vars, free_vars);
+                self.collect_free_variables_expr(right, bound_vars, free_vars);
+            }
+            Expr::FunctionCall { name: _, arguments } => {
+                for arg in arguments {
+                    match arg {
+                        Argument::Positional(expr) => {
+                            self.collect_free_variables_expr(expr, bound_vars, free_vars);
+                        }
+                        Argument::Named { name: _, value } => {
+                            self.collect_free_variables_expr(value, bound_vars, free_vars);
+                        }
+                    }
+                }
+            }
+            Expr::Lambda {
+                params,
+                body,
+                return_type: _,
+            } => {
+                let mut lambda_bound = bound_vars.clone();
+                for (param_name, _) in params {
+                    lambda_bound.insert(param_name.clone());
+                }
+                self.collect_free_variables_expr(body, &lambda_bound, free_vars);
+            }
+            Expr::BlockLambda {
+                params,
+                body,
+                return_type: _,
+            } => {
+                let mut lambda_bound = bound_vars.clone();
+                for (param_name, _) in params {
+                    lambda_bound.insert(param_name.clone());
+                }
+                for stmt in body {
+                    self.collect_free_variables_stmt(stmt, &lambda_bound, free_vars);
+                }
+            }
+            Expr::IfExpression {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                self.collect_free_variables_expr(condition, bound_vars, free_vars);
+                self.collect_free_variables_expr(then_expr, bound_vars, free_vars);
+                if let Some(else_expr) = else_expr {
+                    self.collect_free_variables_expr(else_expr, bound_vars, free_vars);
+                }
+            }
+            Expr::BlockExpression {
+                statements,
+                final_expr,
+            } => {
+                let mut block_bound = bound_vars.clone();
+                for stmt in statements {
+                    // Add any variables declared in this block to bound_vars
+                    if let Statement::VariableDeclaration { name, .. } = stmt {
+                        block_bound.insert(name.clone());
+                    }
+                    self.collect_free_variables_stmt(stmt, &block_bound, free_vars);
+                }
+                if let Some(final_expr) = final_expr {
+                    self.collect_free_variables_expr(final_expr, &block_bound, free_vars);
+                }
+            }
+            Expr::MethodCall {
+                object,
+                method: _,
+                arguments,
+            } => {
+                self.collect_free_variables_expr(object, bound_vars, free_vars);
+                for arg in arguments {
+                    match arg {
+                        Argument::Positional(expr) => {
+                            self.collect_free_variables_expr(expr, bound_vars, free_vars);
+                        }
+                        Argument::Named { name: _, value } => {
+                            self.collect_free_variables_expr(value, bound_vars, free_vars);
+                        }
+                    }
+                }
+            }
+            Expr::PropertyAccess {
+                object,
+                property: _,
+            } => {
+                self.collect_free_variables_expr(object, bound_vars, free_vars);
+            }
+            Expr::StructCreate {
+                struct_name: _,
+                fields,
+            } => {
+                for (_, expr) in fields {
+                    self.collect_free_variables_expr(expr, bound_vars, free_vars);
+                }
+            }
+            Expr::ArrayLiteral(exprs) => {
+                for expr in exprs {
+                    self.collect_free_variables_expr(expr, bound_vars, free_vars);
+                }
+            }
+            Expr::IndexAccess { object, index } => {
+                self.collect_free_variables_expr(object, bound_vars, free_vars);
+                self.collect_free_variables_expr(index, bound_vars, free_vars);
+            }
+            Expr::EnumVariant {
+                enum_name: _,
+                variant_name: _,
+                fields,
+            } => {
+                for expr in fields {
+                    self.collect_free_variables_expr(expr, bound_vars, free_vars);
+                }
+            }
+            Expr::TupleLiteral(exprs) => {
+                for expr in exprs {
+                    self.collect_free_variables_expr(expr, bound_vars, free_vars);
+                }
+            }
+            Expr::TupleAccess { tuple, index: _ } => {
+                self.collect_free_variables_expr(tuple, bound_vars, free_vars);
+            }
+            Expr::MacroExpr { name: _, arguments } => {
+                for expr in arguments {
+                    self.collect_free_variables_expr(expr, bound_vars, free_vars);
+                }
+            }
+            Expr::TypeCast {
+                expr,
+                target_type: _,
+            } => {
+                self.collect_free_variables_expr(expr, bound_vars, free_vars);
+            }
+            // Literals don't reference variables
+            Expr::Literal(_) | Expr::UnitLiteral => {}
+        }
+    }
+
+    /// Collect free variables in a statement
+    fn collect_free_variables_stmt(
+        &self,
+        stmt: &Statement,
+        bound_vars: &HashSet<String>,
+        free_vars: &mut HashSet<String>,
+    ) {
+        match stmt {
+            Statement::ExprStatement(expr) => {
+                self.collect_free_variables_expr(expr, bound_vars, free_vars);
+            }
+            Statement::VariableDeclaration {
+                name: _,
+                var_kind: _,
+                type_annotation: _,
+                value,
+            } => {
+                self.collect_free_variables_expr(value, bound_vars, free_vars);
+            }
+            Statement::Assignment { name: _, value } => {
+                self.collect_free_variables_expr(value, bound_vars, free_vars);
+            }
+            Statement::CompoundAssignment {
+                name: _,
+                operator: _,
+                value,
+            } => {
+                self.collect_free_variables_expr(value, bound_vars, free_vars);
+            }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                self.collect_free_variables_expr(condition, bound_vars, free_vars);
+                for stmt in then_branch {
+                    self.collect_free_variables_stmt(stmt, bound_vars, free_vars);
+                }
+                if let Some(else_branch) = else_branch {
+                    for stmt in else_branch {
+                        self.collect_free_variables_stmt(stmt, bound_vars, free_vars);
+                    }
+                }
+            }
+            Statement::While { condition, body } => {
+                self.collect_free_variables_expr(condition, bound_vars, free_vars);
+                for stmt in body {
+                    self.collect_free_variables_stmt(stmt, bound_vars, free_vars);
+                }
+            }
+            Statement::For {
+                iterator: _,
+                iterable,
+                body,
+            } => {
+                self.collect_free_variables_expr(iterable, bound_vars, free_vars);
+                for stmt in body {
+                    self.collect_free_variables_stmt(stmt, bound_vars, free_vars);
+                }
+            }
+            Statement::Return(Some(expr)) => {
+                self.collect_free_variables_expr(expr, bound_vars, free_vars);
+            }
+            Statement::BlockScope { body } => {
+                for stmt in body {
+                    self.collect_free_variables_stmt(stmt, bound_vars, free_vars);
+                }
+            }
+            // Other statements don't reference variables in ways that matter for closures
+            _ => {}
+        }
+    }
+
+    /// Capture the current values of free variables
+    fn capture_variables(&self, free_vars: &HashSet<String>) -> HashMap<String, Value> {
+        let mut captured = HashMap::new();
+        for var_name in free_vars {
+            if let Some(value) = self.get_variable(var_name) {
+                captured.insert(var_name.clone(), value);
+            }
+        }
+        captured
+    }
+
+    /// Create a lambda with captured variables
+    fn create_lambda(
+        &self,
+        params: Vec<(String, Option<TypeAnnotation>)>,
+        body: Box<Expr>,
+        return_type: Option<TypeAnnotation>,
+    ) -> Value {
+        // Collect parameter names as bound variables
+        let mut bound_vars = HashSet::new();
+        for (param_name, _) in &params {
+            bound_vars.insert(param_name.clone());
+        }
+
+        // Find free variables in the lambda body
+        let mut free_vars = HashSet::new();
+        self.collect_free_variables_expr(&body, &bound_vars, &mut free_vars);
+
+        // Capture the current values of free variables
+        let captured_vars = self.capture_variables(&free_vars);
+
+        println!(
+            "Lambda created with captured variables: {:?}",
+            captured_vars.keys().collect::<Vec<_>>()
+        );
+
+        let actual_return_type = match return_type {
+            Some(type_anno) => type_anno,
+            None => {
+                // Try to infer return type from body
+                match body.as_ref() {
+                    Expr::Literal(Literal::String(_)) => TypeAnnotation::Basic("str".to_string()),
+                    Expr::Literal(Literal::Integer(_)) => TypeAnnotation::Basic("i32".to_string()),
+                    Expr::Literal(Literal::Float(_)) => TypeAnnotation::Basic("f64".to_string()),
+                    Expr::Literal(Literal::Boolean(_)) => TypeAnnotation::Basic("bool".to_string()),
+                    Expr::Literal(Literal::Char(_)) => TypeAnnotation::Basic("char".to_string()),
+                    _ => TypeAnnotation::Basic("infer".to_string()),
+                }
+            }
+        };
+
+        Value::Function {
+            params: params
+                .into_iter()
+                .map(|(name, type_anno)| (name, type_anno.unwrap_or(TypeAnnotation::Unit)))
+                .collect(),
+            body: vec![Statement::Return(Some(*body))],
+            return_type: actual_return_type,
+            captured_vars,
+        }
+    }
+
+    /// Create a block lambda with captured variables
+    fn create_block_lambda(
+        &self,
+        params: Vec<(String, Option<TypeAnnotation>)>,
+        body: Vec<Statement>,
+        return_type: Option<TypeAnnotation>,
+    ) -> Value {
+        // Collect parameter names as bound variables
+        let mut bound_vars = HashSet::new();
+        for (param_name, _) in &params {
+            bound_vars.insert(param_name.clone());
+        }
+
+        // Find free variables in the lambda body
+        let mut free_vars = HashSet::new();
+        for stmt in &body {
+            self.collect_free_variables_stmt(stmt, &bound_vars, &mut free_vars);
+        }
+
+        // Capture the current values of free variables
+        let captured_vars = self.capture_variables(&free_vars);
+
+        println!(
+            "Block lambda created with captured variables: {:?}",
+            captured_vars.keys().collect::<Vec<_>>()
+        );
+
+        let actual_return_type = return_type.unwrap_or(TypeAnnotation::Unit);
+
+        Value::Function {
+            params: params
+                .into_iter()
+                .map(|(name, type_anno)| (name, type_anno.unwrap_or(TypeAnnotation::Unit)))
+                .collect(),
+            body,
+            return_type: actual_return_type,
+            captured_vars,
+        }
+    }
+
     fn register_generic_struct(&mut self, name: &str, info: StructInfo) -> Result<()> {
         self.generic_structs.insert(name.to_string(), info.clone());
         self.structs.insert(name.to_string(), info.fields);
@@ -381,6 +714,7 @@ impl Interpreter {
                     params: params.clone(),
                     body: processed_body,
                     return_type: actual_return_type,
+                    captured_vars: HashMap::new(), // No captured vars for top-level functions
                 };
 
                 // Register function in current scope
@@ -438,6 +772,7 @@ impl Interpreter {
                         .collect(),
                     body,
                     return_type: TypeAnnotation::Unit,
+                    captured_vars: HashMap::new(),
                 };
 
                 self.current_scope_mut().set(name, function);
@@ -472,6 +807,7 @@ impl Interpreter {
                             params: method.params,
                             body: method.body,
                             return_type: method.return_type,
+                            captured_vars: HashMap::new(), // No captured vars for struct methods
                         };
 
                         method_map.insert(method.name, method_value);
@@ -499,6 +835,7 @@ impl Interpreter {
                         params: method.params,
                         body: method.body,
                         return_type: method.return_type,
+                        captured_vars: HashMap::new(),
                     };
 
                     method_map.insert(method.name, method_value);
@@ -989,20 +1326,7 @@ impl Interpreter {
                 params,
                 body,
                 return_type,
-            } => {
-                println!("Evaluating block lambda with {} statements", body.len());
-
-                let actual_return_type = return_type.unwrap_or(TypeAnnotation::Unit);
-
-                Ok(Value::Function {
-                    params: params
-                        .into_iter()
-                        .map(|(name, type_anno)| (name, type_anno.unwrap_or(TypeAnnotation::Unit)))
-                        .collect(),
-                    body,
-                    return_type: actual_return_type,
-                })
-            }
+            } => Ok(self.create_block_lambda(params, body, return_type)),
             Expr::Literal(lit) => Ok(match lit {
                 Literal::Integer(n) => {
                     // Default to i32, but this could be context-sensitive in the future
@@ -1091,46 +1415,7 @@ impl Interpreter {
                 params,
                 body,
                 return_type,
-            } => {
-                let actual_return_type = match return_type {
-                    Some(type_anno) => type_anno,
-                    None => {
-                        // Try to infer return type from body
-                        match *body {
-                            Expr::Literal(Literal::String(_)) => {
-                                TypeAnnotation::Basic("str".to_string())
-                            }
-                            Expr::Literal(Literal::Integer(_)) => {
-                                TypeAnnotation::Basic("i32".to_string())
-                            }
-                            Expr::Literal(Literal::Float(_)) => {
-                                TypeAnnotation::Basic("f64".to_string())
-                            }
-                            Expr::Literal(Literal::Boolean(_)) => {
-                                TypeAnnotation::Basic("bool".to_string())
-                            }
-                            Expr::Literal(Literal::Char(_)) => {
-                                TypeAnnotation::Basic("char".to_string())
-                            }
-                            _ => TypeAnnotation::Basic("infer".to_string()),
-                        }
-                    }
-                };
-
-                println!(
-                    "Lambda expression inferred return type: {:?}",
-                    actual_return_type
-                );
-
-                Ok(Value::Function {
-                    params: params
-                        .into_iter()
-                        .map(|(name, type_anno)| (name, type_anno.unwrap_or(TypeAnnotation::Unit)))
-                        .collect(),
-                    body: vec![Statement::Return(Some(*body))],
-                    return_type: actual_return_type,
-                })
-            }
+            } => Ok(self.create_lambda(params, body, return_type)),
 
             Expr::MethodCall {
                 object,
@@ -1561,6 +1846,7 @@ impl Interpreter {
                 )],
                 body: vec![], // Built-in method with custom implementation
                 return_type: TypeAnnotation::Basic("any".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1574,6 +1860,7 @@ impl Interpreter {
                 )],
                 body: vec![],
                 return_type: TypeAnnotation::Basic("any".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1587,6 +1874,7 @@ impl Interpreter {
                 )],
                 body: vec![],
                 return_type: TypeAnnotation::Basic("Array".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1600,6 +1888,7 @@ impl Interpreter {
                 )],
                 body: vec![],
                 return_type: TypeAnnotation::Basic("Array".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1619,6 +1908,7 @@ impl Interpreter {
                 ],
                 body: vec![],
                 return_type: TypeAnnotation::Basic("Array".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1635,6 +1925,7 @@ impl Interpreter {
                 ],
                 body: vec![],
                 return_type: TypeAnnotation::Basic("Array".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1651,6 +1942,7 @@ impl Interpreter {
                 ],
                 body: vec![],
                 return_type: TypeAnnotation::Basic("Array".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1664,6 +1956,7 @@ impl Interpreter {
                 )],
                 body: vec![], // Built-in method with custom implementation
                 return_type: TypeAnnotation::Basic("i32".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1680,6 +1973,7 @@ impl Interpreter {
                 ],
                 body: vec![], // Built-in method with custom implementation
                 return_type: TypeAnnotation::Basic("Array".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1696,6 +1990,7 @@ impl Interpreter {
                 ],
                 body: vec![], // Built-in method with custom implementation
                 return_type: TypeAnnotation::Basic("Array".to_string()),
+                captured_vars: HashMap::new(),
             },
         );
 
@@ -1711,9 +2006,19 @@ impl Interpreter {
             .ok_or_else(|| VeldError::RuntimeError(format!("Undefined function '{}'", name)))?;
 
         match function {
-            Value::Function { params, body, .. } => {
+            Value::Function {
+                params,
+                body,
+                captured_vars,
+                ..
+            } => {
                 // Create new scope for function
                 self.push_scope();
+
+                // First, set up captured variables in the new scope
+                for (var_name, var_value) in captured_vars {
+                    self.current_scope_mut().set(var_name, var_value);
+                }
 
                 // Bind arguments
                 if arg_values.len() != params.len() {
@@ -1787,6 +2092,7 @@ impl Interpreter {
                             ],
                             body: vec![], // Empty body for built-in methods
                             return_type: TypeAnnotation::Basic("any".to_string()),
+                            captured_vars: HashMap::new(),
                         })
                     }
                     _ => Err(VeldError::RuntimeError(format!(
@@ -2548,6 +2854,7 @@ impl Interpreter {
                                 params: params.clone(),
                                 body: body.clone(),
                                 return_type: return_type.clone(),
+                                captured_vars: HashMap::new(), // No captured vars for imports
                             };
                             self.current_scope_mut().set(name.clone(), function);
                         }
