@@ -315,6 +315,7 @@ impl Parser {
         println!("Lambda expression Starting...");
         let mut params = Vec::new();
         let mut return_type_anno: Option<TypeAnnotation> = None;
+        let mut is_block_demi = false;
 
         // Handle 'fn' keyword if present
         if self.match_token(&[Token::Fn]) {
@@ -340,6 +341,12 @@ impl Parser {
             // Optional return type annotation
             if self.match_token(&[Token::Arrow]) {
                 return_type_anno = Some(self.parse_type()?);
+            }
+
+            // Check if this is fn() => syntax or fn() body end syntax
+            if !self.check(&Token::FatArrow) {
+                // This is fn() body end syntax (block demi lambda)
+                is_block_demi = true;
             }
         } else {
             // Handle parameters without 'fn' keyword
@@ -373,25 +380,65 @@ impl Parser {
             }
         }
 
-        self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
+        // Handle different lambda body syntaxes
+        if is_block_demi {
+            // fn() body end syntax (no =>)
+            return self.parse_block_demi_lambda(params, return_type_anno);
+        } else {
+            // Expect fat arrow for other lambda forms
+            self.consume(&Token::FatArrow, "Expected '=>' after lambda parameters")?;
 
-        // Check for block syntax with `do`
-        if self.match_token(&[Token::Do]) {
-            return self.parse_block_lambda(params, return_type_anno);
+            // Check for block syntax with `do`
+            if self.match_token(&[Token::Do]) {
+                return self.parse_block_lambda(params, return_type_anno);
+            }
+
+            // Single expression lambda
+            let expr = self.expression()?;
+            let inferred_return_type =
+                return_type_anno.or_else(|| self.infer_lambda_return_type(&expr));
+
+            println!(
+                "Lambda expression: inferred return type: {:?}",
+                inferred_return_type
+            );
+
+            Ok(Expr::Lambda {
+                params,
+                body: Box::new(expr),
+                return_type: inferred_return_type,
+            })
+        }
+    }
+
+    // Parse block demi lambda: fn() body end (no =>)
+    fn parse_block_demi_lambda(
+        &mut self,
+        params: Vec<(String, Option<TypeAnnotation>)>,
+        return_type_anno: Option<TypeAnnotation>,
+    ) -> Result<Expr> {
+        println!("Parsing block demi lambda with {} parameters", params.len());
+
+        let mut body = Vec::new();
+        while !self.check(&Token::End) && !self.is_at_end() {
+            body.push(self.statement()?);
         }
 
-        let expr = self.expression()?;
-        let inferred_return_type =
-            return_type_anno.or_else(|| self.infer_lambda_return_type(&expr));
+        self.consume(&Token::End, "Expected 'end' after block demi lambda body")?;
 
-        println!(
-            "Lambda expression: inferred return type: {:?}",
-            inferred_return_type
-        );
-        Ok(Expr::Lambda {
+        // Use provided return type or try to infer from the last statement
+        let return_type = return_type_anno.or_else(|| {
+            if let Some(last_stmt) = body.last() {
+                self.infer_block_return_type(last_stmt)
+            } else {
+                Some(TypeAnnotation::Unit)
+            }
+        });
+
+        Ok(Expr::BlockLambda {
             params,
-            body: Box::new(expr),
-            return_type: inferred_return_type, // Inferred return type
+            body,
+            return_type,
         })
     }
 
@@ -1632,7 +1679,10 @@ impl Parser {
                 }
             }
 
-            return false;
+            // Also check for fn() without => (block demi lambda)
+            if i < self.tokens.len() && !matches!(self.tokens[i], Token::FatArrow | Token::Arrow) {
+                return true; // This is fn() block_body end syntax
+            }
         }
 
         // Check for identifier => pattern (single param lambda)
