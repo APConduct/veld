@@ -1358,7 +1358,13 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement> {
+        println!(
+            "Parsing statement, current token: {:?}",
+            self.tokens.get(self.current)
+        );
+
         if self.match_token(&[Token::Do]) {
+            // This is a block scope, not a lambda
             self.block_scope_statement()
         } else if self.match_token(&[Token::Match]) {
             self.match_statement()
@@ -1374,9 +1380,13 @@ impl Parser {
             Ok(Statement::Break)
         } else if self.match_token(&[Token::Continue]) {
             Ok(Statement::Continue)
+        } else if self.is_declaration_keyword() {
+            // Handle variable declarations (let, var, const)
+            self.variable_declaration()
         } else if self.check_assignment() {
             self.assignment_statement()
         } else {
+            // Try to parse as expression statement
             let expr = self.expression()?;
             Ok(Statement::ExprStatement(expr))
         }
