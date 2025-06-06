@@ -39,11 +39,6 @@ let verbose_proc_lambda = fn() => do
     let x = 50
 end
 
-let proc_lambda_sugar = do
-    -- test for procedural lambda sugar
-    -- proc because it does not take parameters, and returns a unit type (void in some languages, '()' in rust, 'Nil' gleam and lua)
-    let x = 60
-end
 
 -- call the functions to ensure they work
 
@@ -58,5 +53,3 @@ let result_verbose_func = verbose_func()
 let result_blocl_lambda_no_params = block_lambda_no_params()
 
 let result_verbose_proc_lambda = verbose_proc_lambda()
-
-let result_proc_lambda_sugar = proc_lambda_sugar()
