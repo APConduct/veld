@@ -1864,16 +1864,32 @@ impl TypeChecker {
 
     fn infer_literal_type(&mut self, lit: &Literal) -> Result<Type> {
         match lit {
-            Literal::Integer(_) => {
-                println!("Inferred integer literal as i32");
-                Ok(Type::I32)
+            Literal::Integer(value) => {
+                // Infer the smallest type that can hold a value
+                let inferred_type = if *value >= i8::MIN as i64 && *value <= i8::MAX as i64 {
+                    Type::I8
+                } else if *value >= i16::MIN as i64 && *value <= i16::MAX as i64 {
+                    Type::I16
+                } else if *value >= i32::MIN as i64 && *value <= i32::MAX as i64 {
+                    Type::I32
+                } else {
+                    Type::I64
+                };
+
+                println!("Inferred integer literal {} as {:?}", value, inferred_type);
+                Ok(inferred_type)
             }
-            // TODO: Handle other integer types
-            Literal::Float(_) => {
-                println!("Inferred float literal as f64");
-                Ok(Type::F64)
+            Literal::Float(value) => {
+                // For now, default to f64, but could be context-sensitive
+                let inferred_type = if *value >= f32::MIN as f64 && *value <= f32::MAX as f64 {
+                    Type::F32
+                } else {
+                    Type::F64
+                };
+
+                println!("Inferred float literal {} as {:?}", value, inferred_type);
+                Ok(inferred_type)
             }
-            // TODO: Handle other float types
             Literal::String(_) => {
                 println!("Inferred string literal as str");
                 Ok(Type::String)
@@ -1890,6 +1906,52 @@ impl TypeChecker {
                 println!("Inferred char literal as char");
                 Ok(Type::Char)
             }
+        }
+    }
+
+    fn is_64bit_type(&self, ty: &Type) -> bool {
+        matches!(ty, Type::I64 | Type::U64 | Type::F64)
+    }
+
+    fn is_integer_type(&self, ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::I8
+                | Type::I16
+                | Type::I32
+                | Type::I64
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+        )
+    }
+
+    fn promote_numeric_types(&self, left: &Type, right: &Type) -> Type {
+        match (left, right) {
+            // Float promotion rules
+            (Type::F64, _) | (_, Type::F64) => Type::F64,
+            (Type::F32, _) | (_, Type::F32) => {
+                // If either operand would overflow f32, promote to f64
+                if self.is_64bit_type(left) || self.is_64bit_type(right) {
+                    Type::F64
+                } else {
+                    Type::F32
+                }
+            }
+
+            // Integer promotion rules
+            (Type::I64, _) | (_, Type::I64) => Type::I64,
+            (Type::U64, _) | (_, Type::U64) => Type::U64,
+            (Type::I32, _) | (_, Type::I32) => Type::I32,
+            (Type::U32, _) | (_, Type::U32) => Type::U32,
+            (Type::I16, _) | (_, Type::I16) => Type::I16,
+            (Type::U16, _) | (_, Type::U16) => Type::U16,
+            (Type::I8, _) | (_, Type::I8) => Type::I8,
+            (Type::U8, _) | (_, Type::U8) => Type::U8,
+
+            // Default fallback
+            _ => Type::I32,
         }
     }
 
@@ -1912,26 +1974,15 @@ impl TypeChecker {
             | BinaryOperator::Multiply
             | BinaryOperator::Divide => {
                 if self.is_numeric_type(&left_type) && self.is_numeric_type(&right_type) {
-                    if left_type.is_float() || right_type.is_float() {
-                        if left_type == Type::F64 || right_type == Type::F64 {
-                            Ok(Type::F64)
-                        } else {
-                            Ok(Type::F32)
-                        }
-                    } else {
-                        // Integer operations
-                        match (&left_type, &right_type) {
-                            (Type::I64, _) | (_, Type::I64) => Ok(Type::I64),
-                            (Type::U64, _) | (_, Type::U64) => Ok(Type::U64),
-                            (Type::I32, _) | (_, Type::I32) => Ok(Type::I32),
-                            (Type::U32, _) | (_, Type::U32) => Ok(Type::U32),
-                            (Type::I16, _) | (_, Type::I16) => Ok(Type::I16),
-                            (Type::U16, _) | (_, Type::U16) => Ok(Type::U16),
-                            (Type::I8, _) | (_, Type::I8) => Ok(Type::I8),
-                            (Type::U8, _) | (_, Type::U8) => Ok(Type::U8),
-                            (Type::TypeVar(_), _) | (_, Type::TypeVar(_)) => Ok(Type::I32), // Default to I32 for type vars
-                            _ => Ok(Type::I32), // Default to I32 for default case
-                        }
+                    Ok(self.promote_numeric_types(&left_type, &right_type))
+                } else if matches!(op, BinaryOperator::Add) {
+                    // String concatenation
+                    match (&left_type, &right_type) {
+                        (Type::String, Type::String) => Ok(Type::String),
+                        _ => Err(VeldError::TypeError(format!(
+                            "Cannot apply {} to {} and {}",
+                            op, left_type, right_type
+                        ))),
                     }
                 } else {
                     Err(VeldError::TypeError(format!(
@@ -1940,45 +1991,53 @@ impl TypeChecker {
                     )))
                 }
             }
-            BinaryOperator::Exponent => {
-                if self.is_numeric_type(&left_type) && self.is_numeric_type(&right_type) {
-                    Ok(Type::F64)
+
+            BinaryOperator::Modulo => {
+                if self.is_integer_type(&left_type) && self.is_integer_type(&right_type) {
+                    Ok(self.promote_numeric_types(&left_type, &right_type))
                 } else {
                     Err(VeldError::TypeError(format!(
-                        "Cannot apply {} to {} and {}",
-                        op, left_type, right_type
+                        "Modulo operation requires integer types, got {} and {}",
+                        left_type, right_type
                     )))
                 }
             }
+
+            BinaryOperator::Exponent => {
+                if self.is_numeric_type(&left_type) && self.is_numeric_type(&right_type) {
+                    // Exponentiation always promotes to float
+                    Ok(Type::F64)
+                } else {
+                    Err(VeldError::TypeError(format!(
+                        "Exponentiation requires numeric types, got {} and {}",
+                        left_type, right_type
+                    )))
+                }
+            }
+
             BinaryOperator::LessEq
             | BinaryOperator::GreaterEq
             | BinaryOperator::Less
             | BinaryOperator::Greater => {
-                if self.is_numeric_type(&left_type) && self.is_numeric_type(&right_type) {
+                if (self.is_numeric_type(&left_type) && self.is_numeric_type(&right_type))
+                    || (left_type == Type::String && right_type == Type::String)
+                {
                     Ok(Type::Bool)
                 } else {
                     Err(VeldError::TypeError(format!(
-                        "Cannot apply {} to {} and {}",
-                        op, left_type, right_type
+                        "Cannot compare {} and {}",
+                        left_type, right_type
                     )))
                 }
             }
+
             BinaryOperator::EqualEqual | BinaryOperator::NotEqual => Ok(Type::Bool),
+
             BinaryOperator::And | BinaryOperator::Or => {
-                self.env.add_constraint(left_type, Type::Bool.clone());
-                self.env.add_constraint(right_type, Type::Bool.clone());
+                self.env.add_constraint(left_type, Type::Bool);
+                self.env.add_constraint(right_type, Type::Bool);
                 self.env.solve_constraints()?;
                 Ok(Type::Bool)
-            }
-            BinaryOperator::Modulo => {
-                if self.is_numeric_type(&left_type) && self.is_numeric_type(&right_type) {
-                    Ok(Type::I32)
-                } else {
-                    Err(VeldError::TypeError(format!(
-                        "Cannot apply {} to {} and {}",
-                        op, left_type, right_type
-                    )))
-                }
             }
         }
     }

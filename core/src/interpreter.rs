@@ -4,7 +4,7 @@ use crate::ast::{
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
-use crate::types::{NumericValue, Type, TypeChecker};
+use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -181,33 +181,47 @@ impl Scope {
     fn declare(&mut self, name: String, value: Value, kind: VarKind) -> Result<()> {
         // Check for const reassignment
         if let Some(existing_kind) = self.var_kinds.get(&name) {
-            if matches!(existing_kind, VarKind::Const) {
-                return Err(VeldError::RuntimeError(format!(
-                    "Cannot reassign constant '{}'",
-                    name
-                )));
+            match existing_kind {
+                VarKind::Const => {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Cannot redeclare constant '{}'",
+                        name
+                    )));
+                }
+                VarKind::Let => {
+                    // Let can be shadowed
+                }
+                VarKind::Var | VarKind::LetMut => {
+                    // Mutable variables can be reassigned but not redeclared
+                    return Err(VeldError::RuntimeError(format!(
+                        "Variable '{}' is already declared in this scope",
+                        name
+                    )));
+                }
             }
         }
+
         self.values.insert(name.clone(), value);
         self.var_kinds.insert(name, kind);
         Ok(())
     }
 
     fn assign(&mut self, name: &str, value: Value) -> Result<()> {
-        // Check if variable exists and is mutable
         match self.var_kinds.get(name) {
-            Some(kind) => {
-                if !matches!(kind, VarKind::Var | VarKind::LetMut) {
-                    return Err(VeldError::RuntimeError(format!(
-                        "Cannot assign to immutable value '{}'",
-                        name
-                    )));
-                }
+            Some(VarKind::Var | VarKind::LetMut) => {
                 self.values.insert(name.to_string(), value);
                 Ok(())
             }
+            Some(VarKind::Const) => Err(VeldError::RuntimeError(format!(
+                "Cannot assign to constant '{}'",
+                name
+            ))),
+            Some(VarKind::Let) => Err(VeldError::RuntimeError(format!(
+                "Cannot assign to immutable variable '{}'",
+                name
+            ))),
             None => Err(VeldError::RuntimeError(format!(
-                "Cannot assign to undefined value '{}'",
+                "Cannot assign to undefined variable '{}'",
                 name
             ))),
         }
@@ -280,6 +294,26 @@ impl Interpreter {
         Ok(())
     }
 
+    fn value_to_expr(&self, value: Value) -> Result<Expr> {
+        match value {
+            Value::Numeric(NumericValue::Integer(IntegerValue::I64(n))) => {
+                Ok(Expr::Literal(Literal::Integer(n)))
+            }
+            Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => {
+                Ok(Expr::Literal(Literal::Float(f)))
+            }
+            Value::Integer(n) => Ok(Expr::Literal(Literal::Integer(n))),
+            Value::Float(f) => Ok(Expr::Literal(Literal::Float(f))),
+            Value::String(s) => Ok(Expr::Literal(Literal::String(s))),
+            Value::Boolean(b) => Ok(Expr::Literal(Literal::Boolean(b))),
+            Value::Char(c) => Ok(Expr::Literal(Literal::Char(c))),
+            Value::Unit => Ok(Expr::Literal(Literal::Unit)),
+            _ => Err(VeldError::RuntimeError(
+                "Cannot convert value to expression".into(),
+            )),
+        }
+    }
+
     fn execute_statement(&mut self, statement: Statement) -> Result<Value> {
         println!("Executing statement: {:?}", statement);
 
@@ -287,23 +321,9 @@ impl Interpreter {
             Statement::VariableDeclaration {
                 name,
                 var_kind,
+                type_annotation,
                 value,
-                ..
-            } => {
-                let value = self.evaluate_expression(*value)?;
-                let value = value.unwrap_return();
-
-                // Only allow const at module level (gloabal scope)
-                if matches!(var_kind, VarKind::Const) && self.scopes.len() > 1 {
-                    return Err(VeldError::RuntimeError(
-                        "Constants can only be declared at module level".to_string(),
-                    ));
-                }
-
-                self.current_scope_mut()
-                    .set_with_kind(name, value.clone(), var_kind);
-                Ok(value)
-            }
+            } => self.execute_variable_declaration(name, var_kind, type_annotation, value),
             Statement::FunctionDeclaration {
                 name,
                 params,
@@ -565,8 +585,9 @@ impl Interpreter {
                 let new_value = self.evaluate_expression(*value)?;
                 let result = self.evaluate_binary_op(current, operator, new_value)?;
 
-                self.current_scope_mut().set(name, result.clone());
-                Ok(Value::Unit)
+                // Convert the result back to an expression for assignment
+                let result_expr = self.value_to_expr(result)?;
+                self.execute_assignment(name, Box::new(result_expr))
             }
             Statement::EnumDeclaration { name, variants, .. } => {
                 self.enums.insert(name, variants);
@@ -612,30 +633,199 @@ impl Interpreter {
                     "No match arm matched the value".to_string(),
                 ))
             }
-            Statement::Assignment { name, value } => {
-                let value = self.evaluate_expression(*value)?;
-                let value = value.unwrap_return();
-
-                // Try to assign in current scope, then outer scopes
-                for scope in self.scopes.iter_mut().rev() {
-                    if scope.values.contains_key(&name) {
-                        return match scope.assign(&name, value) {
-                            Ok(_) => Ok(Value::Unit),
-                            _ => Err(VeldError::RuntimeError(format!(
-                                "Cannot assign to undefined variable '{}'",
-                                name
-                            ))),
-                        };
-                    }
-                }
-
-                Err(VeldError::RuntimeError(format!(
-                    "Cannot assign to undefined variable '{}'",
-                    name
-                )))
-            }
+            Statement::Assignment { name, value } => self.execute_assignment(name, value),
             _ => Ok(Value::Unit),
         }
+    }
+
+    fn execute_assignment(&mut self, name: String, value: Box<Expr>) -> Result<Value> {
+        let new_value = self.evaluate_expression(*value)?.unwrap_return();
+
+        // Find the variable in scopes (starting from innermost) and check mutability
+        for scope in self.scopes.iter_mut().rev() {
+            if scope.values.contains_key(&name) {
+                return match scope.assign(&name, new_value) {
+                    Ok(_) => Ok(Value::Unit),
+                    Err(e) => Err(e),
+                };
+            }
+        }
+
+        // If we get here, the variable wasn't found in any scope
+        Err(VeldError::RuntimeError(format!(
+            "Cannot assign to undefined variable '{}'",
+            name
+        )))
+    }
+
+    fn execute_variable_declaration(
+        &mut self,
+        name: String,
+        var_kind: VarKind,
+        type_annotation: Option<TypeAnnotation>,
+        value: Box<Expr>,
+    ) -> Result<Value> {
+        let evaluated_value = self.evaluate_expression(*value)?.unwrap_return();
+
+        // For const declarations, ensure the value is compile-time evaluable
+        if matches!(var_kind, VarKind::Const) {
+            if !self.is_compile_time_constant(&evaluated_value) {
+                return Err(VeldError::RuntimeError(
+                    "Const declarations must have compile-time constant values".to_string(),
+                ));
+            }
+
+            // Constants can only be declared at module level
+            if self.scopes.len() > 1 {
+                return Err(VeldError::RuntimeError(
+                    "Constants can only be declared at module level".to_string(),
+                ));
+            }
+        }
+
+        // Type checking with annotations
+        if let Some(type_anno) = type_annotation {
+            let expected_type = self.type_checker.env.from_annotation(&type_anno, None)?;
+            self.validate_value_type(&evaluated_value, &expected_type)?;
+        }
+
+        // Store variable with kind information
+        self.current_scope_mut()
+            .declare(name.clone(), evaluated_value.clone(), var_kind)?;
+
+        Ok(evaluated_value)
+    }
+
+    fn value_to_literal(&self, value: Value) -> Result<Literal> {
+        match value {
+            Value::Numeric(NumericValue::Integer(IntegerValue::I64(n))) => Ok(Literal::Integer(n)),
+            Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => Ok(Literal::Float(f)),
+            Value::Integer(n) => Ok(Literal::Integer(n)),
+            Value::Float(f) => Ok(Literal::Float(f)),
+            Value::String(s) => Ok(Literal::String(s)),
+            Value::Boolean(b) => Ok(Literal::Boolean(b)),
+            Value::Char(c) => Ok(Literal::Char(c)),
+            Value::Unit => Ok(Literal::Unit),
+            _ => Err(VeldError::RuntimeError(
+                "Cannot convert value to literal".into(),
+            )),
+        }
+    }
+
+    fn is_compile_time_constant(&self, value: &Value) -> bool {
+        match value {
+            Value::Numeric(_)
+            | Value::Integer(_)
+            | Value::Float(_)
+            | Value::String(_)
+            | Value::Boolean(_)
+            | Value::Char(_)
+            | Value::Unit => true,
+            Value::Array(elements) => elements.iter().all(|e| self.is_compile_time_constant(e)),
+            Value::Tuple(elements) => elements.iter().all(|e| self.is_compile_time_constant(e)),
+            _ => false,
+        }
+    }
+
+    fn validate_value_type(&self, value: &Value, expected_type: &Type) -> Result<()> {
+        let value_type = self.get_value_type(value);
+
+        if !self.types_compatible(&value_type, expected_type) {
+            return Err(VeldError::RuntimeError(format!(
+                "Type mismatch: expected {}, got {}",
+                expected_type, value_type
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn get_value_type(&self, value: &Value) -> Type {
+        match value {
+            Value::Numeric(nv) => nv.clone().type_of(),
+            Value::Integer(_) => Type::I64,
+            Value::Float(_) => Type::F64,
+            Value::String(_) => Type::String,
+            Value::Boolean(_) => Type::Bool,
+            Value::Char(_) => Type::Char,
+            Value::Unit => Type::Unit,
+            Value::Array(elements) => {
+                if elements.is_empty() {
+                    Type::Array(Box::new(Type::Any))
+                } else {
+                    let elem_type = self.get_value_type(&elements[0]);
+                    Type::Array(Box::new(elem_type))
+                }
+            }
+            Value::Tuple(elements) => {
+                let elem_types = elements.iter().map(|e| self.get_value_type(e)).collect();
+                Type::Tuple(elem_types)
+            }
+            Value::Function {
+                params,
+                return_type,
+                ..
+            } => {
+                let param_types = params
+                    .iter()
+                    .map(|(_, type_anno)| {
+                        // Convert TypeAnnotation to Type - simplified for now
+                        match type_anno {
+                            TypeAnnotation::Basic(name) => match name.as_str() {
+                                "i32" => Type::I32,
+                                "f64" => Type::F64,
+                                "str" => Type::String,
+                                "bool" => Type::Bool,
+                                _ => Type::Any,
+                            },
+                            TypeAnnotation::Unit => Type::Unit,
+                            _ => Type::Any,
+                        }
+                    })
+                    .collect();
+
+                let ret_type = match return_type {
+                    TypeAnnotation::Basic(name) => match name.as_str() {
+                        "i32" => Type::I32,
+                        "f64" => Type::F64,
+                        "str" => Type::String,
+                        "bool" => Type::Bool,
+                        _ => Type::Any,
+                    },
+                    TypeAnnotation::Unit => Type::Unit,
+                    _ => Type::Any,
+                };
+
+                Type::Function {
+                    params: param_types,
+                    return_type: Box::new(ret_type),
+                }
+            }
+            _ => Type::Any,
+        }
+    }
+
+    fn types_compatible(&self, actual: &Type, expected: &Type) -> bool {
+        // Implement your type compatibility rules
+        actual == expected
+            || matches!(expected, Type::Any)
+            || (self.is_numeric_type_compat(actual) && self.is_numeric_type_compat(expected))
+    }
+
+    fn is_numeric_type_compat(&self, ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::I8
+                | Type::I16
+                | Type::I32
+                | Type::I64
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::F32
+                | Type::F64
+        )
     }
 
     fn pattern_matches(
@@ -697,11 +887,64 @@ impl Interpreter {
         }
     }
 
+    fn cast_val_to_num(&self, value: Value, target_type: &TypeAnnotation) -> Result<Value> {
+        let numeric_value = match value {
+            Value::Numeric(nv) => nv,
+            Value::Integer(i) => NumericValue::Integer(IntegerValue::I64(i)),
+            Value::Float(f) => NumericValue::Float(FloatValue::F64(f)),
+            _ => {
+                return Err(VeldError::RuntimeError(format!(
+                    "Cannot cast value {:?} to numeric type {:?}",
+                    value, target_type
+                )));
+            }
+        };
+
+        let result = match target_type {
+            TypeAnnotation::Basic(type_name) => match type_name.as_str() {
+                "i8" => numeric_value.to_i8()?,
+                "i16" => numeric_value.to_i16()?,
+                "i32" => numeric_value.to_i32()?,
+                "i64" => numeric_value.to_i64()?,
+                "u8" => numeric_value.to_u8()?,
+                "u16" => numeric_value.to_u16()?,
+                "u32" => numeric_value.to_u32()?,
+                "u64" => numeric_value.to_u64()?,
+                "f32" => numeric_value.to_f32()?,
+                "f64" => numeric_value.to_f64()?,
+                _ => {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Invalid cast to target type '{}'",
+                        type_name
+                    )));
+                }
+            },
+            _ => {
+                return Err(VeldError::RuntimeError(format!(
+                    "Cannot cast to target type {:?}",
+                    target_type
+                )));
+            }
+        };
+        Ok(Value::Numeric(result))
+    }
+
     fn evaluate_expression(&mut self, expr: Expr) -> Result<Value> {
         match expr {
             Expr::Literal(lit) => Ok(match lit {
-                Literal::Integer(n) => Value::Integer(n),
-                Literal::Float(n) => Value::Float(n),
+                Literal::Integer(n) => {
+                    // Default to i32, but this could be context-sensitive in the future
+                    let int_val = if n >= i32::MIN as i64 && n <= i32::MAX as i64 {
+                        IntegerValue::I32(n as i32)
+                    } else {
+                        IntegerValue::I64(n)
+                    };
+                    Value::Numeric(NumericValue::Integer(int_val))
+                }
+                Literal::Float(n) => {
+                    // Default to f64, but could be context-sensitive in the future
+                    Value::Float(n)
+                }
                 Literal::String(s) => Value::String(s),
                 Literal::Boolean(b) => Value::Boolean(b),
                 Literal::Char(c) => Value::Char(c),
@@ -992,7 +1235,6 @@ impl Interpreter {
                 }
             }
             Expr::MacroExpr { name, arguments } => todo!(),
-            Expr::TypeCast { expr, target_type } => todo!(),
         }
     }
 
@@ -1753,6 +1995,116 @@ impl Interpreter {
             _ => true,
         }
     }
+
+    fn to_numeric_value(&self, value: Value) -> Result<Option<NumericValue>> {
+        match value {
+            Value::Numeric(nv) => Ok(Some(nv)),
+            Value::Integer(i) => Ok(Some(NumericValue::Integer(IntegerValue::I64(i)))),
+            Value::Float(f) => Ok(Some(NumericValue::Float(FloatValue::F64(f)))),
+            _ => Ok(None),
+        }
+    }
+
+    fn from_numeric_option(&self, numeric_opt: Option<NumericValue>) -> Value {
+        match numeric_opt {
+            Some(nv) => Value::Numeric(nv),
+            None => Value::Unit, // This should not happen in normal execution
+        }
+    }
+
+    fn compare_numeric_values(
+        &self,
+        a: &NumericValue,
+        b: &NumericValue,
+        op: &BinaryOperator,
+    ) -> Result<bool> {
+        let a_f64 = a.clone().as_f64();
+        let b_f64 = b.clone().as_f64();
+
+        Ok(match op {
+            BinaryOperator::Less => a_f64 < b_f64,
+            BinaryOperator::Greater => a_f64 > b_f64,
+            BinaryOperator::LessEq => a_f64 <= b_f64,
+            BinaryOperator::GreaterEq => a_f64 >= b_f64,
+            BinaryOperator::EqualEqual => a_f64 == b_f64,
+            BinaryOperator::NotEqual => a_f64 != b_f64,
+            _ => {
+                return Err(VeldError::RuntimeError(
+                    "Invalid comparison operator".into(),
+                ));
+            }
+        })
+    }
+
+    fn numeric_values_equal(&self, a: &NumericValue, b: &NumericValue) -> bool {
+        a.clone().as_f64() == b.clone().as_f64()
+    }
+
+    fn values_equal(&self, a: &Value, b: &Value) -> bool {
+        match (a, b) {
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Char(a), Value::Char(b)) => a == b,
+            (Value::Unit, Value::Unit) => true,
+            _ => false,
+        }
+    }
+
+    fn evaluate_non_numeric_binary_op(
+        &self,
+        left: Option<NumericValue>,
+        right: Option<NumericValue>,
+        operator: BinaryOperator,
+    ) -> Result<Value> {
+        // Handle string concatenation and other non-numeric operations
+        let left_val = self.from_numeric_option(left);
+        let right_val = self.from_numeric_option(right);
+
+        match (left_val, right_val) {
+            (Value::String(a), Value::String(b)) => {
+                let result = match operator {
+                    BinaryOperator::Less => a < b,
+                    BinaryOperator::LessEq => a <= b,
+                    BinaryOperator::Greater => a > b,
+                    BinaryOperator::GreaterEq => a >= b,
+                    BinaryOperator::EqualEqual => a == b,
+                    BinaryOperator::NotEqual => a != b,
+                    _ => return Err(VeldError::RuntimeError("Invalid string comparison".into())),
+                };
+                Ok(Value::Boolean(result))
+            }
+            _ => Err(VeldError::RuntimeError(
+                "Invalid non-numeric binary operation".into(),
+            )),
+        }
+    }
+
+    fn evaluate_non_numeric_comparison(
+        &self,
+        left: Option<NumericValue>,
+        right: Option<NumericValue>,
+        operator: BinaryOperator,
+    ) -> Result<Value> {
+        let left_val = self.from_numeric_option(left);
+        let right_val = self.from_numeric_option(right);
+
+        match (left_val, right_val) {
+            (Value::String(a), Value::String(b)) => {
+                let result = match operator {
+                    BinaryOperator::Less => a < b,
+                    BinaryOperator::LessEq => a <= b,
+                    BinaryOperator::Greater => a > b,
+                    BinaryOperator::GreaterEq => a >= b,
+                    _ => return Err(VeldError::RuntimeError("Invalid string comparison".into())),
+                };
+                Ok(Value::Boolean(result))
+            }
+            _ => Err(VeldError::RuntimeError(
+                "Cannot compare non-numeric, non-string values".into(),
+            )),
+        }
+    }
+
     fn evaluate_binary_op(
         &mut self,
         left: Value,
@@ -1763,136 +2115,68 @@ impl Interpreter {
             return Ok(result);
         }
 
-        match (left, operator, right) {
-            (Value::Float(a), BinaryOperator::Exponent, Value::Float(b)) => {
-                Ok(Value::Float(a.powf(b)))
-            }
-            (Value::Integer(a), BinaryOperator::Exponent, Value::Integer(b)) => {
-                // Handle integer exponentiation
-                if b >= 0 {
-                    Ok(Value::Integer(a.pow(b as u32)))
-                } else {
-                    // Negative exponent requires floating point
-                    Ok(Value::Float((a as f64).powf(b as f64)))
+        let left_numeric = self.to_numeric_value(left)?;
+        let right_numeric = self.to_numeric_value(right)?;
+
+        match operator {
+            BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::Exponent => match (&left_numeric, &right_numeric) {
+                (Some(a), Some(b)) => {
+                    let result = a.perform_operation(&operator, b)?;
+                    Ok(Value::Numeric(result))
                 }
-            }
-            // Arithmetic
-            (Value::Integer(a), BinaryOperator::Add, Value::Integer(b)) => {
-                Ok(Value::Integer(a + b))
-            }
-            (Value::Integer(a), BinaryOperator::Subtract, Value::Integer(b)) => {
-                Ok(Value::Integer(a - b))
-            }
-            (Value::Integer(a), BinaryOperator::Multiply, Value::Integer(b)) => {
-                Ok(Value::Integer(a * b))
-            }
-            (Value::Integer(a), BinaryOperator::Divide, Value::Integer(b)) => {
-                if b == 0 {
-                    Err(VeldError::RuntimeError("Division by zero".to_string()))
-                } else {
-                    Ok(Value::Integer(a / b))
+                _ => self.evaluate_non_numeric_binary_op(left_numeric, right_numeric, operator),
+            },
+
+            // Comparison operators
+            BinaryOperator::LessEq
+            | BinaryOperator::GreaterEq
+            | BinaryOperator::Less
+            | BinaryOperator::Greater => match (&left_numeric, &right_numeric) {
+                (Some(a), Some(b)) => {
+                    let result = self.compare_numeric_values(a, b, &operator)?;
+                    Ok(Value::Boolean(result))
                 }
-            }
-            // Comparison
-            (Value::Integer(a), BinaryOperator::LessEq, Value::Integer(b)) => {
-                Ok(Value::Boolean(a <= b))
-            }
-            (Value::Integer(a), BinaryOperator::GreaterEq, Value::Integer(b)) => {
-                Ok(Value::Boolean(a >= b))
-            }
-            (Value::Integer(a), BinaryOperator::Less, Value::Integer(b)) => {
-                Ok(Value::Boolean(a < b))
-            }
-            (Value::Integer(a), BinaryOperator::Greater, Value::Integer(b)) => {
-                Ok(Value::Boolean(a > b))
-            }
-            (Value::Integer(a), BinaryOperator::EqualEqual, Value::Integer(b)) => {
-                Ok(Value::Boolean(a == b))
-            }
-            (Value::Integer(a), BinaryOperator::NotEqual, Value::Integer(b)) => {
-                Ok(Value::Boolean(a != b))
-            }
-            // Boolean logic
-            (Value::Boolean(a), BinaryOperator::And, Value::Boolean(b)) => {
-                Ok(Value::Boolean(a && b))
-            }
-            (Value::Boolean(a), BinaryOperator::Or, Value::Boolean(b)) => {
-                Ok(Value::Boolean(a || b))
+                _ => self.evaluate_non_numeric_binary_op(left_numeric, right_numeric, operator),
+            },
+
+            // Equality operators
+            BinaryOperator::EqualEqual | BinaryOperator::NotEqual => {
+                let is_equal = match (&left_numeric, &right_numeric) {
+                    (Some(a), Some(b)) => self.numeric_values_equal(a, b),
+                    _ => self.values_equal(
+                        &self.from_numeric_option(left_numeric),
+                        &self.from_numeric_option(right_numeric),
+                    ),
+                };
+
+                let result = match operator {
+                    BinaryOperator::EqualEqual => is_equal,
+                    BinaryOperator::NotEqual => !is_equal,
+                    _ => unreachable!(),
+                };
+                Ok(Value::Boolean(result))
             }
 
-            (Value::Float(a), BinaryOperator::Add, Value::Float(b)) => Ok(Value::Float(a + b)),
-            (Value::Float(a), BinaryOperator::Subtract, Value::Float(b)) => Ok(Value::Float(a - b)),
-            (Value::Float(a), BinaryOperator::Multiply, Value::Float(b)) => Ok(Value::Float(a * b)),
-            (Value::Float(a), BinaryOperator::Divide, Value::Float(b)) => {
-                if b == 0.0 {
-                    Err(VeldError::RuntimeError("Division by zero".to_string()))
-                } else {
-                    Ok(Value::Float(a / b))
-                }
-            }
-            // Also add comparisons for floats
-            (Value::Float(a), BinaryOperator::LessEq, Value::Float(b)) => {
-                Ok(Value::Boolean(a <= b))
-            }
+            // Logical operators
+            BinaryOperator::And | BinaryOperator::Or => {
+                let left_val = self.from_numeric_option(left_numeric);
+                let right_val = self.from_numeric_option(right_numeric);
 
-            (Value::Integer(a), BinaryOperator::Add, Value::Float(b)) => {
-                Ok(Value::Float(a as f64 + b))
-            }
-            (Value::Float(a), BinaryOperator::Add, Value::Integer(b)) => {
-                Ok(Value::Float(a + b as f64))
-            }
-            (Value::Integer(a), BinaryOperator::Modulo, Value::Integer(b)) => {
-                if b == 0 {
-                    Err(VeldError::RuntimeError("Modulo by zero".to_string()))
-                } else {
-                    Ok(Value::Integer(a % b))
+                match operator {
+                    BinaryOperator::And => Ok(Value::Boolean(
+                        self.is_truthy(left_val) && self.is_truthy(right_val),
+                    )),
+                    BinaryOperator::Or => Ok(Value::Boolean(
+                        self.is_truthy(left_val) || self.is_truthy(right_val),
+                    )),
+                    _ => unreachable!(),
                 }
             }
-
-            // Float modulo (remainder operation)
-            (Value::Float(a), BinaryOperator::Modulo, Value::Float(b)) => {
-                if b == 0.0 {
-                    Err(VeldError::RuntimeError("Modulo by zero".to_string()))
-                } else {
-                    Ok(Value::Float(a % b))
-                }
-            }
-
-            // Mixed types - convert integer to float
-            (Value::Integer(a), BinaryOperator::Modulo, Value::Float(b)) => {
-                if b == 0.0 {
-                    Err(VeldError::RuntimeError("Modulo by zero".to_string()))
-                } else {
-                    Ok(Value::Float((a as f64) % b))
-                }
-            }
-
-            (Value::Float(a), BinaryOperator::Modulo, Value::Integer(b)) => {
-                if b == 0 {
-                    Err(VeldError::RuntimeError("Modulo by zero".to_string()))
-                } else {
-                    Ok(Value::Float(a % (b as f64)))
-                }
-            }
-            // String operations
-            (Value::String(a), BinaryOperator::Add, Value::String(b)) => Ok(Value::String(a + &b)),
-            (Value::String(a), BinaryOperator::EqualEqual, Value::String(b)) => {
-                Ok(Value::Boolean(a == b))
-            }
-            (Value::String(a), BinaryOperator::NotEqual, Value::String(b)) => {
-                Ok(Value::Boolean(a != b))
-            }
-            (Value::String(a), BinaryOperator::Less, Value::String(b)) => Ok(Value::Boolean(a < b)),
-            (Value::String(a), BinaryOperator::Greater, Value::String(b)) => {
-                Ok(Value::Boolean(a > b))
-            }
-            (Value::String(a), BinaryOperator::LessEq, Value::String(b)) => {
-                Ok(Value::Boolean(a <= b))
-            }
-            (Value::String(a), BinaryOperator::GreaterEq, Value::String(b)) => {
-                Ok(Value::Boolean(a >= b))
-            }
-            _ => Err(VeldError::RuntimeError("Invalid operation".to_string())),
         }
     }
 

@@ -1,0 +1,272 @@
+-- Test file for numeric types and variable declaration refinements
+-- This tests features 1 and 2 before moving to function syntax expansion
+
+-- =============================================================================
+-- TEST 1: DIVERSE NUMERIC TYPES
+-- =============================================================================
+
+-- Test basic numeric type inference
+let small_int = 42          -- Should infer to i32
+let big_int = 9223372036854775807  -- Should infer to i64
+let small_float = 3.14      -- Should infer to f64
+let tiny_float = 1.5        -- Should infer to f32 if in range
+
+-- Test explicit numeric type annotations
+let explicit_i8: i8 = 127
+let explicit_i16: i16 = 32767
+let explicit_i32: i32 = 2147483647
+let explicit_i64: i64 = 9223372036854775807
+
+let explicit_u8: u8 = 255
+let explicit_u16: u16 = 65535
+let explicit_u32: u32 = 4294967295
+let explicit_u64: u64 = 18446744073709551615
+
+let explicit_f32: f32 = 3.14159
+let explicit_f64: f64 = 2.718281828459045
+
+-- Test numeric operations with type promotion
+let mixed_add = explicit_i32 + explicit_i64  -- Should promote to i64
+let mixed_float = explicit_i32 + explicit_f64  -- Should promote to f64
+let same_type = explicit_i32 + 100  -- Should stay i32
+
+-- Test type casting
+let cast_to_f64 = explicit_i32 as f64
+let cast_to_i16 = explicit_i32 as i16
+let cast_to_u32 = explicit_i64 as u32
+
+-- Test numeric method calls (if Number kind is implemented)
+-- let is_int = explicit_f32.is_integer()
+-- let is_float = explicit_i32.is_float()
+
+-- =============================================================================
+-- TEST 2: VARIABLE DECLARATION KEYWORDS
+-- =============================================================================
+
+-- Test let (immutable by default)
+let immutable_var = 42
+-- immutable_var = 43  -- This should cause an error
+
+-- Test var (mutable)
+var mutable_var = 42
+mutable_var = 43  -- This should work
+
+-- Test let mut (explicitly mutable let)
+let mut mutable_let = 42
+mutable_let = 43  -- This should work
+
+-- Test const (compile-time constant, non-redefinable)
+const CONSTANT_VALUE = 100
+const CONSTANT_STRING = "Hello, World!"
+const CONSTANT_CALCULATION = 10 + 20 * 2  -- Should evaluate at compile time
+-- CONSTANT_VALUE = 101  -- This should cause an error
+
+-- Test shadowing with let
+let shadow_test = 10
+let shadow_test = "now a string"  -- This should work (shadowing)
+
+-- Test type annotations with different variable kinds
+let typed_let: i32 = 42
+var typed_var: f64 = 3.14
+let mut typed_mut: str = "mutable string"
+const TYPED_CONST: i64 = 1000
+
+-- =============================================================================
+-- TEST 3: COMPOUND ASSIGNMENT OPERATIONS
+-- =============================================================================
+
+var compound_test = 10
+compound_test += 5   -- Should be 15
+compound_test -= 3   -- Should be 12
+compound_test *= 2   -- Should be 24
+compound_test /= 4   -- Should be 6
+compound_test %= 4   -- Should be 2
+
+var float_compound: f64 = 10.0
+float_compound += 2.5
+float_compound *= 1.5
+
+-- =============================================================================
+-- TEST 4: NUMERIC OPERATIONS AND TYPE COERCION
+-- =============================================================================
+
+-- Test arithmetic operations
+let add_result = 10 + 20
+let sub_result = 50 - 15
+let mul_result = 6 * 7
+let div_result = 84 / 12
+let mod_result = 17 % 5
+let exp_result = 2 * 3  -- Exponentiation (if implemented with ^ or **)
+
+-- Test comparison operations
+let less_than = 5 < 10
+let greater_than = 15 > 10
+let less_equal = 5 <= 5
+let greater_equal = 10 >= 10
+let equal = 42 == 42
+let not_equal = 42 != 43
+
+-- Test logical operations
+let and_result = true and false
+let or_result = true or false
+
+-- Test mixed type operations
+let int_float_add = 10 + 3.14
+let promotion_test = explicit_i16 + explicit_i32
+
+-- =============================================================================
+-- TEST 5: ARRAY OPERATIONS WITH NUMERIC TYPES
+-- =============================================================================
+
+let int_array = [1, 2, 3, 4, 5]
+let float_array = [1.1, 2.2, 3.3, 4.4, 5.5]
+let mixed_array = [1, 2.5, 3, 4.7]  -- Should promote to common type
+
+-- Test array methods
+let array_length = int_array.len()
+let first_element = int_array.first()
+let last_element = int_array.last()
+
+-- Test array operations with numeric types
+let doubled = int_array.map(x => x * 2)
+let filtered = int_array.filter(x => x > 2)
+
+-- =============================================================================
+-- TEST 6: FUNCTION CALLS WITH NUMERIC TYPES
+-- =============================================================================
+
+fn add_numbers(a: i32, b: i32) -> i32
+    a + b
+end
+
+fn add_floats(a: f64, b: f64) -> f64
+    a + b
+end
+
+fn generic_add(a, b)  -- Type inference
+    a + b
+end
+
+-- Test function calls
+let sum_ints = add_numbers(10, 20)
+let sum_floats = add_floats(1.5, 2.5)
+let inferred_sum = generic_add(5, 7)
+let mixed_sum = generic_add(5, 7.5)
+
+-- =============================================================================
+-- TEST 7: CONTROL FLOW WITH NUMERIC TYPES
+-- =============================================================================
+
+-- Test if statements with numeric conditions
+let test_value = 42
+
+if test_value > 40 then
+    let in_if_scope = "greater than 40"
+end
+
+if test_value == 42 then
+    let exact_match = true
+else
+    let not_exact = false
+end
+
+-- Test while loop with numeric counter
+var counter = 0
+while counter < 5
+    counter += 1
+end
+
+-- Test for loop with numeric range (if implemented)
+for i in 0..5
+    let loop_var = i * 2
+end
+
+-- Test for loop with array
+for num in int_array
+    let processed = num + 1
+end
+
+-- =============================================================================
+-- TEST 8: STRUCT CREATION WITH NUMERIC TYPES
+-- =============================================================================
+
+struct Point
+    x: f64,
+    y: f64,
+end
+
+struct Rectangle
+    width: i32,
+    height: i32,
+impl
+    fn area(self) -> i32
+        self.width * self.height
+    end
+end
+
+let point = Point(x: 10.5, y: 20.7)
+let rect = Rectangle(width: 10, height: 5)
+let rect_area = rect.area()
+
+-- =============================================================================
+-- TEST 9: ERROR CASES (These should fail appropriately)
+-- =============================================================================
+
+-- These should cause compilation/runtime errors:
+
+-- Assigning to immutable variable
+-- let immutable = 10
+-- immutable = 20  -- ERROR
+
+-- Reassigning const
+-- const VALUE = 10
+-- VALUE = 20  -- ERROR
+
+-- Type mismatch with explicit annotation
+-- let wrong_type: i32 = "string"  -- ERROR
+
+-- Out of range cast
+-- let overflow: i8 = 300  -- ERROR
+
+-- Using undefined variable
+-- let undefined_ref = some_undefined_var  -- ERROR
+
+-- =============================================================================
+-- TEST 10: SCOPE AND SHADOWING TESTS
+-- =============================================================================
+
+let scope_test = 10
+
+if true then
+    let scope_test = "shadowed in if"  -- Should work
+    var inner_var = 42
+end
+
+-- scope_test should still be 10 here
+-- inner_var should not be accessible here
+
+var outer_mut = 100
+if true then
+    outer_mut = 200  -- Should work (accessing outer scope)
+    let outer_mut = "shadowed"  -- Should work (new variable)
+end
+-- outer_mut should be 200 here
+
+-- =============================================================================
+-- EXPECTED RESULTS SUMMARY
+-- =============================================================================
+
+-- Print some results to verify correct execution
+-- (Assuming you have a print function implemented)
+
+-- println("small_int: ", small_int)
+-- println("explicit_i8: ", explicit_i8)
+-- println("mutable_var after assignment: ", mutable_var)
+-- println("CONSTANT_VALUE: ", CONSTANT_VALUE)
+-- println("compound_test final value: ", compound_test)
+-- println("add_result: ", add_result)
+-- println("sum_ints: ", sum_ints)
+-- println("rect_area: ", rect_area)
+-- println("array_length: ", array_length)
+-- println("scope_test final: ", scope_test)
+-- println("outer_mut final: ", outer_mut)
