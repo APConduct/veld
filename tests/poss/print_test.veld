@@ -27,26 +27,25 @@ fn test_basic_printing()
 end
 
 -- Custom struct that implements Display via structural typing
-struct Point
-    x: f64,
-    y: f64,
+pub struct Point
+    pub x: f64,
+    pub y: f64,
 
     -- This automatically makes Point conform to Display kind
-    fn to_string(self) -> str => format~("Point({}, {})", self.x, self.y)
+    pub fn to_string(self) -> str => format~("Point({}, {})", self.x, self.y)
 end
 
 -- Another custom struct with different Display format
-struct User
-    name: str,
-    age: i32,
-    email: str,
+pub struct User
+    pub name: str,
+    pub age: i32,
+    pub email: str,
 
-    fn to_string(self) -> str => format~("{} <{}> (age: {})", self.name, self.email, self.age)
+    pub fn to_string(self) -> str => format~("{} <{}> (age: {})", self.name, self.email, self.age)
 end
 
-
 -- Custom struct that doesn't implement Display (should cause error if printed)
-struct Private
+struct Private  -- Not pub - internal to this module
     secret: str,
     -- No to_string method - should not be printable
 end
@@ -102,7 +101,6 @@ fn custom_println<T: Display>(value: T) -> ()
     std.prelude.print(" LOG: ")
     std.prelude.println(value)
 end
-
 
 -- Mock function for timestamp (since we don't have real time yet)
 fn get_current_time() -> str => "2024-01-01 12:00:00"
@@ -183,6 +181,26 @@ fn test_performance()
     println("Performance test complete")
 end
 
+-- Test mixed visibility scenarios
+fn test_visibility_scenarios()
+    println("=== Visibility Scenario Tests ===")
+
+    -- Public struct with public methods
+    let point = Point(x: 10.0, y: 20.0)
+    println(point.to_string())    -- Direct method call
+    println(point)                -- Via Display kind
+
+    -- Accessing public fields
+    println(format~("X coordinate: {}", point.x))
+    println(format~("Y coordinate: {}", point.y))
+
+    -- Private struct (only usable within this module)
+    let private = Private(secret: "confidential")
+    -- println(private)  -- Would fail - no Display implementation
+
+    println("Visibility scenarios work!")
+end
+
 -- Main test runner
 fn main()
     println("Starting Veld Print System Tests")
@@ -196,6 +214,7 @@ fn main()
     test_error_cases()
     test_file_output()
     test_performance()
+    test_visibility_scenarios()
 
     println("================================")
     println("All tests completed!")
