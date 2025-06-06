@@ -1,4 +1,3 @@
-use std::env::VarError;
 
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,

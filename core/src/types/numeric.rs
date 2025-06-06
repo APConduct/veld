@@ -1,10 +1,7 @@
-use crate::ast::BinaryOperator;
-use crate::error::{Result, VeldError};
-use crate::interpreter::Value;
+use crate::error::Result;
 use crate::types::Type;
 use crate::types::TypeEnvironment;
 use std::collections::HashMap;
-use std::fmt;
 
 pub struct NumericKinds;
 

@@ -6,7 +6,6 @@ use crate::error::{Result, VeldError};
 use crate::interpreter::Value;
 use crate::types::Type::TypeVar;
 use std::collections::{HashMap, HashSet};
-use std::env::consts::OS;
 use std::fmt::{self, Formatter};
 
 pub const U8_MAX: u8 = 255;
@@ -1155,7 +1154,7 @@ impl TypeEnvironment {
                 }
                 true
             }
-            Type::Enum { name, .. } => todo!("Handle enum implementations"),
+            Type::Enum {  .. } => todo!("Handle enum implementations"),
             // TODO: Handle other types
             _ => false,
         }

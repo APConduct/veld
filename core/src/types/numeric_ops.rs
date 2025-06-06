@@ -1,6 +1,5 @@
 use crate::ast::BinaryOperator;
 use crate::error::{Result, VeldError};
-use crate::interpreter::Value;
 use crate::types::numeric::{FloatValue, IntegerValue, NumericValue};
 
 impl NumericValue {
