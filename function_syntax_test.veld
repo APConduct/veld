@@ -1,0 +1,158 @@
+-- Test all supported function and lambda syntax forms
+-- (No IO functions used - just pure computation and assignment)
+
+-- 1. Traditional function syntax
+fn traditional_func(x: i32) -> i32
+    x + 1
+end
+
+-- 2. Function with fat arrow (single expression)
+fn arrow_func(x: i32) -> i32 => x + 2
+
+-- 3. Function with fat arrow and do block
+fn arrow_block_func(x: i32) -> i32 => do
+    let temp = x + 3
+    temp * 2
+end
+
+-- 4. Function with inferred return type
+fn inferred_func(x: i32) => x + 4
+
+-- 5. Function with inferred return type and block
+fn inferred_block_func(x: i32) => do
+    let temp = x + 5
+    temp * 3
+end
+
+-- 6. Procedure declaration (traditional) - returns unit
+proc traditional_proc(value: i32)
+    let temp = value + 100
+end
+
+-- 7. Procedure with fat arrow - returns unit
+proc arrow_proc(value: i32) => do
+    let temp = value + 200
+end
+
+-- 8. Lambda expressions (single parameter)
+let single_param_lambda = x => x + 10
+
+-- 9. Lambda with parentheses (multiple parameters)
+let multi_param_lambda = (x, y) => x + y + 20
+
+-- 10. Lambda with no parameters
+let no_param_lambda = () => 42
+
+-- 11. Lambda with fn keyword
+let fn_lambda = fn(x: i32) -> i32 => x + 30
+
+-- 12. Lambda with fn keyword and type inference
+let fn_inferred_lambda = fn(x) => x + 40
+
+-- 13. Block lambda (fat arrow with do)
+let block_lambda = x => do
+    let temp = x + 50
+    temp * 2
+end
+
+-- 14. Block lambda with multiple parameters
+let multi_block_lambda = (x, y) => do
+    let sum = x + y
+    sum + 60
+end
+
+-- 15. Block lambda with no parameters
+let no_param_block_lambda = () => do
+    let value = 70
+    value + 10
+end
+
+-- 16. Fn block lambda (fn keyword with block)
+let fn_block_lambda = fn(x: i32) -> i32 => do
+    let temp = x + 80
+    temp * 3
+end
+
+-- 17. Fn block lambda with type inference
+let fn_inferred_block_lambda = fn(x) => do
+    let temp = x + 90
+    temp * 4
+end
+
+-- Test block scopes with variable shadowing
+let outer_var = 1000
+do
+    let scoped_var = 100
+    let outer_var = 2000  -- shadows outer variable
+
+    do
+        let nested_var = 200
+        let result = nested_var + scoped_var + outer_var
+    end
+
+    -- nested_var not accessible here
+    let another_result = scoped_var + outer_var
+end
+-- scoped_var not accessible here, outer_var is back to 1000
+
+-- Test block scopes in control flow
+let control_result = if true then
+    do
+        let temp_calculation = 555
+        temp_calculation * 2
+    end
+else
+    999
+end
+
+-- Test all function calls and store results
+let result1 = traditional_func(1)        -- Should be 2
+let result2 = arrow_func(2)              -- Should be 4
+let result3 = arrow_block_func(3)        -- Should be 12 ((3+3)*2)
+let result4 = inferred_func(4)           -- Should be 8
+let result5 = inferred_block_func(5)     -- Should be 30 ((5+5)*3)
+
+-- Call procedures (they return unit)
+traditional_proc(10)
+arrow_proc(20)
+
+-- Test lambda calls
+let result6 = single_param_lambda(6)     -- Should be 16
+let result7 = multi_param_lambda(7, 8)   -- Should be 35 (7+8+20)
+let result8 = no_param_lambda()          -- Should be 42
+let result9 = fn_lambda(9)               -- Should be 39
+let result10 = fn_inferred_lambda(10)    -- Should be 50
+let result11 = block_lambda(11)          -- Should be 122 ((11+50)*2)
+let result12 = multi_block_lambda(12, 13) -- Should be 85 (12+13+60)
+let result13 = no_param_block_lambda()   -- Should be 80 (70+10)
+let result14 = fn_block_lambda(14)       -- Should be 282 ((14+80)*3)
+let result15 = fn_inferred_block_lambda(15) -- Should be 420 ((15+90)*4)
+
+-- Test nested function calls
+let nested_result = traditional_func(arrow_func(5))  -- Should be 8 (arrow_func(5)=7, traditional_func(7)=8)
+
+-- Test lambda composition
+let compose_result = single_param_lambda(multi_param_lambda(1, 2))  -- Should be 33 (multi_param_lambda(1,2)=23, single_param_lambda(23)=33)
+
+-- Test higher-order functions (functions that take functions as parameters)
+fn apply_twice(f: fn(i32) -> i32, x: i32) -> i32 => f(f(x))
+
+let higher_order_result = apply_twice(traditional_func, 5)  -- Should be 7 (traditional_func applied twice: 5->6->7)
+
+-- Test functions returning functions (closures would be more complex, but this works)
+fn make_adder(n: i32) -> fn(i32) -> i32 => fn(x) => x + n
+
+let add_five = make_adder(5)
+let closure_result = add_five(10)  -- Should be 15
+
+-- Test recursive functions
+fn factorial(n: i32) -> i32 => if n <= 1 then 1 else n * factorial(n - 1) end
+
+let factorial_result = factorial(5)  -- Should be 120
+
+-- Test mutual recursion
+fn is_even(n: i32) -> bool => if n == 0 then true else is_odd(n - 1) end
+fn is_odd(n: i32) -> bool => if n == 0 then false else is_even(n - 1) end
+
+let even_test = is_even(4)  -- Should be true
+let odd_test = is_odd(7)    -- Should be true

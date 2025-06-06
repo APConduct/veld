@@ -395,16 +395,55 @@ impl Interpreter {
                 };
                 Ok(Value::Return(Box::new(val)))
             }
-            Statement::ProcDeclaration { name, params, body } => {
-                // Convert to a regular function with Unit return type
+            Statement::BlockScope { body } => {
+                println!("Executing block scope with {} statements", body.len());
+
+                // Create new scope for the block
+                self.push_scope();
+
+                let mut last_value = Value::Unit;
+                for stmt in body {
+                    let result = self.execute_statement(stmt)?;
+
+                    // Handle control flow - early returns should bubble up
+                    match result {
+                        Value::Return(_) => {
+                            self.pop_scope();
+                            return Ok(result);
+                        }
+                        Value::Break | Value::Continue => {
+                            self.pop_scope();
+                            return Ok(result);
+                        }
+                        _ => last_value = result,
+                    }
+                }
+
+                self.pop_scope();
+                Ok(last_value)
+            }
+            Statement::ProcDeclaration {
+                name,
+                params,
+                body,
+                is_public,
+            } => {
+                println!("Executing proc declaration: {}", name);
+
+                // Convert to a function with Unit return type
                 let function = Value::Function {
-                    params,
+                    params: params
+                        .into_iter()
+                        .map(|(name, type_anno)| (name, type_anno))
+                        .collect(),
                     body,
                     return_type: TypeAnnotation::Unit,
                 };
+
                 self.current_scope_mut().set(name, function);
                 Ok(Value::Unit)
             }
+
             Statement::StructDeclaration {
                 name,
                 fields,
@@ -931,6 +970,24 @@ impl Interpreter {
 
     fn evaluate_expression(&mut self, expr: Expr) -> Result<Value> {
         match expr {
+            Expr::BlockLambda {
+                params,
+                body,
+                return_type,
+            } => {
+                println!("Evaluating block lambda with {} statements", body.len());
+
+                let actual_return_type = return_type.unwrap_or(TypeAnnotation::Unit);
+
+                Ok(Value::Function {
+                    params: params
+                        .into_iter()
+                        .map(|(name, type_anno)| (name, type_anno.unwrap_or(TypeAnnotation::Unit)))
+                        .collect(),
+                    body,
+                    return_type: actual_return_type,
+                })
+            }
             Expr::Literal(lit) => Ok(match lit {
                 Literal::Integer(n) => {
                     // Default to i32, but this could be context-sensitive in the future

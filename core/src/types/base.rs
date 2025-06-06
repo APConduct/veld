@@ -1419,6 +1419,29 @@ impl TypeChecker {
                 }
                 Ok(())
             }
+            Statement::BlockScope { body } => {
+                println!("Type checking block scope");
+
+                self.env.push_scope();
+
+                for stmt in body {
+                    self.type_check_statement(stmt)?;
+                }
+
+                self.env.pop_scope();
+                Ok(())
+            }
+            Statement::ProcDeclaration {
+                name,
+                params,
+                body,
+                is_public,
+            } => {
+                println!("Type checking proc declaration: {}", name);
+
+                // Type check as a function returning unit
+                self.type_check_function(name, params, &TypeAnnotation::Unit, body)
+            }
             _ => Ok(()),
         }
     }
@@ -1704,8 +1727,86 @@ impl TypeChecker {
         Ok(())
     }
 
+    fn infer_block_return_type(&mut self, body: &[Statement]) -> Result<Type> {
+        if body.is_empty() {
+            return Ok(Type::Unit);
+        }
+
+        // Look for explicit returns first
+        for stmt in body {
+            if let Statement::Return(expr_opt) = stmt {
+                return if let Some(expr) = expr_opt {
+                    self.infer_expression_type(expr)
+                } else {
+                    Ok(Type::Unit)
+                };
+            }
+        }
+
+        // If no explicit return, check if last statement is an expression
+        if let Some(Statement::ExprStatement(expr)) = body.last() {
+            self.infer_expression_type(expr)
+        } else {
+            Ok(Type::Unit)
+        }
+    }
+
+    fn infer_block_lambda_type(
+        &mut self,
+        params: &[(String, Option<TypeAnnotation>)],
+        body: &[Statement],
+        return_type_anno: Option<&TypeAnnotation>,
+    ) -> Result<Type> {
+        self.env.push_scope();
+
+        let mut param_types = Vec::new();
+        for (name, type_anno) in params {
+            let param_type = if let Some(anno) = type_anno {
+                self.env.from_annotation(anno, None)?
+            } else {
+                self.env.fresh_type_var()
+            };
+            param_types.push(param_type.clone());
+            self.env.define(name, param_type);
+        }
+
+        // Infer return type from body
+        let body_type = if body.is_empty() {
+            Type::Unit
+        } else {
+            self.infer_block_return_type(body)?
+        };
+
+        let return_type = if let Some(anno) = return_type_anno {
+            let rt = self.env.from_annotation(anno, None)?;
+            self.env.add_constraint(body_type, rt.clone());
+            rt
+        } else {
+            body_type
+        };
+
+        self.env.pop_scope();
+        self.env.solve_constraints()?;
+
+        let final_return_type = self.env.apply_substitutions(&return_type);
+        let final_param_types = param_types
+            .iter()
+            .map(|t| self.env.apply_substitutions(t))
+            .collect();
+
+        Ok(Type::Function {
+            params: final_param_types,
+            return_type: Box::new(final_return_type),
+        })
+    }
+
     pub fn infer_expression_type(&mut self, expr: &Expr) -> Result<Type> {
         let result = match expr {
+            Expr::BlockLambda {
+                params,
+                body,
+                return_type,
+            } => self.infer_block_lambda_type(params, body, return_type.as_ref()),
             Expr::Literal(lit) => {
                 let ty = self.infer_literal_type(lit)?;
                 println!("Inferred literal type: {:?} for {:?}", ty, lit);

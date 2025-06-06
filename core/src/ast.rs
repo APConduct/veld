@@ -56,6 +56,11 @@ pub enum TypeAnnotation {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    BlockLambda {
+        params: Vec<(String, Option<TypeAnnotation>)>,
+        body: Vec<Statement>,
+        return_type: Option<TypeAnnotation>,
+    },
     Literal(Literal),
     Identifier(String),
     UnitLiteral, // Unit Literal: ()
@@ -219,20 +224,24 @@ pub enum Pattern {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
+    BlockScope {
+        body: Vec<Statement>,
+    },
+
     ExprStatement(Expr),
     FunctionDeclaration {
         name: String,
         params: Vec<(String, TypeAnnotation)>, // (name, type)
         return_type: TypeAnnotation,
         body: Vec<Statement>,
-        is_proc: bool,   // Mark as procedure (returns void/unit)
-        is_public: bool, // New field to track visibility
+        is_proc: bool, // Mark as procedure (returns void/unit)
+        is_public: bool,
     },
     ProcDeclaration {
         name: String,
         params: Vec<(String, TypeAnnotation)>,
-        // return_type: TypeAnnotation,
         body: Vec<Statement>,
+        is_public: bool,
     },
     VariableDeclaration {
         name: String,
