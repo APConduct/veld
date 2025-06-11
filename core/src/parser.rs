@@ -1,7 +1,7 @@
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
-    MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructMethod,
-    TypeAnnotation, VarKind,
+    MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
+    StructMethod, TypeAnnotation, VarKind,
 };
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
@@ -97,6 +97,14 @@ impl Parser {
                 self.proc_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Struct]) {
                 self.struct_declaration_with_visibility(true)
+            } else if self.match_token(&[Token::Kind]) {
+                self.kind_declaration_with_visibility(true)
+            } else if self.match_token(&[Token::Enum]) {
+                self.enum_declaration_with_visibility(true)
+            } else if self.match_token(&[Token::Mod]) {
+                self.module_declaration_with_visibility(true)
+            } else if self.match_token(&[Token::Import]) {
+                self.import_declaration_with_visibility(true)
             } else {
                 Err(VeldError::ParserError(
                     "Expected function, proc, or struct declaration after 'pub'".to_string(),
@@ -522,11 +530,12 @@ impl Parser {
             println!("Struct declaration: Parentheses style");
             if !self.check(&Token::RParen) {
                 loop {
+                    let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
                     println!("Struct declaration: Field name = {}", field_name);
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
-                    fields.push((field_name, field_type));
+                    fields.push((field_name, field_type, field_visibility));
 
                     if !self.match_token(&[Token::Comma]) {
                         break;
@@ -562,11 +571,12 @@ impl Parser {
                     break;
                 } else {
                     // Parse field
+                    let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
                     println!("Struct declaration: Field name = {}", field_name);
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
-                    fields.push((field_name, field_type));
+                    fields.push((field_name, field_type, field_visibility));
 
                     // Optional comma after field
                     self.match_token(&[Token::Comma]);
@@ -580,7 +590,14 @@ impl Parser {
         println!("Struct declaration: Completed");
         Ok(Statement::StructDeclaration {
             name,
-            fields,
+            fields: fields
+                .into_iter()
+                .map(|(name, ty, field_visibility)| StructField {
+                    name,
+                    type_annotation: ty,
+                    is_public: field_visibility,
+                })
+                .collect(),
             methods,
             is_public,
             generic_params,
@@ -703,11 +720,14 @@ impl Parser {
             println!("Struct declaration: Parentheses style");
             if !self.check(&Token::RParen) {
                 loop {
+                    // Check for pub keyword before field name
+                    let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
                     println!("Struct declaration: Field name = {}", field_name);
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
-                    fields.push((field_name, field_type));
+                    // Store visibility along with field name and type
+                    fields.push((field_name, field_type, field_visibility));
 
                     if !self.match_token(&[Token::Comma]) {
                         break;
@@ -743,11 +763,12 @@ impl Parser {
                     break;
                 } else {
                     // Parse field
+                    let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
                     println!("Struct declaration: Field name = {}", field_name);
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
-                    fields.push((field_name, field_type));
+                    fields.push((field_name, field_type, field_visibility));
 
                     // Optional comma after field
                     self.match_token(&[Token::Comma]);
@@ -761,7 +782,14 @@ impl Parser {
         println!("Struct declaration: Completed");
         Ok(Statement::StructDeclaration {
             name,
-            fields,
+            fields: fields
+                .into_iter()
+                .map(|(name, ty, field_visibility)| StructField {
+                    name,
+                    type_annotation: ty,
+                    is_public: field_visibility, // Default visibility
+                })
+                .collect(),
             methods,
             is_public: false, // Default visibility
             generic_params,
@@ -869,167 +897,32 @@ impl Parser {
     }
 
     fn kind_declaration(&mut self) -> Result<Statement> {
-        let name = self.consume_identifier("Expected kind name")?;
-        println!("Kind name: {}", name);
+        self.kind_declaration_with_visibility(false)
+    }
 
-        println!(
-            "Before parsing generic params, token: {:?}",
-            self.tokens.get(self.current)
-        );
-        let generic_params = self.parse_generic_args_if_present()?;
-        println!(
-            "After parsing generic params, token: {:?}",
-            self.tokens.get(self.current)
-        );
+    fn module_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let name = self.consume_identifier("Expected module name after 'mod'")?;
 
-        let mut methods = Vec::new();
-        if self.match_token(&[Token::Equals]) {
-            println!("Found equals token, parsing single method");
-
-            self.consume(&Token::Fn, "Expected 'fn' after in method declaration")?;
-            let method_name = self.consume_identifier("Expected method name")?;
-            self.consume(&Token::LParen, "Expected '(' after method name")?;
-
-            let mut params = Vec::new();
-            if !self.check(&Token::RParen) {
-                loop {
-                    let param_name = self.consume_identifier("Expected parameter name")?;
-                    let param_type = if self.match_token(&[Token::Colon]) {
-                        self.parse_type()?
-                    } else {
-                        TypeAnnotation::Basic("Self".to_string())
-                    };
-                    params.push((param_name, param_type));
-
-                    if !self.match_token(&[Token::Comma]) {
-                        break;
-                    }
-                }
-            }
-
-            self.consume(&Token::RParen, "Expected ')' after parameters")?;
-
-            let return_type = if self.match_token(&[Token::Arrow]) {
-                self.parse_type()?
-            } else {
-                TypeAnnotation::Unit
-            };
-
-            self.consume(&Token::Semicolon, "Expected ';' after single line method")?;
-
-            methods.push(KindMethod {
-                name: method_name,
-                params,
-                return_type,
-                default_impl: None,
-                is_public: false, // Default visibility
+        if self.match_token(&[Token::Semicolon]) {
+            return Ok(Statement::ModuleDeclaration {
+                name,
+                body: None,
+                is_public,
             });
-        } else {
-            println!("No equals token, looking for methods or 'end'");
-
-            if self.check(&Token::End) {
-                println!("Found end token - empty kind declaration");
-                self.advance(); // Consume 'end'
-                return Ok(Statement::KindDeclaration {
-                    name,
-                    methods,
-                    is_public: false,
-                    generic_params,
-                });
-            }
-            while !self.check(&Token::End) && !self.is_at_end() {
-                if !self.match_token(&[Token::Fn]) {
-                    println!(
-                        "ERROR: Expected 'fn', found: {:?}",
-                        self.tokens.get(self.current)
-                    );
-                    return Err(VeldError::ParserError(
-                        "Expected 'fn' keyword in kind method declaration".to_string(),
-                    ));
-                }
-
-                // self.consume(
-                //     &Token::Fn,
-                //     "Expected 'fn' keyword in kind method declaration",
-                // )?;
-                let method_name = self.consume_identifier("Expected method name")?;
-                println!("Found method name: {}", method_name);
-
-                self.consume(&Token::LParen, "Expected '(' after method name")?;
-                println!(
-                    "Found '(' after method name, token: {:?}",
-                    self.tokens.get(self.current)
-                );
-
-                let mut params = Vec::new();
-                if !self.check(&Token::RParen) {
-                    loop {
-                        let param_name = if self.check(&Token::SelfToken) {
-                            self.advance();
-                            "self".to_string()
-                        } else {
-                            self.consume_identifier("Expected parameter name")?
-                        };
-
-                        let param_type = if self.match_token(&[Token::Colon]) {
-                            self.parse_type()?
-                        } else {
-                            if param_name == "self" {
-                                TypeAnnotation::Basic(name.clone())
-                            } else {
-                                return Err(VeldError::ParserError(
-                                    "Expected type annotation for parameter".to_string(),
-                                ));
-                            }
-                        };
-                        params.push((param_name, param_type));
-
-                        if !self.match_token(&[Token::Comma]) {
-                            break;
-                        }
-                    }
-                }
-
-                self.consume(&Token::RParen, "Expected ')' after parameters")?;
-
-                let return_type = if self.match_token(&[Token::Arrow]) {
-                    self.parse_type()?
-                } else {
-                    TypeAnnotation::Unit
-                };
-
-                let default_impl = if self.match_token(&[Token::Equals]) {
-                    let mut body = Vec::new();
-                    while !self.is_at_end() && !self.check(&Token::Fn) && !self.check(&Token::End) {
-                        body.push(self.statement()?);
-                    }
-
-                    self.consume(&Token::End, "Expected 'end' after default implementation")?;
-                    Some(body)
-                } else if self.match_token(&[Token::Dot, Token::Dot, Token::Dot]) {
-                    None
-                } else {
-                    None
-                };
-
-                methods.push(KindMethod {
-                    name: method_name,
-                    params,
-                    return_type,
-                    default_impl,
-                    is_public: false, // Default visibility
-                });
-
-                self.match_token(&[Token::Comma]);
-            }
-
-            self.consume(&Token::End, "Expected 'end' after kind methods")?;
         }
-        Ok(Statement::KindDeclaration {
+
+        let mut body = Vec::new();
+
+        while !self.check(&Token::End) && !self.is_at_end() {
+            body.push(self.declaration()?);
+        }
+
+        self.consume(&Token::End, "Expected 'end' after module body")?;
+
+        Ok(Statement::ModuleDeclaration {
             name,
-            methods,
-            is_public: false, // Default visibility
-            generic_params,
+            body: Some(body),
+            is_public,
         })
     }
 
@@ -2242,30 +2135,27 @@ impl Parser {
         }
     }
 
-    fn parse_struct_fields(&mut self) -> Result<Vec<(String, Expr)>> {
+    fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
         println!(
             "Parsing struct fields, token: {:?}",
             self.tokens.get(self.current)
         );
         let mut fields = Vec::new();
 
-        if !self.check(&Token::RBrace) {
-            loop {
-                let field_name = self.consume_identifier("Expected field name")?;
-                println!("Field name: {}", field_name);
-                self.consume(&Token::Colon, "Expected ':' after field name")?;
-                let field_value = self.expression()?;
+        while !self.check(&Token::End) && !self.check(&Token::RBrace) && !self.is_at_end() {
+            let field_visibility = self.match_token(&[Token::Pub]);
+            let field_name = self.consume_identifier("Expected field name")?;
+            self.consume(&Token::Colon, "Expected ':' after field name")?;
+            let field_type = self.parse_type()?;
 
-                fields.push((field_name, field_value));
+            fields.push(StructField {
+                name: field_name,
+                type_annotation: field_type,
+                is_public: field_visibility,
+            });
 
-                if !self.match_token(&[Token::Comma]) {
-                    break;
-                }
-
-                // Allow trailing comma by breaking if the next token is '}'
-                if self.check(&Token::RBrace) {
-                    break;
-                }
+            if !self.match_token(&[Token::Comma]) {
+                break;
             }
         }
 
@@ -2507,110 +2397,70 @@ impl Parser {
     }
 
     fn module_declaration(&mut self) -> Result<Statement> {
-        let name = self.consume_identifier("Expected module name after 'mod'")?;
-
-        if self.match_token(&[Token::Semicolon]) {
-            return Ok(Statement::ModuleDeclaration {
-                name,
-                body: None,
-                is_public: false, // Default visibility
-            });
-        }
-
-        let mut body = Vec::new();
-
-        while !self.check(&Token::End) && !self.is_at_end() {
-            body.push(self.declaration()?);
-        }
-
-        self.consume(&Token::End, "Expected 'end' after module body")?;
-
-        Ok(Statement::ModuleDeclaration {
-            name,
-            body: Some(body),
-            is_public: false, // Default visibility
-        })
+        self.module_declaration_with_visibility(false)
     }
 
-    fn import_declaration(&mut self) -> Result<Statement> {
+    fn import_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         // parse import path
         let mut path = Vec::new();
 
         // First component is required
         path.push(self.consume_identifier("Expected module name after 'import'")?);
 
-        // Parse additional path components if present
+        // Handle dot-separated paths like "std.collections.Vec"
         while self.match_token(&[Token::Dot]) {
-            if self.match_token(&[Token::Star]) {
-                // We got a wildcard import
-                let items = vec![ImportItem::All];
-
-                // Check for alias (math.* as m)
-                let alias = if self.match_token(&[Token::As]) {
-                    Some(self.consume_identifier("Expected alias after 'as'")?)
-                } else {
-                    None
-                };
-
-                self.consume(&Token::Semicolon, "Expected ';' after import")?;
-
-                return Ok(Statement::ImportDeclaration {
-                    path,
-                    items,
-                    alias,
-                    is_public: false, // Default visibility
-                });
-            } else {
-                // Add the next path component
-                path.push(self.consume_identifier("Expected identifier after '.'")?);
-            }
+            path.push(self.consume_identifier("Expected identifier after '.'")?);
         }
 
-        // Check for selective imports with braces: import math.{sin, cos}
-        let items = if self.match_token(&[Token::LBrace]) {
-            let mut items = Vec::new();
+        let mut items = Vec::new();
+        let mut alias = None;
 
+        // Handle import items if present: import std.io.{read_file, write_file}
+        if self.match_token(&[Token::LBrace]) {
+            // Parse import items
             loop {
-                let name = self.consume_identifier("Expected import item name")?;
-
-                // Check for alias: sqrt as square_root
-                let item = if self.match_token(&[Token::As]) {
-                    let alias = self.consume_identifier("Expected alias after 'as'")?;
-                    ImportItem::Named(name)
+                if self.match_token(&[Token::Star]) {
+                    items.push(ImportItem::All);
                 } else {
-                    ImportItem::Named(name)
-                };
-                items.push(item);
+                    let item_name = self.consume_identifier("Expected import item name")?;
+                    if self.match_token(&[Token::As]) {
+                        let item_alias = self.consume_identifier("Expected alias after 'as'")?;
+                        items.push(ImportItem::NamedWithAlias {
+                            name: item_name,
+                            alias: item_alias,
+                        });
+                    } else {
+                        items.push(ImportItem::Named(item_name));
+                    }
+                }
 
                 if !self.match_token(&[Token::Comma]) {
                     break;
                 }
-
-                // Allow trailing comma
-                if self.check(&Token::RBrace) {
-                    break;
-                }
             }
-            self.consume(&Token::RBrace, "Expected '}' after import item(s)")?;
-            items
-        } else {
-            // Simple import of the whole module
-            Vec::new()
-        };
 
-        let alias = if self.match_token(&[Token::As]) {
-            Some(self.consume_identifier("Expected alias after 'as'")?)
+            self.consume(&Token::RBrace, "Expected '}' after import items")?;
+        } else if self.match_token(&[Token::As]) {
+            // Handle module alias: import std.io as io
+            alias = Some(self.consume_identifier("Expected alias after 'as'")?);
+            items.push(ImportItem::All); // Import all items when aliasing
         } else {
-            None
-        };
-        self.consume(&Token::Semicolon, "Expected ';' after import statement")?;
+            // Simple import: import std.io
+            items.push(ImportItem::All);
+        }
+
         Ok(Statement::ImportDeclaration {
             path,
             items,
             alias,
-            is_public: false, // Default visibility
+            is_public,
         })
     }
+
+    fn import_declaration(&mut self) -> Result<Statement> {
+        self.import_declaration_with_visibility(false)
+    }
+
     fn parse_array_literal(&mut self) -> Result<Expr> {
         println!("Parsing array literal");
         let mut elements = Vec::new();
@@ -2641,6 +2491,10 @@ impl Parser {
     }
 
     fn enum_declaration(&mut self) -> Result<Statement> {
+        self.enum_declaration_with_visibility(false)
+    }
+
+    fn enum_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         println!("Parsing enum declaration...");
         let name = self.consume_identifier("Expected enum name after 'enum'")?;
 
@@ -2699,7 +2553,132 @@ impl Parser {
         Ok(Statement::EnumDeclaration {
             name,
             variants,
-            is_public: false, // Default visibility
+            is_public,
+        })
+    }
+
+    fn kind_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let name = self.consume_identifier("Expected kind name")?;
+        println!("Kind name: {}", name);
+
+        println!(
+            "Before parsing generic params, token: {:?}",
+            self.tokens.get(self.current)
+        );
+        let generic_params = self.parse_generic_args_if_present()?;
+        println!(
+            "After parsing generic params, token: {:?}",
+            self.tokens.get(self.current)
+        );
+
+        let mut methods = Vec::new();
+        if self.match_token(&[Token::Equals]) {
+            println!("Found equals token, parsing single method");
+
+            self.consume(&Token::Fn, "Expected 'fn' after in method declaration")?;
+            let method_name = self.consume_identifier("Expected method name")?;
+
+            // Parse parameters
+            self.consume(&Token::LParen, "Expected '(' after method name")?;
+            let mut params = Vec::new();
+
+            if !self.check(&Token::RParen) {
+                loop {
+                    let param_name = self.consume_identifier("Expected parameter name")?;
+                    self.consume(&Token::Colon, "Expected ':' after parameter name")?;
+                    let param_type = self.parse_type()?;
+                    params.push((param_name, param_type));
+
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+
+            self.consume(&Token::RParen, "Expected ')' after parameters")?;
+
+            // Parse return type
+            self.consume(&Token::Arrow, "Expected '->' after parameters")?;
+            let return_type = self.parse_type()?;
+
+            // Parse optional default implementation
+            let default_impl = if self.match_token(&[Token::Do]) {
+                let mut body = Vec::new();
+                while !self.check(&Token::End) && !self.is_at_end() {
+                    body.push(self.declaration()?);
+                }
+                self.consume(&Token::End, "Expected 'end' after method body")?;
+                Some(body)
+            } else {
+                None
+            };
+
+            methods.push(KindMethod {
+                name: method_name,
+                params,
+                return_type,
+                default_impl,
+                is_public: true, // Kind methods are public by default
+            });
+        } else {
+            // Multi-line kind definition
+            while !self.check(&Token::End) && !self.is_at_end() {
+                let method_visibility = self.match_token(&[Token::Pub]);
+                self.consume(&Token::Fn, "Expected 'fn' in method declaration")?;
+                let method_name = self.consume_identifier("Expected method name")?;
+
+                // Parse parameters
+                self.consume(&Token::LParen, "Expected '(' after method name")?;
+                let mut params = Vec::new();
+
+                if !self.check(&Token::RParen) {
+                    loop {
+                        let param_name = self.consume_identifier("Expected parameter name")?;
+                        self.consume(&Token::Colon, "Expected ':' after parameter name")?;
+                        let param_type = self.parse_type()?;
+                        params.push((param_name, param_type));
+
+                        if !self.match_token(&[Token::Comma]) {
+                            break;
+                        }
+                    }
+                }
+
+                self.consume(&Token::RParen, "Expected ')' after parameters")?;
+
+                // Parse return type
+                self.consume(&Token::Arrow, "Expected '->' after parameters")?;
+                let return_type = self.parse_type()?;
+
+                // Parse optional default implementation
+                let default_impl = if self.match_token(&[Token::Do]) {
+                    let mut body = Vec::new();
+                    while !self.check(&Token::End) && !self.is_at_end() {
+                        body.push(self.declaration()?);
+                    }
+                    self.consume(&Token::End, "Expected 'end' after method body")?;
+                    Some(body)
+                } else {
+                    None
+                };
+
+                methods.push(KindMethod {
+                    name: method_name,
+                    params,
+                    return_type,
+                    default_impl,
+                    is_public: method_visibility,
+                });
+            }
+
+            self.consume(&Token::End, "Expected 'end' after kind body")?;
+        }
+
+        Ok(Statement::KindDeclaration {
+            name,
+            methods,
+            is_public,
+            generic_params,
         })
     }
 }

@@ -1,0 +1,4 @@
+struct BankAccount
+    balance: f64,
+    pub account_number: str
+end

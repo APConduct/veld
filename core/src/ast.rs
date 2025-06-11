@@ -214,6 +214,13 @@ pub struct EnumVariant {
     pub fields: Option<Vec<TypeAnnotation>>, // For variants with fields
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructField {
+    pub name: String,
+    pub type_annotation: TypeAnnotation,
+    pub is_public: bool,
+}
+
 #[derive(Debug, Clone)]
 pub enum Pattern {
     Literal(Literal),
@@ -275,7 +282,7 @@ pub enum Statement {
     Return(Option<Expr>),
     StructDeclaration {
         name: String,
-        fields: Vec<(String, TypeAnnotation)>,
+        fields: Vec<StructField>,
         methods: Vec<StructMethod>,
         is_public: bool, // New field to track visibility
         generic_params: Vec<GenericArgument>,

@@ -1315,9 +1315,10 @@ impl TypeChecker {
                         self.env.generic_struct_names.insert(name.clone());
                     } else {
                         let mut field_types = HashMap::new();
-                        for (field_name, field_type) in fields {
-                            let field_type = self.env.from_annotation(field_type, None)?;
-                            field_types.insert(field_name.clone(), field_type);
+                        for field in fields {
+                            let field_type =
+                                self.env.from_annotation(&field.type_annotation, None)?;
+                            field_types.insert(field.name.clone(), field_type);
                         }
                         self.env.add_struct(name, field_types);
                     }
@@ -1327,6 +1328,53 @@ impl TypeChecker {
         }
         for stmt in statements {
             self.type_check_statement(stmt)?;
+        }
+        Ok(())
+    }
+
+    pub fn check_visibility_access(
+        &self,
+        accessing_module: &str,
+        target_module: &str,
+        is_public: bool,
+    ) -> std::result::Result<(), String> {
+        if !is_public && accessing_module != target_module {
+            return Err(format!(
+                "Cannot access private item from module '{}' in module '{}'",
+                target_module, accessing_module
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn check_field_access(
+        &self,
+        field_name: &str,
+        struct_name: &str,
+        accessing_module: &str,
+        is_public: bool,
+    ) -> std::result::Result<(), String> {
+        if !is_public {
+            return Err(format!(
+                "Field '{}' of struct '{}' is private",
+                field_name, struct_name
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn check_method_access(
+        &self,
+        method_name: &str,
+        type_name: &str,
+        accessing_module: &str,
+        is_public: bool,
+    ) -> std::result::Result<(), String> {
+        if !is_public {
+            return Err(format!(
+                "Method '{}' of type '{}' is private",
+                method_name, type_name
+            ));
         }
         Ok(())
     }
@@ -1408,9 +1456,9 @@ impl TypeChecker {
                         self.env.add_type_param(&param_name);
                     }
                     let mut field_types = HashMap::new();
-                    for (field_name, field_type) in fields {
-                        let field_type = self.env.from_annotation(field_type, None)?;
-                        field_types.insert(field_name.clone(), field_type);
+                    for field in fields {
+                        let field_type = self.env.from_annotation(&field.type_annotation, None)?;
+                        field_types.insert(field.name.clone(), field_type);
                     }
                     self.env
                         .add_generic_struct(name, field_types, generic_params.clone());
@@ -1715,9 +1763,9 @@ impl TypeChecker {
             }
 
             let mut field_types = HashMap::new();
-            for (field_name, field_type) in fields {
-                let field_type = self.env.from_annotation(field_type, None)?;
-                field_types.insert(field_name.clone(), field_type);
+            for field in fields {
+                let field_type = self.env.from_annotation(&field.type_annotation, None)?;
+                field_types.insert(field.name.clone(), field_type);
             }
             self.env.add_struct(name, field_types);
 

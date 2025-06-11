@@ -1,6 +1,6 @@
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, Literal,
-    MatchPattern, Statement, TypeAnnotation, VarKind,
+    MatchPattern, Statement, StructField, TypeAnnotation, VarKind,
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
@@ -232,7 +232,7 @@ impl Scope {
 
 pub struct Interpreter {
     scopes: Vec<Scope>,
-    structs: HashMap<String, Vec<(String, TypeAnnotation)>>, // struct name -> fields
+    structs: HashMap<String, Vec<StructField>>, // struct name -> fields
     struct_methods: HashMap<String, HashMap<String, Value>>, // struct name -> (method name -> method)
     generic_structs: HashMap<String, StructInfo>,
     module_manager: ModuleManager,
@@ -446,6 +446,20 @@ impl Interpreter {
         }
     }
 
+    fn get_current_module(&self) -> &str {
+        &self.current_module
+    }
+
+    fn check_visibility(&self, is_public: bool, target_module: &str) -> Result<()> {
+        if !is_public && self.current_module != target_module {
+            return Err(VeldError::RuntimeError(format!(
+                "Cannot access private item from module '{}'",
+                target_module
+            )));
+        }
+        Ok(())
+    }
+
     /// Collect free variables in a statement
     fn collect_free_variables_stmt(
         &self,
@@ -623,7 +637,18 @@ impl Interpreter {
 
     fn register_generic_struct(&mut self, name: &str, info: StructInfo) -> Result<()> {
         self.generic_structs.insert(name.to_string(), info.clone());
-        self.structs.insert(name.to_string(), info.fields);
+        let struct_fields: Vec<StructField> = info
+            .fields
+            .iter()
+            .map(|(name, type_annotation)| {
+                StructField {
+                    name: name.clone(),
+                    type_annotation: type_annotation.clone(),
+                    is_public: true, // Default to public for now
+                }
+            })
+            .collect();
+        self.structs.insert(name.to_string(), struct_fields);
         Ok(())
     }
 
@@ -791,7 +816,10 @@ impl Interpreter {
                     self.structs.insert(name.clone(), fields);
                 } else {
                     let struct_info = StructInfo {
-                        fields: fields.clone(),
+                        fields: fields
+                            .into_iter()
+                            .map(|f| (f.name, f.type_annotation))
+                            .collect(),
                         generic_params: generic_params.clone(),
                     };
                     self.generic_structs.insert(name.clone(), struct_info);
@@ -2065,7 +2093,7 @@ impl Interpreter {
 
     fn get_property(&self, object: Value, property: &str) -> Result<Value> {
         match object {
-            Value::Struct { name: _, fields } => {
+            Value::Struct { name, fields } => {
                 if let Some(value) = fields.get(property) {
                     Ok(value.clone())
                 } else {
