@@ -192,14 +192,59 @@ impl ModuleManager {
                     alias,
                     is_public,
                 } => {
-                    // Handle import declarations
-                    todo!(
-                        "Handle import declarations: path: {:?}, items: {:?}, alias: {:?}, is_public: {}",
-                        path,
-                        items,
-                        alias,
-                        is_public
-                    );
+                    // Only proccess public imports (re-exports)
+                    if *is_public {
+                        // Get the source module path as string
+                        let source_module_path = path.join(".");
+
+                        // If this module hasn't been loaded yet, we can't re-export from it
+                        if !self.is_module_loaded(&source_module_path) {
+                            continue; // Skip if module is not loaded
+                        }
+
+                        // Get the source module to re-export from
+                        let source_module = match self.get_module(&source_module_path) {
+                            Some(module) => module,
+                            None => continue, // Skip if module is not found
+                        };
+
+                        // Process different import types
+                        match items.as_slice() {
+                            [] if alias.is_some() => {
+                                let module_alias = alias.as_ref().unwrap();
+                                exports.insert(
+                                    module_alias.clone(),
+                                    ExportedItem::Module(source_module_path.clone()),
+                                );
+                            }
+                            [] => {
+                                for (name, item) in &source_module.exports {
+                                    exports.insert(name.clone(), item.clone());
+                                }
+                            }
+                            _ => {
+                                for item in items {
+                                    match item {
+                                        ImportItem::All => {
+                                            for (name, item) in &source_module.exports {
+                                                exports.insert(name.clone(), item.clone());
+                                            }
+                                        }
+                                        ImportItem::Named(name) => {
+                                            if let Some(item) = source_module.exports.get(name) {
+                                                exports.insert(name.clone(), item.clone());
+                                            }
+                                        }
+                                        ImportItem::NamedWithAlias { name, alias } => {
+                                            if let Some(item) = source_module.exports.get(name) {
+                                                exports.insert(alias.clone(), item.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 _ => {}
