@@ -2547,32 +2547,6 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_non_numeric_comparison(
-        &self,
-        left: Option<NumericValue>,
-        right: Option<NumericValue>,
-        operator: BinaryOperator,
-    ) -> Result<Value> {
-        let left_val = self.from_numeric_option(left);
-        let right_val = self.from_numeric_option(right);
-
-        match (left_val, right_val) {
-            (Value::String(a), Value::String(b)) => {
-                let result = match operator {
-                    BinaryOperator::Less => a < b,
-                    BinaryOperator::LessEq => a <= b,
-                    BinaryOperator::Greater => a > b,
-                    BinaryOperator::GreaterEq => a >= b,
-                    _ => return Err(VeldError::RuntimeError("Invalid string comparison".into())),
-                };
-                Ok(Value::Boolean(result))
-            }
-            _ => Err(VeldError::RuntimeError(
-                "Cannot compare non-numeric, non-string values".into(),
-            )),
-        }
-    }
-
     fn evaluate_binary_op(
         &mut self,
         left: Value,
