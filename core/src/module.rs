@@ -19,6 +19,8 @@ pub enum ExportedItem {
     Struct(usize),
     Variable(usize),
     Kind(usize),
+    Enum(usize),
+    Module(String),
 }
 
 pub struct ModuleManager {
