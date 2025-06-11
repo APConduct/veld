@@ -476,6 +476,7 @@ impl Interpreter {
                 var_kind: _,
                 type_annotation: _,
                 value,
+                ..
             } => {
                 self.collect_free_variables_expr(value, bound_vars, free_vars);
             }
@@ -681,6 +682,7 @@ impl Interpreter {
                 var_kind,
                 type_annotation,
                 value,
+                ..
             } => self.execute_variable_declaration(name, var_kind, type_annotation, value),
             Statement::FunctionDeclaration {
                 name,
@@ -2853,7 +2855,8 @@ impl Interpreter {
         // Process imports based on alias or direct imports
         if let Some(alias_name) = alias {
             // Store the module alias -> actual name mapping
-            self.imported_modules.insert(alias_name, module_path_str);
+            self.imported_modules
+                .insert(alias_name, module_path_str.clone());
         } else {
             // No alias, so we're importing specific items or the entire module
 
@@ -2904,6 +2907,21 @@ impl Interpreter {
                 }
             }
         }
+
+        if is_public {
+            let current_module = self.get_current_module().to_string();
+            let exports = self.module_manager.get_exports(&module_path_str, &items)?;
+
+            let module = self
+                .module_manager
+                .get_module_mut(&current_module)
+                .ok_or_else(|| VeldError::RuntimeError("Current module not found".to_string()))?;
+
+            for (name, export_item) in exports {
+                module.exports.insert(name, export_item);
+            }
+        }
+
         Ok(Value::Unit)
     }
 

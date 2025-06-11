@@ -1271,6 +1271,8 @@ impl Parser {
     }
 
     fn variable_declaration(&mut self) -> Result<Statement> {
+        let is_public = self.match_token(&[Token::Pub]);
+
         let var_kind = if self.match_token(&[Token::Let]) {
             if self.match_token(&[Token::Mut]) {
                 VarKind::LetMut
@@ -1304,6 +1306,7 @@ impl Parser {
             var_kind,
             type_annotation,
             value: Box::new(value),
+            is_public,
         })
     }
 

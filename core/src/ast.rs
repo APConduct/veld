@@ -264,6 +264,7 @@ pub enum Statement {
         var_kind: VarKind,
         type_annotation: Option<TypeAnnotation>,
         value: Box<Expr>,
+        is_public: bool, // Field to track visibility
     },
     If {
         condition: Expr,

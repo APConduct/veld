@@ -1396,6 +1396,7 @@ impl TypeChecker {
                 var_kind,
                 type_annotation,
                 value,
+                ..
             } => self.type_check_variable_declaration(
                 name,
                 var_kind,
