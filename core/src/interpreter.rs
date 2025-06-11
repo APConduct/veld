@@ -290,6 +290,10 @@ impl Interpreter {
         Ok(last_value)
     }
 
+    fn initialize_std_modules(&mut self) {
+        todo!("Load standard library modules");
+    }
+
     fn collect_free_variables_expr(
         &self,
         expr: &Expr,
@@ -457,6 +461,26 @@ impl Interpreter {
                 target_module
             )));
         }
+        Ok(())
+    }
+
+    fn check_module_exists(&self, module_name: &str) -> Result<()> {
+        if !self.module_manager.is_module_loaded(module_name) {
+            return Err(VeldError::RuntimeError(format!(
+                "Module '{}' not found",
+                module_name
+            )));
+        }
+        Ok(())
+    }
+
+    fn check_module_acces(&self, module_name: &str) -> Result<()> {
+        let module = self.module_manager.get_module(module_name).ok_or_else(|| {
+            VeldError::RuntimeError(format!("Module '{}' not found", module_name))
+        })?;
+
+        // TODO: Implement access control logic here
+
         Ok(())
     }
 

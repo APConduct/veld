@@ -1,3 +1,5 @@
+use std::env::consts::OS;
+
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
@@ -2405,7 +2407,22 @@ impl Parser {
 
     fn import_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         // parse import path
-        let mut path = Vec::new();
+        let mut path = vec![self.consume_identifier("Expected module name")?];
+
+        // Handle multi-part module names/paths (e.g., "std.io", "std.math.vec")
+        while self.match_token(&[Token::Dot]) {
+            if self.match_token(&[Token::Star]) {
+                // Import all: import std.math.*
+                return Ok(Statement::ImportDeclaration {
+                    path,
+                    items: vec![ImportItem::All],
+                    alias: None,
+                    is_public,
+                });
+            } else {
+                path.push(self.consume_identifier("Expected identifier after '.'")?);
+            }
+        }
 
         // First component is required
         path.push(self.consume_identifier("Expected module name after 'import'")?);
