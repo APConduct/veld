@@ -1806,6 +1806,39 @@ impl Interpreter {
         )))
     }
 
+    fn extract_pattern_bindings(
+        &self,
+        pattern: &str,
+        arg_str: &str,
+        original_args: &[Value],
+    ) -> Option<HashMap<String, Value>> {
+        todo!()
+    }
+
+    fn execute_macro_expansion_with_bindings(
+        &mut self,
+        expansion: &MacroExpansion,
+        bindings: &HashMap<String, Value>,
+    ) -> Result<Value> {
+        todo!()
+    }
+
+    fn substitute_variables_in_statement(
+        &self,
+        stmt: &Statement,
+        bindings: &HashMap<String, Value>,
+    ) -> Result<Statement> {
+        todo!()
+    }
+
+    fn substitute_variables_in_expression(
+        &self,
+        expr: &Expr,
+        bindings: &HashMap<String, Value>,
+    ) -> Result<Expr> {
+        todo!()
+    }
+
     fn tokenize_pattern(&self, pattern: &str) -> Vec<PatternToken> {
         let mut tokens = Vec::new();
         let mut chars = pattern.chars().peekable();
