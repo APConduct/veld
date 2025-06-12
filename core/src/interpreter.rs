@@ -7,6 +7,7 @@ use crate::module::{ExportedItem, ModuleManager};
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::env::consts::OS;
 use std::path::Path;
 
 enum PatternToken {
@@ -1795,8 +1796,10 @@ impl Interpreter {
             .join(" ");
 
         for (pattern, expansion) in patterns {
-            if self.pattern_matches_args(&pattern.0, &args_str) {
-                return self.execute_macro_expansion(expansion, args);
+            // Try to match the pattern and extract bindings
+            if let Some(bindings) = self.extract_pattern_bindings(&pattern.0, &args_str, args) {
+                // Execute expansion with the extracted bindings
+                return self.execute_macro_expansion_with_bindings(expansion, &bindings);
             }
         }
 
@@ -1812,7 +1815,76 @@ impl Interpreter {
         arg_str: &str,
         original_args: &[Value],
     ) -> Option<HashMap<String, Value>> {
-        todo!()
+        let pattern_tokens = self.tokenize_pattern(pattern);
+        let args_tokens = self.tokenize_args(arg_str);
+
+        let mut bindings = HashMap::new();
+        let mut p_idx = 0;
+        let mut a_idx = 0;
+
+        while p_idx < pattern_tokens.len() && a_idx < args_tokens.len() {
+            match &pattern_tokens[p_idx] {
+                PatternToken::Literal(lit) => {
+                    if &args_tokens[a_idx] != lit {
+                        return None; // Pattern does not match
+                    }
+                    a_idx += 1;
+                }
+                PatternToken::Variable(var_name) => {
+                    if a_idx < original_args.len() {
+                        bindings.insert(var_name.clone(), original_args[a_idx].clone());
+                    }
+                    a_idx += 1;
+                }
+                PatternToken::Repetition {
+                    variable,
+                    separator,
+                    ..
+                } => {
+                    // Handle repetition and collect all matches
+                    let mut collected_values = Vec::new();
+                    let mut matched = 0;
+
+                    while a_idx < args_tokens.len() {
+                        // Check for separator if not first match
+                        if matched > 0 && separator.is_some() {
+                            if a_idx >= args_tokens.len()
+                                || &args_tokens[a_idx] != separator.as_ref().unwrap()
+                            {
+                                break;
+                            }
+                            a_idx += 1; // Skip separator
+                        }
+
+                        // Check if we hit the next pattern token
+                        if p_idx + 1 < pattern_tokens.len() {
+                            if let PatternToken::Literal(next_lit) = &pattern_tokens[p_idx + 1] {
+                                if &args_tokens[a_idx] == next_lit {
+                                    break;
+                                }
+                            }
+                        }
+
+                        if a_idx < original_args.len() {
+                            collected_values.push(original_args[a_idx].clone());
+                        }
+
+                        matched += 1;
+                        a_idx += 1;
+                    }
+
+                    // Store the collected values as an array
+                    bindings.insert(variable.clone(), Value::Array(collected_values));
+                }
+            }
+            p_idx += 1;
+        }
+        // Only return bindings if the entire pattern was matched
+        if p_idx >= pattern_tokens.len() && a_idx >= args_tokens.len() {
+            Some(bindings)
+        } else {
+            None
+        }
     }
 
     fn execute_macro_expansion_with_bindings(
@@ -1820,7 +1892,31 @@ impl Interpreter {
         expansion: &MacroExpansion,
         bindings: &HashMap<String, Value>,
     ) -> Result<Value> {
-        todo!()
+        self.push_scope();
+
+        // Bind extracted variables to the scope
+        for (var_name, value) in bindings {
+            self.current_scope_mut()
+                .declare(var_name.clone(), value.clone(), VarKind::Let)?;
+        }
+
+        // Execute expansion statements
+        let mut result = Value::Unit;
+        for stmt in &expansion.0 {
+            // Replace variables in statement before execution
+            let expanded_stmt = self.substitute_variables_in_statement(stmt, bindings)?;
+            match self.execute_statement(expanded_stmt) {
+                Ok(value) => {
+                    result = value;
+                }
+                Err(e) => {
+                    self.pop_scope();
+                    return Err(e);
+                }
+            }
+        }
+        self.pop_scope();
+        Ok(result)
     }
 
     fn substitute_variables_in_statement(
@@ -1828,7 +1924,19 @@ impl Interpreter {
         stmt: &Statement,
         bindings: &HashMap<String, Value>,
     ) -> Result<Statement> {
-        todo!()
+        // Handle only the most common cases for now
+        match stmt {
+            Statement::ExprStatement(expr) => {
+                let new_expr = self.substitute_variables_in_expression(expr, bindings)?;
+                Ok(Statement::ExprStatement(new_expr))
+            }
+            Statement::Return(Some(expr)) => {
+                let new_expr = self.substitute_variables_in_expression(expr, bindings)?;
+                Ok(Statement::Return(Some(new_expr)))
+            }
+            // For other statements, just return the original statements for now
+            _ => Ok(stmt.clone()),
+        }
     }
 
     fn substitute_variables_in_expression(
@@ -1836,7 +1944,33 @@ impl Interpreter {
         expr: &Expr,
         bindings: &HashMap<String, Value>,
     ) -> Result<Expr> {
-        todo!()
+        match expr {
+            Expr::Identifier(name) => {
+                if let Some(value) = bindings.get(name) {
+                    // Convert the value back to an expression
+                    Ok(self.value_to_expr(value.clone())?)
+                } else {
+                    // If bindings not found, keep the original identifier
+                    Ok(expr.clone())
+                }
+            }
+            Expr::BinaryOp {
+                left,
+                operator,
+                right,
+            } => {
+                let new_left = self.substitute_variables_in_expression(left, bindings)?;
+                let new_right = self.substitute_variables_in_expression(expr, bindings)?;
+                Ok(Expr::BinaryOp {
+                    left: Box::new(new_left),
+                    operator: operator.clone(),
+                    right: Box::new(new_right),
+                })
+            }
+            // For other expressions, just return the original for now
+            // TODO: Handle other expression types
+            _ => Ok(expr.clone()),
+        }
     }
 
     fn tokenize_pattern(&self, pattern: &str) -> Vec<PatternToken> {
