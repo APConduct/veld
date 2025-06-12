@@ -9,6 +9,16 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 
+enum PatternToken {
+    Literal(String),
+    Variable(String),
+    Repetition {
+        variable: String,
+        separator: Option<String>,
+        min: usize, // 0 for * (zero or more), 1 for + (one or more)
+    },
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct VariableInfo {
     value: Value,
@@ -1065,6 +1075,35 @@ impl Interpreter {
             }
 
             Statement::Assignment { name, value } => self.execute_assignment(name, value),
+            Statement::MacroInvocation { name, arguments } => {
+                // Evaluate all arguments
+                let mut evaluated_args = Vec::new();
+                for arg in arguments {
+                    let arg_value = self.evaluate_expression(arg)?;
+                    evaluated_args.push(arg_value);
+                }
+
+                let current_mod = self.current_module.clone();
+                let macro_def = self.find_macro(&current_mod, &name)?;
+
+                match macro_def {
+                    Statement::MacroDeclaration {
+                        patterns,
+                        body: None,
+                        ..
+                    } => self.expand_pattern_macro(name.as_str(), &patterns, &evaluated_args),
+                    // Procedural macro
+                    Statement::MacroDeclaration {
+                        patterns: _,
+                        body: Some(body),
+                        ..
+                    } => self.execute_procedural_macro(name.as_str(), &body, &evaluated_args),
+                    _ => Err(VeldError::RuntimeError(format!(
+                        "Invalid macro definition for '{}'",
+                        name
+                    ))),
+                }
+            }
             _ => Ok(Value::Unit),
         }
     }
@@ -1767,29 +1806,204 @@ impl Interpreter {
         )))
     }
 
+    fn tokenize_pattern(&self, pattern: &str) -> Vec<PatternToken> {
+        let mut tokens = Vec::new();
+        let mut chars = pattern.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            match c {
+                '$' => {
+                    // Check for repetition pattern: $($name)+, $($name)*, $($name),+, $($name),*
+                    if chars.peek() == Some(&'(') {
+                        chars.next(); // Consume '('
+                        if chars.peek() == Some(&'$') {
+                            chars.next(); // Consume '$'
+
+                            // Read the variable name
+                            let mut var_name = String::new();
+                            while let Some(&next_c) = chars.peek() {
+                                if next_c.is_alphanumeric() || next_c == '_' || next_c == ':' {
+                                    var_name.push(chars.next().unwrap());
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            // Consume closing ')'
+                            if chars.peek() == Some(&')') {
+                                chars.peek();
+                            } else {
+                                // Syntax error, handle as literal
+                                tokens.push(PatternToken::Literal(format!("$({})", var_name)));
+                                continue;
+                            }
+
+                            // Check for repetition symbols
+                            let mut seperator = None;
+                            let min = match chars.peek() {
+                                Some(&'+') => {
+                                    chars.next();
+                                    1 // One or more
+                                }
+                                Some(&'*') => {
+                                    chars.next();
+                                    0 // Zero or more
+                                }
+                                Some(&',') => {
+                                    chars.next();
+                                    seperator = Some(','.to_string());
+
+                                    match chars.peek() {
+                                        Some(&'+') => {
+                                            chars.next();
+                                            1 // One or more with separator
+                                        }
+                                        Some(&'*') => {
+                                            chars.next();
+                                            0 // Zero or more with separator
+                                        }
+                                        _ => {
+                                            // Just a comma, no repetition
+                                            tokens.push(PatternToken::Variable(var_name));
+                                            tokens.push(PatternToken::Literal(",".to_string()));
+                                            continue;
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    // Not a repetition, just a grouped variable
+                                    tokens.push(PatternToken::Variable(var_name));
+                                    continue;
+                                }
+                            };
+                            tokens.push(PatternToken::Repetition {
+                                variable: var_name,
+                                separator: seperator,
+                                min,
+                            });
+                        } else {
+                            // Just $(something) without repetition
+                            // Handle as literal for now
+                            tokens.push(PatternToken::Literal("$(".to_string()));
+                            // TODO: Handle the rest of the pattern branch
+                        }
+                    } else {
+                        // Simple variable $name
+                        let mut var_name = String::new();
+                        while let Some(&next_c) = chars.peek() {
+                            if next_c.is_alphanumeric() || next_c == '_' || next_c == ':' {
+                                var_name.push(chars.next().unwrap());
+                            } else {
+                                break;
+                            }
+                        }
+                        if !var_name.is_empty() {
+                            tokens.push(PatternToken::Variable(var_name));
+                        } else {
+                            tokens.push(PatternToken::Literal("$".to_string()));
+                        }
+                    }
+                }
+                // TODO: Handle other special characters like `*`, `+`, etc.
+                _ => {
+                    let mut literal = String::new();
+                    literal.push(c);
+
+                    while let Some(&next_c) = chars.peek() {
+                        if next_c != '$' && !next_c.is_whitespace() {
+                            literal.push(chars.next().unwrap());
+                        } else {
+                            break;
+                        }
+                    }
+                    tokens.push(PatternToken::Literal(literal));
+                }
+            }
+        }
+        tokens
+    }
+
+    fn tokenize_args(&self, args: &str) -> Vec<String> {
+        // Simple tokenization by whitespace
+        args.split_whitespace().map(|s| s.to_string()).collect()
+    }
+
+    fn match_pattern_tokens(&self, pattern: &[PatternToken], args: &[String]) -> bool {
+        let mut p_idx = 0;
+        let mut a_idx = 0;
+
+        while p_idx < pattern.len() {
+            if a_idx >= args.len() && p_idx < pattern.len() {
+                // Check if remaining patterns are optional
+                return self.remaining_patterns_optional(&pattern[p_idx..]);
+            }
+
+            match &pattern[p_idx] {
+                PatternToken::Literal(lit) => {
+                    if a_idx >= args.len() || &args[a_idx] != lit {
+                        return false; // Literal mismatch
+                    }
+                    a_idx += 1; // Move to next argument
+                }
+                PatternToken::Variable(_) => {
+                    // Variables match anything
+                    if a_idx >= args.len() {
+                        return false;
+                    }
+                    a_idx += 1; // Move to next argument
+                }
+                PatternToken::Repetition { min, separator, .. } => {
+                    // Handle repetition
+                    let mut matched = 0;
+
+                    while a_idx < args.len() {
+                        // Check for seperator if not first match
+                        if matched > 0 && separator.is_some() {
+                            if a_idx >= args.len() || &args[a_idx] != separator.as_ref().unwrap() {
+                                break;
+                            }
+                            a_idx += 1; // Skip separator
+                        }
+
+                        // Check if next pattern is hit
+                        if p_idx + 1 < pattern.len() {
+                            if let PatternToken::Literal(next_lit) = &pattern[p_idx + 1] {
+                                if &args[a_idx] == next_lit {
+                                    break;
+                                }
+                            }
+                        }
+
+                        matched += 1;
+                        a_idx += 1;
+                    }
+
+                    // Check if minimum matches
+                    if matched < *min {
+                        return false;
+                    }
+                }
+            }
+            p_idx += 1;
+        }
+        // Check if we consumed all arguments
+        a_idx >= args.len()
+    }
+
+    fn remaining_patterns_optional(&self, patterns: &[PatternToken]) -> bool {
+        patterns.iter().all(|token| match token {
+            PatternToken::Repetition { min, .. } => *min == 0,
+            _ => false,
+        })
+    }
+
     fn pattern_matches_args(&self, pattern: &str, args_str: &str) -> bool {
-        // TODO: Implement a proper pattern matching algorithm that handles meta-variables, repetition, etc.
-        // For now, just check if the pattern starts with the same tokens
-        // or has wildcard placeholders
-        //
-        let pattern_parts: Vec<&str> = pattern.split_whitespace().collect();
-        let args_parts: Vec<&str> = args_str.split_whitespace().collect();
+        // Parse the pattern into tokens
+        let pattern_tokens = self.tokenize_pattern(pattern);
+        let arg_tokens = self.tokenize_args(args_str);
 
-        if pattern_parts.len() != args_parts.len() {
-            return false; // Simple length check
-        }
-
-        for (p, a) in pattern_parts.iter().zip(args_parts.iter()) {
-            if p.starts_with("$") {
-                // This is a placeholder/variable in the pattern
-                continue;
-            }
-
-            if p != a {
-                return false;
-            }
-        }
-        true
+        // Match with more advanced features
+        self.match_pattern_tokens(&pattern_tokens, &arg_tokens)
     }
 
     fn execute_macro_expansion(
