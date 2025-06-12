@@ -128,10 +128,35 @@ impl Parser {
     }
 
     fn parse_macro_pattern(&mut self) -> Result<MacroPattern> {
-        todo!()
+        self.consume(&Token::LParen, "Expected '(' after macro pattern start")?;
+
+        let mut pattern_tokens = Vec::new();
+        while !self.check(&Token::RParen) && !self.is_at_end() {
+            pattern_tokens.push(self.advance().clone());
+        }
+
+        self.consume(&Token::RParen, "Expected ')' to close macro pattern")?;
+
+        let pattern_str = pattern_tokens
+            .iter()
+            .map(|t| format!("{:?}", t))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        Ok(MacroPattern(pattern_str))
     }
     fn parse_macro_expansion(&mut self) -> Result<MacroExpansion> {
-        todo!()
+        let mut statements = Vec::new();
+
+        if self.match_token(&[Token::Do]) {
+            while !self.check(&Token::End) && !self.is_at_end() {
+                statements.push(self.declaration()?);
+            }
+            self.consume(&Token::End, "Expected 'end' after macro expansion")?;
+        } else {
+            statements.push(self.declaration()?);
+        }
+        Ok(MacroExpansion(statements))
     }
 
     fn macro_declaration(&mut self) -> Result<Statement> {
@@ -168,7 +193,6 @@ impl Parser {
             })
         } else {
             // Parse simple macro with signature and body
-            // For now, parse parameters similar to a function
             self.consume(&Token::LParen, "Expected '(' after macro name")?;
 
             let mut params = Vec::new();
@@ -185,16 +209,25 @@ impl Parser {
 
             self.consume(&Token::RParen, "Expected ')' after macro parameters")?;
 
-            // Parse equals and body
-            self.consume(&Token::Equals, "Expected '=' after macro parameters")?;
-
             // Parse macro body as arbitrary statements
             let mut body = Vec::new();
-            while !self.check(&Token::End) && !self.is_at_end() {
-                body.push(self.statement()?);
-            }
 
-            self.consume(&Token::End, "Expected 'end' after macro body")?;
+            // Support both '=' and 'do' syntax for macro bodies
+            if self.match_token(&[Token::Equals]) {
+                // Single expression macro body with '='
+                let expr = self.expression()?;
+                body.push(Statement::ExprStatement(expr));
+            } else if self.match_token(&[Token::Do]) {
+                // Multiple statements macro body with 'do'/'end'
+                while !self.check(&Token::End) && !self.is_at_end() {
+                    body.push(self.declaration()?);
+                }
+                self.consume(&Token::End, "Expected 'end' after macro body")?;
+            } else {
+                return Err(VeldError::ParserError(
+                    "Expected '=' or 'do' after macro parameters".to_string(),
+                ));
+            }
 
             Ok(Statement::MacroDeclaration {
                 name,
@@ -1312,13 +1345,46 @@ impl Parser {
         })
     }
 
+    fn parse_macro_invocation(&mut self) -> Result<Statement> {
+        // Consume the tilde
+        self.advance();
+
+        let macro_name = self.consume_identifier("Expected macro name after '~'")?;
+
+        let mut arguments = Vec::new();
+
+        // Parse arguments
+        if self.match_token(&[Token::LParen]) {
+            // Parenthesized arguments
+            if !self.check(&Token::RParen) {
+                loop {
+                    let arg = self.expression()?;
+                    arguments.push(arg);
+
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+
+            self.consume(&Token::RParen, "Expected ')' after macro arguments")?;
+        }
+
+        Ok(Statement::MacroInvocation {
+            name: macro_name,
+            arguments,
+        })
+    }
+
     fn statement(&mut self) -> Result<Statement> {
         println!(
             "Parsing statement, current token: {:?}",
             self.tokens.get(self.current)
         );
 
-        if self.match_token(&[Token::Match]) {
+        if self.check(&Token::Tilde) {
+            return self.parse_macro_invocation();
+        } else if self.match_token(&[Token::Match]) {
             self.match_statement()
         } else if self.match_token(&[Token::If]) {
             self.if_statement()

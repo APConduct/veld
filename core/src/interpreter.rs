@@ -1,6 +1,6 @@
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, Literal,
-    MatchPattern, Statement, StructField, TypeAnnotation, VarKind,
+    MacroExpansion, MacroPattern, MatchPattern, Statement, StructField, TypeAnnotation, VarKind,
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
@@ -474,7 +474,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn check_module_acces(&self, module_name: &str) -> Result<()> {
+    fn check_module_access(&self, module_name: &str) -> Result<()> {
         let module = self.module_manager.get_module(module_name).ok_or_else(|| {
             VeldError::RuntimeError(format!("Module '{}' not found", module_name))
         })?;
@@ -1063,6 +1063,7 @@ impl Interpreter {
                     "No match arm matched the value".to_string(),
                 ))
             }
+
             Statement::Assignment { name, value } => self.execute_assignment(name, value),
             _ => Ok(Value::Unit),
         }
@@ -1453,12 +1454,10 @@ impl Interpreter {
                     self.call_function_with_values(name, arg_values)
                 }
             }
-
             Expr::PropertyAccess { object, property } => {
                 let obj_value = self.evaluate_expression(*object)?;
                 self.get_property(obj_value, &property)
             }
-
             Expr::TypeCast { expr, target_type } => {
                 let value = self.evaluate_expression(*expr)?;
                 let target = self.type_checker.env.from_annotation(&target_type, None)?;
@@ -1681,7 +1680,193 @@ impl Interpreter {
                 self.pop_scope();
                 Ok(result)
             }
-            Expr::MacroExpr { name, arguments } => todo!(),
+            Expr::MacroExpr { name, arguments } => {
+                // Evaluate all arguments
+                let mut evaluated_args = Vec::new();
+                for arg in arguments {
+                    let arg_value = self.evaluate_expression(arg)?;
+                    evaluated_args.push(arg_value);
+                }
+
+                // Find macro definition
+                let current_mod = self.current_module.clone();
+                let macro_def = self.find_macro(&current_mod, &name)?;
+
+                match macro_def {
+                    // Pattern-based macro
+                    Statement::MacroDeclaration {
+                        patterns,
+                        body: None,
+                        ..
+                    } => self.expand_pattern_macro(&name, &patterns, &evaluated_args),
+                    // Procedure macro
+                    Statement::MacroDeclaration {
+                        patterns: _,
+                        body: Some(body),
+                        ..
+                    } => self.execute_procedural_macro(&name, &body, &evaluated_args),
+                    _ => Err(VeldError::RuntimeError(format!(
+                        "Invalid macro definition for '{name}'"
+                    ))),
+                }
+            }
+        }
+    }
+
+    fn find_macro(&self, module_name: &str, macro_name: &str) -> Result<Statement> {
+        // Check current module first
+        if let Some(module) = self.module_manager.get_module(module_name) {
+            for stmt in &module.statements {
+                if let Statement::MacroDeclaration { name, .. } = stmt {
+                    if name == macro_name {
+                        return Ok(stmt.clone());
+                    }
+                }
+            }
+        }
+
+        // Check imported modules
+        for (alias, imported_module_name) in &self.imported_modules {
+            if let Some(module) = self.module_manager.get_module(imported_module_name) {
+                for stmt in &module.statements {
+                    if let Statement::MacroDeclaration { name, .. } = stmt {
+                        if name == macro_name {
+                            return Ok(stmt.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        Err(VeldError::RuntimeError(format!(
+            "Macro '{macro_name}' not found'"
+        )))
+    }
+
+    fn expand_pattern_macro(
+        &mut self,
+        macro_name: &str,
+        patterns: &[(MacroPattern, MacroExpansion)],
+        args: &[Value],
+    ) -> Result<Value> {
+        let args_str = args
+            .iter()
+            .map(|v| self.value_to_string(v))
+            .collect::<Result<Vec<_>>>()?
+            .join(" ");
+
+        for (pattern, expansion) in patterns {
+            if self.pattern_matches_args(&pattern.0, &args_str) {
+                return self.execute_macro_expansion(expansion, args);
+            }
+        }
+
+        Err(VeldError::RuntimeError(format!(
+            "No matching pattern found for macro '{}' with arguments: {}",
+            macro_name, args_str
+        )))
+    }
+
+    fn pattern_matches_args(&self, pattern: &str, args_str: &str) -> bool {
+        // TODO: Implement a proper pattern matching algorithm that handles meta-variables, repetition, etc.
+        // For now, just check if the pattern starts with the same tokens
+        // or has wildcard placeholders
+        //
+        let pattern_parts: Vec<&str> = pattern.split_whitespace().collect();
+        let args_parts: Vec<&str> = args_str.split_whitespace().collect();
+
+        if pattern_parts.len() != args_parts.len() {
+            return false; // Simple length check
+        }
+
+        for (p, a) in pattern_parts.iter().zip(args_parts.iter()) {
+            if p.starts_with("$") {
+                // This is a placeholder/variable in the pattern
+                continue;
+            }
+
+            if p != a {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn execute_macro_expansion(
+        &mut self,
+        expansion: &MacroExpansion,
+        args: &[Value],
+    ) -> Result<Value> {
+        self.push_scope();
+
+        let mut result = Value::Unit;
+        for stmt in expansion.0.clone() {
+            match self.execute_statement(stmt) {
+                Ok(value) => {
+                    result = value;
+                }
+
+                Err(e) => {
+                    self.pop_scope();
+                    return Err(e);
+                }
+            }
+        }
+
+        self.pop_scope();
+        Ok(result)
+    }
+
+    fn execute_procedural_macro(
+        &mut self,
+        macro_name: &str,
+        body: &[Statement],
+        args: &[Value],
+    ) -> Result<Value> {
+        self.push_scope();
+
+        // TODO: Change to properly bind named parameters
+        for (i, arg) in args.iter().enumerate() {
+            let param_name = format!("${}", i + 1);
+            self.current_scope_mut()
+                .declare(param_name.clone(), arg.clone(), VarKind::Let)?;
+        }
+
+        // Execute the macro body
+        let mut result = Value::Unit;
+        for stmt in body {
+            match self.execute_statement(stmt.clone()) {
+                Ok(value) => {
+                    result = value;
+                }
+
+                Err(e) => {
+                    self.pop_scope();
+                    return Err(e);
+                }
+            }
+        }
+
+        self.pop_scope();
+        Ok(result)
+    }
+
+    fn value_to_string(&self, value: &Value) -> Result<String> {
+        match value {
+            Value::Integer(i) => Ok(i.to_string()),
+            Value::Float(f) => Ok(f.to_string()),
+            Value::String(s) => Ok(s.clone()),
+            Value::Boolean(b) => Ok(b.to_string()),
+            Value::Char(c) => Ok(c.to_string()),
+            Value::Struct { name, fields } => {
+                let fields_str = fields
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", k, self.value_to_string(v).unwrap_or_default()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Ok(format!("{}({})", name, fields_str))
+            }
+            _ => Ok(format!("{:?}", value)),
         }
     }
 
