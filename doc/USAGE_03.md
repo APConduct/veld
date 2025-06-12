@@ -65,14 +65,14 @@ local add, subtract = math.add, math.subtract
 ## More on the Macro System
 
 ```veld
-// Declarative macro definition (uses tilde)
+-- Declarative macro definition (uses tilde)
 macro~ vec
     () => new_vec(),
-    ($elem:expr) => {
+    ($elem:expr) => do
         let mut temp = new_vec();
         temp.push($elem);
         temp
-    }
+    end
 end
 
 -- Procedural macro definition (no tilde)

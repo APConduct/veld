@@ -166,11 +166,11 @@ impl Parser {
         let name = self.consume_identifier("Expected macro name")?;
 
         // Check for pattern matching style macro
-        if self.match_token(&[Token::LBrace]) {
+        if self.match_token(&[Token::Do]) {
             // Parse pattern matching macro rules
             let mut patterns = Vec::new();
 
-            while !self.check(&Token::RBrace) && !self.is_at_end() {
+            while !self.check(&Token::End) && !self.is_at_end() {
                 // Parse pattern
                 let pattern = self.parse_macro_pattern()?;
 
@@ -180,11 +180,11 @@ impl Parser {
 
                 patterns.push((pattern, expansion));
 
-                // Optional comma between patterns
-                self.match_token(&[Token::Comma]);
+                // Optional separator between patterns
+                self.match_token(&[Token::Semicolon]);
             }
 
-            self.consume(&Token::RBrace, "Expected '}' after macro patterns")?;
+            self.consume(&Token::End, "Expected 'end' after macro patterns")?;
 
             Ok(Statement::MacroDeclaration {
                 name,
