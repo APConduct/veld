@@ -210,7 +210,8 @@ impl<'a> Lexer<'a> {
                     // Nested comment
                     nesting_level += 1;
                 }
-            } else if let Some(pos) = line.find("--|[[") { // Added check for doc comments
+            } else if let Some(pos) = line.find("--|[[") {
+                // Added check for doc comments
                 if !in_multiline_comment {
                     // Keep text before the comment start
                     result.push_str(&line[0..pos]);
@@ -233,7 +234,7 @@ impl<'a> Lexer<'a> {
                     in_multiline_comment = false;
                     // If there's text after the comment end, add it
                     if let Some(pos) = line.rfind("]]") {
-                        result.push_str(&line[(pos+2)..]);
+                        result.push_str(&line[(pos + 2)..]);
                         result.push('\n');
                     }
                 }
@@ -263,5 +264,53 @@ impl<'a> Iterator for Lexer<'a> {
 impl<'a> Lexer<'a> {
     pub fn collect_tokens(&mut self) -> Result<Vec<Token>, String> {
         self.collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lexer() {
+        let input = r#"
+            fn main()
+                let x = 42
+                let y = "Hello, world!"
+                if x > 0 then
+                    println(y)
+                end
+            end
+        "#;
+
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.collect_tokens().unwrap();
+
+        assert_eq!(tokens.len(), 23);
+        assert_eq!(tokens[0], Token::Fn);
+        assert_eq!(tokens[1], Token::Identifier("main".to_string()));
+        assert_eq!(tokens[2], Token::LParen);
+        assert_eq!(tokens[3], Token::RParen);
+        assert_eq!(tokens[4], Token::Let);
+        assert_eq!(tokens[5], Token::Identifier("x".to_string()));
+        assert_eq!(tokens[6], Token::Equals);
+        assert_eq!(tokens[7], Token::IntegerLiteral(42));
+        assert_eq!(tokens[8], Token::Let);
+        assert_eq!(tokens[9], Token::Identifier("y".to_string()));
+        assert_eq!(tokens[10], Token::Equals);
+        assert_eq!(
+            tokens[11],
+            Token::StringLiteral("Hello, world!".to_string())
+        );
+        assert_eq!(tokens[12], Token::If);
+        assert_eq!(tokens[13], Token::Identifier("x".to_string()));
+        assert_eq!(tokens[14], Token::Greater);
+        assert_eq!(tokens[15], Token::IntegerLiteral(0));
+        assert_eq!(tokens[16], Token::Then);
+        assert_eq!(tokens[17], Token::Identifier("println".to_string()));
+        assert_eq!(tokens[18], Token::LParen);
+        assert_eq!(tokens[19], Token::Identifier("y".to_string()));
+        assert_eq!(tokens[20], Token::RParen);
+        assert_eq!(tokens[21], Token::End);
     }
 }
