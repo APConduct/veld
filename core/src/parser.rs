@@ -1301,6 +1301,7 @@ impl Parser {
     fn consume_identifier(&mut self, message: &str) -> Result<String> {
         match self.advance() {
             Token::Identifier(s) => Ok(s),
+            Token::SelfToken => Ok("self".to_string()), // Handle self token
             _ => Err(VeldError::ParserError(message.to_string())),
         }
     }
@@ -2671,8 +2672,17 @@ impl Parser {
             if !self.check(&Token::RParen) {
                 loop {
                     let param_name = self.consume_identifier("Expected parameter name")?;
-                    self.consume(&Token::Colon, "Expected ':' after parameter name")?;
-                    let param_type = self.parse_type()?;
+
+                    // Special handling for 'self' parameter
+                    let param_type = if param_name == "self" && !self.check(&Token::Colon) {
+                        // For 'self' parameter without explicit type, use Self
+                        TypeAnnotation::Basic("Self".to_string())
+                    } else {
+                        // For other parameters or when self has explicit type
+                        self.consume(&Token::Colon, "Expected ':' after parameter name")?;
+                        self.parse_type()?
+                    };
+
                     params.push((param_name, param_type));
 
                     if !self.match_token(&[Token::Comma]) {
@@ -2720,8 +2730,17 @@ impl Parser {
                 if !self.check(&Token::RParen) {
                     loop {
                         let param_name = self.consume_identifier("Expected parameter name")?;
-                        self.consume(&Token::Colon, "Expected ':' after parameter name")?;
-                        let param_type = self.parse_type()?;
+
+                        // Special handling for 'self' parameter
+                        let param_type = if param_name == "self" && !self.check(&Token::Colon) {
+                            // For 'self' parameter without explicit type, use Self
+                            TypeAnnotation::Basic("Self".to_string())
+                        } else {
+                            // For other parameters or when self has explicit type
+                            self.consume(&Token::Colon, "Expected ':' after parameter name")?;
+                            self.parse_type()?
+                        };
+
                         params.push((param_name, param_type));
 
                         if !self.match_token(&[Token::Comma]) {
