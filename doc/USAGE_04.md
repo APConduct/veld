@@ -20,31 +20,31 @@ Veld is a modern, multi-paradigm programming language with eager typing, built f
 ## Basic Types
 
 ```veld
--- Basic types
+# Basic types
 let i: i32 = 42
 let f: f64 = 3.14
 let s: str = "hello"
 let b: bool = true
 let c: char = 'a'
 
--- Unit type (similar to void/nil)
+# Unit type (similar to void/nil)
 let unit_value: () = ()
 
--- Arrays
+# Arrays
 let numbers: [i32] = [1, 2, 3, 4, 5]
 ```
 
 ## Variables
 
 ```veld
--- Immutable variable (default)
+# Immutable variable (default)
 let name = "Alice"
 
--- Mutable variable
+# Mutable variable
 var counter = 0
 counter = counter + 1
 
--- Type annotations (optional when type can be inferred)
+# Type annotations (optional when type can be inferred)
 let age: i32 = 30
 let height: f64 = 175.5
 ```
@@ -56,43 +56,43 @@ Veld offers multiple ways to declare functions:
 ### Standard Function Declaration
 
 ```veld
--- Multi-line function with implicit return
+# Multi-line function with implicit return
 fn add(a: i32, b: i32) -> i32
     a + b
 end
 
--- Multi-line function with optional 'do' keyword
+# Multi-line function with optional 'do' keyword
 fn calculate(x: i32, y: i32) -> i32 do
     let temp = x * 2
     temp + y
 end
 
--- Single-expression function with fat arrow
+# Single-expression function with fat arrow
 fn square(x: i32) -> i32 => x * x
 
--- Void function (returns unit)
+# Void function (returns unit)
 fn log(message: str) -> ()
     println~("LOG: {}", message)
 end
 
--- Procedure shorthand (implicit unit return)
+# Procedure shorthand (implicit unit return)
 proc greet(name: str)
     println~("Hello, {}!", name)
 end
 
--- First-class functions with type annotations
+# First-class functions with type annotations
 let multiply: (i32, i32) -> i32 = fn(a, b) => a * b
 
--- Lambda expressions
+# Lambda expressions
 let add_one = x => x + 1
 
--- Multi-line lambda
+# Multi-line lambda
 let process = data => do
     let result = transform(data)
     filter(result)
 end
 
--- Anonymous block (proc lambda)
+# Anonymous block (proc lambda)
 let setup = do
     initialize_resources()
     configure_settings()
@@ -103,10 +103,10 @@ end
 ## Control Flow
 
 ```veld
--- If expression
+# If expression
 let max = if a > b then a else b end
 
--- Multi-line if statement
+# Multi-line if statement
 if user.is_admin() then
     grant_access()
     log_access()
@@ -116,27 +116,27 @@ else
     deny_access()
 end
 
--- While loop
+# While loop
 while connection.is_active() do
     process_next_message()
 end
 
--- For loop (iteration)
+# For loop (iteration)
 for item in collection do
     process(item)
 end
 
--- For loop with index
+# For loop with index
 for item, index in collection.with_index() do
     println~("Item {} at index {}", item, index)
 end
 
--- For with range
+# For with range
 for i in 0..10 do
-    println~("{}", i)  -- Prints 0 to 9
+    println~("{}", i)  # Prints 0 to 9
 end
 
--- Pipeline operator for chaining operations
+# Pipeline operator for chaining operations
 let result = data
     |> transform
     |> validate
@@ -146,24 +146,24 @@ let result = data
 ## Structs and Methods
 
 ```veld
--- Basic struct with fields
+# Basic struct with fields
 struct Point do
     x: f64,
     y: f64,
 end
 
--- Single-line tuple-style struct
+# Single-line tuple-style struct
 struct Color(r: u8, g: u8, b: u8)
 
--- Struct with methods
+# Struct with methods
 struct Rectangle
     width: f64,
     height: f64,
 
-    -- Method with arrow syntax
+    # Method with arrow syntax
     fn area(self) -> f64 => self.width * self.height
 
-    -- Method with block syntax and optional 'do'
+    # Method with block syntax and optional 'do'
     fn scale(self, factor: f64) -> Rectangle do
         Rectangle(
             width: self.width * factor,
@@ -172,15 +172,15 @@ struct Rectangle
     end
 end
 
--- Creating and using structs
+# Creating and using structs
 let p = Point(x: 10.0, y: 20.0)
-let c = Color(255, 0, 0)  -- Positional arguments also work
+let c = Color(255, 0, 0)  # Positional arguments also work
 let r = Rectangle(width: 5.0, height: 10.0)
 
-let area = r.area()  -- 50.0
+let area = r.area()  # 50.0
 let scaled = r.scale(2.0)
 
--- Preventing structural type conformance with attributes
+# Preventing structural type conformance with attributes
 @no_conform
 struct SpecialPoint
     x: f64,
@@ -189,7 +189,7 @@ struct SpecialPoint
     fn distance(self) -> f64 => (self.x * self.x + self.y * self.y).sqrt()
 end
 
--- Preventing specific kind conformance
+# Preventing specific kind conformance
 @no_conform(Printable)
 struct PrivateData
     content: str,
@@ -201,13 +201,13 @@ end
 ## Kinds (Interfaces)
 
 ```veld
--- Basic kind definition
+# Basic kind definition
 kind Shape
     fn area(self) -> f64
     fn perimeter(self) -> f64
 end
 
--- Kind with default implementations
+# Kind with default implementations
 kind Comparable
     fn compare(self, other: Self) -> i32
 
@@ -220,7 +220,7 @@ kind Comparable
     end
 end
 
--- Implementing a kind with arrow syntax
+# Implementing a kind with arrow syntax
 struct Circle
     radius: f64,
 end
@@ -230,7 +230,7 @@ impl Circle <- Shape
     fn perimeter(self) -> f64 => 2.0 * 3.14 * self.radius
 end
 
--- Implementing a kind with 'for' syntax
+# Implementing a kind with 'for' syntax
 struct Square
     side: f64,
 end
@@ -240,13 +240,13 @@ impl Shape for Square
     fn perimeter(self) -> f64 => 4.0 * self.side
 end
 
--- Using kinds as type constraints
+# Using kinds as type constraints
 fn print_shape_info(s: Shape)
     println~("Area: {}", s.area())
     println~("Perimeter: {}", s.perimeter())
 end
 
--- Using the functions
+# Using the functions
 let circle = Circle(radius: 5.0)
 let square = Square(side: 4.0)
 
@@ -257,12 +257,12 @@ print_shape_info(square)
 ## Structural Typing
 
 ```veld
--- A kind definition
+# A kind definition
 kind Printable
     fn to_string(self) -> str
 end
 
--- A struct that happens to have a compatible method
+# A struct that happens to have a compatible method
 struct Person
     name: str,
     age: i32,
@@ -270,16 +270,16 @@ struct Person
      fn to_string(self) -> str => format~("{} ({})", self.name, self.age)
 end
 
--- Function taking the kind as parameter
+# Function taking the kind as parameter
 fn display(item: Printable)
     println(item.to_string())
 end
 
--- Usage - Person is automatically treated as Printable
+# Usage - Person is automatically treated as Printable
 let person = Person(name: "Alice", age: 30)
-display(person)  -- Works without explicit implementation
+display(person)  # Works without explicit implementation
 
--- Opting out of structural typing
+# Opting out of structural typing
 @no_conform
 struct PrivateData
     value: str,
@@ -288,9 +288,9 @@ struct PrivateData
 end
 
 let data = PrivateData(value: "secret")
-display(data)  -- Error: PrivateData does not implement Printable
+display(data)  # Error: PrivateData does not implement Printable
 
--- Opting out of specific kind conformance
+# Opting out of specific kind conformance
 @no_conform(Comparable)
 struct UncomparableItem
     id: i32,
@@ -302,16 +302,16 @@ end
 ## Operator Overloading
 
 ```veld
--- Import operator kinds from standard library
+# Import operator kinds from standard library
 import std.ops.{Add, Sub, Mul, Div, Neg}
 
--- Complex number implementation
+# Complex number implementation
 struct Complex
     real: f64,
     imag: f64,
 end
 
--- Addition with arrow syntax
+# Addition with arrow syntax
 impl Complex <- Add<Complex, Output = Complex>
     fn add(self, rhs: Complex) -> Complex => Complex(
         real: self.real + rhs.real,
@@ -319,7 +319,7 @@ impl Complex <- Add<Complex, Output = Complex>
     )
 end
 
--- Multiplication with 'for' syntax
+# Multiplication with 'for' syntax
 impl Mul<Complex, Output = Complex> for Complex
     fn mul(self, rhs: Complex) -> Complex do
         Complex(
@@ -329,7 +329,7 @@ impl Mul<Complex, Output = Complex> for Complex
     end
 end
 
--- Negation (unary minus)
+# Negation (unary minus)
 impl Complex <- Neg<Output = Complex>
     fn neg(self) -> Complex => Complex(
         real: -self.real,
@@ -337,13 +337,13 @@ impl Complex <- Neg<Output = Complex>
     )
 end
 
--- Vector type with scalar multiplication
+# Vector type with scalar multiplication
 struct Vector2
     x: f64,
     y: f64,
 end
 
--- Vector addition
+# Vector addition
 impl Vector2 <- Add<Vector2, Output = Vector2>
     fn add(self, rhs: Vector2) -> Vector2 => Vector2(
         x: self.x + rhs.x,
@@ -351,7 +351,7 @@ impl Vector2 <- Add<Vector2, Output = Vector2>
     )
 end
 
--- Scalar multiplication
+# Scalar multiplication
 impl Mul<f64, Output = Vector2> for Vector2
     fn mul(self, scalar: f64) -> Vector2 => Vector2(
         x: self.x * scalar,
@@ -359,30 +359,30 @@ impl Mul<f64, Output = Vector2> for Vector2
     )
 end
 
--- Usage of operators
+# Usage of operators
 let a = Complex(real: 1.0, imag: 2.0)
 let b = Complex(real: 3.0, imag: 4.0)
 
-let sum = a + b        -- Complex(real: 4.0, imag: 6.0)
-let product = a * b    -- Complex(real: -5.0, imag: 10.0)
-let negated = -a       -- Complex(real: -1.0, imag: -2.0)
+let sum = a + b        # Complex(real: 4.0, imag: 6.0)
+let product = a * b    # Complex(real: -5.0, imag: 10.0)
+let negated = -a       # Complex(real: -1.0, imag: -2.0)
 
 let v = Vector2(x: 3.0, y: 4.0)
-let scaled = v * 2.0   -- Vector2(x: 6.0, y: 8.0)
+let scaled = v * 2.0   # Vector2(x: 6.0, y: 8.0)
 ```
 
 ## Modules and Imports
 
 ```veld
--- Defining a module
+# Defining a module
 mod math
-    -- Public function
+    # Public function
     pub fn add(a: i32, b: i32) -> i32 => a + b
 
-    -- Private function (default)
+    # Private function (default)
     fn helper() -> i32 => 42
 
-    -- Public struct
+    # Public struct
     pub struct Vector2
         x: f64,
         y: f64,
@@ -391,33 +391,33 @@ mod math
     end
 end
 
--- Simple import
+# Simple import
 import math
 
 let sum = math.add(1, 2)
 
--- Importing specific items
+# Importing specific items
 import math.{add, Vector2}
 
 let result = add(3, 4)
 let vec = Vector2(x: 1.0, y: 2.0)
 
--- Import with alias
+# Import with alias
 import math as m
 
 let sum2 = m.add(5, 6)
 
--- Importing all items
+# Importing all items
 import math.*
 
--- Importing from nested modules
+# Importing from nested modules
 import std.collections.{List, Map}
 import std.io.{read_file, write_file}
 
--- Re-exporting items
+# Re-exporting items
 mod geometry
     import math.Vector2
-    pub(Vector2)  -- Re-export Vector2
+    pub(Vector2)  # Re-export Vector2
 
     pub struct Rectangle
         width: f64,
@@ -429,23 +429,23 @@ end
 ## Enums and Pattern Matching
 
 ```veld
--- Basic enum
+# Basic enum
 enum Direction(North, South, East, West)
 
--- Enum with associated data
+# Enum with associated data
 enum Shape
-    Circle(f64),              -- radius
-    Rectangle(f64, f64),      -- width, height
-    Triangle(f64, f64, f64),  -- sides
+    Circle(f64),              # radius
+    Rectangle(f64, f64),      # width, height
+    Triangle(f64, f64, f64),  # sides
 end
 
--- Generic enum
+# Generic enum
 enum Result<T, E>
     Ok(T),
     Err(E),
 end
 
--- Pattern matching
+# Pattern matching
 let shape = Shape.Circle(5.0)
 
 let area = match shape
@@ -457,7 +457,7 @@ let area = match shape
     end,
 end
 
--- Pattern matching with guards
+# Pattern matching with guards
 let result: Result<i32, str> = Result.Ok(42)
 
 match result
@@ -466,12 +466,12 @@ match result
     Result.Err(msg) => println~("Error: {}", msg),
 end
 
--- Using enums for state machines
+# Using enums for state machines
 enum ConnectionState
     Disconnected,
     Connecting,
-    Connected(str),  -- IP address
-    Failed(str),     -- Error message
+    Connected(str),  # IP address
+    Failed(str),     # Error message
 end
 
 let state = ConnectionState.Connected("192.168.1.1")
@@ -487,7 +487,7 @@ end
 ## Macros
 
 ```veld
--- Declarative macro
+# Declarative macro
 macro~ vec
     () => new_vec(),
     ($elem:expr) => do
@@ -504,19 +504,19 @@ macro~ vec
     end
 end
 
--- Using a macro
+# Using a macro
 let numbers = vec~(1, 2, 3, 4)
 
--- Format macro
+# Format macro
 let message = format~("Hello, {}!", name)
 
--- Chainable macros
+# Chainable macros
 let result = data
-    ~debug         -- Print debug info
-    ~validate      -- Validate data
-    ~transform     -- Transform data
+    ~debug         # Print debug info
+    ~validate      # Validate data
+    ~transform     # Transform data
 
--- HTML-like DSL macro
+# HTML-like DSL macro
 let content = html~(
     <div class="container">
         <h1>{title}</h1>
@@ -527,7 +527,7 @@ let content = html~(
     </div>
 )
 
--- SQL query macro
+# SQL query macro
 let users = sql~(
     SELECT name, email
     FROM users
@@ -541,14 +541,14 @@ let users = sql~(
 ### Pipeline Operator
 
 ```veld
--- Processing data with pipeline operator
+# Processing data with pipeline operator
 let result = data
     |> parse
     |> validate
     |> transform
     |> format
 
--- With arguments
+# With arguments
 let processed = data
     |> filter(x => x > 0)
     |> map(x => x * 2)
@@ -558,18 +558,18 @@ let processed = data
 ### Concurrency
 
 ```veld
--- Spawning a task
+# Spawning a task
 let handle = spawn fn()
     perform_work()
 end
 
--- Awaiting async functions
+# Awaiting async functions
 fn fetch_data() async -> Data
     let response = http.get("https://api.example.com/data").await
     parse_data(response)
 end
 
--- Using channels
+# Using channels
 let (sender, receiver) = channel<Message>()
 
 spawn fn()
@@ -586,29 +586,29 @@ end
 ### Type Inference and Generics
 
 ```veld
--- Generic function
+# Generic function
 fn map<T, U>(value: T, f: fn(T) -> U) -> U
     f(value)
 end
 
--- Generic struct
+# Generic struct
 struct Pair<A, B>
     first: A,
     second: B,
 end
 
--- Generic function with constraints
+# Generic function with constraints
 fn sum<T: Number>(list: List<T>) -> T
     list.reduce((a, b) => a + b)
 end
 
--- Multiple constraints
+# Multiple constraints
 fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool
     println~("{} vs {}", a, b)
     a == b
 end
 
--- Generics with where clause
+# Generics with where clause
 fn merge<T, U, V>(a: T, b: U) -> V
 where
     T: Convertible<V>,
@@ -617,7 +617,7 @@ do
     a.convert() + b.convert()
 end
 
--- Associated types
+# Associated types
 kind Iterator
     type Item
     fn next(self) -> Option<Self.Item>
@@ -627,7 +627,7 @@ impl List<T>: Iterator
     type Item = T
 
     fn next(self) -> Option<T>
-        -- implementation
+        # implementation
     end
 end
 ```

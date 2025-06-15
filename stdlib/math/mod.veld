@@ -1,4 +1,4 @@
---| This main entry point for the math module
---| of the Veld standard library
---| This module contains basic math functions
---| and constants
+#| This main entry point for the math module
+#| of the Veld standard library
+#| This module contains basic math functions
+#| and constants

@@ -1,31 +1,31 @@
--- Simple function syntax test
+# Simple function syntax test
 
--- Traditional function
+# Traditional function
 fn add_one(x: i32) -> i32
     x + 1
 end
 
--- Arrow function
+# Arrow function
 fn add_two(x: i32) => x + 2
 
--- Block lambda
+# Block lambda
 let add_three = x => do
     let temp = x + 3
     temp
 end
 
--- Test calls
-let result1 = add_one(5)    -- Should be 6
-let result2 = add_two(5)    -- Should be 7
-let result3 = add_three(5)  -- Should be 8
+# Test calls
+let result1 = add_one(5)    # Should be 6
+let result2 = add_two(5)    # Should be 7
+let result3 = add_three(5)  # Should be 8
 
--- Test block scope
+# Test block scope
 do
     let scoped = 100
     let block_result = scoped + 50
 end
 
--- Test procedure
+# Test procedure
 proc do_something(x: i32)
     let temp = x * 2
 end

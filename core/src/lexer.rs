@@ -2,8 +2,8 @@ use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Clone)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace
-#[logos(skip r"--.*")] // Skip single-line comments
-#[logos(skip r"--|")] // Skip multi-line comments
+#[logos(skip r"#.*")] // Skip single-line comments
+#[logos(skip r"#\|")] // Skip multi-line comments
 pub enum Token {
     // Keywords
     #[token("fn")]
@@ -200,7 +200,7 @@ impl<'a> Lexer<'a> {
 
         for line in input.lines() {
             // Check for both types of multiline comment starts
-            if let Some(pos) = line.find("--[[") {
+            if let Some(pos) = line.find("#[[") {
                 if !in_multiline_comment {
                     // Keep text before the comment start
                     result.push_str(&line[0..pos]);
@@ -210,7 +210,7 @@ impl<'a> Lexer<'a> {
                     // Nested comment
                     nesting_level += 1;
                 }
-            } else if let Some(pos) = line.find("--|[[") {
+            } else if let Some(pos) = line.find("#|[[") {
                 // Added check for doc comments
                 if !in_multiline_comment {
                     // Keep text before the comment start

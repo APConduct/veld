@@ -1,46 +1,46 @@
 let block_demi = fn()
-    -- test for demi-lamba block functions
-    -- demi because it uses 'fn' and does not use '=>' syntax
+    # test for demi-lamba block functions
+    # demi because it uses 'fn' and does not use '=>' syntax
     let x = 10
     x
 end
 
 let block_lambda = x => do
-    -- test for lambda block functions
-    -- lambda because it uses '=>' syntax with 'let'
-    -- block because it is a block function (uses 'do' and 'end' syntax)
+    # test for lambda block functions
+    # lambda because it uses '=>' syntax with 'let'
+    # block because it is a block function (uses 'do' and 'end' syntax)
     x + 10
 end
 
 let demi_hybrid = fn(x) => do
-    -- test for demi-lambda hybrid functions
-    -- hybrid and demi because it uses 'fn' and '=>' syntax
+    # test for demi-lambda hybrid functions
+    # hybrid and demi because it uses 'fn' and '=>' syntax
     x + 20
 end
 
 fn verbose_func() => do
-    -- test for verbose function syntax
-    -- verbose because '=> do' is not needed for non-lambda block functions
+    # test for verbose function syntax
+    # verbose because '=> do' is not needed for non-lambda block functions
     let x = 30
     x + 30
 end
 
 let block_lambda_no_params = () => do
-    -- test for verbose lambda with no parameters
-    -- block because it is a block function (uses 'do' and 'end' syntax)
-    -- non-proc lambas with 0 or multiple parameters require parentheses
+    # test for verbose lambda with no parameters
+    # block because it is a block function (uses 'do' and 'end' syntax)
+    # non-proc lambas with 0 or multiple parameters require parentheses
     40
 end
 
 let verbose_proc_lambda = fn() => do
-    -- test for verbose procedural lambda
-    -- verbose because it uses 'fn' and '=>' with 'do'
-    -- proc because it does not take parameters, and returns a unit type (void in some languages, '()' in rust, 'Nil' gleam and lua)
+    # test for verbose procedural lambda
+    # verbose because it uses 'fn' and '=>' with 'do'
+    # proc because it does not take parameters, and returns a unit type (void in some languages, '()' in rust, 'Nil' gleam and lua)
     let x = 50
 end
 
 
--- call the functions to ensure they work
+# call the functions to ensure they work
 
 let result_block_demi = block_demi()
 

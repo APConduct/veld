@@ -1,4 +1,4 @@
--- Minimal test for generic params
+# Minimal test for generic params
 
 kind Simple<T>
     fn test(self) -> T

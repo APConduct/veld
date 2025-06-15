@@ -1,5 +1,5 @@
 ```veld
--- Veld code
+# Veld code
 mod math
 pub fn add(a: i32, b: i32) -> i32 a + b
 ```
@@ -18,14 +18,14 @@ return math
 And imports:
 
 ```veld
--- Veld code
+# Veld code
 import math.{add, subtract}
 ```
 
 Would compile as:
 
 ```lua
--- Compiled Lua
+# Compiled Lua
 local math = require("math")
 local add, subtract = math.add, math.subtract
 ```
@@ -36,7 +36,7 @@ local add, subtract = math.add, math.subtract
    ```veld
    mod config
 
-   -- Module initialization code runs when imported
+   # Module initialization code runs when imported
    println~("Config module loaded");
 
    pub let settings = load_settings()
@@ -47,7 +47,7 @@ local add, subtract = math.add, math.subtract
    mod graphics
 
    import math.Vector2
-   pub(Vector2)  -- Re-export Vector2 from the math module
+   pub(Vector2)  # Re-export Vector2 from the math module
    ```
 
 3. **Conditional exports**
@@ -65,7 +65,7 @@ local add, subtract = math.add, math.subtract
 ## More on the Macro System
 
 ```veld
--- Declarative macro definition (uses tilde)
+# Declarative macro definition (uses tilde)
 macro~ vec
     () => new_vec(),
     ($elem:expr) => do
@@ -75,7 +75,7 @@ macro~ vec
     end
 end
 
--- Procedural macro definition (no tilde)
+# Procedural macro definition (no tilde)
 @comptime fn derive(trait_name)
     match trait_name
         "Debug" => generate_debug_impl(),
@@ -83,7 +83,7 @@ end
     end
 end
 
--- Usage examples
+# Usage examples
 let numbers = vec~(1, 2, 3)  // Declarative macro with tilde
 
 @derive(Debug, Clone)         // Procedural macro as attribute

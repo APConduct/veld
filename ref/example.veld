@@ -1,7 +1,7 @@
---| This is an example Doc Comment in Veld
--- this is a regular Veld comment
+#| This is an example Doc Comment in Veld
+# this is a regular Veld comment
 
--- multiple ways to declare functions
+# multiple ways to declare functions
 
 
 fn add(a: i32, b: i32) -> i32
@@ -9,144 +9,144 @@ fn add(a: i32, b: i32) -> i32
 end
 
 
--- is the same as:
+# is the same as:
 
 fn add(a: i32, b: i32) -> i32
     return a + b
 end
 
--- is the same as:
+# is the same as:
 
 fn add(a: i32, b: i32) -> i32 return a + b end
 
--- is the same as:
+# is the same as:
 
 let add = fn(a: i32, b: i32) -> i32
     a + b
 end
 
--- is the same as:
+# is the same as:
 
-let add: (i32, i32) -> i32 = = fn(a, b)   -- first class function
+let add: (i32, i32) -> i32 = = fn(a, b)   # first class function
     a + b
 end
 
--- is the same as:
+# is the same as:
 
-fn add(a, b) = a + b     -- demi-lambda function (semicolons are allowed for single-line functions)
+fn add(a, b) = a + b     # demi-lambda function (semicolons are allowed for single-line functions)
 
--- is the same as:
+# is the same as:
 
 fn add(a: i32, b: i32) -> i32 = a + b
 
--- is the same as:
+# is the same as:
 
-let add = a, b => a + b  -- lambda function (no type annotations)
+let add = a, b => a + b  # lambda function (no type annotations)
 
--- Multi-line function
+# Multi-line function
 fn complex_function(x: i32) -> i32
     let temp = something()
     temp + x
 end
 
--- Traditional Struct declaration
+# Traditional Struct declaration
 struct Point
     x: f64,
     y: f64,
 end
 
--- Single-line struct
+# Single-line struct
 struct Point(x: f64, y: f64);
 
--- kind declaration(similar to traits or interfaces)
+# kind declaration(similar to traits or interfaces)
 kind Shape
-    fn area(self) -- no default implementation (must implement)
+    fn area(self) # no default implementation (must implement)
 end
 
--- Multi-line kind declaration
+# Multi-line kind declaration
 kind Shape
     fn area(self) -> f64,
     fn perimeter(self) -> f64,
 end
 
--- Single-line kind
-kind Printable = fn print(self) -> str     -- NOT FINALIZED
+# Single-line kind
+kind Printable = fn print(self) -> str     # NOT FINALIZED
 
--- Single-line impl
+# Single-line impl
 impl Point fn distance(self) -> f64 (self.x * self.x + self.y * self.y).sqrt() end
 
--- Multi-line impl needs end
+# Multi-line impl needs end
 impl Circle
     fn area(self) -> f64
         3.14 * self.radius * self.radius
     end
 end
 
--- tables dont need impl keyword but use gc
+# tables dont need impl keyword but use gc
 var foo = {
     name: "John",
     age: 30,
     email: "john@example.com"
 }
 
--- enums
+# enums
 enum Color
     Red,
     Green,
     Blue,
 end
 
--- Single-line enum
+# Single-line enum
 enum Direction (North, South, East, West)
 
 
--- Explicit struct behavior declaration
+# Explicit struct behavior declaration
 
--- Struct declaration
+# Struct declaration
 struct Square
-    side: f64 -- comma optional for last/only field
+    side: f64 # comma optional for last/only field
 end
 
--- Behavior declaration
+# Behavior declaration
 impl Square
-    fn area(self) -> f64         -- automatically inferred to be Shape impl (unless specified otherwise with attribute)
+    fn area(self) -> f64         # automatically inferred to be Shape impl (unless specified otherwise with attribute)
         self.side * self.side
     end
 end
 
--- This is also allowed for convenience
+# This is also allowed for convenience
 struct Circle
     radius: f64,
 impl
-    fn area(self) -> f64        -- automatically inferred to be Shape impl (unless specified otherwise with attribute)
+    fn area(self) -> f64        # automatically inferred to be Shape impl (unless specified otherwise with attribute)
         3.14 * self.radius * self.radius
     end
 end
 
--- Example of implementing multiple kinds
+# Example of implementing multiple kinds
 struct MyType
     value: i32
 impl
-    fn print(self) = println!("{}", self.value)  -- could implement Printable NOT FINALIZED
-    fn area(self) = self.value as f64            -- implements Shape
+    fn print(self) = println!("{}", self.value)  # could implement Printable NOT FINALIZED
+    fn area(self) = self.value as f64            # implements Shape
 end
 
--- Example of a kind with default implementation
+# Example of a kind with default implementation
 kind HasVolume
     fn volume(self) -> f64
-    fn is_empty(self) -> bool self.volume() == 0.0  -- default implementation
+    fn is_empty(self) -> bool self.volume() == 0.0  # default implementation
 end
 
--- Macros -------------------------------------------------------------
+# Macros -------------------------------------------------------------
 
--- Declarative macro syntax
-macro~ println(fmt, args...) =     -- NOT FINALIZED/ EXPERIMENTAL
-    -- macro implementation
+# Declarative macro syntax
+macro~ println(fmt, args...) =     # NOT FINALIZED/ EXPERIMENTAL
+    # macro implementation
     format_and_print(fmt, args)
 end
 
--- Pattern matching macro
-macro~ vec                         -- NOT FINALIZED/ EXPERIMENTAL
+# Pattern matching macro
+macro~ vec                         # NOT FINALIZED/ EXPERIMENTAL
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
@@ -162,7 +162,7 @@ macro~ vec                         -- NOT FINALIZED/ EXPERIMENTAL
     }
 end
 
--- Procedural macro for deriving traits
+# Procedural macro for deriving traits
 @comptime
 fn derive(trait_name)
     match trait_name
@@ -172,33 +172,33 @@ fn derive(trait_name)
     end
 end
 
--- Basic macro usage
+# Basic macro usage
 println~("Hello {}!", "World");
 debug~(some_value);
 format~("Value: {}", 42);
 
--- Chainable macros with prefix ~
+# Chainable macros with prefix ~
 some_value
-    ~debug                      -- prints debug info
-    ~validate                   -- validates the value
-    ~transform(x => x * 2);     -- transforms the value
+    ~debug                      # prints debug info
+    ~validate                   # validates the value
+    ~transform(x => x * 2);     # transforms the value
 
--- Using derive macro
+# Using derive macro
 derive~(Debug, Clone)
 struct Point
     x: f64,
     y: f64,
 end
 
--- SQL query macro
-macro~ sql(query_string)                 -- NOT FINALIZED/ EXPERIMENTAL
+# SQL query macro
+macro~ sql(query_string)                 # NOT FINALIZED/ EXPERIMENTAL
     parse_and_validate_sql(query_string)
 end
 
 let users = sql~(SELECT * FROM users WHERE age > 18);
 
--- Test macro
-macro~ test(name, block)                 -- NOT FINALIZED/ EXPERIMENTAL
+# Test macro
+macro~ test(name, block)                 # NOT FINALIZED/ EXPERIMENTAL
     register_test(name, block)
 end
 
@@ -208,28 +208,28 @@ fn test_addition()
     assert_eq~(add(2, 2), 4);
 end
 
--- Generic Functions and Types ------------------------------------------
+# Generic Functions and Types ------------------------------------------
 
--- Basic generic function
+# Basic generic function
 fn map<T, U>(value: T, f: fn(T) -> U) -> U
     f(value)
 end
 
--- Single-line generic function
+# Single-line generic function
 fn identity<T>(x: T) -> T x end
 
-const persona = (thing) => do       -- this is a lambda function (multi-line)
+const persona = (thing) => do       # this is a lambda function (multi-line)
     println~("Hello, {}!", thing)
     thing
 end
 
--- Constrained generic function
--- Number is a trait that can be implemented by various numeric types (and primitive types)
+# Constrained generic function
+# Number is a trait that can be implemented by various numeric types (and primitive types)
 fn add<T: Number>(a: T, b: T) -> T
     a + b
 end
 
--- Generic function with default type
+# Generic function with default type
 fn print_list<T: Display>(list: List<T>)
     for item in list do
         println~("Item: {}", item)
@@ -241,18 +241,18 @@ let personalized_greeting = fn(name: str) -> str
     format~("Hello, {}!", name)
 end
 
--- Generic function with constraints
+# Generic function with constraints
 fn sum<T: Number>(list: List<T>) -> T
     list.reduce(a, b => a + b)
 end
 
--- Multiple constraints
+# Multiple constraints
 fn print_and_compare<T: Display + Eq>(a: T, b: T) -> bool
     println~("{} vs {}", a, b)
     a == b
 end
 
--- Generic struct with constraints
+# Generic struct with constraints
 struct SortedList<T: Ord>
     items: List<T>
 impl
@@ -262,13 +262,13 @@ impl
     end
 end
 
--- Generic kind
+# Generic kind
 kind Container<T>
     fn get(self) -> T,
     fn set(self, value: T),
 end
 
--- Generic kind with associated types
+# Generic kind with associated types
 kind Iterator
     type Item,
     fn next(self) -> Option<Self.Item>,

@@ -1,41 +1,41 @@
--- Test file for Veld's printing system
--- This demonstrates:
--- 1. Basic printing with prelude functions
--- 2. Printing different types via Display kind
--- 3. Custom Display implementations
--- 4. Shadowing prelude functions
--- 5. Using both functions and macros
+# Test file for Veld's printing system
+# This demonstrates:
+# 1. Basic printing with prelude functions
+# 2. Printing different types via Display kind
+# 3. Custom Display implementations
+# 4. Shadowing prelude functions
+# 5. Using both functions and macros
 
--- Import some modules for testing
+# Import some modules for testing
 import std.io.{File, write_file}
 
--- Test basic prelude printing
+# Test basic prelude printing
 fn test_basic_printing()
     println("=== Basic Printing Tests ===")
 
-    -- String printing (basic case)
+    # String printing (basic case)
     print("Hello ")
     println("World!")
 
-    -- Should work with any Display type
-    println(42)                    -- i32
-    println(3.14159)              -- f64
-    println(true)                 -- bool
-    println(false)                -- bool
-    println([1, 2, 3, 4])         -- array
+    # Should work with any Display type
+    println(42)                    # i32
+    println(3.14159)              # f64
+    println(true)                 # bool
+    println(false)                # bool
+    println([1, 2, 3, 4])         # array
     println("Done with basic types")
 end
 
--- Custom struct that implements Display via structural typing
+# Custom struct that implements Display via structural typing
 pub struct Point
     pub x: f64,
     pub y: f64,
 
-    -- This automatically makes Point conform to Display kind
+    # This automatically makes Point conform to Display kind
     pub fn to_string(self) -> str => format~("Point({}, {})", self.x, self.y)
 end
 
--- Another custom struct with different Display format
+# Another custom struct with different Display format
 pub struct User
     pub name: str,
     pub age: i32,
@@ -44,37 +44,37 @@ pub struct User
     pub fn to_string(self) -> str => format~("{} <{}> (age: {})", self.name, self.email, self.age)
 end
 
--- Custom struct that doesn't implement Display (should cause error if printed)
-struct Private  -- Not pub - internal to this module
+# Custom struct that doesn't implement Display (should cause error if printed)
+struct Private  # Not pub - internal to this module
     secret: str,
-    -- No to_string method - should not be printable
+    # No to_string method - should not be printable
 end
 
 fn test_custom_types()
     println("=== Custom Type Printing Tests ===")
 
     let point = Point(x: 3.0, y: 4.0)
-    println(point)                -- Should print: Point(3, 4)
+    println(point)                # Should print: Point(3, 4)
 
     let user = User(
         name: "Alice Johnson",
         age: 30,
         email: "alice@example.com"
     )
-    println(user)                 -- Should print: Alice Johnson <alice@example.com> (age: 30)
+    println(user)                 # Should print: Alice Johnson <alice@example.com> (age: 30)
 
-    -- Test arrays of custom types
+    # Test arrays of custom types
     let points = [
         Point(x: 0.0, y: 0.0),
         Point(x: 1.0, y: 1.0),
         Point(x: 2.0, y: 3.0)
     ]
-    println(points)               -- Should print array of points
+    println(points)               # Should print array of points
 
     println("Custom types work!")
 end
 
--- Test macro printing with formatting
+# Test macro printing with formatting
 fn test_macro_printing()
     println("=== Macro Printing Tests ===")
 
@@ -82,19 +82,19 @@ fn test_macro_printing()
     let age = 25
     let score = 87.5
 
-    -- Formatted printing with macros
+    # Formatted printing with macros
     println~("User {} is {} years old", name, age)
     println~("Score: {:.2}%", score)
     println~("Multiple values: {}, {}, {}", name, age, score)
 
-    -- Error printing
+    # Error printing
     eprint~("Warning: ")
     eprintln~("User {} has low score: {}", name, score)
 
     println("Macro formatting works!")
 end
 
--- Custom logging println that shadows the prelude
+# Custom logging println that shadows the prelude
 fn custom_println<T: Display>(value: T) -> ()
     let timestamp = format~("[{}]", get_current_time())
     std.prelude.print(timestamp)
@@ -102,62 +102,62 @@ fn custom_println<T: Display>(value: T) -> ()
     std.prelude.println(value)
 end
 
--- Mock function for timestamp (since we don't have real time yet)
+# Mock function for timestamp (since we don't have real time yet)
 fn get_current_time() -> str => "2024-01-01 12:00:00"
 
 fn test_custom_println()
     println("=== Custom println Override Tests ===")
 
-    -- Use the custom println function
+    # Use the custom println function
     custom_println("This should have a timestamp")
     custom_println(42)
     custom_println(Point(x: 5.0, y: 6.0))
 
-    -- Can still access original explicitly
+    # Can still access original explicitly
     std.prelude.println("This is direct prelude access")
 
     println("Custom println works!")
 end
 
--- Test with local shadowing
+# Test with local shadowing
 fn test_local_shadowing()
     println("=== Local Shadowing Tests ===")
 
-    -- Define local println that shadows prelude
+    # Define local println that shadows prelude
     let println = custom_println
 
     println("This uses the custom println")
     println(123)
 
-    -- Still can access prelude explicitly
+    # Still can access prelude explicitly
     std.prelude.println("This uses prelude directly")
 
     println("Local shadowing works!")
 end
 
--- Test error cases (should be caught by type checker)
+# Test error cases (should be caught by type checker)
 fn test_error_cases()
     println("=== Error Case Tests ===")
 
-    -- This should work
+    # This should work
     let point = Point(x: 1.0, y: 2.0)
     println(point)
 
-    -- This should cause a compile error (Private doesn't implement Display)
-    -- let private = Private(secret: "hidden")
-    -- println(private)  -- Uncomment to test error
+    # This should cause a compile error (Private doesn't implement Display)
+    # let private = Private(secret: "hidden")
+    # println(private)  # Uncomment to test error
 
     println("Error case testing complete (uncomment lines to test actual errors)")
 end
 
--- Test file output redirection
+# Test file output redirection
 fn test_file_output()
     println("=== File Output Tests ===")
 
-    -- Custom print that writes to file instead
+    # Custom print that writes to file instead
     fn file_println<T: Display>(value: T) -> ()
         let content = value.to_string() + "\n"
-        -- This would append to a log file in real implementation
+        # This would append to a log file in real implementation
         std.prelude.println(format~("FILE: {}", value.to_string()))
     end
 
@@ -167,13 +167,13 @@ fn test_file_output()
     println("File output simulation complete")
 end
 
--- Performance test - ensure generic functions don't have overhead
+# Performance test - ensure generic functions don't have overhead
 fn test_performance()
     println("=== Performance Tests ===")
 
     let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
-    -- This should be efficient - no boxing/unboxing
+    # This should be efficient - no boxing/unboxing
     for num in numbers do
         println(num)
     end
@@ -181,27 +181,27 @@ fn test_performance()
     println("Performance test complete")
 end
 
--- Test mixed visibility scenarios
+# Test mixed visibility scenarios
 fn test_visibility_scenarios()
     println("=== Visibility Scenario Tests ===")
 
-    -- Public struct with public methods
+    # Public struct with public methods
     let point = Point(x: 10.0, y: 20.0)
-    println(point.to_string())    -- Direct method call
-    println(point)                -- Via Display kind
+    println(point.to_string())    # Direct method call
+    println(point)                # Via Display kind
 
-    -- Accessing public fields
+    # Accessing public fields
     println(format~("X coordinate: {}", point.x))
     println(format~("Y coordinate: {}", point.y))
 
-    -- Private struct (only usable within this module)
+    # Private struct (only usable within this module)
     let private = Private(secret: "confidential")
-    -- println(private)  -- Would fail - no Display implementation
+    # println(private)  # Would fail - no Display implementation
 
     println("Visibility scenarios work!")
 end
 
--- Main test runner
+# Main test runner
 fn main()
     println("Starting Veld Print System Tests")
     println("================================")
@@ -219,7 +219,7 @@ fn main()
     println("================================")
     println("All tests completed!")
 
-    -- Test final mixed usage
+    # Test final mixed usage
     println~("Final test: {} + {} = {}", 10, 20, 30)
     println("Goodbye!")
 end

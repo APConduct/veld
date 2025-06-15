@@ -27,17 +27,17 @@ end
 
 ### Single-line Function (Demi-lambda)
 ```veld
-fn add(a, b) a + b end -- Type inference available
+fn add(a, b) a + b end # Type inference available
 ```
 
 ### Lambda Function
 ```veld
-let add = a, b => a + b     -- Type inference available, completes after expression
+let add = a, b => a + b     # Type inference available, completes after expression
 ```
 
 ### Multi-line Lambda Function
 ```veld
-let add = a, b => do    -- Starts a block to be the expression, finishes with end
+let add = a, b => do    # Starts a block to be the expression, finishes with end
     let result = a + b
     result
 end
@@ -47,7 +47,7 @@ end
 ```veld
 fn complex_function(x: i32) -> i32
     let temp = something()
-    temp + x        -- Implicit return
+    temp + x        # Implicit return
 end
 ```
 
@@ -73,7 +73,7 @@ struct Point(x: f64, y: f64)
 #### Basic Kind Declaration
 ```veld
 kind Shape
-    fn area(self)  -- No default implementation
+    fn area(self)  # No default implementation
 end
 ```
 
@@ -87,7 +87,7 @@ end
 
 #### Single-line Kind
 ```veld
-kind Printable = fn print(self) -> str;     -- if a type has a matching function, it implements the kind
+kind Printable = fn print(self) -> str;     # if a type has a matching function, it implements the kind
 ```
 
 ### Implementations
@@ -137,15 +137,15 @@ enum Direction(North, South, East, West)
 
 #### Basic Declarative Macro
 ```veld
-macro~ println(fmt, args...)     -- EXPERIMENTAL/ NOT FINALIZED
-    -- macro implementation
+macro~ println(fmt, args...)     # EXPERIMENTAL/ NOT FINALIZED
+    # macro implementation
     format_and_print(fmt, args)
 end
 ```
 
 #### Pattern Matching Macro
 ```veld
-macro~ vec                         -- EXPERIMENTAL/ NOT FINALIZED
+macro~ vec                         # EXPERIMENTAL/ NOT FINALIZED
     () => new_vec(),
     ($elem:expr) => {
         let mut temp = new_vec();
@@ -186,9 +186,9 @@ format~("Value: {}", 42);
 #### Chainable Macros
 ```veld
 some_value
-    ~debug                      -- prints debug info
-    ~validate                   -- validates the value
-    ~transform(x => x * 2);     -- transforms the value
+    ~debug                      # prints debug info
+    ~validate                   # validates the value
+    ~transform(x => x * 2);     # transforms the value
 ```
 
 ## Generics

@@ -1,7 +1,7 @@
--- This example shows how to use the pipeline operator to chain operations together.
--- The pipeline operator allows you to pass the result of one operation as the input to the next operation.
--- The pipeline operator is represented by the '|' character followed by the '>' character.
--- The pipeline operator can be used to chain operations together in a more readable way.
+# This example shows how to use the pipeline operator to chain operations together.
+# The pipeline operator allows you to pass the result of one operation as the input to the next operation.
+# The pipeline operator is represented by the '|' character followed by the '>' character.
+# The pipeline operator can be used to chain operations together in a more readable way.
 
 fn add(x: i32, y: i32) -> i32
     x + y
@@ -13,37 +13,37 @@ end
 
 fn pipeline_example() -> i32
     let result = 2
-        |> add(3)      -- 2 + 3 = 5
-        |> multiply(4) -- 5 * 4 = 20
-        |> add(10);    -- 20 + 10 = 30
+        |> add(3)      # 2 + 3 = 5
+        |> multiply(4) # 5 * 4 = 20
+        |> add(10);    # 20 + 10 = 30
 
-    result  -- returns 30
+    result  # returns 30
 end
 
--- The pipeline operator allows you to write code that is more readable and easier to understand.
--- the normal way to write this code would be to use nested function calls, like this:
--- let result = add(multiply(add(2, 3), 4), 10);
+# The pipeline operator allows you to write code that is more readable and easier to understand.
+# the normal way to write this code would be to use nested function calls, like this:
+# let result = add(multiply(add(2, 3), 4), 10);
 
 
 
--- Tuple creation and access
+# Tuple creation and access
 let point = (10, 20)
-point.0  -- Should return 10
-point.1  -- Should return 20
+point.0  # Should return 10
+point.1  # Should return 20
 
--- Tuple with mixed types
+# Tuple with mixed types
 let person = ("John", 30, true)
-person.0  -- Name
-person.2  -- Boolean flag
+person.0  # Name
+person.2  # Boolean flag
 
--- Basic enum
+# Basic enum
 enum Color(Red, Green, Blue)
-let color = Color.Red  -- Using a simple enum variant
+let color = Color.Red  # Using a simple enum variant
 
--- Enum with data
+# Enum with data
 enum Shape
-    Circle(f64),  -- Radius
-    Rectangle(f64, f64),  -- Width, Height
+    Circle(f64),  # Radius
+    Rectangle(f64, f64),  # Width, Height
     Point,
 end
 
@@ -63,7 +63,7 @@ let point = Shape.Point
 
 
 
--- Test break and continue
+# Test break and continue
 fn test_break()
     let i = 0
     while true
@@ -72,10 +72,10 @@ fn test_break()
             break
         end
     end
-    return i  -- Should be 6
+    return i  # Should be 6
 end
 
--- Test match statement
+# Test match statement
 fn test_match(value)
     match value
         0 => "zero"
@@ -84,4 +84,3 @@ fn test_match(value)
         _ => "negative",
     end
 end
-

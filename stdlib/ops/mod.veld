@@ -1,6 +1,6 @@
---| Standard operators module for Veld
+#| Standard operators module for Veld
 
--- Binary arithmetic operators
+# Binary arithmetic operators
 kind Add<Rhs, Output>
     fn add(self, rhs: Rhs) -> Output
 end
@@ -21,12 +21,12 @@ kind Rem<Rhs, Output>
     fn rem(self, rhs: Rhs) -> Output
 end
 
--- Unary operators
+# Unary operators
 kind Neg<Output>
     fn neg(self) -> Output
 end
 
--- Bitwise operators
+# Bitwise operators
 kind BitAnd<Rhs, Output>
     fn bitand(self, rhs: Rhs) -> Output
 end
@@ -39,25 +39,25 @@ kind BitXor<Rhs, Output>
     fn bitxor(self, rhs: Rhs) -> Output
 end
 
--- Comparison operators
+# Comparison operators
 kind Eq<Rhs>
     fn eq(self, rhs: Rhs) -> bool
 
-    -- Default implementations
+    # Default implementations
     fn neq(self, rhs: Rhs) -> bool => !self.eq(rhs)
 end
 
 kind Ord<Rhs>
     fn cmp(self, rhs: Rhs) -> Ordering
 
-    -- Default implementations
+    # Default implementations
     fn lt(self, rhs: Rhs) -> bool => self.cmp(rhs) == Ordering.Less
     fn gt(self, rhs: Rhs) -> bool => self.cmp(rhs) == Ordering.Greater
     fn le(self, rhs: Rhs) -> bool => !self.gt(rhs)
     fn ge(self, rhs: Rhs) -> bool => !self.lt(rhs)
 end
 
--- Indexing operators
+# Indexing operators
 kind Index<Idx, Output>
     fn index(self, idx: Idx) -> Output
 end
@@ -67,5 +67,5 @@ kind IndexMut<Idx, Output>
     fn set_index(self, idx: Idx, val: Output)
 end
 
--- Helper enum for ordering
+# Helper enum for ordering
 enum Ordering(Less, Equal, Greater)
