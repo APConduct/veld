@@ -23,6 +23,9 @@ Veld is a programming language that aims to provide a rich set of features while
 - [x] type casting
 - [x] type checking
 - [x] type annotations
+- [x] modules
+- [x] macros
+- [x] public keyword ("pub")
 - [ ] built-in modules
   - [ ] `std`
   - [ ] `math`
@@ -35,10 +38,7 @@ Veld is a programming language that aims to provide a rich set of features while
     - [ ] `map`
     - [ ] `set`
   - [ ] `option`
-- [ ] public keyword ("pub")
-- [ ] modules
 - [ ] attributes
-- [ ] macros
 - [ ] transpiler
   - [ ] JavaScript backend
   - [ ] lua backend
