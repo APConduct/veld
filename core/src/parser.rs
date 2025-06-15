@@ -839,7 +839,7 @@ impl Parser {
         let mut params = Vec::new();
         if !self.check(&Token::RParen) {
             loop {
-                let param_name = self.consume_identifier("Expected parameter name")?;
+                let param_name = self.consume_parameter_name("Expected parameter name")?;
                 let param_type = if self.match_token(&[Token::Colon]) {
                     self.parse_type()?
                 } else {
@@ -1103,7 +1103,7 @@ impl Parser {
         let mut params = Vec::new();
         if !self.check(&Token::RParen) {
             loop {
-                let param_name = self.consume_identifier("Expected parameter name")?;
+                let param_name = self.consume_parameter_name("Expected parameter name")?;
                 let param_type = if self.match_token(&[Token::Colon]) {
                     self.parse_type()?
                 } else {
@@ -1301,7 +1301,14 @@ impl Parser {
     fn consume_identifier(&mut self, message: &str) -> Result<String> {
         match self.advance() {
             Token::Identifier(s) => Ok(s),
-            Token::SelfToken => Ok("self".to_string()), // Handle self token
+            _ => Err(VeldError::ParserError(message.to_string())),
+        }
+    }
+
+    fn consume_parameter_name(&mut self, message: &str) -> Result<String> {
+        match self.advance() {
+            Token::Identifier(s) => Ok(s),
+            Token::SelfToken => Ok("self".to_string()),
             _ => Err(VeldError::ParserError(message.to_string())),
         }
     }
@@ -2671,7 +2678,7 @@ impl Parser {
 
             if !self.check(&Token::RParen) {
                 loop {
-                    let param_name = self.consume_identifier("Expected parameter name")?;
+                    let param_name = self.consume_parameter_name("Expected parameter name")?;
 
                     // Special handling for 'self' parameter
                     let param_type = if param_name == "self" && !self.check(&Token::Colon) {
@@ -2729,7 +2736,7 @@ impl Parser {
 
                 if !self.check(&Token::RParen) {
                     loop {
-                        let param_name = self.consume_identifier("Expected parameter name")?;
+                        let param_name = self.consume_parameter_name("Expected parameter name")?;
 
                         // Special handling for 'self' parameter
                         let param_type = if param_name == "self" && !self.check(&Token::Colon) {
