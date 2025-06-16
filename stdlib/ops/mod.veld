@@ -1,53 +1,53 @@
 #| Standard operators module for Veld
 
 # Binary arithmetic operators
-kind Add<Rhs, Output>
+pub kind Add<Rhs, Output = Self>
     fn add(self, rhs: Rhs) -> Output
 end
 
-kind Sub<Rhs, Output>
+pub kind Sub<Rhs, Output = Self>
     fn sub(self, rhs: Rhs) -> Output
 end
 
-kind Mul<Rhs, Output>
+pub kind Mul<Rhs, Output = Self>
     fn mul(self, rhs: Rhs) -> Output
 end
 
-kind Div<Rhs, Output>
+pub kind Div<Rhs, Output = Self>
     fn div(self, rhs: Rhs) -> Output
 end
 
-kind Rem<Rhs, Output>
+pub kind Rem<Rhs, Output = Self>
     fn rem(self, rhs: Rhs) -> Output
 end
 
 # Unary operators
-kind Neg<Output>
+pub kind Neg<Output = Self>
     fn neg(self) -> Output
 end
 
 # Bitwise operators
-kind BitAnd<Rhs, Output>
+pub kind BitAnd<Rhs, Output = Self>
     fn bitand(self, rhs: Rhs) -> Output
 end
 
-kind BitOr<Rhs, Output>
+pub kind BitOr<Rhs, Output = Self>
     fn bitor(self, rhs: Rhs) -> Output
 end
 
-kind BitXor<Rhs, Output>
+pub kind BitXor<Rhs, Output = Self>
     fn bitxor(self, rhs: Rhs) -> Output
 end
 
 # Comparison operators
-kind Eq<Rhs>
+pub kind Eq<Rhs = Self>
     fn eq(self, rhs: Rhs) -> bool
 
     # Default implementations
     fn neq(self, rhs: Rhs) -> bool => !self.eq(rhs)
 end
 
-kind Ord<Rhs>
+pub kind Ord<Rhs = Self>
     fn cmp(self, rhs: Rhs) -> Ordering
 
     # Default implementations
@@ -58,14 +58,14 @@ kind Ord<Rhs>
 end
 
 # Indexing operators
-kind Index<Idx, Output>
+pub kind Index<Idx, Output>
     fn index(self, idx: Idx) -> Output
 end
 
-kind IndexMut<Idx, Output>
+pub kind IndexMut<Idx, Output>
     fn index_mut(self, idx: Idx) -> Output
     fn set_index(self, idx: Idx, val: Output)
 end
 
 # Helper enum for ordering
-enum Ordering(Less, Equal, Greater)
+pub enum Ordering(Less, Equal, Greater)
