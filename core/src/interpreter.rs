@@ -2621,6 +2621,17 @@ impl Interpreter {
 
     // Helper method to call functions with pre-evaluated arguments
     fn call_function_with_values(&mut self, name: String, arg_values: Vec<Value>) -> Result<Value> {
+        // Check if this might be a method call on a struct
+        if name.contains('.') {
+            let parts: Vec<&str> = name.split('.').collect();
+            if parts.len() == 2 {
+                let object = self.get_variable(parts[0]).ok_or_else(|| {
+                    VeldError::RuntimeError(format!("Undefined variable '{}'", parts[0]))
+                })?;
+                return self.call_method_value(object, parts[1].to_string(), arg_values);
+            }
+        }
+
         let function = self
             .get_variable(&name)
             .ok_or_else(|| VeldError::RuntimeError(format!("Undefined function '{}'", name)))?;
@@ -3189,65 +3200,19 @@ impl Interpreter {
     }
 
     fn call_function(&mut self, name: String, arguments: Vec<Argument>) -> Result<Value> {
-        println!("Calling function: {}", name);
-
-        // Check if this might be a method call on a struct
-        if name.contains('.') {
-            let parts: Vec<&str> = name.split('.').collect();
-            if parts.len() == 2 {
-                return self.call_method(parts[0].to_string(), parts[1].to_string(), arguments);
-            }
+        // Evaluate all arguments first
+        let mut arg_values = Vec::new();
+        for arg in arguments {
+            let expr = match arg {
+                Argument::Positional(expr) => expr,
+                Argument::Named { name: _, value } => value,
+            };
+            let value = self.evaluate_expression(expr)?;
+            arg_values.push(value.unwrap_return());
         }
 
-        let function = self
-            .get_variable(&name)
-            .ok_or_else(|| VeldError::RuntimeError(format!("Undefined function '{}'", name)))?;
-
-        match function {
-            Value::Function { params, body, .. } => {
-                // Create new scope for function
-                self.push_scope();
-
-                // Evaluate and bind arguments
-                if arguments.len() != params.len() {
-                    return Err(VeldError::RuntimeError(format!(
-                        "Expected {} arguments but got {}",
-                        params.len(),
-                        arguments.len()
-                    )));
-                }
-
-                // Evaluate arguments and bind them to parameters
-                for (i, arg) in arguments.into_iter().enumerate() {
-                    // Extract and evaluate the expression from the Argument
-                    let expr = match arg {
-                        Argument::Positional(expr) => expr,
-                        Argument::Named { name: _, value } => value,
-                    };
-                    let value = self.evaluate_expression(expr)?;
-                    let value = value.unwrap_return();
-                    self.current_scope_mut().set(params[i].0.clone(), value);
-                }
-
-                // Execute function body
-                let mut result = Value::Unit;
-                for stmt in body {
-                    result = self.execute_statement(stmt)?;
-                    if matches!(result, Value::Return(_)) {
-                        break;
-                    }
-                }
-
-                // Remove function scope
-                self.pop_scope();
-
-                Ok(result.unwrap_return())
-            }
-            _ => Err(VeldError::RuntimeError(format!(
-                "'{}' is not a function",
-                name
-            ))),
-        }
+        // Call the function with evaluated arguments
+        self.call_function_with_values(name, arg_values)
     }
 
     fn call_method(
