@@ -1,0 +1,41 @@
+#| Result type for Veld
+#| Represents a computation that may succeed or fail
+
+pub enum Result<T, E>
+    Ok(T),
+    Err(E),
+end
+
+impl<T, E> Result<T, E>
+    # Return the contained value or a default
+    pub fn unwrap_or(self, default: T) -> T
+        match self
+            Result.Ok(value) => value,
+            Result.Err(_) => default,
+        end
+    end
+
+    # Transform the result with a function if it's Ok
+    pub fn map<U>(self, f: (T) -> U) -> Result<U, E>
+        match self
+            Result.Ok(value) => Result.Ok(f(value)),
+            Result.Err(err) => Result.Err(err),
+        end
+    end
+
+    # Return true if the result is Ok
+    pub fn is_ok(self) -> bool
+        match self
+            Result.Ok(_) => true,
+            Result.Err(_) => false,
+        end
+    end
+
+    # Return true if the result is Err
+    pub fn is_err(self) -> bool
+        match self
+            Result.Ok(_) => false,
+            Result.Err(_) => true,
+        end
+    end
+end
