@@ -1,0 +1,21 @@
+#| Sequence interfaces for Veld
+#| Provides interfaces for sequence types
+
+# Base interface for all sequence types
+pub kind Sequence<T>
+    fn get(self, index: i32) -> Option<T>
+    fn set(self, index: i32, value: T) -> bool
+    fn len(self) -> i32
+    fn is_empty(self) -> bool
+
+    # Default implementations
+    fn is_empty(self) -> bool => self.len() == 0
+end
+
+# Interface for growable collections
+pub kind GrowableSequence<T>: Sequence<T>
+    fn push(self, item: T) -> ()
+    fn pop(self) -> Option<T>
+    fn insert(self, index: i32, value: T) -> bool
+    fn remove(self, index: i32) -> Option<T>
+end

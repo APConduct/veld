@@ -1,0 +1,6 @@
+#| Collections module for Veld standard library
+#| Provides common data structures
+
+# Re-export list and map modules
+pub import std.collections.sequence
+pub import std.collections.map
