@@ -4,6 +4,7 @@ use crate::ast::{
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
+use crate::native::NativeFunctionRegistry;
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::collections::HashSet;
