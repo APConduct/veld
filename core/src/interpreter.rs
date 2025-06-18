@@ -252,6 +252,7 @@ pub struct Interpreter {
     imported_modules: HashMap<String, String>, // alias -> module name
     enums: HashMap<String, Vec<EnumVariant>>,
     pub type_checker: TypeChecker,
+    native_registry: NativeFunctionRegistry,
 }
 
 impl Interpreter {
@@ -266,6 +267,7 @@ impl Interpreter {
             imported_modules: Default::default(),
             enums: HashMap::new(),
             type_checker: TypeChecker::new(),
+            native_registry: NativeFunctionRegistry::new(),
         };
 
         // Initialize Built-in array methods

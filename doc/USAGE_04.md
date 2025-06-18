@@ -93,7 +93,7 @@ let process = data => do
 end
 
 # Anonymous block (proc lambda)
-let setup = do
+let setup = () => do
     initialize_resources()
     configure_settings()
     log("Setup complete")
@@ -174,7 +174,6 @@ end
 
 # Creating and using structs
 let p = Point(x: 10.0, y: 20.0)
-let c = Color(255, 0, 0)  # Positional arguments also work
 let r = Rectangle(width: 5.0, height: 10.0)
 
 let area = r.area()  # 50.0
