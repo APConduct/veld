@@ -1533,30 +1533,85 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<Statement> {
+        println!("if_statement: Starting parsing if statement");
+
         let condition = self.expression()?;
+        self.consume(&Token::Then, "Expected 'then' after if condition")?;
 
         let mut then_branch = Vec::new();
         while !self.check(&Token::End) && !self.check(&Token::Else) && !self.is_at_end() {
             then_branch.push(self.statement()?);
         }
 
-        let else_branch = if self.match_token(&[Token::Else]) {
-            let mut statements = Vec::new();
-            while !self.check(&Token::End) && !self.is_at_end() {
-                statements.push(self.statement()?);
+        // Track all else and else-if branches
+        let mut all_branches = Vec::new();
+        let mut current_condition = condition;
+        let mut current_then_branch = then_branch;
+
+        // Handle all else-if and else branches
+        while self.match_token(&[Token::Else]) {
+            if self.match_token(&[Token::If]) {
+                // This is an else-if branch
+                let else_if_condition = self.expression()?;
+                self.consume(&Token::Then, "Expected 'then' after else-if condition")?;
+
+                let mut else_if_branch = Vec::new();
+                while !self.check(&Token::End) && !self.check(&Token::Else) && !self.is_at_end() {
+                    else_if_branch.push(self.statement()?);
+                }
+
+                // Save the current branch
+                all_branches.push((current_condition, current_then_branch));
+
+                // Update current branch to this else-if
+                current_condition = else_if_condition;
+                current_then_branch = else_if_branch;
+            } else {
+                // Regular else branch
+                let mut else_branch = Vec::new();
+                while !self.check(&Token::End) && !self.is_at_end() {
+                    else_branch.push(self.statement()?);
+                }
+
+                // Create the final if-statement with all branches
+                let mut result = Statement::If {
+                    condition: current_condition,
+                    then_branch: current_then_branch,
+                    else_branch: Some(else_branch),
+                };
+
+                // Now work backwards through the saved branches to create nested if-statements
+                for (cond, then_br) in all_branches.into_iter().rev() {
+                    result = Statement::If {
+                        condition: cond,
+                        then_branch: then_br,
+                        else_branch: Some(vec![result]),
+                    };
+                }
+
+                self.consume(&Token::End, "Expected 'end' after if statement")?;
+                return Ok(result);
             }
-            Some(statements)
-        } else {
-            None
+        }
+
+        // If we get here, there was no final else branch
+        let mut result = Statement::If {
+            condition: current_condition,
+            then_branch: current_then_branch,
+            else_branch: None,
         };
 
-        self.consume(&Token::End, "Expected 'end' after if statement")?;
+        // Now work backwards through the saved branches to create nested if-statements
+        for (cond, then_br) in all_branches.into_iter().rev() {
+            result = Statement::If {
+                condition: cond,
+                then_branch: then_br,
+                else_branch: Some(vec![result]),
+            };
+        }
 
-        Ok(Statement::If {
-            condition,
-            then_branch,
-            else_branch,
-        })
+        self.consume(&Token::End, "Expected 'end' after if statement")?;
+        return Ok(result);
     }
 
     fn while_statement(&mut self) -> Result<Statement> {

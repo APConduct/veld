@@ -53,41 +53,30 @@ pub fn abs(x: f64) -> f64
     x  # Simplified implementation
 end
 
-# Simplified max for f64 (commented out until usage of 'then' in if-else chains is fixed)
-# pub fn max(a: f64, b: f64) -> f64
-#     if a > b then a else b end
-# end
-
-# Even simpler max for f64 (temporary workaround, to be replaced with the above once 'then' usage is fixed)
+# Simplified max for f64
 pub fn max(a: f64, b: f64) -> f64
-    a  # Simplified implementation
+    if a > b then a else b end
 end
 
-# Simplified min for f64 (commented out until usage of 'then' in if-else chains is fixed)
-# pub fn min(a: f64, b: f64) -> f64
-#     if a < b then a else b end
-# end
 
-# Even simpler min for f64 (temporary workaround, to be replaced with the above once 'then' usage is fixed)
+# Simplified min for f64
 pub fn min(a: f64, b: f64) -> f64
-    a  # Simplified implementation
+    if a < b then a else b end
 end
 
-# Simplified clamp for f64 (commented out until usage of 'then' in if-else chains is fixed)
-# pub fn clamp(x: f64, min_val: f64, max_val: f64) -> f64
-#     if x < min_val then
-#         min_val
-#     else if x > max_val then
-#         max_val
-#     else
-#         x
-#     end
-# end
 
-# Even simpler clamp for f64 (temporary workaround, to be replaced with the above once 'then' usage is fixed)
+
+# Simplified clamp for f64
 pub fn clamp(x: f64, min_val: f64, max_val: f64) -> f64
-    x  # Simplified implementation
+    if x < min_val then
+        min_val
+    else if x > max_val then
+        max_val
+    else
+        x
+    end
 end
+
 
 # Basic exponential and logarithmic functions
 pub fn sqrt(x: f64) -> f64
