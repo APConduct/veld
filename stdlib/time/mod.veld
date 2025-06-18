@@ -1,0 +1,87 @@
+#| Time module for Veld standard library
+#| Provides utilities for time and date operations
+
+# Time representation
+pub struct Time
+    seconds: i64,  # Seconds since Unix epoch
+    nanos: i32,    # Nanoseconds part
+
+    # Create a new Time from seconds and nanoseconds
+    pub fn new(seconds: i64, nanos: i32) -> Time
+        Time(seconds: seconds, nanos: nanos)
+    end
+
+    # Get the current system time
+    pub fn now() -> Time
+        # Native implementation provided by interpreter
+        Time(seconds: 0, nanos: 0)
+    end
+
+    # Format the time according to format string
+    # Format: yyyy-MM-dd HH:mm:ss
+    pub fn format(self, format_str: str) -> str
+        # Native implementation provided by interpreter
+        ""
+    end
+
+    # Add seconds to the time
+    pub fn add_seconds(self, seconds: i64) -> Time
+        Time(
+            seconds: self.seconds + seconds,
+            nanos: self.nanos
+        )
+    end
+
+    # Get year component
+    pub fn year(self) -> i32
+        # Native implementation provided by interpreter
+        1970
+    end
+
+    # Get month component (1-12)
+    pub fn month(self) -> i32
+        # Native implementation provided by interpreter
+        1
+    end
+
+    # Get day component (1-31)
+    pub fn day(self) -> i32
+        # Native implementation provided by interpreter
+        1
+    end
+
+    # Get hour component (0-23)
+    pub fn hour(self) -> i32
+        # Native implementation provided by interpreter
+        0
+    end
+
+    # Get minute component (0-59)
+    pub fn minute(self) -> i32
+        # Native implementation provided by interpreter
+        0
+    end
+
+    # Get second component (0-59)
+    pub fn second(self) -> i32
+        # Native implementation provided by interpreter
+        0
+    end
+end
+
+# Sleep for the specified number of milliseconds
+pub fn sleep(milliseconds: i32) -> ()
+    # Native implementation provided by interpreter
+end
+
+# Create a Time from year, month, day, hour, minute, second
+pub fn datetime(year: i32, month: i32, day: i32, hour: i32, minute: i32, second: i32) -> Time
+    # Native implementation provided by interpreter
+    Time(seconds: 0, nanos: 0)
+end
+
+# Parse a string into a Time using the specified format
+pub fn parse_time(time_str: str, format_str: str) -> Option<Time>
+    # Native implementation provided by interpreter
+    Option.None
+end
