@@ -39,19 +39,16 @@ pub let tau: f64 = 6.2831853071
 
 # Placeholder implementations (to be replaced with actual logic once generics are fully supported)
 
-# Simplified abs for f64 (commented out until usage of 'then' in if-else chains is fixed)
-# pub fn abs(x: f64) -> f64
-#     if x < 0.0 then
-#         -x
-#     else
-#         x
-#     end
-# end
-
-# Even simpler abs for f64 (temporary workaround, to be replaced with the above once 'then' usage is fixed)
+# Simplified abs for f64
 pub fn abs(x: f64) -> f64
-    x  # Simplified implementation
+    if x < 0.0 then
+        -x
+    else
+        x
+    end
 end
+
+
 
 # Simplified max for f64
 pub fn max(a: f64, b: f64) -> f64
