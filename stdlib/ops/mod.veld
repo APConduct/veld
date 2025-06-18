@@ -42,19 +42,30 @@ end
 # Comparison operators
 pub kind Eq<Rhs = Self>
     fn eq(self, rhs: Rhs) -> bool
+end
 
-    # Default implementations
-    fn neq(self, rhs: Rhs) -> bool => !self.eq(rhs)
+pub kind NotEq<Rhs = Self>
+    fn neq(self, rhs: Rhs) -> bool
 end
 
 pub kind Ord<Rhs = Self>
     fn cmp(self, rhs: Rhs) -> Ordering
+end
 
-    # Default implementations
-    fn lt(self, rhs: Rhs) -> bool => self.cmp(rhs) == Ordering.Less
-    fn gt(self, rhs: Rhs) -> bool => self.cmp(rhs) == Ordering.Greater
-    fn le(self, rhs: Rhs) -> bool => !self.gt(rhs)
-    fn ge(self, rhs: Rhs) -> bool => !self.lt(rhs)
+pub kind Lt<Rhs = Self>
+    fn lt(self, rhs: Rhs) -> bool
+end
+
+pub kind Gt<Rhs = Self>
+    fn gt(self, rhs: Rhs) -> bool
+end
+
+pub kind Le<Rhs = Self>
+    fn le(self, rhs: Rhs) -> bool
+end
+
+pub kind Ge<Rhs = Self>
+    fn ge(self, rhs: Rhs) -> bool
 end
 
 # Indexing operators
@@ -64,7 +75,10 @@ end
 
 pub kind IndexMut<Idx, Output>
     fn index_mut(self, idx: Idx) -> Output
-    fn set_index(self, idx: Idx, val: Output)
+end
+
+pub kind SetIndex<Idx, Value>
+    fn set_index(self, idx: Idx, val: Value) -> ()
 end
 
 # Helper enum for ordering

@@ -835,6 +835,32 @@ impl TypeEnvironment {
 
     // Check if a type structurally implements a kind
     pub fn type_structurally_implements_kind(&self, ty: &Type, kind_name: &str) -> bool {
+        // Special cases for built-in types with native implementations
+        match (ty, kind_name) {
+            // Core capabilities
+            (_, "std.core.Value") => return true, // All types implement Value
+            (Type::String, "std.core.ToString") => return true,
+            (Type::I32, "std.core.ToString") => return true,
+            (Type::F64, "std.core.ToString") => return true,
+            (Type::Bool, "std.core.ToString") => return true,
+            (Type::String, "std.core.Sized") => return true,
+            (Type::Array(_), "std.core.Sized") => return true,
+
+            // String capabilities
+            (Type::String, "std.string.Transformable") => return true,
+            (Type::String, "std.string.Searchable") => return true,
+            (Type::String, "std.string.Manipulatable") => return true,
+            (Type::String, "std.string.Parsable") => return true,
+
+            // Numeric capabilities
+            (Type::I32, "std.numeric.Numeric") => return true,
+            (Type::F64, "std.numeric.Numeric") => return true,
+            (Type::I32, "std.numeric.Integer") => return true,
+            (Type::F64, "std.numeric.Float") => return true,
+
+            _ => {}
+        }
+
         let kind = match self.kinds.get(kind_name) {
             Some(kind) => kind,
             None => return false,

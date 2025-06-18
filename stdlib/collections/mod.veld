@@ -1,6 +1,16 @@
 #| Collections module for Veld standard library
 #| Provides common data structures
 
-# Re-export list and map modules
-pub import std.collections.sequence
-pub import std.collections.map
+#| Collections module for Veld standard library
+#| Provides common data structures
+
+# Re-export sequence and map modules
+# Temporarily commented out until submodules are implemented
+# Import statements will be added back once the parser supports them
+
+
+# Basic sequence interfaces
+# pub import std.collections.sequence
+
+# Map interfaces
+# pub import std.collections.map

@@ -15,6 +15,9 @@ pub enum VeldError {
 
     #[error("Runtime error: {0}")]
     RuntimeError(String),
+
+    #[error("Module error: {0}")]
+    ModuleError(String),
 }
 
 pub struct ErrorContext {
@@ -24,10 +27,10 @@ pub struct ErrorContext {
 }
 
 impl VeldError {
-    pub fn with_context(self, context: ErrorContext) -> VeldErrorWithContext{
-        VeldErrorWithContext{
+    pub fn with_context(self, context: ErrorContext) -> VeldErrorWithContext {
+        VeldErrorWithContext {
             error: self,
-            context: Some(context)
+            context: Some(context),
         }
     }
 }
@@ -49,7 +52,7 @@ impl fmt::Display for VeldErrorWithContext {
                     error_msg, ctx.line, ctx.column, ctx.source_line, ptr
                 )
             }
-            None => write!(f, "{}", self.error)
+            None => write!(f, "{}", self.error),
         }
     }
 }

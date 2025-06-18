@@ -1,0 +1,24 @@
+#| Numeric operations and behaviors
+
+import std.core.{ToString}
+
+# Common numeric operations
+pub kind Numeric
+    fn abs(self) -> Self
+    fn signum(self) -> i32  # -1, 0, or 1 based on sign
+end
+
+# Integer-specific operations
+pub kind Integer: Numeric
+    fn is_even(self) -> bool
+    fn is_odd(self) -> bool
+    fn to_float(self) -> f64
+end
+
+# Float-specific operations
+pub kind Float: Numeric
+    fn floor(self) -> Self
+    fn ceil(self) -> Self
+    fn round(self) -> Self
+    fn to_int(self) -> i32
+end

@@ -1,5 +1,5 @@
 use crate::ast::{ImportItem, Statement};
-use crate::error::VeldError;
+use crate::error::{Result as VeldResult, VeldError};
 use crate::lexer::Lexer;
 use std::collections::HashMap;
 use std::fs;
@@ -11,6 +11,12 @@ pub struct Module {
     pub statements: Vec<Statement>,
     pub exports: HashMap<String, ExportedItem>,
     pub path: Option<PathBuf>,
+}
+
+impl Module {
+    pub fn add_export(&mut self, name: String, item: ExportedItem) {
+        self.exports.insert(name, item);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -35,9 +41,20 @@ impl ModuleManager {
 
         let mut search_paths = vec![root.clone()]; // Current directory as the first search path
 
-        let std_path = root.join("std");
-        if std_path.exists() {
-            search_paths.push(std_path);
+        // Add various potential stdlib directories to search paths
+        let potential_stdlib_dirs = [
+            root.join("stdlib"),
+            PathBuf::from("./stdlib"),
+            PathBuf::from("./veld/stdlib"),
+            PathBuf::from("../stdlib"),
+            PathBuf::from("../veld/stdlib"),
+            PathBuf::from("../../veld/stdlib"),
+        ];
+
+        for path in &potential_stdlib_dirs {
+            if path.exists() && path.is_dir() {
+                search_paths.push(path.clone());
+            }
         }
 
         Self {
@@ -45,6 +62,31 @@ impl ModuleManager {
             modules: HashMap::new(),
             module_search_paths: search_paths,
         }
+    }
+
+    pub fn register_stdlib_path(&mut self, path: &std::path::Path) -> VeldResult<()> {
+        if !path.exists() || !path.is_dir() {
+            return Err(VeldError::ModuleError(format!(
+                "Invalid stdlib path: {:?}",
+                path
+            )));
+        }
+
+        // Add the stdlib path to search paths with highest priority
+        self.module_search_paths.insert(0, path.to_path_buf());
+
+        // Pre-load core modules for better performance
+        let core_modules = ["std", "std.ops", "std.math", "std.io", "std.collections"];
+        for module_name in core_modules.iter() {
+            let parts: Vec<&str> = module_name.split('.').collect();
+            let module_parts: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+            match self.load_module(&module_parts) {
+                Ok(_) => (),
+                Err(e) => eprintln!("Warning: Failed to preload module {}: {}", module_name, e),
+            }
+        }
+
+        Ok(())
     }
 
     pub fn add_search_path<P: AsRef<Path>>(&mut self, path: P) {
@@ -90,6 +132,73 @@ impl ModuleManager {
         Ok(&self.modules[&full_name])
     }
 
+    fn resolve_module_path(&self, parts: &[String]) -> Option<PathBuf> {
+        // Special case for std module and its submodules
+        if parts.first().map_or(false, |p| p == "std") {
+            // Skip the "std" part since it maps to the stdlib root
+            let mut rel_path = PathBuf::new();
+            for part in parts.iter().skip(1) {
+                rel_path.push(part);
+            }
+
+            // First, try the directly available stdlib directory
+            let stdlib_dir = self.root_dir.join("stdlib");
+            if stdlib_dir.exists() {
+                let module_path = if rel_path.as_os_str().is_empty() {
+                    // Just "std" - use the root mod.veld
+                    stdlib_dir.join("mod.veld")
+                } else {
+                    // std.submodule - look in the corresponding directory
+                    stdlib_dir.join(&rel_path).join("mod.veld")
+                };
+
+                if module_path.exists() {
+                    return Some(module_path);
+                }
+            }
+
+            // Then check search paths for stdlib directories
+            for search_path in &self.module_search_paths {
+                let stdlib_dir = search_path.join("stdlib");
+                if stdlib_dir.exists() {
+                    let module_path = if rel_path.as_os_str().is_empty() {
+                        // Just "std" - use the root mod.veld
+                        stdlib_dir.join("mod.veld")
+                    } else {
+                        // std.submodule - look in the corresponding directory
+                        stdlib_dir.join(&rel_path).join("mod.veld")
+                    };
+
+                    if module_path.exists() {
+                        return Some(module_path);
+                    }
+                }
+            }
+        }
+
+        // For non-std modules or if std module wasn't found
+        for search_path in &self.module_search_paths {
+            let mut module_path = search_path.clone();
+            for part in parts {
+                module_path.push(part);
+            }
+
+            // Try with .veld extension
+            let with_ext = module_path.with_extension("veld");
+            if with_ext.exists() {
+                return Some(with_ext);
+            }
+
+            // Try with /mod.veld
+            let with_mod = module_path.join("mod.veld");
+            if with_mod.exists() {
+                return Some(with_mod);
+            }
+        }
+
+        None
+    }
+
     pub fn create_module(
         &mut self,
         name: &str,
@@ -109,22 +218,151 @@ impl ModuleManager {
     }
 
     fn find_module_file(&self, module_path: &[String]) -> Result<PathBuf, VeldError> {
+        eprintln!("Searching for module: {:?}", module_path);
+        eprintln!("Search paths: {:?}", self.module_search_paths);
+
+        // Special case for std module and its submodules
+        if let Some(first) = module_path.first() {
+            if first == "std" {
+                // Try multiple potential locations for the stdlib directory
+                let potential_stdlib_dirs = [
+                    self.root_dir.join("stdlib"),
+                    PathBuf::from("./stdlib"),
+                    PathBuf::from("./veld/stdlib"),
+                    PathBuf::from("../stdlib"),
+                    PathBuf::from("../veld/stdlib"),
+                    PathBuf::from("../../veld/stdlib"),
+                ];
+
+                eprintln!(
+                    "Checking potential stdlib locations for module: {:?}",
+                    module_path
+                );
+
+                for stdlib_dir in &potential_stdlib_dirs {
+                    eprintln!(
+                        "  Checking: {:?} exists: {}",
+                        stdlib_dir,
+                        stdlib_dir.exists()
+                    );
+
+                    if stdlib_dir.exists() {
+                        if module_path.len() == 1 {
+                            // Just "std" - map to stdlib/mod.veld
+                            let mod_file = stdlib_dir.join("mod.veld");
+                            eprintln!(
+                                "  Checking mod file: {:?} exists: {}",
+                                mod_file,
+                                mod_file.exists()
+                            );
+                            if mod_file.exists() {
+                                eprintln!("  Found mod.veld at: {:?}", mod_file);
+                                return Ok(mod_file);
+                            }
+
+                            let init_file = stdlib_dir.join("init.veld");
+                            eprintln!(
+                                "  Checking init file: {:?} exists: {}",
+                                init_file,
+                                init_file.exists()
+                            );
+                            if init_file.exists() {
+                                eprintln!("  Found init.veld at: {:?}", init_file);
+                                return Ok(init_file);
+                            }
+                        } else {
+                            // For submodules like std.ops, std.collections, etc.
+                            let mut submodule_path = PathBuf::new();
+                            for part in &module_path[1..] {
+                                submodule_path.push(part);
+                            }
+
+                            // Try as a direct .veld file
+                            let veld_file = stdlib_dir.join(&submodule_path).with_extension("veld");
+                            eprintln!(
+                                "  Checking direct file: {:?} exists: {}",
+                                veld_file,
+                                veld_file.exists()
+                            );
+                            if veld_file.exists() {
+                                eprintln!("  Found direct .veld file at: {:?}", veld_file);
+                                return Ok(veld_file);
+                            }
+
+                            // Try as a directory with mod.veld
+                            let mod_file = stdlib_dir.join(&submodule_path).join("mod.veld");
+                            eprintln!(
+                                "  Checking mod file: {:?} exists: {}",
+                                mod_file,
+                                mod_file.exists()
+                            );
+                            if mod_file.exists() {
+                                eprintln!("  Found mod.veld at: {:?}", mod_file);
+                                return Ok(mod_file);
+                            }
+
+                            // Try as a directory with init.veld
+                            let init_file = stdlib_dir.join(&submodule_path).join("init.veld");
+                            eprintln!(
+                                "  Checking init file: {:?} exists: {}",
+                                init_file,
+                                init_file.exists()
+                            );
+                            if init_file.exists() {
+                                eprintln!("  Found init.veld at: {:?}", init_file);
+                                return Ok(init_file);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Standard search method for all modules
         for search_path in &self.module_search_paths {
             let mut file_path = search_path.clone();
             for part in module_path {
                 file_path.push(part);
             }
-            let mut veld_path = file_path.clone();
-            veld_path.set_extension("veld");
+
+            // Try with .veld extension first (direct file)
+            let veld_path = file_path.with_extension("veld");
+            eprintln!(
+                "  Checking file: {:?} exists: {}",
+                veld_path,
+                veld_path.exists()
+            );
             if veld_path.exists() {
+                eprintln!("  Found direct .veld file at: {:?}", veld_path);
                 return Ok(veld_path);
             }
 
+            // Try with /mod.veld
+            let mod_path = file_path.join("mod.veld");
+            eprintln!(
+                "  Checking mod file: {:?} exists: {}",
+                mod_path,
+                mod_path.exists()
+            );
+            if mod_path.exists() {
+                eprintln!("  Found mod.veld at: {:?}", mod_path);
+                return Ok(mod_path);
+            }
+
+            // Try with /init.veld
             let init_path = file_path.join("init.veld");
+            eprintln!(
+                "  Checking init file: {:?} exists: {}",
+                init_path,
+                init_path.exists()
+            );
             if init_path.exists() {
+                eprintln!("  Found init.veld at: {:?}", init_path);
                 return Ok(init_path);
             }
         }
+
+        eprintln!("Module not found: {}", module_path.join("."));
         Err(VeldError::RuntimeError(format!(
             "Module not found: {}",
             module_path.join(".")

@@ -107,9 +107,16 @@ impl Parser {
                 self.module_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Import]) {
                 self.import_declaration_with_visibility(true)
+            } else if self.peek() == &Token::Let
+                || self.peek() == &Token::Var
+                || self.peek() == &Token::Const
+            {
+                // Handle public variable declarations
+                self.variable_declaration_with_visibility(true)
             } else {
                 Err(VeldError::ParserError(
-                    "Expected function, proc, or struct declaration after 'pub'".to_string(),
+                    "Expected function, proc, struct, or variable declaration after 'pub'"
+                        .to_string(),
                 ))
             }
         } else if self.match_token(&[Token::Fn]) {
@@ -241,6 +248,9 @@ impl Parser {
         println!("Function declaration: Starting...");
         let name = self.consume_identifier("Expected function name")?;
         println!("Function declaration: Name = {}", name);
+
+        // Parse generic type parameters if present
+        let generic_params = self.parse_generic_args_if_present()?;
 
         self.consume(&Token::LParen, "Expected '(' after function name")?;
 
@@ -1313,44 +1323,49 @@ impl Parser {
         }
     }
 
-    fn variable_declaration(&mut self) -> Result<Statement> {
-        let is_public = self.match_token(&[Token::Pub]);
-
+    fn variable_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        // Determine the variable kind
         let var_kind = if self.match_token(&[Token::Let]) {
-            if self.match_token(&[Token::Mut]) {
-                VarKind::LetMut
-            } else {
-                VarKind::Let
-            }
+            VarKind::Let
         } else if self.match_token(&[Token::Var]) {
             VarKind::Var
         } else if self.match_token(&[Token::Const]) {
             VarKind::Const
         } else {
             return Err(VeldError::ParserError(
-                "Expected item declaration keyword".to_string(),
+                "Expected variable declaration keyword".to_string(),
             ));
         };
 
+        // Parse the variable name
         let name = self.consume_identifier("Expected variable name")?;
 
+        // Parse optional type annotation
         let type_annotation = if self.match_token(&[Token::Colon]) {
             Some(self.parse_type()?)
         } else {
             None
         };
 
-        self.consume(&Token::Equals, "Expected '=' after variable name")?;
+        // Parse initializer
+        self.consume(&Token::Equals, "Expected '=' after variable declaration")?;
+        let value = Box::new(self.expression()?);
 
-        let value = self.expression()?;
+        // Optional semicolon
+        self.match_token(&[Token::Semicolon]);
 
         Ok(Statement::VariableDeclaration {
             name,
             var_kind,
             type_annotation,
-            value: Box::new(value),
+            value,
             is_public,
         })
+    }
+
+    fn variable_declaration(&mut self) -> Result<Statement> {
+        let is_public = self.match_token(&[Token::Pub]);
+        self.variable_declaration_with_visibility(is_public)
     }
 
     fn parse_macro_invocation(&mut self) -> Result<Statement> {
@@ -2497,9 +2512,6 @@ impl Parser {
                 path.push(self.consume_identifier("Expected identifier after '.'")?);
             }
         }
-
-        // First component is required
-        path.push(self.consume_identifier("Expected module name after 'import'")?);
 
         // Handle dot-separated paths like "std.collections.Vec"
         while self.match_token(&[Token::Dot]) {

@@ -1,0 +1,28 @@
+#| Core types and behaviors for all Veld types
+
+# Basic value operations all types should support
+pub kind Value
+    fn type_name(self) -> str  # Returns the type name as a string
+end
+
+# String representation capability
+pub kind ToString
+    fn to_string(self) -> str
+end
+
+# Collection-like behavior for anything with a size
+pub kind Sized
+    fn size(self) -> i32
+    fn is_empty(self) -> bool => self.size() == 0
+end
+
+# Types that can be iterated over
+pub kind Iterable<T>
+    fn iter(self) -> Iterator<T>
+end
+
+# Iterator interface
+pub kind Iterator<T>
+    fn next(self) -> Option<T>
+    fn has_next(self) -> bool
+end
