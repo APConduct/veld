@@ -395,20 +395,33 @@ impl Interpreter {
                 ));
             }
 
-            let (base, exp) = match (&args[0], &args[1]) {
-                (Value::Float(base), Value::Float(exp)) => (*base, *exp),
-                (Value::Float(base), Value::Integer(exp)) => (*base, *exp as f64),
-                (Value::Integer(base), Value::Float(exp)) => (*base as f64, *exp),
-                (Value::Integer(base), Value::Integer(exp)) => (*base as f64, *exp as f64),
-                // Handle NumericValue similarly
+            let base = match &args[0] {
+                Value::Float(f) => *f,
+                Value::Integer(i) => *i as f64,
+                Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => *f,
+                Value::Numeric(NumericValue::Float(FloatValue::F32(f))) => *f as f64,
+                Value::Numeric(NumericValue::Integer(i)) => i.clone().as_f64(),
                 _ => {
                     return Err(VeldError::RuntimeError(
-                        "pow requires numeric arguments".to_string(),
+                        "pow base must be numeric".to_string(),
                     ));
                 }
             };
 
-            Ok(Value::Float(base.powf(exp)))
+            let exponent = match &args[1] {
+                Value::Float(f) => *f,
+                Value::Integer(i) => *i as f64,
+                Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => *f,
+                Value::Numeric(NumericValue::Float(FloatValue::F32(f))) => *f as f64,
+                Value::Numeric(NumericValue::Integer(i)) => i.clone().as_f64(),
+                _ => {
+                    return Err(VeldError::RuntimeError(
+                        "pow exponent must be numeric".to_string(),
+                    ));
+                }
+            };
+
+            Ok(Value::Float(base.powf(exponent)))
         });
 
         // Sine function
@@ -419,14 +432,20 @@ impl Interpreter {
                 ));
             }
 
-            match &args[0] {
-                Value::Float(f) => Ok(Value::Float(f.sin())),
-                Value::Integer(i) => Ok(Value::Float((*i as f64).sin())),
-                // Handle NumericValue similarly
-                _ => Err(VeldError::RuntimeError(
-                    "sin requires a numeric argument".to_string(),
-                )),
-            }
+            let val = match &args[0] {
+                Value::Float(f) => *f,
+                Value::Integer(i) => *i as f64,
+                Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => *f,
+                Value::Numeric(NumericValue::Float(FloatValue::F32(f))) => *f as f64,
+                Value::Numeric(NumericValue::Integer(i)) => i.clone().as_f64(),
+                _ => {
+                    return Err(VeldError::RuntimeError(
+                        "sin argument must be numeric".to_string(),
+                    ));
+                }
+            };
+
+            Ok(Value::Float(val.sin()))
         });
 
         // Cosine function
@@ -437,14 +456,43 @@ impl Interpreter {
                 ));
             }
 
-            match &args[0] {
-                Value::Float(f) => Ok(Value::Float(f.cos())),
-                Value::Integer(i) => Ok(Value::Float((*i as f64).cos())),
-                // Handle NumericValue similarly
-                _ => Err(VeldError::RuntimeError(
-                    "cos requires a numeric argument".to_string(),
-                )),
+            let val = match &args[0] {
+                Value::Float(f) => *f,
+                Value::Integer(i) => *i as f64,
+                Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => *f,
+                Value::Numeric(NumericValue::Float(FloatValue::F32(f))) => *f as f64,
+                Value::Numeric(NumericValue::Integer(i)) => i.clone().as_f64(),
+                _ => {
+                    return Err(VeldError::RuntimeError(
+                        "cos argument must be numeric".to_string(),
+                    ));
+                }
+            };
+
+            Ok(Value::Float(val.cos()))
+        });
+
+        self.native_registry.register("std.math.tan", |args| {
+            if args.len() != 1 {
+                return Err(VeldError::RuntimeError(
+                    "tan requires exactly one argument".to_string(),
+                ));
             }
+
+            let val = match &args[0] {
+                Value::Float(f) => *f,
+                Value::Integer(i) => *i as f64,
+                Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => *f,
+                Value::Numeric(NumericValue::Float(FloatValue::F32(f))) => *f as f64,
+                Value::Numeric(NumericValue::Integer(i)) => i.clone().as_f64(),
+                _ => {
+                    return Err(VeldError::RuntimeError(
+                        "tan argument must be numeric".to_string(),
+                    ));
+                }
+            };
+
+            Ok(Value::Float(val.tan()))
         });
 
         // TODO: Add more math functions as needed
