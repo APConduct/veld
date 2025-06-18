@@ -1,3 +1,4 @@
+use crate::ast::UnaryOperator;
 use std::env::consts::OS;
 
 use crate::ast::{
@@ -1835,7 +1836,24 @@ impl Parser {
     }
 
     fn unary(&mut self) -> Result<Expr> {
-        // Add unary operators if needed
+        // Check for unary operators
+        if self.match_token(&[Token::Minus, Token::Bang]) {
+            let operator = match self.previous() {
+                Token::Minus => UnaryOperator::Negate,
+                Token::Bang => UnaryOperator::Not,
+                _ => unreachable!(),
+            };
+
+            // Recursively parse the operand
+            let operand = self.unary()?;
+
+            return Ok(Expr::UnaryOp {
+                operator,
+                operand: Box::new(operand),
+            });
+        }
+
+        // If no unary operator, delegate to postfix
         self.postfix()
     }
 

@@ -55,6 +55,22 @@ pub enum TypeAnnotation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOperator {
+    Negate, // For -x
+    Not,    // For !x or not x
+}
+
+impl Display for UnaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let op = match self {
+            UnaryOperator::Negate => "-",
+            UnaryOperator::Not => "!",
+        };
+        write!(f, "{}", op)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     BlockExpression {
         statements: Vec<Statement>,
@@ -77,6 +93,10 @@ pub enum Expr {
         left: Box<Expr>,
         operator: BinaryOperator,
         right: Box<Expr>,
+    },
+    UnaryOp {
+        operator: UnaryOperator,
+        operand: Box<Expr>,
     },
     FunctionCall {
         name: String,

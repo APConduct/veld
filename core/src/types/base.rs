@@ -1,6 +1,6 @@
 use crate::ast::{
     Argument, BinaryOperator, Expr, GenericArgument, Literal, MethodImpl, Statement, StructMethod,
-    TypeAnnotation, VarKind,
+    TypeAnnotation, UnaryOperator, VarKind,
 };
 use crate::error::{Result, VeldError};
 use crate::interpreter::Value;
@@ -1673,6 +1673,7 @@ impl TypeChecker {
                 self.env.pop_scope();
                 Ok(result_type)
             }
+            Expr::UnaryOp { operator, operand } => self.infer_unary_op_type(operator, operand),
             EnumVariant => todo!(),
         };
         if let Ok(ref t) = result {
@@ -1780,6 +1781,33 @@ impl TypeChecker {
                 "Invalid cast from {} to {}",
                 expr_type, target
             )))
+        }
+    }
+
+    fn infer_unary_op_type(&mut self, operator: &UnaryOperator, operand: &Expr) -> Result<Type> {
+        let operand_type = self.infer_expression_type(operand)?;
+
+        match operator {
+            UnaryOperator::Negate => {
+                if operand_type.is_numeric() {
+                    Ok(operand_type)
+                } else {
+                    Err(VeldError::TypeError(format!(
+                        "Cannot apply unary negation to type {}",
+                        operand_type
+                    )))
+                }
+            }
+            UnaryOperator::Not => {
+                if operand_type == Type::Bool {
+                    Ok(Type::Bool)
+                } else {
+                    Err(VeldError::TypeError(format!(
+                        "Cannot apply logical negation to type {}",
+                        operand_type
+                    )))
+                }
+            }
         }
     }
 

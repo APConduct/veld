@@ -1,6 +1,7 @@
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, Literal,
-    MacroExpansion, MacroPattern, MatchPattern, Statement, StructField, TypeAnnotation, VarKind,
+    MacroExpansion, MacroPattern, MatchPattern, Statement, StructField, TypeAnnotation,
+    UnaryOperator, VarKind,
 };
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
@@ -792,6 +793,13 @@ impl Interpreter {
             }
             // Literals don't reference variables
             Expr::Literal(_) | Expr::UnitLiteral => {}
+            Expr::UnaryOp {
+                operator: _,
+                operand,
+            } => {
+                // Collect free variables from the operand
+                self.collect_free_variables_expr(operand, bound_vars, free_vars);
+            }
         }
     }
 
@@ -2084,6 +2092,59 @@ impl Interpreter {
                     ))),
                 }
             }
+            Expr::UnaryOp { operator, operand } => {
+                let operand_value = self.evaluate_expression(*operand)?.unwrap_return();
+
+                match operator {
+                    UnaryOperator::Negate => {
+                        match operand_value {
+                            Value::Integer(i) => Ok(Value::Integer(-i)),
+                            Value::Float(f) => Ok(Value::Float(-f)),
+                            Value::Numeric(num) => {
+                                match num {
+                                    NumericValue::Integer(int_val) => {
+                                        let negated = match int_val {
+                                            IntegerValue::I8(v) => IntegerValue::I8(-v),
+                                            IntegerValue::I16(v) => IntegerValue::I16(-v),
+                                            IntegerValue::I32(v) => IntegerValue::I32(-v),
+                                            IntegerValue::I64(v) => IntegerValue::I64(-v),
+                                            // For unsigned types, we'd need special handling
+                                            // This is simplified - you might want to handle overflow
+                                            IntegerValue::U8(_)
+                                            | IntegerValue::U16(_)
+                                            | IntegerValue::U32(_)
+                                            | IntegerValue::U64(_) => {
+                                                return Err(VeldError::RuntimeError(
+                                                    "Cannot negate unsigned integer".to_string(),
+                                                ));
+                                            }
+                                        };
+                                        Ok(Value::Numeric(NumericValue::Integer(negated)))
+                                    }
+                                    NumericValue::Float(float_val) => {
+                                        let negated = match float_val {
+                                            FloatValue::F32(v) => FloatValue::F32(-v),
+                                            FloatValue::F64(v) => FloatValue::F64(-v),
+                                        };
+                                        Ok(Value::Numeric(NumericValue::Float(negated)))
+                                    }
+                                }
+                            }
+                            _ => Err(VeldError::RuntimeError(format!(
+                                "Cannot apply unary negation to {}",
+                                operand_value.type_of()
+                            ))),
+                        }
+                    }
+                    UnaryOperator::Not => match operand_value {
+                        Value::Boolean(b) => Ok(Value::Boolean(!b)),
+                        _ => Err(VeldError::RuntimeError(format!(
+                            "Cannot apply logical NOT to {}",
+                            operand_value.type_of()
+                        ))),
+                    },
+                }
+            }
         }
     }
 
@@ -2301,6 +2362,11 @@ impl Interpreter {
                     right: Box::new(new_right),
                 })
             }
+            Expr::UnaryOp { operator, operand } => Ok(Expr::UnaryOp {
+                operator: operator.clone(),
+                operand: Box::new(self.substitute_variables_in_expression(operand, bindings)?),
+            }),
+
             // For other expressions, just return the original for now
             // TODO: Handle other expression types
             _ => Ok(expr.clone()),
