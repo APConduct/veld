@@ -50,6 +50,10 @@ pub enum TypeAnnotation {
         type_args: Vec<TypeAnnotation>,
         // type_params: Vec<String>,
     },
+    Constrained {
+        base_type: Box<TypeAnnotation>,
+        constraints: Vec<TypeAnnotation>,
+    },
     Array(Box<TypeAnnotation>), // Array type, e.g., [i32]
     Tuple(Vec<TypeAnnotation>), // (e.g., (i32, f64, str))
 }
@@ -200,6 +204,9 @@ pub struct GenericArgument {
 
     /// The type annotation for this generic argument
     pub type_annotation: TypeAnnotation,
+
+    /// Optional constraints for this generic argument (e.g., T: Add + Mul)
+    pub constraints: Vec<TypeAnnotation>,
 }
 
 impl GenericArgument {
@@ -208,6 +215,7 @@ impl GenericArgument {
         Self {
             name: None,
             type_annotation,
+            constraints: vec![],
         }
     }
 
@@ -216,6 +224,32 @@ impl GenericArgument {
         Self {
             name: Some(name),
             type_annotation,
+            constraints: vec![],
+        }
+    }
+
+    /// Create a new constrained generic argument
+    pub fn with_constraints(
+        type_annotation: TypeAnnotation,
+        constraints: Vec<TypeAnnotation>,
+    ) -> Self {
+        Self {
+            name: None,
+            type_annotation,
+            constraints,
+        }
+    }
+
+    /// Create a new named constrained generic argument
+    pub fn named_with_constraints(
+        name: String,
+        type_annotation: TypeAnnotation,
+        constraints: Vec<TypeAnnotation>,
+    ) -> Self {
+        Self {
+            name: Some(name),
+            type_annotation,
+            constraints,
         }
     }
 }
@@ -272,12 +306,14 @@ pub enum Statement {
         body: Vec<Statement>,
         is_proc: bool, // Mark as procedure (returns void/unit)
         is_public: bool,
+        generic_params: Vec<GenericArgument>,
     },
     ProcDeclaration {
         name: String,
         params: Vec<(String, TypeAnnotation)>,
         body: Vec<Statement>,
         is_public: bool,
+        generic_params: Vec<GenericArgument>,
     },
     VariableDeclaration {
         name: String,
@@ -407,6 +443,7 @@ pub struct FunctionDeclaration {
     pub body: Vec<Statement>,
     pub is_proc: bool,
     pub is_public: bool, // New field to track visibility
+    pub generic_params: Vec<GenericArgument>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

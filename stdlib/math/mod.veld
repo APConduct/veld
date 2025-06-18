@@ -11,60 +11,25 @@ pub let tau: f64 = 6.2831853071
 # Basic arithmetic operations
 
 # Actual implementations (commented out until parser supports nested generics and better supports generic functions)
-# pub fn abs<T: Neg<Output = T> + Ord<T>>(x: T) -> T
-#     if x < T(0) then
-#        -x
-#    else
-#        x
-#    end
-#end
-
-# pub fn max<T: Ord<T>>(a: T, b: T) -> T
-#     if a > b then a else b end
-# end
-
-# pub fn min<T: Ord<T>>(a: T, b: T) -> T
-#     if a < b then a else b end
-# end
-
-# pub fn clamp<T: Ord<T>>(x: T, min_val: T, max_val: T) -> T
-#     if x < min_val then
-#         min_val
-#     else if x > max_val then
-#         max_val
-#     else
-#         x
-#     end
-# end
-
-# Placeholder implementations (to be replaced with actual logic once generics are fully supported)
-
-# Simplified abs for f64
-pub fn abs(x: f64) -> f64
-    if x < 0.0 then
-        -x
+# Simplified version for testing
+pub fn abs<T: Neg<Output = T>>(x: T) -> T
+    if x < T(0) then
+       -x
     else
         x
     end
 end
 
 
-
-# Simplified max for f64
-pub fn max(a: f64, b: f64) -> f64
+pub fn max<T: Ord<T>>(a: T, b: T) -> T
     if a > b then a else b end
 end
 
-
-# Simplified min for f64
-pub fn min(a: f64, b: f64) -> f64
+pub fn min<T: Ord<T>>(a: T, b: T) -> T
     if a < b then a else b end
 end
 
-
-
-# Simplified clamp for f64
-pub fn clamp(x: f64, min_val: f64, max_val: f64) -> f64
+pub fn clamp<T: Ord<T>>(x: T, min_val: T, max_val: T) -> T
     if x < min_val then
         min_val
     else if x > max_val then
@@ -73,6 +38,43 @@ pub fn clamp(x: f64, min_val: f64, max_val: f64) -> f64
         x
     end
 end
+
+# Placeholder implementations (to be replaced with actual logic once generics are fully supported)
+
+# Simplified abs for f64
+# pub fn abs(x: f64) -> f64
+#     if x < 0.0 then
+#         -x
+#     else
+#         x
+#     end
+# end
+
+
+
+# Simplified max for f64
+# pub fn max(a: f64, b: f64) -> f64
+#     if a > b then a else b end
+# end
+
+
+# Simplified min for f64
+# pub fn min(a: f64, b: f64) -> f64
+#     if a < b then a else b end
+# end
+
+
+
+# Simplified clamp for f64
+# pub fn clamp(x: f64, min_val: f64, max_val: f64) -> f64
+#     if x < min_val then
+#         min_val
+#     else if x > max_val then
+#         max_val
+#     else
+#         x
+#     end
+# end
 
 
 # Basic exponential and logarithmic functions

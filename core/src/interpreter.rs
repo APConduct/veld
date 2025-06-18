@@ -1,6 +1,6 @@
 use crate::ast::{
-    Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, Literal,
-    MacroExpansion, MacroPattern, MatchPattern, Statement, StructField, TypeAnnotation,
+    Argument, BinaryOperator, EnumVariant, Expr, FunctionDeclaration, GenericArgument, ImportItem,
+    Literal, MacroExpansion, MacroPattern, MatchPattern, Statement, StructField, TypeAnnotation,
     UnaryOperator, VarKind,
 };
 use crate::error::{Result, VeldError};
@@ -1165,6 +1165,7 @@ impl Interpreter {
                 params,
                 body,
                 is_public,
+                ..
             } => {
                 println!("Executing proc declaration: {}", name);
 
@@ -2145,6 +2146,231 @@ impl Interpreter {
                     },
                 }
             }
+        }
+    }
+
+    fn find_generic_function(&mut self, name: &str) -> Option<FunctionDeclaration> {
+        // Get the current module name
+        let current_module_name = self.get_current_module();
+
+        // Get the actual module from the module manager
+        if let Some(current_module) = self.module_manager.get_module(&current_module_name) {
+            // Search in current module
+            for stmt in &current_module.statements {
+                if let Statement::FunctionDeclaration {
+                    name: fn_name,
+                    params,
+                    return_type,
+                    body,
+                    is_proc,
+                    is_public: _,
+                    generic_params,
+                } = stmt
+                {
+                    if fn_name == name && !generic_params.is_empty() {
+                        return Some(FunctionDeclaration {
+                            name: fn_name.clone(),
+                            params: params.clone(),
+                            return_type: return_type.clone(),
+                            body: body.clone(),
+                            is_proc: *is_proc,
+                            is_public: false, // Not relevant here
+                            generic_params: generic_params.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Check imported modules
+        for (module_path, _) in &self.imported_modules {
+            if let Ok(module) = self.module_manager.load_module(&[module_path.clone()]) {
+                for stmt in &module.statements {
+                    if let Statement::FunctionDeclaration {
+                        name: fn_name,
+                        params,
+                        return_type,
+                        body,
+                        is_proc,
+                        is_public,
+                        generic_params,
+                    } = stmt
+                    {
+                        if fn_name == name && !generic_params.is_empty() && *is_public {
+                            return Some(FunctionDeclaration {
+                                name: fn_name.clone(),
+                                params: params.clone(),
+                                return_type: return_type.clone(),
+                                body: body.clone(),
+                                is_proc: *is_proc,
+                                is_public: *is_public,
+                                generic_params: generic_params.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    // Infer type arguments from values
+    fn infer_type_args_from_values(
+        &self,
+        function: &FunctionDeclaration,
+        args: &[Value],
+    ) -> Result<Vec<Type>> {
+        let mut type_args = Vec::new();
+
+        // For each generic parameter, try to infer its type
+        for param in &function.generic_params {
+            // TODO: implement more sophisticated inference
+
+            // Find where this type parameter is used in the function parameters
+            let mut inferred_type = None;
+
+            for (i, (_, param_type)) in function.params.iter().enumerate() {
+                if let Some(arg) = args.get(i) {
+                    // Check if this parameter uses our generic type
+                    if self.uses_type_param(param_type, &param.type_annotation) {
+                        // Get the type of the argument value
+                        let arg_type = arg.type_of();
+                        inferred_type = Some(arg_type);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(ty) = inferred_type {
+                type_args.push(ty);
+            } else {
+                return Err(VeldError::RuntimeError(
+                    "Could not infer generic type parameter".to_string(),
+                ));
+            }
+        }
+
+        Ok(type_args)
+    }
+
+    // Helper method to check if a type annotation uses a specific type parameter
+    fn uses_type_param(&self, type_: &TypeAnnotation, type_param: &TypeAnnotation) -> bool {
+        match (type_, type_param) {
+            (TypeAnnotation::Basic(a), TypeAnnotation::Basic(b)) => a == b,
+            (TypeAnnotation::Generic { type_args, .. }, _) => type_args
+                .iter()
+                .any(|arg| self.uses_type_param(arg, type_param)),
+            (TypeAnnotation::Array(elem), _) => self.uses_type_param(elem, type_param),
+            // Add more cases as needed
+            _ => false,
+        }
+    }
+
+    // Instantiate a generic function with concrete types
+    fn instantiate_generic_function(
+        &mut self,
+        function: &FunctionDeclaration,
+        type_args: &[Type],
+    ) -> Result<Value> {
+        // Check that the types satisfy the constraints
+        if !self
+            .type_checker
+            .check_generic_constraints(&function.generic_params, type_args)
+        {
+            return Err(VeldError::RuntimeError(format!(
+                "Type arguments do not satisfy constraints for function {}",
+                function.name
+            )));
+        }
+
+        // Create a specialized function instance
+        let mut specialized_params = Vec::new();
+
+        // Substitute the type parameters in the function signature
+        for (name, type_ann) in &function.params {
+            let specialized_type = self.substitute_type_params_in_annotation(
+                type_ann,
+                &function.generic_params,
+                type_args,
+            );
+            specialized_params.push((name.clone(), specialized_type));
+        }
+
+        // Substitute in the return type
+        let specialized_return_type = self.substitute_type_params_in_annotation(
+            &function.return_type,
+            &function.generic_params,
+            type_args,
+        );
+
+        // Create function value
+        let function_value = Value::Function {
+            params: specialized_params,
+            body: function.body.clone(),
+            return_type: specialized_return_type,
+            captured_vars: HashMap::new(),
+        };
+
+        Ok(function_value)
+    }
+
+    // Helper to substitute type parameters in annotations
+    fn substitute_type_params_in_annotation(
+        &self,
+        type_: &TypeAnnotation,
+        type_params: &[GenericArgument],
+        type_args: &[Type],
+    ) -> TypeAnnotation {
+        match type_ {
+            TypeAnnotation::Basic(name) => {
+                // Check if this is a type parameter
+                for (i, param) in type_params.iter().enumerate() {
+                    if let TypeAnnotation::Basic(param_name) = &param.type_annotation {
+                        if name == param_name {
+                            // Convert the type argument to a type annotation
+                            return self.type_to_annotation(&type_args[i]);
+                        }
+                    }
+                }
+                // Not a type parameter, keep as is
+                type_.clone()
+            }
+            TypeAnnotation::Generic {
+                base,
+                type_args: params,
+            } => {
+                // Substitute in the type arguments
+                let new_args = params
+                    .iter()
+                    .map(|arg| {
+                        self.substitute_type_params_in_annotation(arg, type_params, type_args)
+                    })
+                    .collect();
+
+                TypeAnnotation::Generic {
+                    base: base.clone(),
+                    type_args: new_args,
+                }
+            }
+            TypeAnnotation::Array(elem) => TypeAnnotation::Array(Box::new(
+                self.substitute_type_params_in_annotation(elem, type_params, type_args),
+            )),
+            // Add other cases as needed
+            _ => type_.clone(),
+        }
+    }
+
+    // Helper to convert Type to TypeAnnotation
+    fn type_to_annotation(&self, type_: &Type) -> TypeAnnotation {
+        match type_ {
+            Type::I32 => TypeAnnotation::Basic("i32".to_string()),
+            Type::F64 => TypeAnnotation::Basic("f64".to_string()),
+            Type::Bool => TypeAnnotation::Basic("bool".to_string()),
+            Type::String => TypeAnnotation::Basic("str".to_string()),
+            Type::Unit => TypeAnnotation::Unit,
+            // Add other cases as needed
+            _ => TypeAnnotation::Basic(format!("{:?}", type_)),
         }
     }
 
@@ -3542,6 +3768,91 @@ impl Interpreter {
             }
         }
 
+        // Check if this is a generic function that needs to be instantiated
+        if let Some(generic_fn) = self.find_generic_function(&name) {
+            // Infer type arguments from the provided values
+            let type_args = self.infer_type_args_from_values(&generic_fn, &arg_values)?;
+
+            // Check that the inferred types satisfy the constraints
+            if !self
+                .type_checker
+                .check_generic_constraints(&generic_fn.generic_params, &type_args)
+            {
+                return Err(VeldError::RuntimeError(format!(
+                    "Type arguments do not satisfy constraints for function {}",
+                    name
+                )));
+            }
+
+            // Create a specialized version of the function
+            let mut specialized_params = Vec::new();
+
+            // Substitute the type parameters in the function signature
+            for (param_name, type_ann) in &generic_fn.params {
+                let specialized_type = self.substitute_type_params_in_annotation(
+                    type_ann,
+                    &generic_fn.generic_params,
+                    &type_args,
+                );
+                specialized_params.push((param_name.clone(), specialized_type));
+            }
+
+            // Substitute in the return type
+            let specialized_return_type = self.substitute_type_params_in_annotation(
+                &generic_fn.return_type,
+                &generic_fn.generic_params,
+                &type_args,
+            );
+
+            // Create a specialized function and call it with the provided arguments
+            let function = Value::Function {
+                params: specialized_params.clone(),
+                body: generic_fn.body.clone(),
+                return_type: specialized_return_type,
+                captured_vars: HashMap::new(),
+            };
+
+            // Now continue with the normal function call logic using this specialized function
+            self.push_scope();
+
+            // Bind arguments
+            if arg_values.len() != specialized_params.len() {
+                return Err(VeldError::RuntimeError(format!(
+                    "Expected {} arguments but got {}",
+                    specialized_params.len(),
+                    arg_values.len()
+                )));
+            }
+
+            // Bind parameters to arguments
+            for (i, arg) in arg_values.iter().enumerate() {
+                let param_name = specialized_params[i].0.clone();
+                let arg_value = arg.clone();
+                self.current_scope_mut().set(param_name, arg_value);
+            }
+
+            // Execute function body
+            let mut result = Value::Unit;
+            for stmt in &generic_fn.body {
+                result = self.execute_statement(stmt.clone())?;
+                if matches!(result, Value::Return(_)) {
+                    break;
+                }
+            }
+
+            // Remove function scope
+            self.pop_scope();
+
+            // For functions without explicit returns, if the last statement produced a value,
+            // consider it the return value
+            if !matches!(result, Value::Return(_)) && !matches!(result, Value::Unit) {
+                result = Value::Return(Box::new(result));
+            }
+
+            return Ok(result.unwrap_return());
+        }
+
+        // Try to get the function from the current scope
         let function = self
             .get_variable(&name)
             .ok_or_else(|| VeldError::RuntimeError(format!("Undefined function '{}'", name)))?;

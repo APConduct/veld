@@ -557,6 +557,12 @@ impl TypeEnvironment {
                     .collect::<Result<Vec<_>>>()?;
                 Ok(Type::Tuple(types))
             }
+            TypeAnnotation::Constrained {
+                base_type,
+                constraints,
+            } => {
+                todo!("Handle constrained types")
+            }
         }
     }
 
@@ -935,6 +941,102 @@ impl TypeChecker {
         Ok(None)
     }
 
+    // In TypeChecker implementation
+    fn type_satisfies_constraint(&mut self, type_: &Type, constraint: &Type) -> bool {
+        match constraint {
+            Type::Generic { base, type_args } => {
+                // For constraints like Neg<Output = T>
+                let kind_name = base;
+
+                // Check if type_ structurally implements the kind
+                let implements_kind = self.env.type_structurally_implements_kind(type_, kind_name);
+                if !implements_kind {
+                    return false;
+                }
+
+                // If there are type arguments, verify them
+                if !type_args.is_empty() {
+                    // Find the implementation for the type
+                    let type_name = match type_ {
+                        Type::Struct { name, .. } => Some(name),
+                        Type::Enum { name, .. } => Some(name),
+                        // Add other cases that have names
+                        _ => None,
+                    };
+
+                    if let Some(type_name) = type_name {
+                        if let Some(impl_info) =
+                            self.env.clone().find_implementation(type_name, kind_name)
+                        {
+                            // Check each type argument against the implementation
+                            // This is a simplified version - you may need more complex logic
+                            for (i, type_arg) in type_args.iter().enumerate() {
+                                if let Some(impl_arg) = impl_info.generic_args().get(i) {
+                                    // Convert the implementation's type annotation to a Type
+                                    let impl_type = match self
+                                        .env
+                                        .from_annotation(&impl_arg.type_annotation, None)
+                                    {
+                                        Ok(t) => t,
+                                        Err(_) => return false,
+                                    };
+
+                                    // Check if the types are compatible
+                                    if !self.types_compatible(type_arg, &impl_type) {
+                                        return false;
+                                    }
+                                } else {
+                                    return false; // Not enough generic arguments
+                                }
+                            }
+                        }
+                    }
+                }
+
+                true
+            }
+            Type::TypeParam(param_name) => {
+                // For simple type parameter constraints like T: SomeTrait
+                match type_ {
+                    Type::TypeParam(type_param) => type_param == param_name,
+                    _ => self
+                        .env
+                        .type_structurally_implements_kind(type_, param_name),
+                }
+            }
+            _ => false, // Other constraint types not supported
+        }
+    }
+
+    pub fn check_generic_constraints(
+        &mut self,
+        type_params: &[GenericArgument],
+        type_args: &[Type],
+    ) -> bool {
+        if type_params.len() != type_args.len() {
+            return false;
+        }
+
+        for (i, param) in type_params.iter().enumerate() {
+            if !param.constraints.is_empty() {
+                let arg_type = &type_args[i];
+
+                for constraint_annotation in &param.constraints {
+                    match self.env.from_annotation(constraint_annotation, None) {
+                        Ok(constraint_type) => {
+                            if !self.type_satisfies_constraint(arg_type, &constraint_type) {
+                                return false;
+                            }
+                        }
+                        Err(_) => return false, // Invalid constraint
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
     pub fn check_numeric_operation(
         &mut self,
         op: &BinaryOperator,
@@ -1117,9 +1219,25 @@ impl TypeChecker {
                 params,
                 return_type,
                 body,
-                ..
-            } => self.type_check_function(name, params, return_type, body),
-
+                is_proc: _,
+                is_public: _,
+                generic_params,
+            } => {
+                if !generic_params.is_empty() {
+                    // This is a generic function
+                    self.type_check_generic_function(
+                        name,
+                        params,
+                        return_type,
+                        body,
+                        generic_params,
+                    )?;
+                } else {
+                    // Regular function, use existing logic
+                    self.type_check_function(name, params, return_type, body)?;
+                }
+                Ok(())
+            }
             Statement::VariableDeclaration {
                 name,
                 var_kind,
@@ -1213,6 +1331,7 @@ impl TypeChecker {
                 params,
                 body,
                 is_public,
+                ..
             } => {
                 println!("Type checking proc declaration: {}", name);
 
@@ -1221,6 +1340,45 @@ impl TypeChecker {
             }
             _ => Ok(()),
         }
+    }
+
+    fn type_check_generic_function(
+        &mut self,
+        name: &str,
+        params: &[(String, TypeAnnotation)],
+        return_type: &TypeAnnotation,
+        body: &[Statement],
+        generic_params: &[GenericArgument],
+    ) -> Result<()> {
+        // Save the current type environment
+        let saved_env = self.env.clone();
+
+        // Add type parameters to the environment
+        self.env.push_type_param_scope();
+        for param in generic_params {
+            match &param.type_annotation {
+                TypeAnnotation::Basic(name) => {
+                    self.env.add_type_param(name.as_str());
+                }
+                _ => return Err(VeldError::TypeError("Invalid type parameter".into())),
+            }
+        }
+
+        // Type check the function body with generic parameters
+        let old_return_type = self.current_function_return_type.clone();
+        self.current_function_return_type = Some(self.env.from_annotation(return_type, None)?);
+
+        // Type check each statement in the function body
+        for stmt in body {
+            self.type_check_statement(stmt)?;
+        }
+
+        // Restore the original environment
+        self.current_function_return_type = old_return_type;
+        self.env.pop_type_param_scope();
+        self.env = saved_env;
+
+        Ok(())
     }
 
     fn infer_expression_type_with_env(

@@ -252,6 +252,10 @@ impl Parser {
 
         // Parse generic type parameters if present
         let generic_params = self.parse_generic_args_if_present()?;
+        println!(
+            "Function declaration: Parsed generic params: {:?}",
+            generic_params
+        );
 
         self.consume(&Token::LParen, "Expected '(' after function name")?;
 
@@ -291,6 +295,7 @@ impl Parser {
                 body: Vec::new(),
                 is_proc: false,
                 is_public,
+                generic_params, // Add generic parameters
             });
         }
 
@@ -319,19 +324,9 @@ impl Parser {
                 // Single expression: fn name() => expr
                 let expr = self.expression()?;
                 if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
-                    return_type = if let Some(last_stmt) = body.last() {
-                        match last_stmt {
-                            Statement::Return(Some(expr)) => self
-                                .infer_lambda_return_type(expr)
-                                .unwrap_or(TypeAnnotation::Unit),
-                            Statement::ExprStatement(expr) => self
-                                .infer_lambda_return_type(expr)
-                                .unwrap_or(TypeAnnotation::Unit),
-                            _ => TypeAnnotation::Unit,
-                        }
-                    } else {
-                        TypeAnnotation::Unit
-                    };
+                    return_type = self
+                        .infer_lambda_return_type(&expr)
+                        .unwrap_or(TypeAnnotation::Unit);
                 }
                 body.push(Statement::Return(Some(expr)));
             }
@@ -370,6 +365,7 @@ impl Parser {
             body,
             is_proc: false,
             is_public,
+            generic_params,
         })
     }
 
@@ -705,6 +701,7 @@ impl Parser {
             params,
             body,
             is_public,
+            generic_params: Vec::new(),
         })
     }
 
@@ -989,36 +986,101 @@ impl Parser {
             return Ok(generic_args);
         }
 
-        while !self.check(&Token::Greater) && !self.is_at_end() {
-            // Check if we have a named parameter (identifier followed by equals)
-            if let Token::Identifier(name) = &self.tokens[self.current].clone() {
-                if self.peek_next_token_is(&Token::Equals) {
-                    // Named parameter case: "Name = Type"
-                    let param_name = name.clone();
-                    self.advance(); // Consume identifier
-                    self.advance(); // Consume equals
-                    let type_annotation = self.parse_type()?;
+        // Parse comma-separated generic arguments
+        if !self.check(&Token::Greater) {
+            loop {
+                // Parse the type parameter name
+                let param_name = self.consume_identifier("Expected type parameter name")?;
 
-                    generic_args.push(GenericArgument::named(param_name, type_annotation));
-                } else {
-                    // Regular type parameter - parse a full type
-                    let type_annotation = self.parse_type()?;
-                    generic_args.push(GenericArgument::new(type_annotation));
+                // Check for constraints (T: Constraint)
+                let mut constraints = Vec::new();
+                if self.match_token(&[Token::Colon]) {
+                    // Parse the first constraint, which might be complex like Neg<Output = T>
+                    let first_constraint = self.parse_complex_constraint()?;
+                    constraints.push(first_constraint);
+
+                    // Parse additional constraints with + separator
+                    while self.match_token(&[Token::Plus]) {
+                        let next_constraint = self.parse_complex_constraint()?;
+                        constraints.push(next_constraint);
+                    }
+
+                    generic_args.push(GenericArgument::with_constraints(
+                        TypeAnnotation::Basic(param_name),
+                        constraints,
+                    ));
                 }
-            } else {
-                // Just a regular type parameter
-                let type_annotation = self.parse_type()?;
-                generic_args.push(GenericArgument::new(type_annotation));
-            }
+                // Check for named type parameter (Output = T)
+                else if self.match_token(&[Token::Equals]) {
+                    let type_annotation = self.parse_type()?;
+                    generic_args.push(GenericArgument::named(param_name, type_annotation));
+                }
+                // Simple type parameter with no constraints
+                else {
+                    generic_args.push(GenericArgument::new(TypeAnnotation::Basic(param_name)));
+                }
 
-            // Check for comma separator
-            if !self.match_token(&[Token::Comma]) {
-                break;
+                if !self.match_token(&[Token::Comma]) {
+                    break;
+                }
             }
         }
 
         self.consume(&Token::Greater, "Expected '>' after generic arguments")?;
+
         Ok(generic_args)
+    }
+
+    // New helper method to parse complex constraints like Neg<Output = T>
+    fn parse_complex_constraint(&mut self) -> Result<TypeAnnotation> {
+        // Get the base constraint name (e.g., "Neg")
+        let base_name = self.consume_identifier("Expected constraint name")?;
+
+        // Check if there are type arguments in angle brackets
+        if self.match_token(&[Token::Less]) {
+            let mut type_args = Vec::new();
+
+            // Keep parsing type arguments until we reach the closing '>'
+            if !self.check(&Token::Greater) {
+                loop {
+                    // Check for named arguments like "Output = T"
+                    if self.peek_next_token_is(&Token::Equals) {
+                        let arg_name = self.consume_identifier("Expected argument name")?;
+                        self.consume(&Token::Equals, "Expected '=' after argument name")?;
+
+                        // Parse the argument's type
+                        let arg_type = self.parse_type()?;
+
+                        // Create a named type argument
+                        type_args.push(TypeAnnotation::Generic {
+                            base: arg_name,
+                            type_args: vec![arg_type],
+                        });
+                    } else {
+                        // Regular type argument
+                        type_args.push(self.parse_type()?);
+                    }
+
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+
+            self.consume(
+                &Token::Greater,
+                "Expected '>' after constraint type arguments",
+            )?;
+
+            // Return the complete constraint with its type arguments
+            Ok(TypeAnnotation::Generic {
+                base: base_name,
+                type_args,
+            })
+        } else {
+            // Simple constraint without type arguments
+            Ok(TypeAnnotation::Basic(base_name))
+        }
     }
 
     fn peek_next_is_identifier(&self) -> bool {
