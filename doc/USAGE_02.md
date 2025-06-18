@@ -126,10 +126,10 @@ struct Rectangle
 impl
     fn area(self) -> f64 = self.width * self.height
     fn scale(self, factor: f64) -> Rectangle
-        Rectangle{
+        Rectangle()
             width: self.width * factor,
             height: self.height * factor,
-        }
+        )
     end
 end
 

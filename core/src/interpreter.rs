@@ -275,12 +275,6 @@ impl Interpreter {
 
         interpreter.initialize_std_modules();
 
-        // Initialize Built-in array methods
-        interpreter.initialize_array_methods();
-
-        if let Err(e) = interpreter.initialize_operator_kinds() {
-            eprintln!("Warning: Failed to initialize operator kinds: {}", e);
-        }
         interpreter
     }
 

@@ -47,7 +47,7 @@ impl Parser {
         println!("Parser: Starting parsing...");
         let mut statements = Vec::new();
         let mut step_count = 0;
-        const MAX_STEPS: usize = 1000; // Adjust as needed
+        const MAX_STEPS: usize = 1000;
 
         while !self.is_at_end() {
             step_count += 1;
