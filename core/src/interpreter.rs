@@ -315,9 +315,9 @@ impl Interpreter {
             exe_dir.join("../stdlib"),
             PathBuf::from("./stdlib"),
             PathBuf::from("./veld/stdlib"),
-            PathBuf::from("../stdlib"),         // Added this path
-            PathBuf::from("../veld/stdlib"),    // Added this path
-            PathBuf::from("../../veld/stdlib"), // Added this path
+            PathBuf::from("../stdlib"),
+            PathBuf::from("../veld/stdlib"),
+            PathBuf::from("../../veld/stdlib"),
         ];
 
         let mut found = false;

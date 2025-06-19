@@ -10,8 +10,7 @@ pub let tau: f64 = 6.2831853071
 
 # Basic arithmetic operations
 
-# Actual implementations (commented out until parser supports nested generics and better supports generic functions)
-# Simplified version for testing
+# Actual implementations
 pub fn abs<T: Neg<Output = T>>(x: T) -> T
     if x < T(0) then
        -x
