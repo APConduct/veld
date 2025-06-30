@@ -1,0 +1,57 @@
+# Define some test functions
+fn double(x: i32) -> i32 => x * 2
+fn add(x: i32, y: i32) -> i32 => x + y
+fn multiply(x: i32, y: i32) -> i32 => x * y
+fn to_string(x: i32) -> str => "{x}"
+
+# Test simple pipeline
+let result1 = 5 |> double  # 10
+
+# Test pipeline with function and arguments
+let result2 = 5 |> add(10)  # 15
+
+# Test chained pipelines
+let result3 = 5 |> double |> multiply(3)  # 30
+
+# Test pipeline with different types
+let result4 = 42 |> to_string |> str.length  # 2
+
+println~("result1: {}", result1)  # 10
+println~("result2: {}", result2)  # 15
+println~("result3: {}", result3)  # 30
+println~("result4: {}", result4)  # 2
+
+# More complex example with arrays
+fn filter(arr: [i32], pred: fn(i32) -> bool) -> [i32]
+    let result = []
+    for x in arr do
+        if pred(x) then
+            result.push(x)
+        end
+    end
+    result
+end
+
+fn map(arr: [i32], transform: fn(i32) -> i32) -> [i32]
+    let result = []
+    for x in arr do
+        result.push(transform(x))
+    end
+    result
+end
+
+fn sum(arr: [i32]) -> i32
+    let total = 0
+    for x in arr do
+        total = total + x
+    end
+    total
+end
+
+let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+let result5 = numbers
+    |> filter(x => x % 2 == 0)  # [2, 4, 6, 8, 10]
+    |> map(x => x * x)          # [4, 16, 36, 64, 100]
+    |> sum                      # 220
+
+println~("result5: {}", result5)  # 220
