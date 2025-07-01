@@ -25,6 +25,11 @@ Veld is a programming language that aims to provide a rich set of features while
 - [x] modules
 - [x] macros
 - [x] public keyword ("pub")
+- [x] pipeline operator (`|>`)
+<!-- - [x] postfix macros
+- [x] infix operators
+- [x] infix macros
+- [x] structured behavior  -->
 - [x] initializer keywords
   - [x] `let`
   - [x] `var`
