@@ -1,0 +1,26 @@
+# Minimal test for the pipeline operator (|>)
+
+# Define some basic functions
+fn double(x: i32) -> i32
+    x * 2
+end
+
+fn add(x: i32, y: i32) -> i32
+    x + y
+end
+
+fn square(x: i32) -> i32
+    x * x
+end
+
+# Test basic pipeline
+let test1 = 5 |> double  # Should be 10
+
+# Test pipeline with arguments
+let test2 = 5 |> add(3)  # Should be 8
+
+# Test chained pipelines
+let test3 = 5 |> double |> square  # Should be 100
+
+# Return all results as an array for easy verification
+let res = [test1, test2, test3]  # Should be [10, 8, 100]
