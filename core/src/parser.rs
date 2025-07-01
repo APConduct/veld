@@ -2941,3 +2941,10 @@ impl Parser {
         })
     }
 }
+
+// TODO: Write unit tests for the parser
+//  Some good ones:
+//      math precedence
+//      macro creation
+//      string parsing
+//      Nesting edge cases
