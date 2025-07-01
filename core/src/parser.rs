@@ -2535,51 +2535,51 @@ impl Parser {
         }
     }
 
-    fn call(&mut self) -> Result<Expr> {
-        let mut expr = self.primary()?;
+    // fn call(&mut self) -> Result<Expr> {
+    //     let mut expr = self.primary()?;
 
-        loop {
-            if self.match_token(&[Token::LParen]) && matches!(expr, Expr::Identifier(_)) {
-                // Function call
-                if let Expr::Identifier(name) = expr {
-                    // Parse arguments
-                    let mut arguments = Vec::new();
-                    if !self.check(&Token::RParen) {
-                        loop {
-                            // Check for named arguments (identifier followed by colon)
-                            if self.check_named_argument() {
-                                let arg_name = self.consume_identifier("Expected argument name")?;
-                                self.consume(&Token::Colon, "Expected ':' after argument name")?;
-                                let arg_value = self.expression()?;
-                                arguments.push(Argument::Named {
-                                    name: arg_name,
-                                    value: arg_value,
-                                });
-                            } else {
-                                // Normal positional argument
-                                let arg = self.expression()?;
-                                arguments.push(Argument::Positional(arg));
-                            }
+    //     loop {
+    //         if self.match_token(&[Token::LParen]) && matches!(expr, Expr::Identifier(_)) {
+    //             // Function call
+    //             if let Expr::Identifier(name) = expr {
+    //                 // Parse arguments
+    //                 let mut arguments = Vec::new();
+    //                 if !self.check(&Token::RParen) {
+    //                     loop {
+    //                         // Check for named arguments (identifier followed by colon)
+    //                         if self.check_named_argument() {
+    //                             let arg_name = self.consume_identifier("Expected argument name")?;
+    //                             self.consume(&Token::Colon, "Expected ':' after argument name")?;
+    //                             let arg_value = self.expression()?;
+    //                             arguments.push(Argument::Named {
+    //                                 name: arg_name,
+    //                                 value: arg_value,
+    //                             });
+    //                         } else {
+    //                             // Normal positional argument
+    //                             let arg = self.expression()?;
+    //                             arguments.push(Argument::Positional(arg));
+    //                         }
 
-                            if !self.match_token(&[Token::Comma]) {
-                                break;
-                            }
-                        }
-                    }
+    //                         if !self.match_token(&[Token::Comma]) {
+    //                             break;
+    //                         }
+    //                     }
+    //                 }
 
-                    self.consume(&Token::RParen, "Expected ')' after arguments")?;
-                    expr = Expr::FunctionCall { name, arguments };
-                }
-            } else {
-                // FUTURE ENHANCEMENT: Implement method calls on objects with dot notation
-                // This will be needed later for expressions like (1.0 + 2.0).sqrt()
-                // For now, we're focused on standard function calls
-                break;
-            }
-        }
+    //                 self.consume(&Token::RParen, "Expected ')' after arguments")?;
+    //                 expr = Expr::FunctionCall { name, arguments };
+    //             }
+    //         } else {
+    //             // FUTURE ENHANCEMENT: Implement method calls on objects with dot notation
+    //             // This will be needed later for expressions like (1.0 + 2.0).sqrt()
+    //             // For now, we're focused on standard function calls
+    //             break;
+    //         }
+    //     }
 
-        Ok(expr)
-    }
+    //     Ok(expr)
+    // }
 
     fn check_named_argument(&self) -> bool {
         // Look ahead for "identifier: value" pattern
@@ -2955,13 +2955,6 @@ impl Parser {
         })
     }
 }
-
-// TODO: Write unit tests for the parser
-//  Some good ones:
-//      math precedence
-//      macro creation
-//      string parsing
-//      Nesting edge cases
 
 #[cfg(test)]
 mod tests {
