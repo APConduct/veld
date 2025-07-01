@@ -2962,3 +2962,929 @@ impl Parser {
 //      macro creation
 //      string parsing
 //      Nesting edge cases
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{Expr, Literal, Statement, TypeAnnotation, VarKind};
+    use crate::lexer::Lexer;
+
+    fn parse_code(input: &str) -> Vec<Statement> {
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.collect_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        parser.parse().unwrap()
+    }
+
+    #[test]
+    fn test_variable_declaration() {
+        let input = "let x = 42";
+        let statements = parse_code(input);
+
+        assert_eq!(statements.len(), 1);
+        match &statements[0] {
+            Statement::VariableDeclaration {
+                name,
+                var_kind,
+                type_annotation,
+                value,
+                is_public,
+            } => {
+                assert_eq!(name, "x");
+                assert!(matches!(var_kind, VarKind::Let));
+                assert!(type_annotation.is_none());
+                assert!(!is_public);
+
+                match &**value {
+                    Expr::Literal(Literal::Integer(val)) => assert_eq!(*val, 42),
+                    _ => panic!("Expected integer literal"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_variable_declaration_with_type() {
+        let input = "let y: i32 = 10";
+        let statements = parse_code(input);
+
+        assert_eq!(statements.len(), 1);
+        match &statements[0] {
+            Statement::VariableDeclaration {
+                name,
+                var_kind,
+                type_annotation,
+                value,
+                ..
+            } => {
+                assert_eq!(name, "y");
+                assert!(matches!(var_kind, VarKind::Let));
+
+                match type_annotation {
+                    Some(TypeAnnotation::Basic(type_name)) => assert_eq!(type_name, "i32"),
+                    _ => panic!("Expected basic type annotation"),
+                }
+
+                match &**value {
+                    Expr::Literal(Literal::Integer(val)) => assert_eq!(*val, 10),
+                    _ => panic!("Expected integer literal"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_mutable_variable() {
+        let input = "var counter = 0";
+        let statements = parse_code(input);
+
+        assert_eq!(statements.len(), 1);
+        match &statements[0] {
+            Statement::VariableDeclaration {
+                name,
+                var_kind,
+                value,
+                ..
+            } => {
+                assert_eq!(name, "counter");
+                assert!(matches!(var_kind, VarKind::Var));
+
+                match &**value {
+                    Expr::Literal(Literal::Integer(val)) => assert_eq!(*val, 0),
+                    _ => panic!("Expected integer literal"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_simple_function_declaration() {
+        let input = r#"
+            fn add(a: i32, b: i32) -> i32
+                a + b
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type,
+                body,
+                is_proc,
+                is_public,
+                ..
+            } => {
+                assert_eq!(name, "add");
+                assert_eq!(params.len(), 2);
+                assert_eq!(params[0].0, "a");
+                assert_eq!(params[1].0, "b");
+
+                match &return_type {
+                    TypeAnnotation::Basic(type_name) => assert_eq!(type_name, "i32"),
+                    _ => panic!("Expected basic return type"),
+                }
+
+                assert_eq!(body.len(), 1);
+                assert!(!is_proc);
+                assert!(!is_public);
+
+                match &body[0] {
+                    Statement::ExprStatement(Expr::BinaryOp { .. }) => (),
+                    _ => panic!("Expected binary operation expression"),
+                }
+            }
+            _ => panic!("Expected function declaration"),
+        }
+    }
+
+    #[test]
+    fn test_proc_declaration() {
+        let input = r#"
+            proc greet(name: str)
+                println~("Hello, {}!", name)
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::ProcDeclaration {
+                name,
+                params,
+                body,
+                is_public,
+                ..
+            } => {
+                assert_eq!(name, "greet");
+                assert_eq!(params.len(), 1);
+                assert_eq!(params[0].0, "name");
+
+                match &params[0].1 {
+                    TypeAnnotation::Basic(type_name) => assert_eq!(type_name, "str"),
+                    _ => panic!("Expected basic parameter type"),
+                }
+
+                assert_eq!(body.len(), 1);
+                assert!(!is_public);
+            }
+            _ => panic!("Expected proc declaration"),
+        }
+    }
+
+    #[test]
+    fn test_if_statement() {
+        let input = r#"
+            if x > 10 then
+                println~("Greater than 10")
+            else
+                println~("Not greater than 10")
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                match &condition {
+                    Expr::BinaryOp { operator, .. } => {
+                        assert!(matches!(operator, BinaryOperator::Greater));
+                    }
+                    _ => panic!("Expected binary operation"),
+                }
+
+                assert_eq!(then_branch.len(), 1);
+                assert!(else_branch.is_some());
+                assert_eq!(else_branch.as_ref().unwrap().len(), 1);
+            }
+            _ => panic!("Expected if statement"),
+        }
+    }
+
+    #[test]
+    fn test_while_loop() {
+        let input = r#"
+            while i < 10 do
+                println~(i)
+                i = i + 1
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::While { condition, body } => {
+                match &condition {
+                    Expr::BinaryOp { operator, .. } => {
+                        assert!(matches!(operator, BinaryOperator::Less));
+                    }
+                    _ => panic!("Expected binary operation"),
+                }
+
+                assert_eq!(body.len(), 2);
+            }
+            _ => panic!("Expected while statement"),
+        }
+    }
+
+    #[test]
+    fn test_for_loop() {
+        let input = r#"
+            for item in collection do
+                process(item)
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::For {
+                iterator,
+                iterable,
+                body,
+            } => {
+                assert_eq!(iterator, "item");
+
+                match &iterable {
+                    Expr::Identifier(name) => assert_eq!(name, "collection"),
+                    _ => panic!("Expected identifier"),
+                }
+
+                assert_eq!(body.len(), 1);
+            }
+            _ => panic!("Expected for statement"),
+        }
+    }
+
+    #[test]
+    fn test_struct_declaration() {
+        let input = r#"
+            struct Point
+                x: f64,
+                y: f64,
+
+                fn distance(self) -> f64
+                    (self.x * self.x + self.y * self.y).sqrt()
+                end
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::StructDeclaration {
+                name,
+                fields,
+                methods,
+                is_public,
+                ..
+            } => {
+                assert_eq!(name, "Point");
+                assert_eq!(fields.len(), 2);
+                assert_eq!(methods.len(), 1);
+                assert!(!is_public);
+
+                assert_eq!(fields[0].name, "x");
+                assert_eq!(fields[1].name, "y");
+
+                assert_eq!(methods[0].name, "distance");
+                assert_eq!(methods[0].params.len(), 1);
+                assert_eq!(methods[0].params[0].0, "self");
+            }
+            _ => panic!("Expected struct declaration"),
+        }
+    }
+
+    #[test]
+    fn test_module_declaration() {
+        let input = r#"
+            mod math
+                fn add(a: i32, b: i32) -> i32 a + b
+
+                fn multiply(a: i32, b: i32) -> i32 a * b
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::ModuleDeclaration {
+                name,
+                body,
+                is_public,
+            } => {
+                assert_eq!(name, "math");
+                assert!(body.is_some());
+                assert_eq!(body.as_ref().unwrap().len(), 2);
+                assert!(!is_public);
+            }
+            _ => panic!("Expected module declaration"),
+        }
+    }
+
+    #[test]
+    fn test_import_declaration() {
+        let input = r#"import math.{add, subtract}"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::ImportDeclaration {
+                path,
+                items,
+                alias,
+                is_public,
+            } => {
+                assert_eq!(path, &vec!["math".to_string()]);
+                assert_eq!(items.len(), 2);
+                assert!(alias.is_none());
+                assert!(!is_public);
+            }
+            _ => panic!("Expected import declaration"),
+        }
+    }
+
+    #[test]
+    fn test_enum_declaration() {
+        let input = r#"
+            enum Shape
+                Circle(f64),
+                Rectangle(f64, f64),
+                Triangle(f64, f64, f64),
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::EnumDeclaration {
+                name,
+                variants,
+                is_public,
+            } => {
+                assert_eq!(name, "Shape");
+                assert_eq!(variants.len(), 3);
+                assert!(!is_public);
+
+                assert_eq!(variants[0].name, "Circle");
+                assert_eq!(variants[1].name, "Rectangle");
+                assert_eq!(variants[2].name, "Triangle");
+
+                assert!(variants[0].fields.is_some());
+                assert_eq!(variants[0].fields.as_ref().unwrap().len(), 1);
+                assert_eq!(variants[1].fields.as_ref().unwrap().len(), 2);
+                assert_eq!(variants[2].fields.as_ref().unwrap().len(), 3);
+            }
+            _ => panic!("Expected enum declaration"),
+        }
+    }
+
+    #[test]
+    fn test_match_statement() {
+        let input = r#"
+            match shape
+                Shape.Circle(radius) => 3.14 * radius * radius,
+                Shape.Rectangle(w, h) => w * h,
+                Shape.Triangle(a, b, c) => do
+                    let s = (a + b + c) / 2.0
+                    (s * (s - a) * (s - b) * (s - c)).sqrt()
+                end,
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::Match { value, arms } => {
+                match value {
+                    Expr::Identifier(name) => assert_eq!(name, "shape"),
+                    _ => panic!("Expected identifier"),
+                }
+
+                assert_eq!(arms.len(), 3);
+            }
+            _ => panic!("Expected match statement"),
+        }
+    }
+
+    #[test]
+    fn test_arrow_function() {
+        let input = "fn square(x: i32) -> i32 => x * x";
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type,
+                body,
+                ..
+            } => {
+                assert_eq!(name, "square");
+                assert_eq!(params.len(), 1);
+
+                match &return_type {
+                    TypeAnnotation::Basic(type_name) => assert_eq!(type_name, "i32"),
+                    _ => panic!("Expected basic return type"),
+                }
+
+                assert_eq!(body.len(), 1);
+
+                match &body[0] {
+                    Statement::ExprStatement(Expr::BinaryOp { .. }) => (),
+                    _ => panic!("Expected binary operation"),
+                }
+            }
+            _ => panic!("Expected function declaration"),
+        }
+    }
+
+    #[test]
+    fn test_lambda_expression() {
+        let input = "let add_one = x => x + 1";
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "add_one");
+
+                match &**value {
+                    Expr::Lambda { params, body, .. } => {
+                        assert_eq!(params.len(), 1);
+                        assert_eq!(params[0].0, "x");
+
+                        match &**body {
+                            Expr::BinaryOp { .. } => (),
+                            _ => panic!("Expected binary operation"),
+                        }
+                    }
+                    _ => panic!("Expected lambda expression"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_block_lambda() {
+        let input = r#"
+            let process = data => do
+                let result = transform(data)
+                filter(result)
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "process");
+
+                match &**value {
+                    Expr::BlockLambda { params, body, .. } => {
+                        assert_eq!(params.len(), 1);
+                        assert_eq!(params[0].0, "data");
+                        assert_eq!(body.len(), 2);
+                    }
+                    _ => panic!("Expected block lambda"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_kind_declaration() {
+        let input = r#"
+            kind Shape
+                fn area(self) -> f64
+                fn perimeter(self) -> f64
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::KindDeclaration {
+                name,
+                methods,
+                is_public,
+                ..
+            } => {
+                assert_eq!(name, "Shape");
+                assert_eq!(methods.len(), 2);
+                assert!(!is_public);
+
+                assert_eq!(methods[0].name, "area");
+                assert_eq!(methods[1].name, "perimeter");
+            }
+            _ => panic!("Expected kind declaration"),
+        }
+    }
+
+    #[test]
+    fn test_implementation() {
+        let input = r#"
+            impl Circle <- Shape
+                fn area(self) -> f64 => 3.14 * self.radius * self.radius
+                fn perimeter(self) -> f64 => 2.0 * 3.14 * self.radius
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::Implementation {
+                type_name,
+                kind_name,
+                methods,
+                ..
+            } => {
+                assert_eq!(type_name, "Circle");
+                assert_eq!(kind_name.as_ref().unwrap(), "Shape");
+                assert_eq!(methods.len(), 2);
+
+                assert_eq!(methods[0].name, "area");
+                assert_eq!(methods[1].name, "perimeter");
+            }
+            _ => panic!("Expected implementation"),
+        }
+    }
+
+    #[test]
+    fn test_generic_function() {
+        let input = r#"
+            fn identity<T>(value: T) -> T
+                value
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type,
+                generic_params,
+                ..
+            } => {
+                assert_eq!(name, "identity");
+                assert_eq!(params.len(), 1);
+                assert_eq!(generic_params.len(), 1);
+
+                match &generic_params[0].type_annotation {
+                    TypeAnnotation::Basic(name) => assert_eq!(name, "T"),
+                    _ => panic!("Expected basic type"),
+                }
+
+                match return_type {
+                    TypeAnnotation::Basic(name) => assert_eq!(name, "T"),
+                    _ => panic!("Expected basic type"),
+                }
+            }
+            _ => panic!("Expected function declaration"),
+        }
+    }
+
+    #[test]
+    fn test_macro_declaration() {
+        let input = r#"
+            macro~ vec
+                () => new_vec(),
+                ($elem:expr) => do
+                    let mut temp = new_vec()
+                    temp.push($elem)
+                    temp
+                end
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::MacroDeclaration { name, patterns, .. } => {
+                assert_eq!(name, "vec");
+                assert_eq!(patterns.len(), 2);
+            }
+            _ => panic!("Expected macro declaration"),
+        }
+    }
+
+    #[test]
+    fn test_macro_invocation() {
+        let input = r#"let numbers = vec~(1, 2, 3)"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "numbers");
+
+                match &**value {
+                    Expr::MacroExpr { name, arguments } => {
+                        assert_eq!(name, "vec");
+                        assert_eq!(arguments.len(), 3);
+                    }
+                    _ => panic!("Expected macro expression"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_array_literal() {
+        let input = r#"let numbers = [1, 2, 3, 4, 5]"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "numbers");
+
+                match &**value {
+                    Expr::ArrayLiteral(elements) => {
+                        assert_eq!(elements.len(), 5);
+                    }
+                    _ => panic!("Expected array literal"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_struct_instantiation() {
+        let input = r#"let p = Point(x: 10.0, y: 20.0)"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "p");
+
+                match &**value {
+                    Expr::StructCreate {
+                        struct_name,
+                        fields,
+                    } => {
+                        assert_eq!(struct_name, "Point");
+                        assert_eq!(fields.len(), 2);
+                        assert_eq!(fields[0].0, "x");
+                        assert_eq!(fields[1].0, "y");
+                    }
+                    _ => panic!("Expected struct creation"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_method_call() {
+        let input = r#"let area = circle.area()"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "area");
+
+                match &**value {
+                    Expr::MethodCall {
+                        object,
+                        method,
+                        arguments,
+                    } => {
+                        match &**object {
+                            Expr::Identifier(name) => assert_eq!(name, "circle"),
+                            _ => panic!("Expected identifier"),
+                        }
+
+                        assert_eq!(method, "area");
+                        assert_eq!(arguments.len(), 0);
+                    }
+                    _ => panic!("Expected method call"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_property_access() {
+        let input = r#"let x_coord = point.x"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "x_coord");
+
+                match &**value {
+                    Expr::PropertyAccess { object, property } => {
+                        match &**object {
+                            Expr::Identifier(name) => assert_eq!(name, "point"),
+                            _ => panic!("Expected identifier"),
+                        }
+
+                        assert_eq!(property, "x");
+                    }
+                    _ => panic!("Expected property access"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_enum_variant_creation() {
+        let input = r#"let shape = Shape.Circle(5.0)"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "shape");
+
+                match &**value {
+                    Expr::EnumVariant {
+                        enum_name,
+                        variant_name,
+                        fields,
+                    } => {
+                        assert_eq!(enum_name, "Shape");
+                        assert_eq!(variant_name, "Circle");
+                        assert_eq!(fields.len(), 1);
+                    }
+                    _ => panic!("Expected enum variant"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_pipeline_operator() {
+        let input = r#"let result = data |> process |> format"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "result");
+
+                match &**value {
+                    Expr::BinaryOp { operator, .. } => {
+                        assert!(matches!(operator, BinaryOperator::Pipe));
+                    }
+                    _ => panic!("Expected pipeline operation"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_if_expression() {
+        let input = r#"let max = if a > b then a else b end"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "max");
+
+                match &**value {
+                    Expr::IfExpression {
+                        condition,
+                        then_expr,
+                        else_expr,
+                    } => {
+                        match &**condition {
+                            Expr::BinaryOp { operator, .. } => {
+                                assert!(matches!(operator, BinaryOperator::Greater));
+                            }
+                            _ => panic!("Expected binary operation"),
+                        }
+
+                        match &**then_expr {
+                            Expr::Identifier(name) => assert_eq!(name, "a"),
+                            _ => panic!("Expected identifier"),
+                        }
+
+                        match else_expr {
+                            Some(expr) => match &**expr {
+                                Expr::Identifier(name) => assert_eq!(name, "b"),
+                                _ => panic!("Expected identifier"),
+                            },
+                            _ => panic!("Expected identifier"),
+                        }
+                    }
+                    _ => panic!("Expected if expression"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_block_expression() {
+        let input = r#"
+            let result = do
+                let temp = x * 2
+                temp + y
+            end
+        "#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "result");
+
+                match &**value {
+                    Expr::BlockExpression {
+                        statements,
+                        final_expr,
+                    } => {
+                        assert_eq!(statements.len(), 1);
+                        assert!(final_expr.is_some());
+                    }
+                    _ => panic!("Expected block expression"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_type_cast() {
+        let input = r#"let integer_value = floating_value as i32"#;
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::VariableDeclaration { name, value, .. } => {
+                assert_eq!(name, "integer_value");
+
+                match &**value {
+                    Expr::TypeCast { expr, target_type } => {
+                        match &**expr {
+                            Expr::Identifier(name) => assert_eq!(name, "floating_value"),
+                            _ => panic!("Expected identifier"),
+                        }
+
+                        match target_type {
+                            TypeAnnotation::Basic(name) => assert_eq!(name, "i32"),
+                            _ => panic!("Expected basic type"),
+                        }
+                    }
+                    _ => panic!("Expected type cast"),
+                }
+            }
+            _ => panic!("Expected variable declaration"),
+        }
+    }
+}
+
+// TODO: add ignore attribs to tests that failed
