@@ -671,22 +671,22 @@ impl Interpreter {
         });
     }
 
-    fn wrap_in_option_some(value: Value) -> Value {
-        Value::Enum {
-            enum_name: "Option".to_string(),
-            variant_name: "Some".to_string(),
-            fields: vec![value],
-        }
-    }
+    // fn wrap_in_option_some(value: Value) -> Value {
+    //     Value::Enum {
+    //         enum_name: "Option".to_string(),
+    //         variant_name: "Some".to_string(),
+    //         fields: vec![value],
+    //     }
+    // }
 
     // Create Option.None value
-    fn option_none(&self) -> Value {
-        Value::Enum {
-            enum_name: "Option".to_string(),
-            variant_name: "None".to_string(),
-            fields: vec![],
-        }
-    }
+    // fn option_none(&self) -> Value {
+    //     Value::Enum {
+    //         enum_name: "Option".to_string(),
+    //         variant_name: "None".to_string(),
+    //         fields: vec![],
+    //     }
+    // }
 
     fn collect_free_variables_expr(
         &self,
@@ -855,35 +855,35 @@ impl Interpreter {
         &self.current_module
     }
 
-    fn check_visibility(&self, is_public: bool, target_module: &str) -> Result<()> {
-        if !is_public && self.current_module != target_module {
-            return Err(VeldError::RuntimeError(format!(
-                "Cannot access private item from module '{}'",
-                target_module
-            )));
-        }
-        Ok(())
-    }
+    // fn check_visibility(&self, is_public: bool, target_module: &str) -> Result<()> {
+    //     if !is_public && self.current_module != target_module {
+    //         return Err(VeldError::RuntimeError(format!(
+    //             "Cannot access private item from module '{}'",
+    //             target_module
+    //         )));
+    //     }
+    //     Ok(())
+    // }
 
-    fn check_module_exists(&self, module_name: &str) -> Result<()> {
-        if !self.module_manager.is_module_loaded(module_name) {
-            return Err(VeldError::RuntimeError(format!(
-                "Module '{}' not found",
-                module_name
-            )));
-        }
-        Ok(())
-    }
+    // fn check_module_exists(&self, module_name: &str) -> Result<()> {
+    //     if !self.module_manager.is_module_loaded(module_name) {
+    //         return Err(VeldError::RuntimeError(format!(
+    //             "Module '{}' not found",
+    //             module_name
+    //         )));
+    //     }
+    //     Ok(())
+    // }
 
-    fn check_module_access(&self, module_name: &str) -> Result<()> {
-        let module = self.module_manager.get_module(module_name).ok_or_else(|| {
-            VeldError::RuntimeError(format!("Module '{}' not found", module_name))
-        })?;
+    // fn check_module_access(&self, module_name: &str) -> Result<()> {
+    //     let module = self.module_manager.get_module(module_name).ok_or_else(|| {
+    //         VeldError::RuntimeError(format!("Module '{}' not found", module_name))
+    //     })?;
 
-        // TODO: Implement access control logic here
+    //     // TODO: Implement access control logic here
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// Collect free variables in a statement
     fn collect_free_variables_stmt(
@@ -1061,31 +1061,25 @@ impl Interpreter {
         }
     }
 
-    fn register_generic_struct(&mut self, name: &str, info: StructInfo) -> Result<()> {
-        self.generic_structs.insert(name.to_string(), info.clone());
-        let struct_fields: Vec<StructField> = info
-            .fields
-            .iter()
-            .map(|(name, type_annotation)| {
-                StructField {
-                    name: name.clone(),
-                    type_annotation: type_annotation.clone(),
-                    is_public: true, // Default to public for now
-                }
-            })
-            .collect();
-        self.structs.insert(name.to_string(), struct_fields);
-        Ok(())
-    }
+    // fn register_generic_struct(&mut self, name: &str, info: StructInfo) -> Result<()> {
+    //     self.generic_structs.insert(name.to_string(), info.clone());
+    //     let struct_fields: Vec<StructField> = info
+    //         .fields
+    //         .iter()
+    //         .map(|(name, type_annotation)| {
+    //             StructField {
+    //                 name: name.clone(),
+    //                 type_annotation: type_annotation.clone(),
+    //                 is_public: true, // Default to public for now
+    //             }
+    //         })
+    //         .collect();
+    //     self.structs.insert(name.to_string(), struct_fields);
+    //     Ok(())
+    // }
 
     fn value_to_expr(&self, value: Value) -> Result<Expr> {
         match value {
-            // Value::Numeric(NumericValue::Integer(IntegerValue::I64(n))) => {
-            //     Ok(Expr::Literal(Literal::Integer(n)))
-            // }
-            // Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => {
-            //     Ok(Expr::Literal(Literal::Float(f)))
-            // }
             Value::Integer(n) => Ok(Expr::Literal(Literal::Integer(n))),
             Value::Float(f) => Ok(Expr::Literal(Literal::Float(f))),
             Value::String(s) => Ok(Expr::Literal(Literal::String(s))),
@@ -1589,21 +1583,21 @@ impl Interpreter {
         Ok(evaluated_value)
     }
 
-    fn value_to_literal(&self, value: Value) -> Result<Literal> {
-        match value {
-            Value::Numeric(NumericValue::Integer(IntegerValue::I64(n))) => Ok(Literal::Integer(n)),
-            Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => Ok(Literal::Float(f)),
-            Value::Integer(n) => Ok(Literal::Integer(n)),
-            Value::Float(f) => Ok(Literal::Float(f)),
-            Value::String(s) => Ok(Literal::String(s)),
-            Value::Boolean(b) => Ok(Literal::Boolean(b)),
-            Value::Char(c) => Ok(Literal::Char(c)),
-            Value::Unit => Ok(Literal::Unit),
-            _ => Err(VeldError::RuntimeError(
-                "Cannot convert value to literal".into(),
-            )),
-        }
-    }
+    // fn value_to_literal(&self, value: Value) -> Result<Literal> {
+    //     match value {
+    //         Value::Numeric(NumericValue::Integer(IntegerValue::I64(n))) => Ok(Literal::Integer(n)),
+    //         Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => Ok(Literal::Float(f)),
+    //         Value::Integer(n) => Ok(Literal::Integer(n)),
+    //         Value::Float(f) => Ok(Literal::Float(f)),
+    //         Value::String(s) => Ok(Literal::String(s)),
+    //         Value::Boolean(b) => Ok(Literal::Boolean(b)),
+    //         Value::Char(c) => Ok(Literal::Char(c)),
+    //         Value::Unit => Ok(Literal::Unit),
+    //         _ => Err(VeldError::RuntimeError(
+    //             "Cannot convert value to literal".into(),
+    //         )),
+    //     }
+    // }
 
     fn is_compile_time_constant(&self, value: &Value) -> bool {
         match value {
@@ -2423,52 +2417,52 @@ impl Interpreter {
     }
 
     // Instantiate a generic function with concrete types
-    fn instantiate_generic_function(
-        &mut self,
-        function: &FunctionDeclaration,
-        type_args: &[Type],
-    ) -> Result<Value> {
-        // Check that the types satisfy the constraints
-        if !self
-            .type_checker
-            .check_generic_constraints(&function.generic_params, type_args)
-        {
-            return Err(VeldError::RuntimeError(format!(
-                "Type arguments do not satisfy constraints for function {}",
-                function.name
-            )));
-        }
+    // fn instantiate_generic_function(
+    //     &mut self,
+    //     function: &FunctionDeclaration,
+    //     type_args: &[Type],
+    // ) -> Result<Value> {
+    //     // Check that the types satisfy the constraints
+    //     if !self
+    //         .type_checker
+    //         .check_generic_constraints(&function.generic_params, type_args)
+    //     {
+    //         return Err(VeldError::RuntimeError(format!(
+    //             "Type arguments do not satisfy constraints for function {}",
+    //             function.name
+    //         )));
+    //     }
 
-        // Create a specialized function instance
-        let mut specialized_params = Vec::new();
+    //     // Create a specialized function instance
+    //     let mut specialized_params = Vec::new();
 
-        // Substitute the type parameters in the function signature
-        for (name, type_ann) in &function.params {
-            let specialized_type = self.substitute_type_params_in_annotation(
-                type_ann,
-                &function.generic_params,
-                type_args,
-            );
-            specialized_params.push((name.clone(), specialized_type));
-        }
+    //     // Substitute the type parameters in the function signature
+    //     for (name, type_ann) in &function.params {
+    //         let specialized_type = self.substitute_type_params_in_annotation(
+    //             type_ann,
+    //             &function.generic_params,
+    //             type_args,
+    //         );
+    //         specialized_params.push((name.clone(), specialized_type));
+    //     }
 
-        // Substitute in the return type
-        let specialized_return_type = self.substitute_type_params_in_annotation(
-            &function.return_type,
-            &function.generic_params,
-            type_args,
-        );
+    //     // Substitute in the return type
+    //     let specialized_return_type = self.substitute_type_params_in_annotation(
+    //         &function.return_type,
+    //         &function.generic_params,
+    //         type_args,
+    //     );
 
-        // Create function value
-        let function_value = Value::Function {
-            params: specialized_params,
-            body: function.body.clone(),
-            return_type: specialized_return_type,
-            captured_vars: HashMap::new(),
-        };
+    //     // Create function value
+    //     let function_value = Value::Function {
+    //         params: specialized_params,
+    //         body: function.body.clone(),
+    //         return_type: specialized_return_type,
+    //         captured_vars: HashMap::new(),
+    //     };
 
-        Ok(function_value)
-    }
+    //     Ok(function_value)
+    // }
 
     // Helper to substitute type parameters in annotations
     fn substitute_type_params_in_annotation(
@@ -4697,104 +4691,104 @@ impl Interpreter {
         }
     }
 
-    fn call_function(&mut self, name: String, arguments: Vec<Argument>) -> Result<Value> {
-        // Evaluate all arguments first
-        let mut arg_values = Vec::new();
-        for arg in arguments {
-            let expr = match arg {
-                Argument::Positional(expr) => expr,
-                Argument::Named { name: _, value } => value,
-            };
-            let value = self.evaluate_expression(expr)?;
-            arg_values.push(value.unwrap_return());
-        }
+    // fn call_function(&mut self, name: String, arguments: Vec<Argument>) -> Result<Value> {
+    //     // Evaluate all arguments first
+    //     let mut arg_values = Vec::new();
+    //     for arg in arguments {
+    //         let expr = match arg {
+    //             Argument::Positional(expr) => expr,
+    //             Argument::Named { name: _, value } => value,
+    //         };
+    //         let value = self.evaluate_expression(expr)?;
+    //         arg_values.push(value.unwrap_return());
+    //     }
 
-        // Call the function with evaluated arguments
-        self.call_function_with_values(name, arg_values)
-    }
+    //     // Call the function with evaluated arguments
+    //     self.call_function_with_values(name, arg_values)
+    // }
 
-    fn call_method(
-        &mut self,
-        struct_name: String,
-        method_name: String,
-        arguments: Vec<Argument>,
-    ) -> Result<Value> {
-        // Get the struct instance
-        let instance = self.get_variable(&struct_name).ok_or_else(|| {
-            VeldError::RuntimeError(format!("Undefined variable '{}'", struct_name))
-        })?;
+    // fn call_method(
+    //     &mut self,
+    //     struct_name: String,
+    //     method_name: String,
+    //     arguments: Vec<Argument>,
+    // ) -> Result<Value> {
+    //     // Get the struct instance
+    //     let instance = self.get_variable(&struct_name).ok_or_else(|| {
+    //         VeldError::RuntimeError(format!("Undefined variable '{}'", struct_name))
+    //     })?;
 
-        // Get the method from struct_methods
-        let struct_type = match &instance {
-            Value::Struct { name, .. } => name.clone(),
-            _ => {
-                return Err(VeldError::RuntimeError(format!(
-                    "'{}' is not a struct",
-                    struct_name
-                )));
-            }
-        };
+    //     // Get the method from struct_methods
+    //     let struct_type = match &instance {
+    //         Value::Struct { name, .. } => name.clone(),
+    //         _ => {
+    //             return Err(VeldError::RuntimeError(format!(
+    //                 "'{}' is not a struct",
+    //                 struct_name
+    //             )));
+    //         }
+    //     };
 
-        let method = self
-            .struct_methods
-            .get(&struct_type)
-            .and_then(|methods| methods.get(&method_name))
-            .cloned()
-            .ok_or_else(|| {
-                VeldError::RuntimeError(format!(
-                    "Method '{}' not found on '{}'",
-                    method_name, struct_type
-                ))
-            })?;
+    //     let method = self
+    //         .struct_methods
+    //         .get(&struct_type)
+    //         .and_then(|methods| methods.get(&method_name))
+    //         .cloned()
+    //         .ok_or_else(|| {
+    //             VeldError::RuntimeError(format!(
+    //                 "Method '{}' not found on '{}'",
+    //                 method_name, struct_type
+    //             ))
+    //         })?;
 
-        match method {
-            Value::Function { params, body, .. } => {
-                self.push_scope();
+    //     match method {
+    //         Value::Function { params, body, .. } => {
+    //             self.push_scope();
 
-                // Bind 'self' to the struct instance
-                self.current_scope_mut().set("self".to_string(), instance);
+    //             // Bind 'self' to the struct instance
+    //             self.current_scope_mut().set("self".to_string(), instance);
 
-                // Check argument count (excluding self)
-                if arguments.len() != params.len() - 1 {
-                    return Err(VeldError::RuntimeError(format!(
-                        "Method '{}' expects {} arguments but got {}",
-                        method_name,
-                        params.len() - 1,
-                        arguments.len()
-                    )));
-                }
+    //             // Check argument count (excluding self)
+    //             if arguments.len() != params.len() - 1 {
+    //                 return Err(VeldError::RuntimeError(format!(
+    //                     "Method '{}' expects {} arguments but got {}",
+    //                     method_name,
+    //                     params.len() - 1,
+    //                     arguments.len()
+    //                 )));
+    //             }
 
-                // Evaluate and bind remaining arguments
-                for (i, arg) in arguments.into_iter().enumerate() {
-                    // Extract and evaluate the expression from the Argument
-                    let expr = match arg {
-                        Argument::Positional(expr) => expr,
-                        Argument::Named { name: _, value } => value,
-                    };
-                    let value = self.evaluate_expression(expr)?;
-                    let value = value.unwrap_return();
-                    // Start from index 1 to skip self
-                    self.current_scope_mut().set(params[i + 1].0.clone(), value);
-                }
+    //             // Evaluate and bind remaining arguments
+    //             for (i, arg) in arguments.into_iter().enumerate() {
+    //                 // Extract and evaluate the expression from the Argument
+    //                 let expr = match arg {
+    //                     Argument::Positional(expr) => expr,
+    //                     Argument::Named { name: _, value } => value,
+    //                 };
+    //                 let value = self.evaluate_expression(expr)?;
+    //                 let value = value.unwrap_return();
+    //                 // Start from index 1 to skip self
+    //                 self.current_scope_mut().set(params[i + 1].0.clone(), value);
+    //             }
 
-                // Execute method body
-                let mut result = Value::Unit;
-                for stmt in body {
-                    result = self.execute_statement(stmt)?;
-                    if matches!(result, Value::Return(_)) {
-                        break;
-                    }
-                }
+    //             // Execute method body
+    //             let mut result = Value::Unit;
+    //             for stmt in body {
+    //                 result = self.execute_statement(stmt)?;
+    //                 if matches!(result, Value::Return(_)) {
+    //                     break;
+    //                 }
+    //             }
 
-                self.pop_scope();
+    //             self.pop_scope();
 
-                Ok(result.unwrap_return())
-            }
-            _ => Err(VeldError::RuntimeError(
-                "Internal error: method is not a function".to_string(),
-            )),
-        }
-    }
+    //             Ok(result.unwrap_return())
+    //         }
+    //         _ => Err(VeldError::RuntimeError(
+    //             "Internal error: method is not a function".to_string(),
+    //         )),
+    //     }
+    // }
     // Scope management
     fn global_scope_mut(&mut self) -> &mut Scope {
         &mut self.scopes[0]
