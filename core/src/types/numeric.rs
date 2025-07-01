@@ -7,8 +7,12 @@ pub struct NumericKinds;
 
 impl NumericKinds {
     /// Registers the Number kind and its associated methods in the given TypeEnvironment.
-    /// @param env The TypeEnvironment to register the Number kind in.
-    /// @return Result indicating success or failure of the registration.
+    ///
+    /// # Arguments
+    /// * `env` - The TypeEnvironment to register the Number kind in.
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the registration.
     pub fn register(env: &mut TypeEnvironment) -> Result<()> {
         // Register the Number kind with comprehensive conversion methods
         let mut number_methods = HashMap::new();
@@ -152,8 +156,12 @@ impl NumericKinds {
     }
 
     /// Registers the numeric-related kinds for operations like addition, subtraction, etc.
-    /// @param env The TypeEnvironment to register the numeric kinds in.
-    /// @return Result indicating success or failure of the registration.
+    ///
+    /// # Arguments
+    /// * `env` - The TypeEnvironment to register the numeric kinds in.
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the registration.
     fn register_operator_kinds(env: &mut TypeEnvironment) -> Result<()> {
         // Add operator kinds
         let mut add_methods = HashMap::new();
@@ -289,8 +297,13 @@ impl NumericKinds {
     }
 
     /// Registers the numeric-related operation implementations like addition, subtraction, etc.
-    /// @param env The TypeEnvironment to register the numeric operations in.
-    /// @return Result indicating success or failure of the registration.
+    ///
+    /// # Arguments
+    /// * `env` - The TypeEnvironment to register the numeric operations in.
+    /// * `ty` - The numeric type to register implementations for.
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the registration.
     fn register_numeric_impl(env: &mut TypeEnvironment, ty: Type) -> Result<()> {
         // Implement Number kind with all conversion methods
         let mut methods = HashMap::new();
@@ -424,7 +437,9 @@ pub enum IntegerValue {
 
 impl IntegerValue {
     /// Converts an integer value to a 64-bit integer.
-    /// @return Option<i64> The integer value as an i64, or None if the conversion is not applicable.
+    ///
+    /// # Returns
+    /// The integer value as an i64, or None if the conversion is not applicable.
     pub fn as_i64(self) -> Option<i64> {
         match self {
             IntegerValue::I8(n) => Some(n as i64),
@@ -438,8 +453,10 @@ impl IntegerValue {
         }
     }
 
-    /// Converts an integer value to a 64-bit integer.
-    /// @return Option<i64> The integer value as an i64, or None if the conversion is not applicable.
+    /// Converts an integer value to a 64-bit floating point number.
+    ///
+    /// # Returns
+    /// The integer value as an f64.
     pub fn as_f64(self) -> f64 {
         match self {
             IntegerValue::I8(n) => n as f64,
@@ -462,13 +479,20 @@ pub enum FloatValue {
 
 impl FloatValue {
     /// Promotes a FloatValue to a 64-bit floating point number.
-    /// @return f64 The FloatValue as a 64-bit floating point number.
+    ///
+    /// # Returns
+    /// The FloatValue as a 64-bit floating point number.
     pub fn as_f64(self) -> f64 {
         match self {
             FloatValue::F32(f) => f as f64,
             FloatValue::F64(f) => f,
         }
     }
+
+    /// Attempts to convert a FloatValue to a 64-bit integer.
+    ///
+    /// # Returns
+    /// None, as floats cannot be converted to integers without precision loss.
     pub fn as_i64(self) -> Option<i64> {
         None
     }
@@ -482,7 +506,9 @@ pub enum NumericValue {
 
 impl NumericValue {
     /// Gets the type of a generic numeric value.
-    /// @return Type The type of the numeric value.
+    ///
+    /// # Returns
+    /// The type of the numeric value.
     pub fn type_of(self) -> Type {
         match self {
             NumericValue::Integer(iv) => match iv {
@@ -503,7 +529,9 @@ impl NumericValue {
     }
 
     /// Converts a generic numeric value to a 64-bit integer.
-    /// @return Option<i64> The numeric value as an i64, or None if the conversion is not applicable.
+    ///
+    /// # Returns
+    /// The numeric value as an i64, or None if the conversion is not applicable.
     pub fn as_i64(self) -> Option<i64> {
         match self {
             NumericValue::Integer(iv) => iv.as_i64(),
@@ -512,7 +540,9 @@ impl NumericValue {
     }
 
     /// Converts a generic numeric value to a 64-bit floating point number.
-    /// @return f64 The generic numeric value as a 64-bit floating point number (always ok to convert).
+    ///
+    /// # Returns
+    /// The generic numeric value as a 64-bit floating point number (always ok to convert).
     pub fn as_f64(self) -> f64 {
         match self {
             NumericValue::Integer(iv) => iv.as_f64(),
@@ -521,7 +551,9 @@ impl NumericValue {
     }
 
     /// Tell if a numeric value is zero.
-    /// @return bool True if the numeric value is zero, false otherwise.
+    ///
+    /// # Returns
+    /// True if the numeric value is zero, false otherwise.
     pub fn is_zero(self) -> bool {
         match self {
             NumericValue::Integer(iv) => iv.as_i64() == Some(0),
@@ -530,19 +562,25 @@ impl NumericValue {
     }
 
     /// Tell if a numeric value is an integer.
-    /// @return bool True if the numeric value is an integer, false otherwise.
+    ///
+    /// # Returns
+    /// True if the numeric value is an integer, false otherwise.
     pub fn is_integer(&self) -> bool {
         matches!(self, NumericValue::Integer(_))
     }
 
     /// Tell if a numeric value is a float.
-    /// @return bool True if the numeric value is a float, false otherwise.
+    ///
+    /// # Returns
+    /// True if the numeric value is a float, false otherwise.
     pub fn is_float(&self) -> bool {
         matches!(self, NumericValue::Float(_))
     }
 
     /// Tell if a numeric value is signed (can be negative).
-    /// @return bool True if the numeric value is signed, false otherwise.
+    ///
+    /// # Returns
+    /// True if the numeric value is signed, false otherwise.
     pub fn is_signed(&self) -> bool {
         match self {
             NumericValue::Integer(iv) => matches!(
@@ -557,7 +595,9 @@ impl NumericValue {
     }
 
     /// Tell if a numeric value unsigned (cannot be negative).
-    /// @return bool True if the numeric value is unsigned, false otherwise.
+    ///
+    /// # Returns
+    /// True if the numeric value is unsigned, false otherwise.
     pub fn is_unsigned(&self) -> bool {
         match self {
             NumericValue::Integer(iv) => matches!(
@@ -572,7 +612,9 @@ impl NumericValue {
     }
 
     /// Get the generic numeric value's type as a string.
-    /// @return String The type name of the numeric value.
+    ///
+    /// # Returns
+    /// The type name of the numeric value.
     pub fn type_name(&self) -> String {
         match self {
             NumericValue::Integer(iv) => match iv {
