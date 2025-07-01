@@ -1,4 +1,4 @@
-# Veld
+[comment]: <>  (# Veld)
 
 <p align="center">
     <img src="assets/logo.png" alt="Verdict Logo" width="200">
