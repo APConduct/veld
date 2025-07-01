@@ -53,10 +53,10 @@ Veld is a programming language that aims to provide a rich set of features while
     - [ ] `set`
   - [ ] `option`
 - [ ] transpiler
-  - [ ] JavaScript backend
   - [ ] lua backend
-  - [ ] beam backend
   - [ ] custom backend
+  - [ ] JavaScript backend
+  - [ ] beam backend
   - [ ] minivm backend
 - [ ] Compiler
   - [ ] LLVM backend
