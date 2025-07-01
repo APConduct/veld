@@ -1853,61 +1853,61 @@ impl Parser {
         Ok(expr)
     }
 
-    fn addition(&mut self) -> Result<Expr> {
-        println!("Addition: Starting...");
+    // fn addition(&mut self) -> Result<Expr> {
+    //     println!("Addition: Starting...");
 
-        let mut expr = self.multiplication()?;
-        println!("Addition: Got left operand: {:?}", expr);
+    //     let mut expr = self.multiplication()?;
+    //     println!("Addition: Got left operand: {:?}", expr);
 
-        while self.match_token(&[Token::Plus, Token::Minus]) {
-            let operator = match self.previous() {
-                Token::Plus => BinaryOperator::Add,
-                Token::Minus => BinaryOperator::Subtract,
-                _ => unreachable!(),
-            };
+    //     while self.match_token(&[Token::Plus, Token::Minus]) {
+    //         let operator = match self.previous() {
+    //             Token::Plus => BinaryOperator::Add,
+    //             Token::Minus => BinaryOperator::Subtract,
+    //             _ => unreachable!(),
+    //         };
 
-            println!("Addition: Found operator: {:?}", operator);
-            let right = self.multiplication()?;
-            println!("Addition: Got right operand: {:?}", right);
+    //         println!("Addition: Found operator: {:?}", operator);
+    //         let right = self.multiplication()?;
+    //         println!("Addition: Got right operand: {:?}", right);
 
-            expr = Expr::BinaryOp {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            };
-        }
+    //         expr = Expr::BinaryOp {
+    //             left: Box::new(expr),
+    //             operator,
+    //             right: Box::new(right),
+    //         };
+    //     }
 
-        println!("Addition: Completed with result: {:?}", expr);
-        Ok(expr)
-    }
+    //     println!("Addition: Completed with result: {:?}", expr);
+    //     Ok(expr)
+    // }
 
-    fn multiplication(&mut self) -> Result<Expr> {
-        println!("Multiplication: Starting...");
+    // fn multiplication(&mut self) -> Result<Expr> {
+    //     println!("Multiplication: Starting...");
 
-        let mut expr = self.unary()?;
-        println!("Multiplication: Got left operand: {:?}", expr);
+    //     let mut expr = self.unary()?;
+    //     println!("Multiplication: Got left operand: {:?}", expr);
 
-        while self.match_token(&[Token::Star, Token::Slash]) {
-            let operator = match self.previous() {
-                Token::Star => BinaryOperator::Multiply,
-                Token::Slash => BinaryOperator::Divide,
-                _ => unreachable!(),
-            };
+    //     while self.match_token(&[Token::Star, Token::Slash]) {
+    //         let operator = match self.previous() {
+    //             Token::Star => BinaryOperator::Multiply,
+    //             Token::Slash => BinaryOperator::Divide,
+    //             _ => unreachable!(),
+    //         };
 
-            println!("Multiplication: Found operator: {:?}", operator);
-            let right = self.unary()?;
-            println!("Multiplication: Got right operand: {:?}", right);
+    //         println!("Multiplication: Found operator: {:?}", operator);
+    //         let right = self.unary()?;
+    //         println!("Multiplication: Got right operand: {:?}", right);
 
-            expr = Expr::BinaryOp {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            };
-        }
+    //         expr = Expr::BinaryOp {
+    //             left: Box::new(expr),
+    //             operator,
+    //             right: Box::new(right),
+    //         };
+    //     }
 
-        println!("Multiplication: Completed with result: {:?}", expr);
-        Ok(expr)
-    }
+    //     println!("Multiplication: Completed with result: {:?}", expr);
+    //     Ok(expr)
+    // }
 
     fn unary(&mut self) -> Result<Expr> {
         // Check for unary operators

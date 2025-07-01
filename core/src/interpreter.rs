@@ -22,30 +22,30 @@ enum PatternToken {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct VariableInfo {
-    value: Value,
-    var_kind: VarKind,
-    is_initialized: bool,
-}
+// #[derive(Debug, Clone, PartialEq)]
+// struct VariableInfo {
+//     value: Value,
+//     var_kind: VarKind,
+//     is_initialized: bool,
+// }
 
-impl VariableInfo {
-    fn new(value: Value, var_kind: VarKind) -> Self {
-        Self {
-            value,
-            var_kind,
-            is_initialized: true,
-        }
-    }
+// impl VariableInfo {
+//     fn new(value: Value, var_kind: VarKind) -> Self {
+//         Self {
+//             value,
+//             var_kind,
+//             is_initialized: true,
+//         }
+//     }
 
-    fn can_mutate(&self) -> bool {
-        matches!(self.var_kind, VarKind::Var | VarKind::LetMut)
-    }
+//     fn can_mutate(&self) -> bool {
+//         matches!(self.var_kind, VarKind::Var | VarKind::LetMut)
+//     }
 
-    fn can_shadow(&self) -> bool {
-        matches!(self.var_kind, VarKind::Let)
-    }
-}
+//     fn can_shadow(&self) -> bool {
+//         matches!(self.var_kind, VarKind::Let)
+//     }
+// }
 
 #[derive(Debug, Clone)]
 struct StructInfo {
