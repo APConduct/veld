@@ -8,6 +8,27 @@ use crate::types::Type::TypeVar;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Formatter};
 
+// pub const U8_MAX: u8 = 255;
+// pub const U16_MAX: u16 = 65535;
+// pub const U32_MAX: u32 = 4294967295;
+// pub const U64_MAX: u64 = 18446744073709551615;
+// pub const I8_MAX: i8 = 127;
+// pub const I16_MAX: i16 = 32767;
+// pub const I32_MAX: i32 = 2147483647;
+// pub const I64_MAX: i64 = 9223372036854775807;
+// pub const F32_MAX: f32 = 3.40282347e+38;
+// pub const F64_MAX: f64 = 1.7976931348623157e+308;
+// pub const I8_MIN: i8 = -128;
+// pub const I16_MIN: i16 = -32768;
+// pub const I32_MIN: i32 = -2147483648;
+// pub const I64_MIN: i64 = -9223372036854775808;
+// pub const F32_MIN: f32 = -3.40282347e+38;
+// pub const F64_MIN: f64 = -1.7976931348623157e+308;
+// pub const U8_MIN: u8 = 0;
+// pub const U16_MIN: u16 = 0;
+// pub const U32_MIN: u32 = 0;
+// pub const U64_MIN: u64 = 0;
+
 #[derive(Debug, Clone)]
 pub enum BitVal {
     One,
