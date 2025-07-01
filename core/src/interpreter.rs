@@ -9,7 +9,6 @@ use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::env::consts::OS;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -2621,7 +2620,7 @@ impl Interpreter {
         }
 
         // Check imported modules
-        for (alias, imported_module_name) in &self.imported_modules {
+        for (_, imported_module_name) in &self.imported_modules {
             if let Some(module) = self.module_manager.get_module(imported_module_name) {
                 for stmt in &module.statements {
                     if let Statement::MacroDeclaration { name, .. } = stmt {
@@ -4895,7 +4894,6 @@ impl Interpreter {
                 match export_item {
                     ExportedItem::Function(idx) => {
                         if let Statement::FunctionDeclaration {
-                            name: fn_name,
                             params,
                             return_type,
                             body,
