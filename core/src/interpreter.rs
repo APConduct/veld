@@ -1807,15 +1807,15 @@ impl Interpreter {
                 "f64" => numeric_value.to_f64()?,
                 _ => {
                     return Err(VeldError::RuntimeError(format!(
-                        "Invalid cast to target type '{}'",
-                        type_name
+                        "Invalid cast from numeric type {:?} to {:?}",
+                        numeric_value, type_name
                     )));
                 }
             },
             _ => {
                 return Err(VeldError::RuntimeError(format!(
-                    "Cannot cast to target type {:?}",
-                    target_type
+                    "Cannot cast type {:?} to numeric type {:?}",
+                    numeric_value, target_type
                 )));
             }
         };
@@ -2519,11 +2519,96 @@ impl Interpreter {
     // Helper to convert Type to TypeAnnotation
     fn type_to_annotation(&self, type_: &Type) -> TypeAnnotation {
         match type_ {
+            // Integer types
+            Type::I8 => TypeAnnotation::Basic("i8".to_string()),
+            Type::I16 => TypeAnnotation::Basic("i16".to_string()),
             Type::I32 => TypeAnnotation::Basic("i32".to_string()),
+            Type::I64 => TypeAnnotation::Basic("i64".to_string()),
+
+            // Unsigned integer types
+            Type::U8 => TypeAnnotation::Basic("u8".to_string()),
+            Type::U16 => TypeAnnotation::Basic("u16".to_string()),
+            Type::U32 => TypeAnnotation::Basic("u32".to_string()),
+            Type::U64 => TypeAnnotation::Basic("u64".to_string()),
+
+            // Floating point types
+            Type::F32 => TypeAnnotation::Basic("f32".to_string()),
             Type::F64 => TypeAnnotation::Basic("f64".to_string()),
+
+            // Other basic types
             Type::Bool => TypeAnnotation::Basic("bool".to_string()),
             Type::String => TypeAnnotation::Basic("str".to_string()),
+            Type::Char => TypeAnnotation::Basic("char".to_string()),
             Type::Unit => TypeAnnotation::Unit,
+            Type::Any => TypeAnnotation::Basic("any".to_string()),
+
+            // Number type (generic numeric)
+            Type::Number => TypeAnnotation::Basic("Number".to_string()),
+
+            // Literal types (which may need special handling)
+            Type::IntegerLiteral(val) => TypeAnnotation::Basic(format!("int({})", val)),
+            Type::FloatLiteral(val) => TypeAnnotation::Basic(format!("float({})", val)),
+
+            // Function types
+            Type::Function {
+                params,
+                return_type,
+            } => {
+                let param_types: Vec<TypeAnnotation> =
+                    params.iter().map(|p| self.type_to_annotation(p)).collect();
+                let return_annotation = Box::new(self.type_to_annotation(return_type));
+
+                TypeAnnotation::Function {
+                    params: param_types,
+                    return_type: return_annotation,
+                }
+            }
+
+            Type::Struct { name, fields } => todo!("Handle struct types"),
+
+            // Generic types
+            Type::Generic { base, type_args } => {
+                let type_arg_annotations: Vec<TypeAnnotation> = type_args
+                    .iter()
+                    .map(|arg| self.type_to_annotation(arg))
+                    .collect();
+
+                TypeAnnotation::Generic {
+                    base: base.clone(),
+                    type_args: type_arg_annotations,
+                }
+            }
+
+            // Type parameters
+            Type::TypeParam(name) => TypeAnnotation::Basic(name.clone()),
+
+            // Enum types
+            Type::Enum { name, variants: _ } => {
+                // Simple conversion for enums
+                TypeAnnotation::Basic(name.clone())
+                // TODO: Handle enum variants properly
+            }
+
+            // Tuple types
+            Type::Tuple(types) => {
+                let type_annotations: Vec<TypeAnnotation> =
+                    types.iter().map(|t| self.type_to_annotation(t)).collect();
+
+                TypeAnnotation::Tuple(type_annotations)
+            }
+
+            // Array types
+            Type::Array(element_type) => {
+                let elem_annotation = self.type_to_annotation(element_type);
+                TypeAnnotation::Array(Box::new(elem_annotation))
+            }
+
+            // Self type in kinds
+            Type::KindSelf(_) => TypeAnnotation::Basic("Self".to_string()),
+
+            // Type variables
+            Type::TypeVar(id) => TypeAnnotation::Basic(format!("T{}", id)),
+
             // Add other cases as needed
             _ => TypeAnnotation::Basic(format!("{:?}", type_)),
         }
@@ -3200,6 +3285,10 @@ impl Interpreter {
             // Float to float casts
             (Value::Float(f), Type::F32) => Ok(Value::Float(f as f32 as f64)),
             (Value::Float(f), Type::F64) => Ok(Value::Float(f)),
+            (Value::Numeric(numeric_val), _) /*if target_ty.is_numeric()*/ => {
+                let type_annotation = self.type_to_annotation(target_type);
+                self.cast_val_to_num(Value::Numeric(numeric_val), &type_annotation)
+            }
 
             // String conversions
             (Value::String(s), Type::I32) => match s.parse::<i32>() {

@@ -451,7 +451,9 @@ impl NumericValue {
 
     pub fn to_i64(&self) -> Result<NumericValue> {
         match self {
-            NumericValue::Integer(i) => Ok(NumericValue::Integer(i.clone())),
+            NumericValue::Integer(i) => Ok(NumericValue::Integer(IntegerValue::I64(
+                i.clone().as_i64().unwrap_or(0),
+            ))),
             NumericValue::Float(f) => {
                 let val = f.clone().as_f64();
                 if val.is_finite() && val >= i64::MIN as f64 && val <= i64::MAX as f64 {
