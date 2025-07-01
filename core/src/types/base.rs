@@ -2986,7 +2986,7 @@ impl TypeChecker {
             for method in methods {
                 let mut param_types = Vec::new();
 
-                for (param_name, type_anno) in &method.params {
+                for (_, type_anno) in &method.params {
                     let param_type = self.env.from_annotation(type_anno, Some(name))?;
                     param_types.push(param_type);
                 }
