@@ -1031,7 +1031,7 @@ impl Parser {
         Ok(generic_args)
     }
 
-    // New helper method to parse complex constraints like Neg<Output = T>
+    // Helper method to parse complex constraints like Neg<Output = T>
     fn parse_complex_constraint(&mut self) -> Result<TypeAnnotation> {
         // Get the base constraint name (e.g., "Neg")
         let base_name = self.consume_identifier("Expected constraint name")?;
