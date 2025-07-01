@@ -1,6 +1,4 @@
 use crate::ast::UnaryOperator;
-use std::env::consts::OS;
-
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
@@ -2319,10 +2317,10 @@ impl Parser {
     }
 
     // Helper method that parses expressions but stops at control flow keywords
-    fn parse_limited_expression(&mut self) -> Result<Expr> {
-        // This is like expression() but doesn't try to parse if/else/end as expressions
-        self.logical()
-    }
+    // fn parse_limited_expression(&mut self) -> Result<Expr> {
+    //     // This is like expression() but doesn't try to parse if/else/end as expressions
+    //     self.logical()
+    // }
 
     fn parse_function_expression(&mut self) -> Result<Expr> {
         // Parse parameters
