@@ -3,6 +3,17 @@ use crate::error::{Result, VeldError};
 use crate::types::numeric::{FloatValue, IntegerValue, NumericValue};
 
 impl NumericValue {
+    /// Performs the specified binary operation with the given right-hand side numeric value.
+    ///
+    /// # Arguments
+    /// * `op` - The binary operator to perform
+    /// * `rhs` - The right-hand side numeric value to operate with
+    ///
+    /// # Returns
+    /// The result of the operation as a `NumericValue`
+    ///
+    /// # Errors
+    /// Returns an error if the operation is unsupported or results in an error (like overflow)
     pub fn perform_operation(
         &self,
         op: &BinaryOperator,
@@ -22,6 +33,16 @@ impl NumericValue {
         }
     }
 
+    /// Adds a numeric value to this numeric value.
+    ///
+    /// # Arguments
+    /// * `rhs` - The right-hand side numeric value to add
+    ///
+    /// # Returns
+    /// The result of the addition as a `NumericValue`
+    ///
+    /// # Errors
+    /// Returns an error if the addition results in overflow or if the types are incompatible
     fn add(&self, rhs: &NumericValue) -> Result<NumericValue> {
         let (left, right) = Self::coerce_numeric_pair(self, rhs)?;
         match (left, right) {
@@ -77,6 +98,16 @@ impl NumericValue {
         }
     }
 
+    /// Subtract a new numeric operation to the NumericValue (basic addition)
+    ///
+    /// # Arguments
+    /// * `rhs` - The right-hand side numeric value to subtract from this numeric value.
+    ///
+    /// # Returns
+    /// The result of the subtraction as a `NumericValue`
+    ///
+    /// # Errors
+    /// Returns an error if the subtraction results in underflow or if the types are incompatible
     fn sub(&self, rhs: &NumericValue) -> Result<NumericValue> {
         let (left, right) = Self::coerce_numeric_pair(self, rhs)?;
         match (left, right) {
@@ -130,6 +161,16 @@ impl NumericValue {
         }
     }
 
+    /// Multiplies this numeric value by another numeric value.
+    ///
+    /// # Arguments
+    /// * `rhs` - The right-hand side numeric value to multiply with
+    ///
+    /// # Returns
+    /// The result of the multiplication as a `NumericValue`
+    ///
+    /// # Errors
+    /// Returns an error if the multiplication results in overflow or if the types are incompatible
     fn mul(&self, rhs: &NumericValue) -> Result<NumericValue> {
         if rhs.clone().is_zero() {
             return Ok(NumericValue::Integer(IntegerValue::I64(0)));
@@ -191,6 +232,16 @@ impl NumericValue {
         }
     }
 
+    /// Divides this numeric value by another numeric value.
+    ///
+    /// # Arguments
+    /// * `rhs` - The right-hand side numeric value to divide by
+    ///
+    /// # Returns
+    /// The result of the division as a `NumericValue`
+    ///
+    /// # Errors
+    /// Returns an error if division by zero occurs or if the operation results in an error
     fn div(&self, rhs: &NumericValue) -> Result<NumericValue> {
         if rhs.clone().is_zero() {
             return Err(VeldError::RuntimeError("Division by zero".into()));
@@ -252,6 +303,16 @@ impl NumericValue {
         }
     }
 
+    /// Calculates the remainder when dividing this numeric value by another (different from formal euclidean modulo).
+    ///
+    /// # Arguments
+    /// * `rhs` - The right-hand side numeric value to operate with
+    ///
+    /// # Returns
+    /// The result of the remainder operation as a `NumericValue`
+    ///
+    /// # Errors
+    /// Returns an error if division by zero occurs or if the operation results in an error
     fn rem(&self, rhs: &NumericValue) -> Result<NumericValue> {
         if rhs.clone().is_zero() {
             return Err(VeldError::RuntimeError("Division by zero".into()));
@@ -313,6 +374,16 @@ impl NumericValue {
         }
     }
 
+    /// Raises this numeric value to the power of another numeric value.
+    ///
+    /// # Arguments
+    /// * `rhs` - The right-hand side numeric value to use as the exponent
+    ///
+    /// # Returns
+    /// The result of the exponentiation as a `NumericValue`
+    ///
+    /// # Errors
+    /// Returns an error if the operation results in an error or if the types are incompatible
     fn pow(&self, rhs: &NumericValue) -> Result<NumericValue> {
         if rhs.clone().is_zero() {
             return Ok(NumericValue::Integer(IntegerValue::I64(1)));
@@ -335,6 +406,11 @@ impl NumericValue {
             ))),
         }
     }
+
+    /// Convert a NumericValue to an 8-bit signed integer (i8)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as i8 or an error if conversion fails.
     pub fn to_i8(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => match i.clone().as_i64().unwrap() {
@@ -354,6 +430,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to an 8-bit unsigned integer (u8)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as u8 or an error if conversion fails.
     pub fn to_u8(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => match i.clone().as_i64().unwrap() {
@@ -373,6 +453,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to a 16-bit signed integer (i16)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as i16 or an error if conversion fails.
     pub fn to_i16(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => match i.clone().as_i64().unwrap() {
@@ -392,6 +476,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to a 16-bit unsigned integer (u16)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as u16 or an error if conversion fails.
     pub fn to_u16(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => match i.clone().as_i64().unwrap() {
@@ -411,6 +499,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to a 32-bit signed integer (i32)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as i32 or an error if conversion fails.
     pub fn to_i32(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => match i.clone().as_i64().unwrap() {
@@ -430,6 +522,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to a 32-bit unsigned integer (u32)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as u32 or an error if conversion fails.
     pub fn to_u32(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => match i.clone().as_i64().unwrap() {
@@ -449,6 +545,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to a 64-bit signed integer (i64)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as i64 or an error if conversion fails.
     pub fn to_i64(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => Ok(NumericValue::Integer(IntegerValue::I64(
@@ -465,6 +565,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to a 64-bit unsigned integer (u64)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as u64 or an error if conversion fails.
     pub fn to_u64(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => match i.clone().as_i64().unwrap() {
@@ -484,6 +588,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to a 32-bit floating point number (f32)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as f32 or an error if conversion fails.
     pub fn to_f32(&self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => {
@@ -501,6 +609,10 @@ impl NumericValue {
         }
     }
 
+    /// Convert a NumericValue to a 64-bit floating point number (f64)
+    ///
+    /// # Returns
+    /// Result containing the NumericValue as f64 or an error if conversion fails.
     pub fn to_f64(self) -> Result<NumericValue> {
         match self {
             NumericValue::Integer(i) => Ok(NumericValue::Float(FloatValue::F64(
@@ -510,6 +622,14 @@ impl NumericValue {
         }
     }
 
+    /// Coerce a pair of NumericValues to a pair of NumericValues of the same type
+    ///
+    /// # Arguments
+    /// * `left` - The first NumericValue
+    /// * `right` - The second NumericValue
+    ///
+    /// # Returns
+    /// Result containing the coerced pair of NumericValues
     fn coerce_numeric_pair(
         left: &NumericValue,
         right: &NumericValue,
