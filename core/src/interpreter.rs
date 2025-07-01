@@ -1872,9 +1872,6 @@ impl Interpreter {
                 operator,
                 right,
             } => {
-                // let left_val = self.evaluate_expression(*left)?.unwrap_return();
-                // let right_val = self.evaluate_expression(*right)?.unwrap_return();
-                // self.evaluate_binary_op(left_val, operator, right_val)
                 if operator == BinaryOperator::Pipe {
                     // Handle pipe operator as a special case
                     let left_val = self.evaluate_expression(*left)?.unwrap_return();
@@ -1890,50 +1887,6 @@ impl Interpreter {
                                 new_args.push(arg);
                             }
 
-                            // Eval the modified function call
-                            // let func_val = self.get_variable(&name).ok_or_else(|| {
-                            //     VeldError::RuntimeError(format!("Undefined function '{}'", name))
-                            // })?;
-
-                            // match func_val {
-                            //     Value::Function {
-                            //         params,
-                            //         body,
-                            //         return_type,
-                            //         captured_vars,
-                            //     } => {
-                            //         // Eval args (all)
-                            //         let mut arg_values = vec![left_val];
-
-                            //         // Skip the first argument since it's the left side of the pipe (left_val)
-                            //         for arg in new_args.iter().skip(1) {
-                            //             match arg {
-                            //                 Argument::Positional(expr) => {
-                            //                     let val = self.evaluate_expression(expr.clone())?;
-                            //                     arg_values.push(val);
-                            //                 }
-                            //                 Argument::Named { name: _, value } => {
-                            //                     let val =
-                            //                         self.evaluate_expression(value.clone())?;
-                            //                     arg_values.push(val);
-                            //                 }
-                            //             }
-                            //         }
-
-                            //         // Call the function with the evaluated arguments
-                            //         self.call_functioevaluaten_with_values(
-                            //             params,
-                            //             body,
-                            //             return_type,
-                            //             captured_vars,
-                            //             arg_values,
-                            //         )
-                            //     }
-                            //     _ => Err(VeldError::RuntimeError(format!(
-                            //         "Cannot pipe into non-function value '{}'",
-                            //         name
-                            //     ))),
-                            // }
                             let func_call = Expr::FunctionCall {
                                 name,
                                 arguments: new_args,
@@ -1964,30 +1917,6 @@ impl Interpreter {
                             self.call_method_value(obj_val, method, arg_values)
                         }
                         Expr::Identifier(name) => {
-                            // let func_val = self.get_variable(&name).ok_or_else(|| {
-                            //     VeldError::RuntimeError(format!("Undefined function '{}'", name))
-                            // })?;
-                            // match func_val {
-                            //     Value::Function {
-                            //         params,
-                            //         body,
-                            //         return_type,
-                            //         captured_vars,
-                            //     } => {
-                            //         let args = vec![left_val];
-                            //         self.call_function_with_values(
-                            //             params,
-                            //             body,
-                            //             return_type,
-                            //             captured_vars,
-                            //             args,
-                            //         )
-                            //     }
-                            //     _ => Err(VeldError::RuntimeError(format!(
-                            //         "'{}' is not a function and cannot be piped into",
-                            //         name
-                            //     ))),
-                            // }
                             let arg_values = vec![left_val];
                             self.call_function_with_values(name, arg_values)
                         }
@@ -2007,9 +1936,6 @@ impl Interpreter {
                                     // Call the function
                                     let result = self
                                         .call_function_with_values(temp_name.clone(), arg_values);
-
-                                    // Clean up
-                                    // self.current_scope_mut().remove(&temp_name);
 
                                     result
                                 }
