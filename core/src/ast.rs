@@ -168,6 +168,7 @@ pub enum BinaryOperator {
     Or,
     Exponent,
     Modulo,
+    Pipe,
 }
 
 impl Display for BinaryOperator {
@@ -187,6 +188,7 @@ impl Display for BinaryOperator {
             BinaryOperator::Or => "||",
             BinaryOperator::Exponent => "^",
             BinaryOperator::Modulo => "%",
+            BinaryOperator::Pipe => "|>",
         };
         write!(f, "{}", op)
     }

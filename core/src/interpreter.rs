@@ -1080,21 +1080,52 @@ impl Interpreter {
 
     fn value_to_expr(&self, value: Value) -> Result<Expr> {
         match value {
-            Value::Numeric(NumericValue::Integer(IntegerValue::I64(n))) => {
-                Ok(Expr::Literal(Literal::Integer(n)))
-            }
-            Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => {
-                Ok(Expr::Literal(Literal::Float(f)))
-            }
+            // Value::Numeric(NumericValue::Integer(IntegerValue::I64(n))) => {
+            //     Ok(Expr::Literal(Literal::Integer(n)))
+            // }
+            // Value::Numeric(NumericValue::Float(FloatValue::F64(f))) => {
+            //     Ok(Expr::Literal(Literal::Float(f)))
+            // }
             Value::Integer(n) => Ok(Expr::Literal(Literal::Integer(n))),
             Value::Float(f) => Ok(Expr::Literal(Literal::Float(f))),
             Value::String(s) => Ok(Expr::Literal(Literal::String(s))),
             Value::Boolean(b) => Ok(Expr::Literal(Literal::Boolean(b))),
             Value::Char(c) => Ok(Expr::Literal(Literal::Char(c))),
             Value::Unit => Ok(Expr::Literal(Literal::Unit)),
-            _ => Err(VeldError::RuntimeError(
-                "Cannot convert value to expression".into(),
-            )),
+            Value::Numeric(num) => match num {
+                NumericValue::Integer(int_val) => match int_val {
+                    IntegerValue::I8(i) => Ok(Expr::Literal(Literal::Integer(i as i64))),
+                    IntegerValue::I16(i) => Ok(Expr::Literal(Literal::Integer(i as i64))),
+                    IntegerValue::I32(i) => Ok(Expr::Literal(Literal::Integer(i as i64))),
+                    IntegerValue::I64(i) => Ok(Expr::Literal(Literal::Integer(i))),
+                    IntegerValue::U8(i) => Ok(Expr::Literal(Literal::Integer(i as i64))),
+                    IntegerValue::U16(i) => Ok(Expr::Literal(Literal::Integer(i as i64))),
+                    IntegerValue::U32(i) => Ok(Expr::Literal(Literal::Integer(i as i64))),
+                    IntegerValue::U64(i) => Ok(Expr::Literal(Literal::Integer(i as i64))),
+                },
+                NumericValue::Float(float_val) => match float_val {
+                    FloatValue::F32(f) => Ok(Expr::Literal(Literal::Float(f as f64))),
+                    FloatValue::F64(f) => Ok(Expr::Literal(Literal::Float(f))),
+                },
+            },
+            Value::Array(elements) => {
+                let mut exprs = Vec::new();
+                for elem in elements {
+                    exprs.push(self.value_to_expr(elem)?);
+                }
+                Ok(Expr::ArrayLiteral(exprs))
+            }
+            Value::Tuple(elems) => {
+                let mut exprs = Vec::new();
+                for elem in elems {
+                    exprs.push(self.value_to_expr(elem)?);
+                }
+                Ok(Expr::TupleLiteral(exprs))
+            }
+            _ => Err(VeldError::RuntimeError(format!(
+                "Cannot convert value to expression: {:?}",
+                value
+            ))),
         }
     }
 
@@ -1841,9 +1872,159 @@ impl Interpreter {
                 operator,
                 right,
             } => {
-                let left_val = self.evaluate_expression(*left)?.unwrap_return();
-                let right_val = self.evaluate_expression(*right)?.unwrap_return();
-                self.evaluate_binary_op(left_val, operator, right_val)
+                // let left_val = self.evaluate_expression(*left)?.unwrap_return();
+                // let right_val = self.evaluate_expression(*right)?.unwrap_return();
+                // self.evaluate_binary_op(left_val, operator, right_val)
+                if operator == BinaryOperator::Pipe {
+                    // Handle pipe operator as a special case
+                    let left_val = self.evaluate_expression(*left)?.unwrap_return();
+                    // Handle the types of the right side expression(s)
+                    match *right {
+                        // Fn call with args
+                        Expr::FunctionCall { name, arguments } => {
+                            let left_expr = self.value_to_expr(left_val.clone())?;
+                            let mut new_args = vec![Argument::Positional(left_expr)];
+
+                            // Add rest of args
+                            for arg in arguments {
+                                new_args.push(arg);
+                            }
+
+                            // Eval the modified function call
+                            // let func_val = self.get_variable(&name).ok_or_else(|| {
+                            //     VeldError::RuntimeError(format!("Undefined function '{}'", name))
+                            // })?;
+
+                            // match func_val {
+                            //     Value::Function {
+                            //         params,
+                            //         body,
+                            //         return_type,
+                            //         captured_vars,
+                            //     } => {
+                            //         // Eval args (all)
+                            //         let mut arg_values = vec![left_val];
+
+                            //         // Skip the first argument since it's the left side of the pipe (left_val)
+                            //         for arg in new_args.iter().skip(1) {
+                            //             match arg {
+                            //                 Argument::Positional(expr) => {
+                            //                     let val = self.evaluate_expression(expr.clone())?;
+                            //                     arg_values.push(val);
+                            //                 }
+                            //                 Argument::Named { name: _, value } => {
+                            //                     let val =
+                            //                         self.evaluate_expression(value.clone())?;
+                            //                     arg_values.push(val);
+                            //                 }
+                            //             }
+                            //         }
+
+                            //         // Call the function with the evaluated arguments
+                            //         self.call_functioevaluaten_with_values(
+                            //             params,
+                            //             body,
+                            //             return_type,
+                            //             captured_vars,
+                            //             arg_values,
+                            //         )
+                            //     }
+                            //     _ => Err(VeldError::RuntimeError(format!(
+                            //         "Cannot pipe into non-function value '{}'",
+                            //         name
+                            //     ))),
+                            // }
+                            let func_call = Expr::FunctionCall {
+                                name,
+                                arguments: new_args,
+                            };
+
+                            self.evaluate_expression(func_call)
+                        }
+                        Expr::MethodCall {
+                            object,
+                            method,
+                            arguments,
+                        } => {
+                            let obj_val = self.evaluate_expression(*object)?;
+
+                            let mut arg_values = vec![left_val];
+                            for arg in arguments {
+                                match arg {
+                                    Argument::Positional(expr) => {
+                                        let val = self.evaluate_expression(expr)?;
+                                        arg_values.push(val);
+                                    }
+                                    Argument::Named { name: _, value } => {
+                                        let val = self.evaluate_expression(value)?;
+                                        arg_values.push(val);
+                                    }
+                                }
+                            }
+                            self.call_method_value(obj_val, method, arg_values)
+                        }
+                        Expr::Identifier(name) => {
+                            // let func_val = self.get_variable(&name).ok_or_else(|| {
+                            //     VeldError::RuntimeError(format!("Undefined function '{}'", name))
+                            // })?;
+                            // match func_val {
+                            //     Value::Function {
+                            //         params,
+                            //         body,
+                            //         return_type,
+                            //         captured_vars,
+                            //     } => {
+                            //         let args = vec![left_val];
+                            //         self.call_function_with_values(
+                            //             params,
+                            //             body,
+                            //             return_type,
+                            //             captured_vars,
+                            //             args,
+                            //         )
+                            //     }
+                            //     _ => Err(VeldError::RuntimeError(format!(
+                            //         "'{}' is not a function and cannot be piped into",
+                            //         name
+                            //     ))),
+                            // }
+                            let arg_values = vec![left_val];
+                            self.call_function_with_values(name, arg_values)
+                        }
+                        _ => {
+                            let right_val = self.evaluate_expression(*right)?;
+                            // If it's a function, call it with left_val
+                            match right_val {
+                                Value::Function { .. } => {
+                                    // Convert the function to a string name to call it
+                                    // This is a workaround since call_function_with_values expects a name
+                                    let arg_values = vec![left_val];
+                                    let temp_name = "___pipe_temp___".to_string();
+
+                                    // Temporarily store the function in the current scope
+                                    self.current_scope_mut().set(temp_name.clone(), right_val);
+
+                                    // Call the function
+                                    let result = self
+                                        .call_function_with_values(temp_name.clone(), arg_values);
+
+                                    // Clean up
+                                    // self.current_scope_mut().remove(&temp_name);
+
+                                    result
+                                }
+                                _ => Err(VeldError::RuntimeError(format!(
+                                    "Cannot pipe into non-function value: {:?}",
+                                    right_val
+                                ))),
+                            }
+                        }
+                    }
+                } else {
+                    let left_val = self.evaluate_expression(*left)?.unwrap_return();
+                    let right_val = self.evaluate_expression(*right)?.unwrap_return();
+                    self.evaluate_binary_op(left_val, operator, right_val)
+                }
             }
             Expr::FunctionCall { name, arguments } => {
                 // Evaluate each argument and handle both named and positional arguments
@@ -4418,10 +4599,28 @@ impl Interpreter {
             return Ok(result);
         }
 
-        let left_numeric = self.to_numeric_value(left)?;
-        let right_numeric = self.to_numeric_value(right)?;
+        let left_numeric = self.to_numeric_value(left.clone())?;
+        let right_numeric = self.to_numeric_value(right.clone())?;
 
         match operator {
+            BinaryOperator::Pipe => {
+                // This is a fallback in case the special handling in evaluate_expression isn't used
+                match right {
+                    Value::Function { .. } => {
+                        let temp_name = "___pipe_temp___".to_string();
+                        self.current_scope_mut().set(temp_name.clone(), right);
+
+                        let args = vec![left];
+                        let result = self.call_function_with_values(temp_name, args);
+
+                        result
+                    }
+                    _ => Err(VeldError::RuntimeError(format!(
+                        "Cannot pipe into non-function value: {:?}",
+                        right
+                    ))),
+                }
+            }
             BinaryOperator::Add
             | BinaryOperator::Subtract
             | BinaryOperator::Multiply

@@ -1721,6 +1721,20 @@ impl Parser {
         Ok(Statement::Return(value))
     }
 
+    fn pipeline(&mut self) -> Result<Expr> {
+        let mut expr = self.logical()?;
+
+        while self.match_token(&[Token::Pipe]) {
+            let right = self.logical()?;
+            expr = Expr::BinaryOp {
+                left: Box::new(expr),
+                operator: BinaryOperator::Pipe,
+                right: Box::new(right),
+            };
+        }
+        Ok(expr)
+    }
+
     fn expression(&mut self) -> Result<Expr> {
         println!("Expression: Starting...");
         self.recursive_depth += 1;
@@ -1737,7 +1751,7 @@ impl Parser {
             return result;
         }
 
-        let result = self.logical();
+        let result = self.pipeline();
         self.recursive_depth -= 1;
 
         println!("Expression: Completed with result: {:?}", result);
