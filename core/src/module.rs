@@ -132,72 +132,72 @@ impl ModuleManager {
         Ok(&self.modules[&full_name])
     }
 
-    fn resolve_module_path(&self, parts: &[String]) -> Option<PathBuf> {
-        // Special case for std module and its submodules
-        if parts.first().map_or(false, |p| p == "std") {
-            // Skip the "std" part since it maps to the stdlib root
-            let mut rel_path = PathBuf::new();
-            for part in parts.iter().skip(1) {
-                rel_path.push(part);
-            }
+    // fn resolve_module_path(&self, parts: &[String]) -> Option<PathBuf> {
+    //     // Special case for std module and its submodules
+    //     if parts.first().map_or(false, |p| p == "std") {
+    //         // Skip the "std" part since it maps to the stdlib root
+    //         let mut rel_path = PathBuf::new();
+    //         for part in parts.iter().skip(1) {
+    //             rel_path.push(part);
+    //         }
 
-            // First, try the directly available stdlib directory
-            let stdlib_dir = self.root_dir.join("stdlib");
-            if stdlib_dir.exists() {
-                let module_path = if rel_path.as_os_str().is_empty() {
-                    // Just "std" - use the root mod.veld
-                    stdlib_dir.join("mod.veld")
-                } else {
-                    // std.submodule - look in the corresponding directory
-                    stdlib_dir.join(&rel_path).join("mod.veld")
-                };
+    //         // First, try the directly available stdlib directory
+    //         let stdlib_dir = self.root_dir.join("stdlib");
+    //         if stdlib_dir.exists() {
+    //             let module_path = if rel_path.as_os_str().is_empty() {
+    //                 // Just "std" - use the root mod.veld
+    //                 stdlib_dir.join("mod.veld")
+    //             } else {
+    //                 // std.submodule - look in the corresponding directory
+    //                 stdlib_dir.join(&rel_path).join("mod.veld")
+    //             };
 
-                if module_path.exists() {
-                    return Some(module_path);
-                }
-            }
+    //             if module_path.exists() {
+    //                 return Some(module_path);
+    //             }
+    //         }
 
-            // Then check search paths for stdlib directories
-            for search_path in &self.module_search_paths {
-                let stdlib_dir = search_path.join("stdlib");
-                if stdlib_dir.exists() {
-                    let module_path = if rel_path.as_os_str().is_empty() {
-                        // Just "std" - use the root mod.veld
-                        stdlib_dir.join("mod.veld")
-                    } else {
-                        // std.submodule - look in the corresponding directory
-                        stdlib_dir.join(&rel_path).join("mod.veld")
-                    };
+    //         // Then check search paths for stdlib directories
+    //         for search_path in &self.module_search_paths {
+    //             let stdlib_dir = search_path.join("stdlib");
+    //             if stdlib_dir.exists() {
+    //                 let module_path = if rel_path.as_os_str().is_empty() {
+    //                     // Just "std" - use the root mod.veld
+    //                     stdlib_dir.join("mod.veld")
+    //                 } else {
+    //                     // std.submodule - look in the corresponding directory
+    //                     stdlib_dir.join(&rel_path).join("mod.veld")
+    //                 };
 
-                    if module_path.exists() {
-                        return Some(module_path);
-                    }
-                }
-            }
-        }
+    //                 if module_path.exists() {
+    //                     return Some(module_path);
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        // For non-std modules or if std module wasn't found
-        for search_path in &self.module_search_paths {
-            let mut module_path = search_path.clone();
-            for part in parts {
-                module_path.push(part);
-            }
+    //     // For non-std modules or if std module wasn't found
+    //     for search_path in &self.module_search_paths {
+    //         let mut module_path = search_path.clone();
+    //         for part in parts {
+    //             module_path.push(part);
+    //         }
 
-            // Try with .veld extension
-            let with_ext = module_path.with_extension("veld");
-            if with_ext.exists() {
-                return Some(with_ext);
-            }
+    //         // Try with .veld extension
+    //         let with_ext = module_path.with_extension("veld");
+    //         if with_ext.exists() {
+    //             return Some(with_ext);
+    //         }
 
-            // Try with /mod.veld
-            let with_mod = module_path.join("mod.veld");
-            if with_mod.exists() {
-                return Some(with_mod);
-            }
-        }
+    //         // Try with /mod.veld
+    //         let with_mod = module_path.join("mod.veld");
+    //         if with_mod.exists() {
+    //             return Some(with_mod);
+    //         }
+    //     }
 
-        None
-    }
+    //     None
+    // }
 
     pub fn create_module(
         &mut self,
@@ -401,12 +401,7 @@ impl ModuleManager {
                     }
                 }
 
-                Statement::VariableDeclaration {
-                    name,
-                    var_kind,
-                    value,
-                    ..
-                } => {
+                Statement::VariableDeclaration { name, .. } => {
                     if let Some(is_public) = self.is_public_variable(stmt) {
                         // Only export public enums
                         if is_public {
