@@ -18,13 +18,6 @@ Veld is a programming language that aims to provide a rich set of features while
 - [x] first-class functions
 - [x] closure functions
 - [x] higher-order functions
-- [x] initializer keywords
-  - [x] `let`
-  - [x] `var`
-  - [x] `const`
-  - [x] `let mut`
-  - [x] `fn`
-  - [x] `proc`
 - [x] type inference
 - [x] type casting
 - [x] type checking
@@ -32,6 +25,21 @@ Veld is a programming language that aims to provide a rich set of features while
 - [x] modules
 - [x] macros
 - [x] public keyword ("pub")
+- [x] initializer keywords
+  - [x] `let`
+  - [x] `var`
+  - [x] `const`
+  - [x] `let mut`
+  - [x] `fn`
+  - [x] `proc`
+- [ ] attributes
+- [ ] built-in attributes
+  - [ ] `@when`
+  - [ ] `@inline`
+  <!-- - [ ] `@export` -->
+  - [ ] `@test`
+  - [ ] `@no_conform`
+  - [ ] `@deprecated`
 - [ ] built-in modules
   - [ ] `std`
   - [ ] `math`
@@ -44,7 +52,6 @@ Veld is a programming language that aims to provide a rich set of features while
     - [ ] `map`
     - [ ] `set`
   - [ ] `option`
-- [ ] attributes
 - [ ] transpiler
   - [ ] JavaScript backend
   - [ ] lua backend
