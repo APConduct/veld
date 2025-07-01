@@ -278,7 +278,7 @@ mod tests {
                 let x = 42
                 let y = "Hello, world!"
                 if x > 0 then
-                    println(y)
+                    println~(y)
                 end
             end
         "#;
@@ -286,7 +286,7 @@ mod tests {
         let mut lexer = Lexer::new(input);
         let tokens = lexer.collect_tokens().unwrap();
 
-        assert_eq!(tokens.len(), 23);
+        assert_eq!(tokens.len(), 24);
         assert_eq!(tokens[0], Token::Fn);
         assert_eq!(tokens[1], Token::Identifier("main".to_string()));
         assert_eq!(tokens[2], Token::LParen);
@@ -308,9 +308,10 @@ mod tests {
         assert_eq!(tokens[15], Token::IntegerLiteral(0));
         assert_eq!(tokens[16], Token::Then);
         assert_eq!(tokens[17], Token::Identifier("println".to_string()));
-        assert_eq!(tokens[18], Token::LParen);
-        assert_eq!(tokens[19], Token::Identifier("y".to_string()));
-        assert_eq!(tokens[20], Token::RParen);
-        assert_eq!(tokens[21], Token::End);
+        assert_eq!(tokens[18], Token::Tilde);
+        assert_eq!(tokens[19], Token::LParen);
+        assert_eq!(tokens[20], Token::Identifier("y".to_string()));
+        assert_eq!(tokens[21], Token::RParen);
+        assert_eq!(tokens[22], Token::End);
     }
 }
