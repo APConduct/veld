@@ -25,7 +25,7 @@ import math.{add, subtract}
 Would compile as:
 
 ```lua
-# Compiled Lua
+-- Compiled Lua
 local math = require("math")
 local add, subtract = math.add, math.subtract
 ```
