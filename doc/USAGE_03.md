@@ -58,7 +58,7 @@ local add, subtract = math.add, math.subtract
    pub fn get_platform() -> str "web" end
 
    @when(target = "desktop")
-   pub fn get_platform() -> str "desktop"; end
+   pub fn get_platform() -> str "desktop" end
    ```
 
 
@@ -69,8 +69,8 @@ local add, subtract = math.add, math.subtract
 macro~ vec
     () => new_vec(),
     ($elem:expr) => do
-        let mut temp = new_vec();
-        temp.push($elem);
+        let mut temp = new_vec()
+        temp.push($elem)
         temp
     end
 end
@@ -84,9 +84,9 @@ end
 end
 
 # Usage examples
-let numbers = vec~(1, 2, 3)  // Declarative macro with tilde
+let numbers = vec~(1, 2, 3)  # Declarative macro with tilde
 
-@derive(Debug, Clone)         // Procedural macro as attribute
+@derive(Debug, Clone)         # Procedural macro as attribute
 struct Point
     x: f64,
     y: f64,
