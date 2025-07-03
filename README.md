@@ -1,7 +1,7 @@
 [comment]: <>  (# Veld)
 
 <p align="center">
-    <img src="assets/logo.png" alt="Verdict Logo" width="200">
+    <img src="assets/initial-logo.png" alt="Verdict Logo" width="200">
 </p>
 
 
