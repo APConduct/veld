@@ -82,7 +82,7 @@ impl ModuleManager {
             let module_parts: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
             match self.load_module(&module_parts) {
                 Ok(_) => (),
-                Err(e) => eprintln!("Warning: Failed to preload module {}: {}", module_name, e),
+                Err(e) => tracing::error!("Failed to load module '{}': {}", module_name, e),
             }
         }
 
@@ -218,8 +218,10 @@ impl ModuleManager {
     }
 
     fn find_module_file(&self, module_path: &[String]) -> Result<PathBuf, VeldError> {
-        eprintln!("Searching for module: {:?}", module_path);
-        eprintln!("Search paths: {:?}", self.module_search_paths);
+        // eprintln!("Searching for module: {:?}", module_path);
+        tracing::error!("Searching for module: {:?}", module_path);
+        // eprintln!("Search paths: {:?}", self.module_search_paths);
+        tracing::error!("Search paths: {:?}", self.module_search_paths);
 
         // Special case for std module and its submodules
         if let Some(first) = module_path.first() {
@@ -234,13 +236,22 @@ impl ModuleManager {
                     PathBuf::from("../../veld/stdlib"),
                 ];
 
-                eprintln!(
+                // eprintln!(
+                //     "Checking potential stdlib locations for module: {:?}",
+                //     module_path
+                // );
+                tracing::error!(
                     "Checking potential stdlib locations for module: {:?}",
                     module_path
                 );
 
                 for stdlib_dir in &potential_stdlib_dirs {
-                    eprintln!(
+                    // eprintln!(
+                    //     "  Checking: {:?} exists: {}",
+                    //     stdlib_dir,
+                    //     stdlib_dir.exists()
+                    // );
+                    tracing::error!(
                         "  Checking: {:?} exists: {}",
                         stdlib_dir,
                         stdlib_dir.exists()
@@ -250,24 +261,36 @@ impl ModuleManager {
                         if module_path.len() == 1 {
                             // Just "std" - map to stdlib/mod.veld
                             let mod_file = stdlib_dir.join("mod.veld");
-                            eprintln!(
+                            // eprintln!(
+                            //     "  Checking mod file: {:?} exists: {}",
+                            //     mod_file,
+                            //     mod_file.exists()
+                            // );
+                            tracing::error!(
                                 "  Checking mod file: {:?} exists: {}",
                                 mod_file,
                                 mod_file.exists()
                             );
                             if mod_file.exists() {
-                                eprintln!("  Found mod.veld at: {:?}", mod_file);
+                                // eprintln!("  Found mod.veld at: {:?}", mod_file);
+                                tracing::error!("  Found mod.veld at: {:?}", mod_file);
                                 return Ok(mod_file);
                             }
 
                             let init_file = stdlib_dir.join("init.veld");
-                            eprintln!(
+                            // eprintln!(
+                            //     "  Checking init file: {:?} exists: {}",
+                            //     init_file,
+                            //     init_file.exists()
+                            // );
+                            tracing::error!(
                                 "  Checking init file: {:?} exists: {}",
                                 init_file,
                                 init_file.exists()
                             );
                             if init_file.exists() {
-                                eprintln!("  Found init.veld at: {:?}", init_file);
+                                // eprintln!("  Found init.veld at: {:?}", init_file);
+                                tracing::error!("  Found init.veld at: {:?}", init_file);
                                 return Ok(init_file);
                             }
                         } else {
@@ -279,37 +302,55 @@ impl ModuleManager {
 
                             // Try as a direct .veld file
                             let veld_file = stdlib_dir.join(&submodule_path).with_extension("veld");
-                            eprintln!(
+                            // eprintln!(
+                            //     "  Checking direct file: {:?} exists: {}",
+                            //     veld_file,
+                            //     veld_file.exists()
+                            // );
+                            tracing::error!(
                                 "  Checking direct file: {:?} exists: {}",
                                 veld_file,
                                 veld_file.exists()
                             );
                             if veld_file.exists() {
-                                eprintln!("  Found direct .veld file at: {:?}", veld_file);
+                                // eprintln!("  Found direct .veld file at: {:?}", veld_file);
+                                tracing::error!("  Found direct .veld file at: {:?}", veld_file);
                                 return Ok(veld_file);
                             }
 
                             // Try as a directory with mod.veld
                             let mod_file = stdlib_dir.join(&submodule_path).join("mod.veld");
-                            eprintln!(
+                            // eprintln!(
+                            //     "  Checking mod file: {:?} exists: {}",
+                            //     mod_file,
+                            //     mod_file.exists()
+                            // );
+                            tracing::error!(
                                 "  Checking mod file: {:?} exists: {}",
                                 mod_file,
                                 mod_file.exists()
                             );
                             if mod_file.exists() {
-                                eprintln!("  Found mod.veld at: {:?}", mod_file);
+                                // eprintln!("  Found mod.veld at: {:?}", mod_file);
+                                tracing::error!("  Found mod.veld at: {:?}", mod_file);
                                 return Ok(mod_file);
                             }
 
                             // Try as a directory with init.veld
                             let init_file = stdlib_dir.join(&submodule_path).join("init.veld");
-                            eprintln!(
+                            // eprintln!(
+                            //     "  Checking init file: {:?} exists: {}",
+                            //     init_file,
+                            //     init_file.exists()
+                            // );
+                            tracing::error!(
                                 "  Checking init file: {:?} exists: {}",
                                 init_file,
                                 init_file.exists()
                             );
                             if init_file.exists() {
-                                eprintln!("  Found init.veld at: {:?}", init_file);
+                                // eprintln!("  Found init.veld at: {:?}", init_file);
+                                tracing::error!("  Found init.veld at: {:?}", init_file);
                                 return Ok(init_file);
                             }
                         }
@@ -327,42 +368,61 @@ impl ModuleManager {
 
             // Try with .veld extension first (direct file)
             let veld_path = file_path.with_extension("veld");
-            eprintln!(
+            // eprintln!(
+            //     "  Checking file: {:?} exists: {}",
+            //     veld_path,
+            //     veld_path.exists()
+            // );
+            tracing::error!(
                 "  Checking file: {:?} exists: {}",
                 veld_path,
                 veld_path.exists()
             );
             if veld_path.exists() {
-                eprintln!("  Found direct .veld file at: {:?}", veld_path);
+                // eprintln!("  Found direct .veld file at: {:?}", veld_path);
+                tracing::error!("  Found direct .veld file at: {:?}", veld_path);
                 return Ok(veld_path);
             }
 
             // Try with /mod.veld
             let mod_path = file_path.join("mod.veld");
-            eprintln!(
+            // eprintln!(
+            //     "  Checking mod file: {:?} exists: {}",
+            //     mod_path,
+            //     mod_path.exists()
+            // );
+            tracing::error!(
                 "  Checking mod file: {:?} exists: {}",
                 mod_path,
                 mod_path.exists()
             );
             if mod_path.exists() {
-                eprintln!("  Found mod.veld at: {:?}", mod_path);
+                // eprintln!("  Found mod.veld at: {:?}", mod_path);
+                tracing::error!("  Found mod.veld at: {:?}", mod_path);
                 return Ok(mod_path);
             }
 
             // Try with /init.veld
             let init_path = file_path.join("init.veld");
-            eprintln!(
+            // eprintln!(
+            //     "  Checking init file: {:?} exists: {}",
+            //     init_path,
+            //     init_path.exists()
+            // );
+            tracing::error!(
                 "  Checking init file: {:?} exists: {}",
                 init_path,
                 init_path.exists()
             );
             if init_path.exists() {
-                eprintln!("  Found init.veld at: {:?}", init_path);
+                // eprintln!("  Found init.veld at: {:?}", init_path);
+                tracing::error!("  Found init.veld at: {:?}", init_path);
                 return Ok(init_path);
             }
         }
 
-        eprintln!("Module not found: {}", module_path.join("."));
+        // eprintln!("Module not found: {}", module_path.join("."));
+        tracing::error!("Module not found: {}", module_path.join("."));
         Err(VeldError::RuntimeError(format!(
             "Module not found: {}",
             module_path.join(".")
