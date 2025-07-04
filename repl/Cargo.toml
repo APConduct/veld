@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-logos = "0.13"  # For lexing
-chumsky = "0.9" # For parsing (optional, you can use other parsing libraries)
-thiserror = "1.0" # For error handling
+logos = "0.13"             # For lexing
+chumsky = "0.9"            # For parsing (optional, you can use other parsing libraries)
+thiserror = "1.0"          # For error handling
+tracing = "0.1"            # For tracing support
+tracing-subscriber = "0.3" # For tracing subscriber
 
 "veld-core" = { path = "../core" } # Path to your core library
