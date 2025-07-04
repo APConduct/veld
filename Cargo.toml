@@ -1,4 +1,3 @@
 [workspace]
-members = [
-    "repl",
-    "core"]
+resolver = "3"
+members = ["repl", "core"]
