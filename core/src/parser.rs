@@ -57,21 +57,14 @@ impl Parser {
                 )));
             }
 
-            // println!("Parser: Current token: {:?}", self.tokens.get(self.current));
-            // println!("Parser: Context: {}", self.debug_token_context());
             tracing::debug!(current_token = ?self.tokens.get(self.current), "Parser: Current token");
             tracing::debug!(context = %self.debug_token_context(), "Parser: Context");
 
             let stmt = self.declaration()?;
-            // println!("Parser: Successfully parsed statement: {:?}", stmt);
             tracing::debug!(?stmt, "Parser: Successfully parsed statement");
             statements.push(stmt);
         }
 
-        // println!(
-        //     "Parser: Parsing completed successfully with {} statements",
-        //     statements.len()
-        // );
         tracing::info!(
             statement_count = statements.len(),
             "Parsing completed successfully"
@@ -251,18 +244,13 @@ impl Parser {
     }
 
     fn function_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        // println!("Function declaration: Starting...");
         tracing::info!("Function declaration: Starting");
         let name = self.consume_identifier("Expected function name")?;
-        // println!("Function declaration: Name = {}", name);
 
         tracing::info!(name = %name, "Function declaration: Name");
         // Parse generic type parameters if present
         let generic_params = self.parse_generic_args_if_present()?;
-        // println!(
-        //     "Function declaration: Parsed generic params: {:?}",
-        //     generic_params
-        // );
+
         tracing::debug!(
             ?generic_params,
             "Function declaration: Parsed generic params"
@@ -367,8 +355,6 @@ impl Parser {
             self.consume(&Token::End, "Expected 'end' after function body")?;
         }
 
-        // println!("Function declaration: Final return type: {:?}", return_type);
-
         tracing::debug!(?return_type, "Function declaration: Final return type");
 
         Ok(Statement::FunctionDeclaration {
@@ -383,8 +369,6 @@ impl Parser {
     }
 
     fn lambda_expression(&mut self) -> Result<Expr> {
-        // println!("Lambda expression Starting...");
-
         tracing::info!("Lambda expression: Starting parsing");
         let mut params = Vec::new();
         let mut return_type_anno: Option<TypeAnnotation> = None;
@@ -471,10 +455,6 @@ impl Parser {
             let inferred_return_type =
                 return_type_anno.or_else(|| self.infer_lambda_return_type(&expr));
 
-            // println!(
-            //     "Lambda expression: inferred return type: {:?}",
-            //     inferred_return_type
-            // );
             tracing::debug!(
                 ?inferred_return_type,
                 "Lambda expression: Final inferred return type"
@@ -494,7 +474,6 @@ impl Parser {
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
     ) -> Result<Expr> {
-        // println!("Parsing block demi lambda with {} parameters", params.len());
         tracing::info!("Parsing block demi lambda with {} parameters", params.len());
 
         let mut body = Vec::new();
@@ -526,7 +505,6 @@ impl Parser {
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
     ) -> Result<Expr> {
-        // println!("Parsing block lambda with {} parameters", params.len());
         tracing::info!("Parsing block lambda with {} parameters", params.len());
 
         let mut body = Vec::new();
@@ -574,23 +552,16 @@ impl Parser {
     }
 
     fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        // println!("Struct declaration: Starting...");
         tracing::info!("Struct declaration: Starting...");
 
         let name = self.consume_identifier("Expected struct name")?;
-        // println!("Struct declaration: Name = {}", name);
         tracing::info!(name = %name, "Struct declaration: Name");
 
-        // println!(
-        //     "Checking for generic parameters, token {:?}",
-        //     self.tokens.get(self.current)
-        // );
         tracing::debug!(
             "Checking for generic parameters, token: {:?}",
             self.tokens.get(self.current)
         );
         let generic_params = self.parse_generic_args_if_present()?;
-        // println!("Parsed generic params: {:?}", generic_params);
         tracing::debug!(?generic_params, "Parsed generic params");
 
         let mut fields = Vec::new();
@@ -598,13 +569,11 @@ impl Parser {
 
         // Check for parentheses style
         if self.match_token(&[Token::LParen]) {
-            // println!("Struct declaration: Parentheses style");
             tracing::debug!("Struct declaration: Parentheses style");
             if !self.check(&Token::RParen) {
                 loop {
                     let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
-                    // println!("Struct declaration: Field name = {}", field_name);
                     tracing::debug!(field_name = %field_name, "Struct declaration: Field name");
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
@@ -620,24 +589,17 @@ impl Parser {
             self.consume(&Token::Semicolon, "Expected ';' after struct declaration")?;
         } else {
             // Block style struct declaration
-            // println!("Struct declaration: Block style");
             tracing::debug!("Struct declaration: Block style");
             while !self.check(&Token::End) && !self.is_at_end() {
-                // println!(
-                //     "Struct declaration: Parsing field or method, current token: {:?}",
-                //     self.tokens.get(self.current)
-                // );
                 tracing::debug!(
                     "Struct declaration: Parsing field or method, current token: {:?}",
                     self.tokens.get(self.current)
                 );
 
                 if self.match_token(&[Token::Fn]) {
-                    // println!("Struct declaration: Found method");
                     tracing::debug!("Struct declaration: Found method");
                     methods.push(self.parse_struct_method(name.clone())?);
                 } else if self.match_token(&[Token::Impl]) {
-                    // println!("Struct declaration: Found impl block");
                     tracing::debug!("Struct declaration: Found impl block");
                     while !self.check(&Token::End) && !self.is_at_end() {
                         if self.match_token(&[Token::Fn]) {
@@ -653,7 +615,6 @@ impl Parser {
                     // Parse field
                     let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
-                    // println!("Struct declaration: Field name = {}", field_name);
                     tracing::debug!(field_name = %field_name, "Struct declaration: Field name");
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
@@ -664,12 +625,10 @@ impl Parser {
                 }
             }
 
-            // println!("Struct declaration: End of fields and methods, expecting 'end'");
             tracing::debug!("Struct declaration: End of fields and methods, expecting 'end'");
             self.consume(&Token::End, "Expected 'end' after struct definition")?;
         }
 
-        // println!("Struct declaration: Completed");
         tracing::info!("Struct declaration: Completed");
         Ok(Statement::StructDeclaration {
             name,
@@ -692,7 +651,6 @@ impl Parser {
     }
 
     fn proc_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        // println!("Proc declaration: Starting...");
         tracing::info!("Proc declaration: Starting...");
         let name = self.consume_identifier("Expected procedure name")?;
 
@@ -748,7 +706,6 @@ impl Parser {
     }
 
     fn block_scope_statement(&mut self) -> Result<Statement> {
-        // println!("Parsing block scope");
         tracing::info!("Parsing block scope");
 
         let mut body = Vec::new();
@@ -787,22 +744,15 @@ impl Parser {
     }
 
     fn struct_declaration(&mut self) -> Result<Statement> {
-        // println!("Struct declaration: Starting...");
         tracing::info!("Struct declaration: Starting...");
         let name = self.consume_identifier("Expected struct name")?;
-        // println!("Struct declaration: Name = {}", name);
         tracing::debug!(name = %name, "Struct declaration: Name");
 
-        // println!(
-        //     "Checking for generic parameters, token {:?}",
-        //     self.tokens.get(self.current)
-        // );
         tracing::debug!(
             "Checking for generic parameters, token: {:?}",
             self.tokens.get(self.current)
         );
         let generic_params = self.parse_generic_args_if_present()?;
-        // println!("Parsed generic params: {:?}", generic_params);
         tracing::debug!(?generic_params, "Parsed generic params");
 
         let mut fields = Vec::new();
@@ -810,14 +760,12 @@ impl Parser {
 
         // Check for parentheses style
         if self.match_token(&[Token::LParen]) {
-            // println!("Struct declaration: Parentheses style");
             tracing::debug!("Struct declaration: Parentheses style");
             if !self.check(&Token::RParen) {
                 loop {
                     // Check for pub keyword before field name
                     let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
-                    // println!("Struct declaration: Field name = {}", field_name);
                     tracing::debug!(field_name = %field_name, "Struct declaration: Field name");
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
@@ -834,24 +782,17 @@ impl Parser {
             self.consume(&Token::Semicolon, "Expected ';' after struct declaration")?;
         } else {
             // Block style struct declaration
-            // println!("Struct declaration: Block style");
             tracing::debug!("Struct declaration: Block style");
             while !self.check(&Token::End) && !self.is_at_end() {
-                // println!(
-                //     "Struct declaration: Parsing field or method, current token: {:?}",
-                //     self.tokens.get(self.current)
-                // );
                 tracing::debug!(
                     "Struct declaration: Parsing field or method, current token: {:?}",
                     self.tokens.get(self.current)
                 );
 
                 if self.match_token(&[Token::Fn]) {
-                    // println!("Struct declaration: Found method");
                     tracing::debug!("Struct declaration: Found method");
                     methods.push(self.parse_struct_method(name.clone())?);
                 } else if self.match_token(&[Token::Impl]) {
-                    // println!("Struct declaration: Found impl block");
                     tracing::debug!("Struct declaration: Found impl block");
                     while !self.check(&Token::End) && !self.is_at_end() {
                         if self.match_token(&[Token::Fn]) {
@@ -867,7 +808,6 @@ impl Parser {
                     // Parse field
                     let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
-                    // println!("Struct declaration: Field name = {}", field_name);
                     tracing::debug!(field_name = %field_name, "Struct declaration: Field name");
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
@@ -878,12 +818,10 @@ impl Parser {
                 }
             }
 
-            // println!("Struct declaration: End of fields and methods, expecting 'end'");
             tracing::debug!("Struct declaration: End of fields and methods, expecting 'end'");
             self.consume(&Token::End, "Expected 'end' after struct definition")?;
         }
 
-        // println!("Struct declaration: Completed");
         tracing::info!("Struct declaration: Completed");
         Ok(Statement::StructDeclaration {
             name,
@@ -1174,7 +1112,6 @@ impl Parser {
     }
 
     fn implementation_declaration(&mut self) -> Result<Statement> {
-        // println!("Implementation declaration: Starting...");
         tracing::info!("Implementation declaration: Starting...");
 
         if self.check(&Token::Impl) && !self.peek_next_is_identifier() {
@@ -1207,23 +1144,15 @@ impl Parser {
 
         let methods = self.parse_implementation_methods(type_name.clone())?;
 
-        // println!("Implementation declaration: Type name = {}", type_name);
         tracing::debug!(type_name = %type_name, "Implementation declaration: Type name");
 
         // Multi-line implementation
-        // println!("Implementation declaration: Parsing methods");
         tracing::debug!("Implementation declaration: Parsing methods");
 
         // Consume the End token that terminates the implementation block
-        // println!("Implementation declaration: Expecting 'end' token");
         tracing::debug!("Implementation declaration: Expecting 'end' token");
-        // println!("Implementation declaration: Successfully consumed 'end' token");
         tracing::debug!("Implementation declaration: Successfully consumed 'end' token");
 
-        // println!(
-        //     "Implementation declaration: Completed with {} methods",
-        //     methods.len()
-        // );
         tracing::info!(
             "Implementation declaration: Completed with {} methods",
             methods.len()
@@ -1238,10 +1167,8 @@ impl Parser {
     }
 
     fn parse_impl_method(&mut self, type_name: String) -> Result<MethodImpl> {
-        // println!("Method Implementation: Starting...");
         tracing::info!("Method Implementation: Starting...");
         let method_name = self.consume_identifier("Expected method name")?;
-        // println!("Method Implementation: Name = {}", method_name);
         tracing::debug!(method_name = %method_name, "Method Implementation: Name");
 
         self.consume(&Token::LParen, "Expected '(' after method name")?;
@@ -1268,31 +1195,25 @@ impl Parser {
         self.consume(&Token::RParen, "Expected ')' after parameters")?;
 
         let return_type = if self.match_token(&[Token::Arrow]) {
-            // println!("Method Implementation: Parsing return type");
             tracing::debug!("Method Implementation: Parsing return type");
             self.parse_type()?
         } else {
-            // println!("Method Implementation: No return type, using Unit");
             tracing::debug!("Method Implementation: No return type, using Unit");
             TypeAnnotation::Unit
         };
 
         self.consume(&Token::Equals, "Expected '=' after method signature")?;
-        // println!("Method Implementation: Found equals sign, parsing method body");
         tracing::debug!("Method Implementation: Found equals sign, parsing method body");
 
         // For a single-line method implementation
         let expr = self.expression()?;
-        // println!("Method Implementation: Parsed expression: {:?}", expr);
         tracing::debug!(?expr, "Method Implementation: Parsed expression");
 
         // Optional semicolon after expression
         if self.match_token(&[Token::Semicolon]) {
-            // println!("Method Implementation: Found semicolon after expression");
             tracing::debug!("Method Implementation: Found semicolon after expression");
         }
 
-        // println!("Method Implementation: Completed");
         tracing::info!("Method Implementation: Completed");
         Ok(MethodImpl {
             name: method_name,
@@ -1542,10 +1463,6 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement> {
-        // println!(
-        //     "Parsing statement, current token: {:?}",
-        //     self.tokens.get(self.current)
-        // );
         tracing::debug!(
             "Parsing statement, current token: {:?}",
             self.tokens.get(self.current)
@@ -1679,7 +1596,6 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<Statement> {
-        // println!("if_statement: Starting parsing if statement");
         tracing::info!("if_statement: Starting parsing if statement");
 
         let condition = self.expression()?;
@@ -1820,7 +1736,6 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        // println!("Expression: Starting...");
         tracing::info!("Expression: Starting...");
         self.recursive_depth += 1;
         if self.recursive_depth > 100 {
@@ -1839,7 +1754,6 @@ impl Parser {
         let result = self.pipeline();
         self.recursive_depth -= 1;
 
-        // println!("Expression: Completed with result: {:?}", result);
         tracing::info!(?result, "Expression: Completed with result");
         result
     }
@@ -2020,10 +1934,8 @@ impl Parser {
     }
 
     fn postfix(&mut self) -> Result<Expr> {
-        // println!("Postfix: Starting...");
         tracing::info!("Postfix: Starting...");
         let mut expr = self.primary()?;
-        // println!("Postfix: Got primary expression: {:?}", expr);
         tracing::debug!(?expr, "Postfix: Got primary expression");
 
         loop {
@@ -2032,14 +1944,12 @@ impl Parser {
             }
 
             if self.match_token(&[Token::As]) {
-                // println!("Postfix: Found 'as' keyword for type casting");
                 tracing::debug!("Postfix: Found 'as' keyword for type casting");
                 let target_type = self.parse_type()?;
                 expr = Expr::TypeCast {
                     expr: Box::new(expr),
                     target_type: target_type.clone(),
                 };
-                // println!("Postfix: Completed type cast to {:?}", target_type);
                 tracing::debug!(?target_type, "Postfix: Completed type cast");
             } else if self.match_token(&[Token::Dot]) {
                 // Check for numeric tuple index
@@ -2053,7 +1963,6 @@ impl Parser {
                     // Method call or property access
                     let method =
                         self.consume_identifier("Expected property or method name after '.'")?;
-                    // println!("Postfix: Method/property name: {}", method);
                     tracing::debug!(method = %method, "Postfix: Method/property name");
 
                     if self.match_token(&[Token::LParen]) {
@@ -2087,7 +1996,6 @@ impl Parser {
             } else if self.match_token(&[Token::LParen]) && matches!(expr, Expr::Identifier(_)) {
                 // Function call
                 if let Expr::Identifier(name) = expr {
-                    // println!("Postfix: Function call: {}", name);
                     tracing::debug!(name = %name, "Postfix: Function call");
 
                     // Parse arguments
@@ -2107,7 +2015,6 @@ impl Parser {
                     }
 
                     self.consume(&Token::RParen, "Expected ')' after arguments")?;
-                    // println!("Postfix: Completed function call arguments");
                     tracing::debug!("Postfix: Completed function call arguments");
 
                     expr = Expr::FunctionCall {
@@ -2133,7 +2040,6 @@ impl Parser {
             }
         }
 
-        // println!("Postfix: Completed with result: {:?}", expr);
         tracing::info!(?expr, "Postfix: Completed with result");
         Ok(expr)
     }
@@ -2152,14 +2058,12 @@ impl Parser {
     }
 
     fn parse_named_arguments(&mut self) -> Result<Vec<Argument>> {
-        // println!("Parsing named arguments");
         tracing::info!("Parsing named arguments");
         let mut args = Vec::new();
 
         while !self.check(&Token::RParen) {
             // Get argument name
             let arg_name = self.consume_identifier("Expected argument name")?;
-            // println!("Named argument: {}", arg_name);
             tracing::debug!(arg_name = %arg_name, "Named argument found");
 
             // Expect colon after name
@@ -2284,7 +2188,6 @@ impl Parser {
     }
 
     fn parse_block_expression(&mut self) -> Result<Expr> {
-        // println!("Parsing block expression");
         tracing::info!("Parsing block expression");
 
         let mut statements = Vec::new();
@@ -2379,7 +2282,6 @@ impl Parser {
 
     // Parse if expression: if condition then expr else expr end
     fn parse_if_expression(&mut self) -> Result<Expr> {
-        // println!("Parsing if expression");
         tracing::info!("Parsing if expression");
 
         // Parse condition (we already consumed 'if')
@@ -2477,10 +2379,6 @@ impl Parser {
     }
 
     fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
-        // println!(
-        //     "Parsing struct fields, token: {:?}",
-        //     self.tokens.get(self.current)
-        // );
         tracing::info!(
             "Parsing struct fields, token: {:?}",
             self.tokens.get(self.current)
@@ -2694,31 +2592,26 @@ impl Parser {
     }
 
     fn arguments(&mut self) -> Result<Vec<Expr>> {
-        // println!("In arguments(): Parsing arguments");
         tracing::info!("In arguments(): Parsing arguments");
 
         let mut args = Vec::new();
 
         // Check if the argument list is empty
         if self.check(&Token::RParen) {
-            // println!("In arguments(): Empty argument list");
             tracing::debug!("In arguments(): Empty argument list");
             return Ok(args); // Return empty vector for empty argument list
         }
 
         // If we get here, there's at least one argument
-        // println!("In arguments(): Parsing first argument");
         tracing::debug!("In arguments(): Parsing first argument");
         args.push(self.expression()?);
 
         // Parse additional arguments
         while self.match_token(&[Token::Comma]) {
-            // println!("In arguments(): Parsing next argument");
             tracing::debug!("In arguments(): Parsing next argument");
             args.push(self.expression()?);
         }
 
-        // println!("In arguments(): Returning {} arguments", args.len());
         tracing::info!(count = args.len(), "In arguments(): Returning arguments");
         Ok(args)
     }
@@ -2824,7 +2717,6 @@ impl Parser {
     }
 
     fn parse_array_literal(&mut self) -> Result<Expr> {
-        // println!("Parsing array literal");
         tracing::info!("Parsing array literal");
         let mut elements = Vec::new();
 
@@ -2858,7 +2750,6 @@ impl Parser {
     }
 
     fn enum_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        // println!("Parsing enum declaration...");
         tracing::info!("Parsing enum declaration...");
         let name = self.consume_identifier("Expected enum name after 'enum'")?;
 
@@ -2923,22 +2814,13 @@ impl Parser {
 
     fn kind_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         let name = self.consume_identifier("Expected kind name")?;
-        // println!("Kind name: {}", name);
         tracing::info!("Kind name: {}", name);
 
-        // println!(
-        //     "Before parsing generic params, token: {:?}",
-        //     self.tokens.get(self.current)
-        // );
         tracing::debug!(
             "Before parsing generic params, token: {:?}",
             self.tokens.get(self.current)
         );
         let generic_params = self.parse_generic_args_if_present()?;
-        // println!(
-        //     "After parsing generic params, token: {:?}",
-        //     self.tokens.get(self.current)
-        // );
         tracing::debug!(
             "After parsing generic params, token: {:?}",
             self.tokens.get(self.current)
@@ -2946,7 +2828,6 @@ impl Parser {
 
         let mut methods = Vec::new();
         if self.match_token(&[Token::Equals]) {
-            // println!("Found equals token, parsing single method");
             tracing::info!("Found equals token, parsing single method");
 
             self.consume(&Token::Fn, "Expected 'fn' after in method declaration")?;
