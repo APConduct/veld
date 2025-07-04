@@ -1,13 +1,12 @@
 mod repl;
 
-
+use crate::repl::Repl; // Add this line
+use std::env;
+use std::fs;
+use veld_core::error::{Result, VeldError};
 use veld_core::interpreter::Interpreter;
 use veld_core::lexer::Lexer;
 use veld_core::parser::Parser;
-use crate::repl::Repl;  // Add this line
-use veld_core::error::{Result, VeldError};
-use std::env;
-use std::fs;
 
 fn main() -> Result<()> {
     // Get command line arguments
@@ -29,7 +28,7 @@ fn main() -> Result<()> {
 }
 
 fn run_file(filename: &str) -> Result<()> {
-    println!("Veld Language Interpreter v0.1.0");
+    println!("Veld Language Interpreter v0.1.2");
     println!("Running file: {}", filename);
 
     // Read the file
