@@ -14,7 +14,8 @@ fn main() -> Result<()> {
 
     if args.len() == 1 {
         // No arguments, run in REPL mode
-        println!("Starting Veld in REPL mode...");
+        // println!("Starting Veld in REPL mode...");
+        tracing::info!("Starting Veld in REPL mode...");
         let mut repl = Repl::new();
         repl.run()
     } else if args.len() == 2 {
