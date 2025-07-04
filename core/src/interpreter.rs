@@ -279,9 +279,9 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<Value> {
-        println!(
-            "Starting interpretation with {} statements",
-            statements.len()
+        tracing::info!(
+            statement_count = statements.len(),
+            "Starting interpretation"
         );
 
         // First pass: register all function declarations
@@ -299,7 +299,7 @@ impl Interpreter {
             }
         }
 
-        println!("Interpretation complete");
+        tracing::info!("Interpetation complete");
         Ok(last_value)
     }
 
@@ -323,11 +323,7 @@ impl Interpreter {
         for path in possible_paths {
             if path.exists() && path.is_dir() {
                 if let Err(e) = self.module_manager.register_stdlib_path(&path) {
-                    eprintln!(
-                        "Warning: Failed to register stdlib path {}: {}",
-                        path.display(),
-                        e
-                    );
+                    tracing::warn!("Failed to register stdlib path {}: {}", path.display(), e);
                 } else {
                     found = true;
                     break;
@@ -336,7 +332,7 @@ impl Interpreter {
         }
 
         if !found {
-            eprintln!("Warning: Could not find stdlib directory");
+            tracing::warn!("Could not find stdlib directory");
         }
 
         // Initialize native methods for built-in types
@@ -515,14 +511,14 @@ impl Interpreter {
 
     fn io_println(&self, args: Vec<Value>) -> Result<Value> {
         if args.is_empty() {
-            println!();
+            tracing::info!("");
             return Ok(Value::Unit);
         }
 
         if let Some(value) = args.get(0) {
             match self.value_to_string(value) {
                 Ok(s) => {
-                    println!("{}", s);
+                    tracing::info!("{}", s);
                     Ok(Value::Unit)
                 }
                 Err(e) => Err(e),
@@ -989,10 +985,7 @@ impl Interpreter {
         // Capture the current values of free variables
         let captured_vars = self.capture_variables(&free_vars);
 
-        println!(
-            "Lambda created with captured variables: {:?}",
-            captured_vars.keys().collect::<Vec<_>>()
-        );
+        tracing::debug!(captured = ?captured_vars.keys().collect::<Vec<_>>(), "Lambda created with captured variables");
 
         let actual_return_type = match return_type {
             Some(type_anno) => type_anno,
@@ -1042,10 +1035,7 @@ impl Interpreter {
         // Capture the current values of free variables
         let captured_vars = self.capture_variables(&free_vars);
 
-        println!(
-            "Block lambda created with captured variables: {:?}",
-            captured_vars.keys().collect::<Vec<_>>()
-        );
+        tracing::debug!(captured = ?captured_vars.keys().collect::<Vec<_>>(), "Block lambda created with captured variables");
 
         let actual_return_type = return_type.unwrap_or(TypeAnnotation::Unit);
 
@@ -1123,8 +1113,7 @@ impl Interpreter {
     }
 
     fn execute_statement(&mut self, statement: Statement) -> Result<Value> {
-        println!("Executing statement: {:?}", statement);
-
+        tracing::debug!(?statement, "Executing statement");
         match statement {
             Statement::VariableDeclaration {
                 name,
@@ -1206,8 +1195,7 @@ impl Interpreter {
                 Ok(Value::Return(Box::new(val)))
             }
             Statement::BlockScope { body } => {
-                println!("Executing block scope with {} statements", body.len());
-
+                tracing::debug!(statement_count = body.len(), "Executing block scope");
                 // Create new scope for the block
                 self.push_scope();
 
@@ -1239,8 +1227,7 @@ impl Interpreter {
                 is_public,
                 ..
             } => {
-                println!("Executing proc declaration: {}", name);
-
+                tracing::debug!(proc_name = %name, "Executing proc declaration");
                 // Convert to a function with Unit return type
                 let function = Value::Function {
                     params: params
@@ -2179,9 +2166,9 @@ impl Interpreter {
                 statements,
                 final_expr,
             } => {
-                println!(
-                    "Evaluating block expression with {} statements",
-                    statements.len()
+                tracing::debug!(
+                    statement_count = statements.len(),
+                    "Evaluating block expression"
                 );
 
                 // Create new scope for the block
