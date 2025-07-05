@@ -18,6 +18,9 @@ pub enum VeldError {
 
     #[error("Module error: {0}")]
     ModuleError(String),
+
+    #[error("Native function error: {0}")]
+    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
 pub struct ErrorContext {

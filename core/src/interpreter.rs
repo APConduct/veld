@@ -161,7 +161,7 @@ impl Value {
 }
 
 #[derive(Debug, Default)]
-struct Scope {
+pub struct Scope {
     values: HashMap<String, Value>,
     var_kinds: HashMap<String, VarKind>,
     scope_level: usize,
@@ -194,6 +194,13 @@ impl Scope {
             Some(VarKind::Var) | Some(VarKind::LetMut) => true,
             _ => false,
         }
+    }
+
+    pub fn values(&self) -> Vec<(String, Value)> {
+        self.values
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 
     fn declare(&mut self, name: String, value: Value, kind: VarKind) -> Result<()> {
@@ -4837,7 +4844,7 @@ impl Interpreter {
         &mut self.scopes[0]
     }
 
-    fn current_scope_mut(&mut self) -> &mut Scope {
+    pub fn current_scope_mut(&mut self) -> &mut Scope {
         if self.scopes.is_empty() {
             let new_level = self.scopes.len();
             self.scopes.push(Scope::new(new_level));

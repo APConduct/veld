@@ -1735,7 +1735,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn expression(&mut self) -> Result<Expr> {
+    pub fn expression(&mut self) -> Result<Expr> {
         tracing::debug!("Expression: Starting...");
         self.recursive_depth += 1;
         if self.recursive_depth > 100 {
@@ -2717,7 +2717,7 @@ impl Parser {
     }
 
     fn parse_array_literal(&mut self) -> Result<Expr> {
-        tracing::info!("Parsing array literal");
+        tracing::debug!("Parsing array literal");
         let mut elements = Vec::new();
 
         // Empty array case

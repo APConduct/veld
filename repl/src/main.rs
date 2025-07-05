@@ -1,6 +1,6 @@
 mod repl;
 
-use crate::repl::Repl; // Add this line
+use crate::repl::Repl;
 use std::env;
 use std::fs;
 use veld_core::error::{Result, VeldError};
@@ -15,14 +15,13 @@ fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() == 1 {
-        // No arguments, run in REPL mode
-        // println!("Starting Veld in REPL mode...");
-        tracing::info!("Starting Veld in REPL mode...");
         let mut repl = Repl::new();
         repl.run()
+            .map_err(|e| veld_core::error::VeldError::RuntimeError(format!("{e}")))?;
+        Ok(())
     } else if args.len() == 2 {
         // One argument - interpret the file
-        return run_file(&args[1]);
+        run_file(&args[1])
     } else {
         println!("Usage: veld [filename]");
         println!("       veld           # Run in REPL mode");

@@ -9,5 +9,7 @@ chumsky = "0.9"            # For parsing (optional, you can use other parsing li
 thiserror = "1.0"          # For error handling
 tracing = "0.1"            # For tracing support
 tracing-subscriber = "0.3" # For tracing subscriber
+reedline = "0.27"          # For REPL functionality
+anyhow = "1.0"             # For error handling
 
 "veld-core" = { path = "../core" } # Path to your core library
