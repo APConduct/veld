@@ -251,7 +251,7 @@ impl ModuleManager {
                         if module_path.len() == 1 {
                             // Just "std" - map to stdlib/mod.veld
                             let mod_file = stdlib_dir.join("mod.veld");
-                            tracing::error!(
+                            tracing::debug!(
                                 "  Checking mod file: {:?} exists: {}",
                                 mod_file,
                                 mod_file.exists()
@@ -328,42 +328,42 @@ impl ModuleManager {
 
             // Try with .veld extension first (direct file)
             let veld_path = file_path.with_extension("veld");
-            tracing::error!(
+            tracing::debug!(
                 "  Checking file: {:?} exists: {}",
                 veld_path,
                 veld_path.exists()
             );
             if veld_path.exists() {
-                tracing::error!("  Found direct .veld file at: {:?}", veld_path);
+                tracing::info!("  Found direct .veld file at: {:?}", veld_path);
                 return Ok(veld_path);
             }
 
             // Try with /mod.veld
             let mod_path = file_path.join("mod.veld");
-            tracing::error!(
+            tracing::debug!(
                 "  Checking mod file: {:?} exists: {}",
                 mod_path,
                 mod_path.exists()
             );
             if mod_path.exists() {
-                tracing::error!("  Found mod.veld at: {:?}", mod_path);
+                tracing::info!("  Found mod.veld at: {:?}", mod_path);
                 return Ok(mod_path);
             }
 
             // Try with /init.veld
             let init_path = file_path.join("init.veld");
-            tracing::error!(
+            tracing::debug!(
                 "  Checking init file: {:?} exists: {}",
                 init_path,
                 init_path.exists()
             );
             if init_path.exists() {
-                tracing::error!("  Found init.veld at: {:?}", init_path);
+                tracing::info!("  Found init.veld at: {:?}", init_path);
                 return Ok(init_path);
             }
         }
 
-        tracing::error!("Module not found: {}", module_path.join("."));
+        tracing::debug!("Module not found: {}", module_path.join("."));
         Err(VeldError::RuntimeError(format!(
             "Module not found: {}",
             module_path.join(".")
