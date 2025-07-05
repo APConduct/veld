@@ -43,7 +43,7 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> Result<Vec<Statement>> {
-        tracing::info!("Parser: Starting parsing with {} tokens", self.tokens.len());
+        tracing::debug!("Parser: Starting parsing with {} tokens", self.tokens.len());
         let mut statements = Vec::new();
         let mut step_count = 0;
         const MAX_STEPS: usize = 1000;
@@ -65,7 +65,7 @@ impl Parser {
             statements.push(stmt);
         }
 
-        tracing::info!(
+        tracing::debug!(
             statement_count = statements.len(),
             "Parsing completed successfully"
         );
@@ -244,10 +244,10 @@ impl Parser {
     }
 
     fn function_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        tracing::info!("Function declaration: Starting");
+        tracing::debug!("Function declaration: Starting");
         let name = self.consume_identifier("Expected function name")?;
 
-        tracing::info!(name = %name, "Function declaration: Name");
+        tracing::debug!(name = %name, "Function declaration: Name");
         // Parse generic type parameters if present
         let generic_params = self.parse_generic_args_if_present()?;
 
@@ -552,7 +552,7 @@ impl Parser {
     }
 
     fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        tracing::info!("Struct declaration: Starting...");
+        tracing::debug!("Struct declaration: Starting...");
 
         let name = self.consume_identifier("Expected struct name")?;
         tracing::info!(name = %name, "Struct declaration: Name");
@@ -629,7 +629,7 @@ impl Parser {
             self.consume(&Token::End, "Expected 'end' after struct definition")?;
         }
 
-        tracing::info!("Struct declaration: Completed");
+        tracing::debug!("Struct declaration: Completed");
         Ok(Statement::StructDeclaration {
             name,
             fields: fields
@@ -1596,7 +1596,7 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<Statement> {
-        tracing::info!("if_statement: Starting parsing if statement");
+        tracing::debug!("if_statement: Starting parsing if statement");
 
         let condition = self.expression()?;
         self.consume(&Token::Then, "Expected 'then' after if condition")?;
@@ -1736,7 +1736,7 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expr> {
-        tracing::info!("Expression: Starting...");
+        tracing::debug!("Expression: Starting...");
         self.recursive_depth += 1;
         if self.recursive_depth > 100 {
             self.recursive_depth -= 1;
@@ -1754,7 +1754,7 @@ impl Parser {
         let result = self.pipeline();
         self.recursive_depth -= 1;
 
-        tracing::info!(?result, "Expression: Completed with result");
+        tracing::debug!(?result, "Expression: Completed with result");
         result
     }
 
@@ -1934,7 +1934,7 @@ impl Parser {
     }
 
     fn postfix(&mut self) -> Result<Expr> {
-        tracing::info!("Postfix: Starting...");
+        tracing::debug!("Postfix: Starting...");
         let mut expr = self.primary()?;
         tracing::debug!(?expr, "Postfix: Got primary expression");
 
@@ -2040,7 +2040,7 @@ impl Parser {
             }
         }
 
-        tracing::info!(?expr, "Postfix: Completed with result");
+        tracing::debug!(?expr, "Postfix: Completed with result");
         Ok(expr)
     }
     fn check_named_arguments(&self) -> bool {
@@ -2058,7 +2058,7 @@ impl Parser {
     }
 
     fn parse_named_arguments(&mut self) -> Result<Vec<Argument>> {
-        tracing::info!("Parsing named arguments");
+        tracing::debug!("Parsing named arguments");
         let mut args = Vec::new();
 
         while !self.check(&Token::RParen) {
@@ -2750,7 +2750,7 @@ impl Parser {
     }
 
     fn enum_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        tracing::info!("Parsing enum declaration...");
+        tracing::debug!("Parsing enum declaration...");
         let name = self.consume_identifier("Expected enum name after 'enum'")?;
 
         let mut variants = Vec::new();
@@ -2814,7 +2814,7 @@ impl Parser {
 
     fn kind_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         let name = self.consume_identifier("Expected kind name")?;
-        tracing::info!("Kind name: {}", name);
+        tracing::debug!("Kind name: {}", name);
 
         tracing::debug!(
             "Before parsing generic params, token: {:?}",

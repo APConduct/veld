@@ -257,7 +257,7 @@ impl ModuleManager {
                                 mod_file.exists()
                             );
                             if mod_file.exists() {
-                                tracing::info!("  Found mod.veld at: {:?}", mod_file);
+                                tracing::debug!("  Found mod.veld at: {:?}", mod_file);
                                 return Ok(mod_file);
                             }
 
@@ -268,7 +268,7 @@ impl ModuleManager {
                                 init_file.exists()
                             );
                             if init_file.exists() {
-                                tracing::info!("  Found init.veld at: {:?}", init_file);
+                                tracing::debug!("  Found init.veld at: {:?}", init_file);
                                 return Ok(init_file);
                             }
                         } else {
@@ -286,7 +286,7 @@ impl ModuleManager {
                                 veld_file.exists()
                             );
                             if veld_file.exists() {
-                                tracing::info!("  Found direct .veld file at: {:?}", veld_file);
+                                tracing::debug!("  Found direct .veld file at: {:?}", veld_file);
                                 return Ok(veld_file);
                             }
 
@@ -298,7 +298,7 @@ impl ModuleManager {
                                 mod_file.exists()
                             );
                             if mod_file.exists() {
-                                tracing::info!("  Found mod.veld at: {:?}", mod_file);
+                                tracing::debug!("  Found mod.veld at: {:?}", mod_file);
                                 return Ok(mod_file);
                             }
 
@@ -310,7 +310,7 @@ impl ModuleManager {
                                 init_file.exists()
                             );
                             if init_file.exists() {
-                                tracing::info!("  Found init.veld at: {:?}", init_file);
+                                tracing::debug!("  Found init.veld at: {:?}", init_file);
                                 return Ok(init_file);
                             }
                         }
@@ -334,7 +334,7 @@ impl ModuleManager {
                 veld_path.exists()
             );
             if veld_path.exists() {
-                tracing::info!("  Found direct .veld file at: {:?}", veld_path);
+                tracing::debug!("  Found direct .veld file at: {:?}", veld_path);
                 return Ok(veld_path);
             }
 
@@ -346,7 +346,7 @@ impl ModuleManager {
                 mod_path.exists()
             );
             if mod_path.exists() {
-                tracing::info!("  Found mod.veld at: {:?}", mod_path);
+                tracing::debug!("  Found mod.veld at: {:?}", mod_path);
                 return Ok(mod_path);
             }
 
@@ -358,7 +358,7 @@ impl ModuleManager {
                 init_path.exists()
             );
             if init_path.exists() {
-                tracing::info!("  Found init.veld at: {:?}", init_path);
+                tracing::debug!("  Found init.veld at: {:?}", init_path);
                 return Ok(init_path);
             }
         }
