@@ -1,9 +1,9 @@
-use veld_core::error::{ErrorContext, Result, VeldError, VeldErrorWithContext, ContextResult};
+use std::collections::HashMap;
+use std::io::{self, Write};
+use veld_core::error::{ContextResult, ErrorContext, Result, VeldError, VeldErrorWithContext};
 use veld_core::interpreter::Interpreter;
 use veld_core::lexer::Lexer;
 use veld_core::parser::Parser;
-use std::io::{self, Write};
-use std::collections::HashMap;
 
 pub struct Repl {
     interpreter: Interpreter,
@@ -17,7 +17,7 @@ impl Repl {
         let mut variables = HashMap::new();
         variables.insert("multiline_mode".to_string(), "block".to_string());
         variables.insert("debug".to_string(), "false".to_string());
-        
+
         Self {
             interpreter: Interpreter::new("../.."),
             history: Vec::new(),
@@ -38,9 +38,9 @@ impl Repl {
             // Display appropriate prompt
             if multi_line_mode {
                 let indent = " ".repeat(current_indent);
-                print!("...{}", indent);
+                print!("❧{}", indent);
             } else {
-                print!("[{}]>", self.line_number);
+                print!("𝕍[{}]>", self.line_number);
             }
             io::stdout().flush().unwrap();
 
@@ -57,19 +57,24 @@ impl Repl {
             if multi_line_mode && line.trim().is_empty() {
                 multi_line_mode = false;
                 self.line_number += 1;
-                
-                if self.get_var("multiline_mode") == "block" && !input_buffer.trim_end().ends_with("end") {
+
+                if self.get_var("multiline_mode") == "block"
+                    && !input_buffer.trim_end().ends_with("end")
+                {
                     input_buffer.push_str("\nend");
                 }
-                
-                let result = self.evaluate_input(&input_buffer, self.line_number - input_buffer.lines().count());
+
+                let result = self.evaluate_input(
+                    &input_buffer,
+                    self.line_number - input_buffer.lines().count(),
+                );
                 self.handle_result(result);
                 input_buffer.clear();
                 current_indent = 0;
                 continue;
             }
-            
-            if !multi_line_mode && line.starts_with(':') { 
+
+            if !multi_line_mode && line.starts_with(':') {
                 self.handle_command(&line[1..].trim());
                 continue;
             }
@@ -100,27 +105,30 @@ impl Repl {
                         multi_line_mode = true;
                         continue;
                     }
-                    
+
                     // Track indentation for multi-line mode
-                    if multi_line_mode { 
+                    if multi_line_mode {
                         if line.trim().starts_with("end") || line.trim().starts_with("else") {
                             current_indent = current_indent.saturating_sub(2);
                         }
                     }
 
                     // Add to current buffer
-                    if multi_line_mode{
+                    if multi_line_mode {
                         input_buffer.push_str(line);
                         input_buffer.push('\n');
-                        
+
                         // Adjust indentation for next line
-                        if line.trim().ends_with("then") || line.trim().ends_with("do") || line.trim().ends_with("=") {
+                        if line.trim().ends_with("then")
+                            || line.trim().ends_with("do")
+                            || line.trim().ends_with("=")
+                        {
                             current_indent += 2;
-                        } else { 
+                        } else {
                             input_buffer.push_str(line)
                         }
                     }
-                    
+
                     // Check for syntax that suggests multi-line input
                     if !multi_line_mode && self.is_incomplete(&input_buffer) {
                         multi_line_mode = true;
@@ -146,16 +154,20 @@ impl Repl {
         Ok(())
     }
 
-    fn evaluate_input(&mut self, input: &str, start_line: usize) -> ContextResult<veld_core::interpreter::Value> {
-       // If debug is enabled, show the input
+    fn evaluate_input(
+        &mut self,
+        input: &str,
+        start_line: usize,
+    ) -> ContextResult<veld_core::interpreter::Value> {
+        // If debug is enabled, show the input
         if self.get_var("debug") == "true" {
             println!("DEBUG: Evaluating input:\n{}", input);
         }
-        
+
         // Lexical analysis
         let mut lexer = Lexer::new(input);
         let tokens_result = lexer.collect_tokens();
-        
+
         let tokens = match tokens_result {
             Ok(tokens) => tokens,
             Err(e) => {
@@ -167,12 +179,12 @@ impl Repl {
                 }));
             }
         };
-        
+
         // Parsing
         let mut parser = Parser::new(tokens);
         let statements_result = parser.parse();
-        
-        let statements = match statements_result { 
+
+        let statements = match statements_result {
             Ok(statements) => statements,
             Err(e) => {
                 // Add context to parser errors
@@ -193,25 +205,25 @@ impl Repl {
                         line_count += 1;
                     }
                     0
-                } else { 
+                } else {
                     0
                 };
-                
+
                 // Fallback for if we can't determine position
-                return Err(e.with_context(ErrorContext{
+                return Err(e.with_context(ErrorContext {
                     line: start_line,
                     column: 0,
                     source_line: input.lines().next().unwrap_or("").to_string(),
                 }));
             }
         };
-        
+
         // Interpolation
         match self.interpreter.interpret(statements) {
             Ok(result) => Ok(result),
             Err(e) => {
                 // Add basic context to runtime errors
-                Err(e.with_context(ErrorContext{
+                Err(e.with_context(ErrorContext {
                     line: start_line,
                     column: 0, // Runtime errors may not have position info
                     source_line: input.lines().next().unwrap_or("").to_string(),
@@ -219,8 +231,11 @@ impl Repl {
             }
         }
     }
-    
-    fn handle_result(&self, result: std::result::Result<veld_core::interpreter::Value, VeldErrorWithContext>) {
+
+    fn handle_result(
+        &self,
+        result: std::result::Result<veld_core::interpreter::Value, VeldErrorWithContext>,
+    ) {
         match result {
             Ok(value) => {
                 // Format the output nicely basely based on value type
@@ -240,40 +255,60 @@ impl Repl {
             veld_core::interpreter::Value::Float(f) => println!("=> \x1B[33m{}\x1B[0m", f), // Yellow
             veld_core::interpreter::Value::Boolean(b) => println!("=> \x1B[35m{}\x1B[0m", b), // Magenta
             veld_core::interpreter::Value::String(s) => println!("=> \x1B[32m\"{}\"\x1B[0m", s), // Green
-            veld_core::interpreter::Value::Function { .. } => println!("=> \x1B[36m<function>\x1B[0m"), // Cyan
+            veld_core::interpreter::Value::Function { .. } => {
+                println!("=> \x1B[36m<function>\x1B[0m")
+            } // Cyan
             veld_core::interpreter::Value::Array(elements) => {
-                println!("=> \x1B[34m[{}]\x1B[0m", // Blue for arrays
-                         elements.iter()
-                             .map(|v| self.value_to_string(v))
-                             .collect::<Vec<_>>()
-                             .join(", "));
-            },
-            veld_core::interpreter::Value::Struct { name, fields } => {
-                println!("=> \x1B[36m{}:\x1B[0m {{\n    {}\n}}", name,
-                         fields.iter().map(|(k, v)| format!("{}: {}", k, self.value_to_string(v)))
-                             .collect::<Vec<_>>().join(",\n    ")
+                println!(
+                    "=> \x1B[34m[{}]\x1B[0m", // Blue for arrays
+                    elements
+                        .iter()
+                        .map(|v| self.value_to_string(v))
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 );
-            },
+            }
+            veld_core::interpreter::Value::Struct { name, fields } => {
+                println!(
+                    "=> \x1B[36m{}:\x1B[0m {{\n    {}\n}}",
+                    name,
+                    fields
+                        .iter()
+                        .map(|(k, v)| format!("{}: {}", k, self.value_to_string(v)))
+                        .collect::<Vec<_>>()
+                        .join(",\n    ")
+                );
+            }
             veld_core::interpreter::Value::Tuple(elements) => {
-                println!("=> \x1B[34m({})\x1B[0m", // Blue for tuples
-                         elements.iter()
-                             .map(|v| self.value_to_string(v))
-                             .collect::<Vec<_>>()
-                             .join(", "));
-            },
-            veld_core::interpreter::Value::Enum { enum_name, variant_name, fields } => {
+                println!(
+                    "=> \x1B[34m({})\x1B[0m", // Blue for tuples
+                    elements
+                        .iter()
+                        .map(|v| self.value_to_string(v))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+            }
+            veld_core::interpreter::Value::Enum {
+                enum_name,
+                variant_name,
+                fields,
+            } => {
                 if fields.is_empty() {
                     println!("=> \x1B[35m{}.{}\x1B[0m", enum_name, variant_name);
                 } else {
-                    println!("=> \x1B[35m{}.{}({})\x1B[0m",
-                             enum_name,
-                             variant_name,
-                             fields.iter()
-                                 .map(|v| self.value_to_string(v))
-                                 .collect::<Vec<_>>()
-                                 .join(", "));
+                    println!(
+                        "=> \x1B[35m{}.{}({})\x1B[0m",
+                        enum_name,
+                        variant_name,
+                        fields
+                            .iter()
+                            .map(|v| self.value_to_string(v))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
                 }
-            },
+            }
             _ => println!("=> {:?}", value),
         }
     }
@@ -287,11 +322,9 @@ impl Repl {
             veld_core::interpreter::Value::Function { .. } => "<function>".to_string(),
             veld_core::interpreter::Value::Struct { name, .. } => format!("<{}>", name),
             veld_core::interpreter::Value::Array(elements) => {
-                let items: Vec<String> = elements.iter()
-                    .map(|e| self.value_to_string(e))
-                    .collect();
+                let items: Vec<String> = elements.iter().map(|e| self.value_to_string(e)).collect();
                 format!("[{}]", items.join(", "))
-            },
+            }
             _ => format!("{:?}", value),
         }
     }
@@ -309,7 +342,6 @@ impl Repl {
         println!("  :type [expr]   - Show type of expression");
     }
 
-
     fn show_history(&self) {
         println!("Command history:");
         for (i, cmd) in self.history.iter().enumerate() {
@@ -320,9 +352,11 @@ impl Repl {
     fn is_incomplete(&self, input: &str) -> bool {
         // Simple heuristic - if a line ends with these tokens, it likely continues
         let trimmed = input.trim();
-        trimmed.ends_with("=") || trimmed.ends_with("then") ||
-            trimmed.ends_with("do") || trimmed.ends_with("else") ||
-            (trimmed.contains("fn") && !trimmed.contains("end"))
+        trimmed.ends_with("=")
+            || trimmed.ends_with("then")
+            || trimmed.ends_with("do")
+            || trimmed.ends_with("else")
+            || (trimmed.contains("fn") && !trimmed.contains("end"))
     }
 
     fn handle_command(&mut self, cmd: &str) {
@@ -353,11 +387,13 @@ impl Repl {
 
                 match parts[1].trim() {
                     "on" | "true" => {
-                        self.variables.insert("debug".to_string(), "true".to_string());
+                        self.variables
+                            .insert("debug".to_string(), "true".to_string());
                         println!("Debug mode enabled");
                     }
                     "off" | "false" => {
-                        self.variables.insert("debug".to_string(), "false".to_string());
+                        self.variables
+                            .insert("debug".to_string(), "false".to_string());
                         println!("Debug mode disabled");
                     }
                     _ => println!("Usage: :debug on|off"),
