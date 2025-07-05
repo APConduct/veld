@@ -9,6 +9,8 @@ use veld_core::lexer::Lexer;
 use veld_core::parser::Parser;
 
 fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     // Get command line arguments
     let args: Vec<String> = env::args().collect();
 

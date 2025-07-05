@@ -144,6 +144,9 @@ impl Value {
     }
 
     pub fn perform_binary_op(&self, op: &BinaryOperator, rhs: &Value) -> Result<Value> {
+        let span = tracing::debug_span!("binary_op", op = ?op, lhs = ?self, rhs = ?rhs);
+        let _enter = span.enter();
+
         match (self, rhs) {
             (Value::Numeric(a), Value::Numeric(b)) => {
                 Ok(Value::Numeric(a.perform_operation(op, b)?))
@@ -194,6 +197,9 @@ impl Scope {
     }
 
     fn declare(&mut self, name: String, value: Value, kind: VarKind) -> Result<()> {
+        let span = tracing::debug_span!("declare_variable", name = %name, kind = ?kind);
+        let _enter = span.enter();
+
         // Check for const reassignment
         if let Some(existing_kind) = self.var_kinds.get(&name) {
             match existing_kind {
@@ -222,6 +228,11 @@ impl Scope {
     }
 
     fn assign(&mut self, name: &str, value: Value) -> Result<()> {
+        let span = tracing::debug_span!("declare_variable",
+            name = %name,
+        );
+        let _enter = span.enter();
+
         match self.var_kinds.get(name) {
             Some(VarKind::Var | VarKind::LetMut) => {
                 self.values.insert(name.to_string(), value);
@@ -259,6 +270,9 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
+        let span = tracing::info_span!("interpreter_new", root_dir = ?root_dir.as_ref());
+        let _enter = span.enter();
+
         let mut interpreter = Self {
             scopes: vec![Scope::new(0)],
             structs: HashMap::new(),
@@ -279,6 +293,9 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<Value> {
+        let span = tracing::info_span!("interpret", statement_count = statements.len());
+        let _enter = span.enter();
+
         tracing::info!(
             statement_count = statements.len(),
             "Starting interpretation"
@@ -304,6 +321,9 @@ impl Interpreter {
     }
 
     fn initialize_std_modules(&mut self) {
+        let span = tracing::info_span!("initialize_std_modules");
+        let _enter = span.enter();
+
         // Find and register the stdlib path
         let exe_path = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe_path.parent().unwrap_or_else(|| Path::new("."));
@@ -982,10 +1002,22 @@ impl Interpreter {
         let mut free_vars = HashSet::new();
         self.collect_free_variables_expr(&body, &bound_vars, &mut free_vars);
 
+        // Start a span for lambda creation
+        let span = tracing::debug_span!(
+            "create_lambda",
+            params = ?params.iter().map(|(n, _)| n).collect::<Vec<_>>(),
+            free_var_count = free_vars.len()
+        );
+        let _enter = span.enter();
+
         // Capture the current values of free variables
         let captured_vars = self.capture_variables(&free_vars);
 
-        tracing::debug!(captured = ?captured_vars.keys().collect::<Vec<_>>(), "Lambda created with captured variables");
+        tracing::debug!(
+            captured = ?captured_vars.keys().collect::<Vec<_>>(),
+            captured_count = captured_vars.len(),
+            "Lambda created with captured variables"
+        );
 
         let actual_return_type = match return_type {
             Some(type_anno) => type_anno,
@@ -1032,10 +1064,22 @@ impl Interpreter {
             self.collect_free_variables_stmt(stmt, &bound_vars, &mut free_vars);
         }
 
+        // Start a span for block lambda creation
+        let span = tracing::debug_span!(
+            "create_block_lambda",
+            params = ?params.iter().map(|(n, _)| n).collect::<Vec<_>>(),
+            free_var_count = free_vars.len()
+        );
+        let _enter = span.enter();
+
         // Capture the current values of free variables
         let captured_vars = self.capture_variables(&free_vars);
 
-        tracing::debug!(captured = ?captured_vars.keys().collect::<Vec<_>>(), "Block lambda created with captured variables");
+        tracing::debug!(
+            captured = ?captured_vars.keys().collect::<Vec<_>>(),
+            captured_count = captured_vars.len(),
+            "Block lambda created with captured variables"
+        );
 
         let actual_return_type = return_type.unwrap_or(TypeAnnotation::Unit);
 
@@ -1113,6 +1157,9 @@ impl Interpreter {
     }
 
     fn execute_statement(&mut self, statement: Statement) -> Result<Value> {
+        let span = tracing::debug_span!("execute_statement", statement = ?statement);
+        let _enter = span.enter();
+
         tracing::debug!(?statement, "Executing statement");
         match statement {
             Statement::VariableDeclaration {
@@ -1129,6 +1176,9 @@ impl Interpreter {
                 body,
                 ..
             } => {
+                let span = tracing::info_span!("function_declaration", name = %name);
+                let _enter = span.enter();
+
                 let processed_body = if !body.is_empty() {
                     // If we don't have any explicit returns and the last statement is an expression,
                     // convert it to a return
@@ -1195,6 +1245,9 @@ impl Interpreter {
                 Ok(Value::Return(Box::new(val)))
             }
             Statement::BlockScope { body } => {
+                let span = tracing::debug_span!("block_scope", statement_count = body.len());
+                let _enter = span.enter();
+
                 tracing::debug!(statement_count = body.len(), "Executing block scope");
                 // Create new scope for the block
                 self.push_scope();
@@ -2166,6 +2219,10 @@ impl Interpreter {
                 statements,
                 final_expr,
             } => {
+                let span =
+                    tracing::debug_span!("block_expression", statement_count = statements.len());
+                let _enter = span.enter();
+
                 tracing::debug!(
                     statement_count = statements.len(),
                     "Evaluating block expression"
