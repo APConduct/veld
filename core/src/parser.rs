@@ -369,7 +369,7 @@ impl Parser {
     }
 
     fn lambda_expression(&mut self) -> Result<Expr> {
-        tracing::info!("Lambda expression: Starting parsing");
+        tracing::debug!("Lambda expression: Starting parsing");
         let mut params = Vec::new();
         let mut return_type_anno: Option<TypeAnnotation> = None;
         let mut is_block_demi = false;
@@ -505,7 +505,7 @@ impl Parser {
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
     ) -> Result<Expr> {
-        tracing::info!("Parsing block lambda with {} parameters", params.len());
+        tracing::debug!("Parsing block lambda with {} parameters", params.len());
 
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
@@ -651,7 +651,7 @@ impl Parser {
     }
 
     fn proc_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        tracing::info!("Proc declaration: Starting...");
+        tracing::debug!("Proc declaration: Starting...");
         let name = self.consume_identifier("Expected procedure name")?;
 
         self.consume(&Token::LParen, "Expected '(' after procedure name")?;
@@ -2188,7 +2188,7 @@ impl Parser {
     }
 
     fn parse_block_expression(&mut self) -> Result<Expr> {
-        tracing::info!("Parsing block expression");
+        tracing::debug!("Parsing block expression");
 
         let mut statements = Vec::new();
         let mut final_expr = None;
@@ -2282,7 +2282,7 @@ impl Parser {
 
     // Parse if expression: if condition then expr else expr end
     fn parse_if_expression(&mut self) -> Result<Expr> {
-        tracing::info!("Parsing if expression");
+        tracing::debug!("Parsing if expression");
 
         // Parse condition (we already consumed 'if')
         let condition = self.expression()?;
