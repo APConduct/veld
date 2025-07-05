@@ -38,9 +38,9 @@ impl Repl {
             // Display appropriate prompt
             if multi_line_mode {
                 let indent = " ".repeat(current_indent);
-                print!("❧{}", indent);
+                print!("❧ {}", indent);
             } else {
-                print!("𝕍[{}]>", self.line_number);
+                print!("𝕍[{}]> ", self.line_number);
             }
             io::stdout().flush().unwrap();
 
