@@ -185,6 +185,10 @@ pub enum Token {
     RDoubleBracket,
     #[token("<-")]
     LeftArrow,
+    #[token("$")]
+    Dollar,
+    #[token(":expr")]
+    ExprFragment,
 }
 
 pub struct Lexer<'a> {

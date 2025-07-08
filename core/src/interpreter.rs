@@ -720,6 +720,9 @@ impl Interpreter {
             Expr::SelfReference => {
                 // 'self' is always bound in a method context, so it does not contribute to free variables.
             }
+            Expr::MacroVar(_name) => {
+                // Macro variables are not considered free variables in this context.
+            }
             Expr::Identifier(name) => {
                 if !bound_vars.contains(name) {
                     free_vars.insert(name.clone());
@@ -1863,6 +1866,14 @@ impl Interpreter {
 
     fn evaluate_expression(&mut self, expr: Expr) -> Result<Value> {
         match expr {
+            Expr::MacroVar(ref name) => {
+                // TODO: Implement macro variable lookup in macro expansion context.
+                // For now, return an error.
+                return Err(VeldError::RuntimeError(format!(
+                    "Macro variable ${} not supported in interpreter (implement macro expansion context lookup)",
+                    name
+                )));
+            }
             Expr::SelfReference => self
                 .get_variable("self")
                 .ok_or_else(|| VeldError::RuntimeError("self not found".to_string())),

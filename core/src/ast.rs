@@ -147,6 +147,8 @@ pub enum Expr {
         arguments: Vec<Expr>,
     },
 
+    MacroVar(String), // For $identifier in macro expansions
+
     TypeCast {
         expr: Box<Expr>,
         target_type: TypeAnnotation,

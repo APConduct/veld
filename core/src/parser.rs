@@ -80,6 +80,10 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Statement> {
+        println!(
+            "DEBUG declaration() called: current token: {:?}",
+            self.peek()
+        );
         if self.is_declaration_keyword() {
             self.variable_declaration()
         } else if self.match_token(&[Token::Enum]) {
@@ -160,8 +164,24 @@ impl Parser {
             }
             self.consume(&Token::End, "Expected 'end' after macro expansion")?;
         } else {
-            statements.push(self.declaration()?);
+            // Try to parse a declaration; if that fails, parse an expression as a statement
+            if let Ok(stmt) = self.declaration() {
+                statements.push(stmt);
+            } else if self.is_start_of_expression() {
+                let expr = self.expression()?;
+                statements.push(Statement::ExprStatement(expr));
+                // Do not expect a specific terminator here; allow the macro pattern loop to handle commas/semicolons
+                return Ok(MacroExpansion(statements));
+            } else {
+                return Err(VeldError::ParserError(
+                    "Expected statement or expression in macro expansion".to_string(),
+                ));
+            }
         }
+        println!(
+            "DEBUG at end of parse_macro_expansion: current token: {:?}",
+            self.peek()
+        );
         Ok(MacroExpansion(statements))
     }
 
@@ -171,34 +191,32 @@ impl Parser {
 
         let name = self.consume_identifier("Expected macro name")?;
 
-        // Check for pattern matching style macro
-        if self.match_token(&[Token::Do]) {
-            // Parse pattern matching macro rules
+        // If the next token is LParen, treat as pattern-matching macro (Veld style)
+        if self.check(&Token::LParen) {
             let mut patterns = Vec::new();
-
             while !self.check(&Token::End) && !self.is_at_end() {
+                // Skip any commas or semicolons before parsing the next pattern
+                while self.match_token(&[Token::Comma]) || self.match_token(&[Token::Semicolon]) {}
+                if self.check(&Token::End) || self.is_at_end() {
+                    break;
+                }
                 // Parse pattern
                 let pattern = self.parse_macro_pattern()?;
-
                 // Parse fat arrow and expansion
                 self.consume(&Token::FatArrow, "Expected '=>' after macro pattern")?;
                 let expansion = self.parse_macro_expansion()?;
-
                 patterns.push((pattern, expansion));
-
-                // Optional separator between patterns
-                self.match_token(&[Token::Semicolon]);
+                // Optional separator between patterns (comma or semicolon)
+                while self.match_token(&[Token::Comma]) || self.match_token(&[Token::Semicolon]) {}
             }
-
             self.consume(&Token::End, "Expected 'end' after macro patterns")?;
-
             Ok(Statement::MacroDeclaration {
                 name,
                 patterns,
                 body: None,
             })
         } else {
-            // Parse simple macro with signature and body
+            // Parse simple macro with signature and body (legacy/alternate form)
             self.consume(&Token::LParen, "Expected '(' after macro name")?;
 
             let mut params = Vec::new();
@@ -218,20 +236,22 @@ impl Parser {
             // Parse macro body as arbitrary statements
             let mut body = Vec::new();
 
-            // Support both '=' and 'do' syntax for macro bodies
-            if self.match_token(&[Token::Equals]) {
-                // Single expression macro body with '='
-                let expr = self.expression()?;
-                body.push(Statement::ExprStatement(expr));
-            } else if self.match_token(&[Token::Do]) {
-                // Multiple statements macro body with 'do'/'end'
-                while !self.check(&Token::End) && !self.is_at_end() {
-                    body.push(self.declaration()?);
+            // Support '=>' for macro bodies (Veld macro syntax)
+            if self.match_token(&[Token::FatArrow]) {
+                if self.match_token(&[Token::Do]) {
+                    // Multiple statements macro body with 'do'/'end'
+                    while !self.check(&Token::End) && !self.is_at_end() {
+                        body.push(self.declaration()?);
+                    }
+                    self.consume(&Token::End, "Expected 'end' after macro body")?;
+                } else {
+                    // Single expression macro body with '=>'
+                    let expr = self.expression()?;
+                    body.push(Statement::ExprStatement(expr));
                 }
-                self.consume(&Token::End, "Expected 'end' after macro body")?;
             } else {
                 return Err(VeldError::ParserError(
-                    "Expected '=' or 'do' after macro parameters".to_string(),
+                    "Expected '=>' after macro parameters".to_string(),
                 ));
             }
 
@@ -1390,7 +1410,11 @@ impl Parser {
     fn variable_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         // Determine the variable kind
         let var_kind = if self.match_token(&[Token::Let]) {
-            VarKind::Let
+            if self.match_token(&[Token::Mut]) {
+                VarKind::LetMut
+            } else {
+                VarKind::Let
+            }
         } else if self.match_token(&[Token::Var]) {
             VarKind::Var
         } else if self.match_token(&[Token::Const]) {
@@ -1468,6 +1492,7 @@ impl Parser {
             "Parsing statement, current token: {:?}",
             self.tokens.get(self.current)
         );
+        println!("DEBUG statement() called: current token: {:?}", self.peek());
 
         if self.check(&Token::Tilde) {
             return self.parse_macro_invocation();
@@ -2210,6 +2235,17 @@ impl Parser {
         if self.match_token(&[Token::Do]) {
             // Parse block expression: do statements... [expr] end
             return self.parse_block_expression();
+        }
+
+        // Parse macro variable reference: $identifier
+        if self.match_token(&[Token::Dollar]) {
+            if let Token::Identifier(name) = self.advance() {
+                return Ok(Expr::MacroVar(name));
+            } else {
+                return Err(VeldError::ParserError(
+                    "Expected identifier after '$'".to_string(),
+                ));
+            }
         }
 
         if self.match_token(&[Token::If]) {
@@ -3091,6 +3127,7 @@ mod tests {
     fn parse_code(input: &str) -> Vec<Statement> {
         let mut lexer = Lexer::new(input);
         let tokens = lexer.collect_tokens().unwrap();
+        println!("DEBUG MACRO TOKENS: {:?}", tokens);
         let mut parser = Parser::new(tokens);
         parser.parse().unwrap()
     }
@@ -3701,7 +3738,7 @@ mod tests {
         }
     }
 
-    #[ignore = "Macro declaration is not fully fleshed out."]
+    // #[ignore = "Macro declaration is not fully fleshed out."]
     #[test]
     fn test_macro_declaration() {
         let input = r#"
