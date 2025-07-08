@@ -135,8 +135,8 @@ end
 
 # Enum type
 enum Result<T, E>
-    Ok(T),
-    Err(E),
+    Ok(T)
+    Err(E)
 end
 
 # Using enum

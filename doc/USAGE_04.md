@@ -433,15 +433,15 @@ enum Direction(North, South, East, West)
 
 # Enum with associated data
 enum Shape
-    Circle(f64),              # radius
-    Rectangle(f64, f64),      # width, height
-    Triangle(f64, f64, f64),  # sides
+    Circle(f64)               # radius
+    Rectangle(f64, f64)       # width, height
+    Triangle(f64, f64, f64)   # sides
 end
 
 # Generic enum
 enum Result<T, E>
-    Ok(T),
-    Err(E),
+    Ok(T)
+    Err(E)
 end
 
 # Pattern matching
@@ -467,10 +467,10 @@ end
 
 # Using enums for state machines
 enum ConnectionState
-    Disconnected,
-    Connecting,
-    Connected(str),  # IP address
-    Failed(str),     # Error message
+    Disconnected
+    Connecting
+    Connected(str)   # IP address
+    Failed(str)      # Error message
 end
 
 let state = ConnectionState.Connected("192.168.1.1")
