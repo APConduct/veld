@@ -80,10 +80,6 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Statement> {
-        println!(
-            "DEBUG declaration() called: current token: {:?}",
-            self.peek()
-        );
         if self.is_declaration_keyword() {
             self.variable_declaration()
         } else if self.match_token(&[Token::Enum]) {
@@ -178,10 +174,6 @@ impl Parser {
                 ));
             }
         }
-        println!(
-            "DEBUG at end of parse_macro_expansion: current token: {:?}",
-            self.peek()
-        );
         Ok(MacroExpansion(statements))
     }
 
@@ -1385,6 +1377,7 @@ impl Parser {
     }
 
     fn consume(&mut self, token: &Token, message: &str) -> Result<Token> {
+        println!("Consuming token: {:?}", token);
         if self.check(token) {
             Ok(self.advance())
         } else {
@@ -1393,6 +1386,7 @@ impl Parser {
     }
 
     fn consume_identifier(&mut self, message: &str) -> Result<String> {
+        println!("Consuming identifier");
         match self.advance() {
             Token::Identifier(s) => Ok(s),
             _ => Err(VeldError::ParserError(message.to_string())),
@@ -1400,6 +1394,7 @@ impl Parser {
     }
 
     fn consume_parameter_name(&mut self, message: &str) -> Result<String> {
+        println!("Consuming parameter name");
         match self.advance() {
             Token::Identifier(s) => Ok(s),
             Token::SelfToken => Ok("self".to_string()),
@@ -1518,6 +1513,9 @@ impl Parser {
         } else {
             // Try to parse as expression statement
             let expr = self.expression()?;
+            println!("DEBUG expression parsed: {:?}", expr);
+            // Print token after expression
+            println!("DEBUG token after expression: {:?}", self.peek());
             Ok(Statement::ExprStatement(expr))
         }
     }
@@ -1569,7 +1567,6 @@ impl Parser {
 
             if !self.check(&Token::RParen) {
                 loop {
-                    println!("parse_match_pattern: Current token: {:?}", self.peek());
                     let field_name =
                         self.consume_identifier("Expected field name in struct pattern")?;
                     println!("parse_match_pattern: Parsed field_name: {}", field_name);
@@ -1623,7 +1620,7 @@ impl Parser {
                 None
             };
 
-            self.consume(&Token::FatArrow, "Expeected '=>' after match pattern")?;
+            self.consume(&Token::FatArrow, "Expected '=>' after match pattern")?;
             let body = if self.match_token(&[Token::Do]) {
                 // Parse statements until 'end', allowing a final expression before 'end'
                 let mut statements = Vec::new();
@@ -1634,12 +1631,16 @@ impl Parser {
                     if self.is_start_of_expression()
                         && self.tokens.get(self.current + 1) == Some(&Token::End)
                     {
+                        println!("I think this is a final expression (first check)");
                         final_expr = Some(Box::new(self.expression()?));
                         break;
                     }
                     if let Ok(stmt) = self.statement() {
+                        println!("I think this is a statement");
+
                         statements.push(stmt);
                     } else {
+                        println!("I think this is a final expression");
                         // Only try to parse a final expression if the next token can start an expression
                         if !self.check(&Token::End) && self.is_start_of_expression() {
                             final_expr = Some(Box::new(self.expression()?));
@@ -1807,6 +1808,7 @@ impl Parser {
 
     fn pipeline(&mut self) -> Result<Expr> {
         let mut expr = self.logical()?;
+        println!("Here is the logical expression: {:?}", expr);
 
         while self.match_token(&[Token::Pipe]) {
             let right = self.logical()?;
@@ -1836,6 +1838,8 @@ impl Parser {
         }
 
         let result = self.pipeline();
+        println!("Here is the pipeline result: {:?}", result);
+
         self.recursive_depth -= 1;
 
         tracing::debug!(?result, "Expression: Completed with result");
@@ -1921,6 +1925,7 @@ impl Parser {
 
     fn logical(&mut self) -> Result<Expr> {
         let mut expr = self.comparison()?;
+        println!("Here is the comparison: {:?}", expr);
 
         while self.match_token(&[Token::And, Token::Or]) {
             let operator = match self.previous() {
@@ -2014,13 +2019,19 @@ impl Parser {
         }
 
         // If no unary operator, delegate to postfix
-        self.postfix()
+        let pos = self.postfix();
+        println!("Unary: Completed with result: {:?}", pos);
+        pos
     }
 
     fn postfix(&mut self) -> Result<Expr> {
         tracing::debug!("Postfix: Starting...");
+        println!("Postfix: Starting...");
+
         let mut expr = self.primary()?;
+
         tracing::debug!(?expr, "Postfix: Got primary expression");
+        println!("Postfix: Got primary expression: {:?}", expr);
 
         loop {
             if self.is_at_end() {
@@ -2144,7 +2155,8 @@ impl Parser {
                         };
                     }
                 }
-            } else if self.match_token(&[Token::LParen]) && matches!(expr, Expr::Identifier(_)) {
+            } else if self.check(&Token::LParen) && matches!(expr, Expr::Identifier(_)) {
+                self.advance(); // now consume LParen
                 // Function call
                 if let Expr::Identifier(name) = expr {
                     tracing::debug!(name = %name, "Postfix: Function call");
@@ -2274,8 +2286,11 @@ impl Parser {
             // Parse if expression: if condition then expr [else expr] end
             return self.parse_if_expression();
         }
+        println!("About to check for left parenthesis");
+        println!("Next token is {:?}", self.peek());
 
         if self.match_token(&[Token::LParen]) {
+            println!("found left parenthesis");
             // Empty tuple or grouped expression
             if self.match_token(&[Token::RParen]) {
                 return Ok(Expr::UnitLiteral);
@@ -2375,12 +2390,27 @@ impl Parser {
         let mut final_expr = None;
 
         while !self.check(&Token::End) && !self.is_at_end() {
+            println!(
+                "DEBUG block parsing loop: current token at start of iteration: {:?}",
+                self.peek()
+            );
             // Look ahead to see if this might be the final expression
             if self.is_likely_final_expression() {
                 final_expr = Some(Box::new(self.expression()?));
+                println!(
+                    "DEBUG after parsing final_expr in block, current token: {:?}",
+                    self.peek()
+                );
                 break;
-            } else {
+            } else if self.check_statement_start() {
                 statements.push(self.statement()?);
+                println!(
+                    "DEBUG after parsing statement in block, current token: {:?}",
+                    self.peek()
+                );
+            } else {
+                // Unexpected token, break out of the block parsing loop
+                break;
             }
         }
 
@@ -2395,7 +2425,12 @@ impl Parser {
     fn is_likely_final_expression(&self) -> bool {
         // Heuristic: if the next token after this line would be 'end',
         // then this is likely the final expression
+        println!(
+            "DEBUG is_likely_final_expression: checking token {:?}",
+            self.peek()
+        );
         if self.is_at_end() {
+            println!("DEBUG is_likely_final_expression: at end, returning false");
             return false;
         }
 
@@ -2413,16 +2448,27 @@ impl Parser {
             | Token::Continue
             | Token::Do
             | Token::Fn
-            | Token::Proc => false,
+            | Token::Proc => {
+                println!(
+                    "DEBUG is_likely_final_expression: found statement keyword {:?}, returning false",
+                    self.peek()
+                );
+                false
+            }
             _ => {
                 // Look ahead to see if 'end' comes after this expression
-                self.expression_followed_by_end()
+                let result = self.expression_followed_by_end();
+                println!(
+                    "DEBUG is_likely_final_expression: expression_followed_by_end() for token {:?} returned {}",
+                    self.peek(),
+                    result
+                );
+                result
             }
         }
     }
 
     fn expression_followed_by_end(&self) -> bool {
-        // This is a simplified heuristic - you might want to make it more sophisticated
         // For now, just check if we have relatively few tokens left before 'end'
         let mut i = self.current;
         let mut depth = 0;
@@ -2588,6 +2634,7 @@ impl Parser {
 
     fn comparison(&mut self) -> Result<Expr> {
         let mut expr = self.term()?;
+        println!("Here is the term: {:?}", expr);
 
         while self.match_token(&[
             Token::LessEq,
@@ -2619,6 +2666,8 @@ impl Parser {
 
     fn term(&mut self) -> Result<Expr> {
         let mut expr = self.factor()?;
+        println!("Here is the factor: {:?}", expr);
+        println!("DEBUG token after factor: {:?}", self.peek());
 
         while self.match_token(&[Token::Plus, Token::Minus]) {
             let operator = match self.previous() {
@@ -2640,6 +2689,9 @@ impl Parser {
     fn factor(&mut self) -> Result<Expr> {
         let mut expr = self.exponent()?;
 
+        println!("Here is the exponent result: {:?}", expr);
+        println!("Here is the token after exponent: {:?}", self.peek());
+
         while self.match_token(&[Token::Star, Token::Slash, Token::Modulo]) {
             let operator = match self.previous() {
                 Token::Star => BinaryOperator::Multiply,
@@ -2660,6 +2712,8 @@ impl Parser {
 
     fn exponent(&mut self) -> Result<Expr> {
         let mut expr = self.unary()?;
+        println!("Here is the unary expression: {:?}", expr);
+        println!("Here is the token after unary: {:?}", self.peek());
 
         if self.match_token(&[Token::ExpOp]) {
             // For right associativity, we recursively parse the right side at the same precedence level
@@ -3149,7 +3203,6 @@ mod tests {
     fn parse_code(input: &str) -> Vec<Statement> {
         let mut lexer = Lexer::new(input);
         let tokens = lexer.collect_tokens().unwrap();
-        println!("DEBUG MACRO TOKENS: {:?}", tokens);
         let mut parser = Parser::new(tokens);
         parser.parse().unwrap()
     }
@@ -3559,8 +3612,6 @@ mod tests {
 
                 assert_eq!(body.len(), 1);
 
-                println!("Parsed function body: {:?}", body[0]);
-
                 match &body[0] {
                     Statement::Return(Some(Expr::BinaryOp { .. })) => (),
                     other => panic!("Expected return of binary operation, got: {:?}", other),
@@ -3805,7 +3856,6 @@ mod tests {
             Statement::VariableDeclaration { name, value, .. } => {
                 assert_eq!(name, "p");
 
-                println!("Parsed value: {:?}", value);
                 match &**value {
                     Expr::StructCreate {
                         struct_name,
@@ -4036,9 +4086,10 @@ mod tests {
             _ => panic!("Expected variable declaration"),
         }
     }
-    #[ignore = "Matching over variants is not fully fleshed out."]
+    // #[ignore = "Matching over variants is not fully fleshed out."]
     #[test]
     fn test_match_statement() {
+        tracing_subscriber::fmt::init();
         let input = r#"
             match shape
                 Shape.Circle(radius) => 3.14 * radius * radius,
