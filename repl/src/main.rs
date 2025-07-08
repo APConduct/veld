@@ -64,7 +64,7 @@ fn main() -> Result<()> {
 }
 
 fn run_file(filename: &str) -> Result<()> {
-    println!("Veld Language Interpreter v0.1.3");
+    println!("Veld Language Interpreter v0.1.4");
     println!("Running file: {}", filename);
 
     // Read the file
