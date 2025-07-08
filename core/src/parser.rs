@@ -3263,14 +3263,13 @@ mod tests {
         }
     }
 
-    #[ignore = "Undeclared function convention is undefined."]
     #[test]
     fn test_module_declaration() {
         let input = r#"
             mod math
-                fn add(a: i32, b: i32) -> i32 a + b
+                fn add(a: i32, b: i32) -> i32 => a + b
 
-                fn multiply(a: i32, b: i32) -> i32 a * b
+                fn multiply(a: i32, b: i32) -> i32 => a * b
             end
         "#;
 
@@ -3645,7 +3644,6 @@ mod tests {
         }
     }
 
-    // #[ignore = "Struct creation implementation is incomplete."]
     #[test]
     fn test_struct_instantiation() {
         let input = r#"let p = Point(x: 10.0, y: 20.0)"#;
