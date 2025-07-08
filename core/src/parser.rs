@@ -3534,41 +3534,6 @@ mod tests {
         }
     }
 
-    #[ignore = "Matching over variants is not fully fleshed out."]
-    #[test]
-    fn test_match_statement() {
-        let input = r#"
-            match shape
-                Shape.Circle(radius) => 3.14 * radius * radius,
-                Shape.Rectangle(w, h) => w * h,
-                Shape.Triangle(a, b, c) => do
-                    let s = (a + b + c) / 2.0
-                    (s * (s - a) * (s - b) * (s - c)).sqrt()
-                end,
-            end
-        "#;
-
-        // Dump tokens for debugging
-        let mut lexer = crate::lexer::Lexer::new(input);
-        let tokens: Vec<_> = lexer.collect_tokens().unwrap();
-        println!("DEBUG TOKENS: {:?}", tokens);
-
-        let statements = parse_code(input);
-        assert_eq!(statements.len(), 1);
-
-        match &statements[0] {
-            Statement::Match { value, arms } => {
-                match value {
-                    Expr::Identifier(name) => assert_eq!(name, "shape"),
-                    _ => panic!("Expected identifier"),
-                }
-
-                assert_eq!(arms.len(), 3);
-            }
-            _ => panic!("Expected match statement"),
-        }
-    }
-
     #[test]
     fn test_arrow_function() {
         let input = "fn square(x: i32) -> i32 => x * x";
@@ -4071,9 +4036,41 @@ mod tests {
             _ => panic!("Expected variable declaration"),
         }
     }
-}
+    #[ignore = "Matching over variants is not fully fleshed out."]
+    #[test]
+    fn test_match_statement() {
+        let input = r#"
+            match shape
+                Shape.Circle(radius) => 3.14 * radius * radius,
+                Shape.Rectangle(w, h) => w * h,
+                Shape.Triangle(a, b, c) => do
+                    let s = (a + b + c) / 2.0
+                    (s * (s - a) * (s - b) * (s - c)).sqrt()
+                end,
+            end
+        "#;
 
-// TODO: add ignore attribs to tests that failed
+        // Dump tokens for debugging
+        let mut lexer = crate::lexer::Lexer::new(input);
+        let tokens: Vec<_> = lexer.collect_tokens().unwrap();
+        println!("DEBUG TOKENS: {:?}", tokens);
+
+        let statements = parse_code(input);
+        assert_eq!(statements.len(), 1);
+
+        match &statements[0] {
+            Statement::Match { value, arms } => {
+                match value {
+                    Expr::Identifier(name) => assert_eq!(name, "shape"),
+                    _ => panic!("Expected identifier"),
+                }
+
+                assert_eq!(arms.len(), 3);
+            }
+            _ => panic!("Expected match statement"),
+        }
+    }
+}
 
 impl Parser {
     fn is_start_of_expression(&self) -> bool {
