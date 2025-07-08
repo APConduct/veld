@@ -387,9 +387,9 @@ fn fetch_data() async -> Data
 end
 
 # Using channels
-let (sender, receiver) = channel::<Message>()
+let (sender, receiver) = channel<Message>()
 
-spawn fn() =
+spawn fn()
     for i in 1..10
         sender.send(Message(id: i))
     end

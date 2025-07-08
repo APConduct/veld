@@ -736,6 +736,7 @@ impl Parser {
             || self.check(&Token::For)
             || self.check(&Token::Return)
             || self.check(&Token::Let)
+            || self.check(&Token::Do)
     }
 
     fn check_declaration_start(&self) -> bool {
@@ -2177,8 +2178,9 @@ impl Parser {
                     self.consume(&Token::RParen, "Expected ')' after arguments")?;
                     tracing::debug!("Postfix: Completed function call arguments");
 
-                    // If all arguments are named, treat as struct instantiation
-                    let all_named = args.iter().all(|arg| matches!(arg, Argument::Named { .. }));
+                    // If all arguments are named and there is at least one argument, treat as struct instantiation
+                    let all_named = !args.is_empty()
+                        && args.iter().all(|arg| matches!(arg, Argument::Named { .. }));
                     if all_named {
                         expr = Expr::StructCreate {
                             struct_name: name,

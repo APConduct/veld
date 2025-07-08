@@ -273,6 +273,7 @@ pub struct Interpreter {
     pub type_checker: TypeChecker,
     native_registry: NativeFunctionRegistry,
     native_method_registry: NativeMethodRegistry,
+    recursion_depth: usize,
 }
 
 impl Interpreter {
@@ -292,6 +293,7 @@ impl Interpreter {
             type_checker: TypeChecker::new(),
             native_registry: NativeFunctionRegistry::new(),
             native_method_registry: NativeMethodRegistry::new(),
+            recursion_depth: 0,
         };
 
         interpreter.initialize_std_modules();
@@ -1238,6 +1240,17 @@ impl Interpreter {
                     _ => return_type.clone(),
                 };
 
+                // Insert the function name into the environment first with an empty body to support mutual recursion
+                self.current_scope_mut().set(
+                    name.clone(),
+                    Value::Function {
+                        params: params.clone(),
+                        body: vec![],
+                        return_type: actual_return_type.clone(),
+                        captured_vars: HashMap::new(),
+                    },
+                );
+
                 let function = Value::Function {
                     params: params.clone(),
                     body: processed_body,
@@ -1245,7 +1258,7 @@ impl Interpreter {
                     captured_vars: HashMap::new(), // No captured vars for top-level functions
                 };
 
-                // Register function in current scope
+                // Overwrite with the real function body
                 self.current_scope_mut().set(name, function);
                 Ok(Value::Unit)
             }
@@ -1884,7 +1897,15 @@ impl Interpreter {
             } => {
                 let cond_value = self.evaluate_expression(*condition)?.unwrap_return();
 
-                if self.is_truthy(cond_value) {
+                let truthy = self.is_truthy(cond_value.clone());
+                println!(
+                    "DEBUG: IfExpression condition = {:?} (truthy: {}), taking {} branch",
+                    cond_value,
+                    truthy,
+                    if truthy { "then" } else { "else" }
+                );
+
+                if truthy {
                     self.evaluate_expression(*then_expr)
                 } else if let Some(else_expr) = else_expr {
                     self.evaluate_expression(*else_expr)
@@ -2014,12 +2035,12 @@ impl Interpreter {
                     match arg {
                         Argument::Positional(expr) => {
                             let value = self.evaluate_expression(expr)?;
+                            println!("DEBUG: Evaluated positional argument value: {:?}", value);
                             arg_values.push(value);
                         }
                         Argument::Named { name, value } => {
-                            // Store named arguments for future use
-                            // For now, we'll just evaluate positional arguments
                             let value = self.evaluate_expression(value)?;
+                            println!("DEBUG: Evaluated named argument '{}': {:?}", name, value);
                             named_args.insert(name, value);
                         }
                     }
@@ -4058,6 +4079,32 @@ impl Interpreter {
 
     // Helper method to call functions with pre-evaluated arguments
     fn call_function_with_values(&mut self, name: String, arg_values: Vec<Value>) -> Result<Value> {
+        // Debug print for recursion - print at the very start of every function call
+        if name == "is_even" || name == "is_odd" {
+            if let Some(Value::Numeric(nv)) = arg_values.get(0) {
+                println!(
+                    "DEBUG: >>> Function call: {}({:?}) (type: {:?})",
+                    name,
+                    nv.clone().as_f64(),
+                    nv
+                );
+                if nv.clone().as_f64() == 0.0 {
+                    println!("DEBUG: >>> {} CALLED WITH n = 0!", name);
+                }
+            } else {
+                println!("DEBUG: >>> Function call: {}({:?})", name, arg_values);
+            }
+        }
+
+        // Recursion depth tracking and limit
+        self.recursion_depth += 1;
+        const RECURSION_LIMIT: usize = 10000;
+        if self.recursion_depth > RECURSION_LIMIT {
+            return Err(VeldError::RuntimeError(
+                "Recursion limit exceeded".to_string(),
+            ));
+        }
+
         // Check if this might be a method call on a struct
         if name.contains('.') {
             let parts: Vec<&str> = name.split('.').collect();
@@ -4065,6 +4112,7 @@ impl Interpreter {
                 let object = self.get_variable(parts[0]).ok_or_else(|| {
                     VeldError::RuntimeError(format!("Undefined variable '{}'", parts[0]))
                 })?;
+                self.recursion_depth -= 1;
                 return self.call_method_value(object, parts[1].to_string(), arg_values);
             }
         }
@@ -4165,6 +4213,12 @@ impl Interpreter {
                 captured_vars,
                 ..
             } => {
+                // Debug print for function entry
+                if name == "is_even" || name == "is_odd" {
+                    println!("DEBUG: Entering {} with n = {:?}", name, arg_values);
+                    self.recursion_depth -= 1;
+                }
+
                 // Create new scope for function
                 self.push_scope();
 
@@ -4186,16 +4240,43 @@ impl Interpreter {
                 for (i, arg) in arg_values.iter().enumerate() {
                     let param_name = params[i].0.clone();
                     let arg_value = arg.clone();
-                    self.current_scope_mut().set(param_name, arg_value);
+                    self.current_scope_mut()
+                        .set(param_name.clone(), arg_value.clone());
+                    // Debug print after binding parameter
+                    if (name == "is_even" || name == "is_odd") && param_name == "n" {
+                        println!(
+                            "DEBUG: After binding, param '{}' = {:?} (type: {:?})",
+                            param_name,
+                            arg_value,
+                            arg_value.type_of()
+                        );
+                    }
                 }
 
                 // Execute function body
                 let mut result = Value::Unit;
-                for stmt in body {
-                    result = self.execute_statement(stmt)?;
+                for stmt in &body {
+                    // Print debug info for base case detection
+                    if (name == "is_even" || name == "is_odd") {
+                        // Try to detect if this is the base case return
+                        if let Statement::Return(Some(Expr::Literal(Literal::Boolean(val)))) = stmt
+                        {
+                            println!(
+                                "DEBUG: {} base case hit with n = {:?}, returning {:?}",
+                                name, arg_values, val
+                            );
+                        }
+                    }
+                    result = self.execute_statement(stmt.clone())?;
                     if matches!(result, Value::Return(_)) {
+                        // Propagate return immediately
                         break;
                     }
+                }
+                // If a return was encountered, propagate it immediately
+                if matches!(result, Value::Return(_)) {
+                    self.pop_scope();
+                    return Ok(result);
                 }
 
                 // Remove function scope
@@ -4619,7 +4700,9 @@ impl Interpreter {
     }
 
     fn numeric_values_equal(&self, a: &NumericValue, b: &NumericValue) -> bool {
-        a.clone().as_f64() == b.clone().as_f64()
+        let result = a.clone().as_f64() == b.clone().as_f64();
+        println!("NUMERIC_EQUAL: a={:?}, b={:?}, result={}", a, b, result);
+        result
     }
 
     fn values_equal(&self, a: &Value, b: &Value) -> bool {
@@ -4667,6 +4750,23 @@ impl Interpreter {
         operator: BinaryOperator,
         right: Value,
     ) -> Result<Value> {
+        println!(
+            "EVAL_BIN_OP: left={:?}, op={:?}, right={:?}",
+            left, operator, right
+        );
+        // Special debug for LessEq operator to see when n <= 0 is true
+        if let BinaryOperator::LessEq = operator {
+            if let (Value::Numeric(nv_left), Value::Numeric(nv_right)) = (&left, &right) {
+                let left_val = nv_left.clone().as_f64();
+                let right_val = nv_right.clone().as_f64();
+                let result = left_val <= right_val;
+                println!(
+                    "DEBUG: LessEq check: {} ({:?}) <= {} ({:?}) = {}",
+                    left_val, nv_left, right_val, nv_right, result
+                );
+            }
+        }
+
         if let Some(result) = self.try_call_operator_method(&left, &operator, &right)? {
             return Ok(result);
         }

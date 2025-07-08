@@ -110,7 +110,7 @@ impl NumericValue {
     /// Returns an error if the subtraction results in underflow or if the types are incompatible
     fn sub(&self, rhs: &NumericValue) -> Result<NumericValue> {
         let (left, right) = Self::coerce_numeric_pair(self, rhs)?;
-        match (left, right) {
+        let result = match (left, right) {
             (NumericValue::Integer(a), NumericValue::Integer(b)) => match (a.clone(), b.clone()) {
                 (IntegerValue::I8(x), IntegerValue::I8(y)) => x
                     .checked_sub(y)
@@ -158,7 +158,9 @@ impl NumericValue {
                 _ => unreachable!("Coercion should have handled this case"),
             },
             _ => unreachable!("Coercion should have handled this case"),
-        }
+        };
+        println!("DEBUG: NumericValue::sub result = {:?}", result);
+        result
     }
 
     /// Multiplies this numeric value by another numeric value.

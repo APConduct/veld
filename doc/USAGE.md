@@ -94,7 +94,7 @@ kind Printable = fn print(self) -> str;     # if a type has a matching function,
 
 #### Single-line Implementation
 ```veld
-impl Point fn distance(self) -> f64 (self.x * self.x + self.y * self.y).sqrt() end
+impl Point => fn distance(self) -> f64 => (self.x * self.x + self.y * self.y).sqrt()
 ```
 
 #### Multi-line Implementation
@@ -147,25 +147,25 @@ end
 ```veld
 macro~ vec                         # EXPERIMENTAL/ NOT FINALIZED
     () => new_vec(),
-    ($elem:expr) => {
+    ($elem:expr) => do
         let mut temp = new_vec();
         temp.push($elem);
         temp
-    },
-    ($($elem:expr),+ $(,)?) => {
+    end,
+    ($($elem:expr),+ $(,)?) => do
         let mut temp = new_vec();
         $(
             temp.push($elem);
         )+
         temp
-    }
+    end
 end
 ```
 
 #### Procedural Macro
 ```veld
 @comptime
-fn derive(trait_name) =
+fn derive(trait_name)
     match trait_name
         "Debug" => generate_debug_impl(),
         "Clone" => generate_clone_impl(),
