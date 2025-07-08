@@ -3326,9 +3326,9 @@ mod tests {
     fn test_enum_declaration() {
         let input = r#"
             enum Shape
-                Circle(f64),
-                Rectangle(f64, f64),
-                Triangle(f64, f64, f64),
+                Circle(f64)
+                Rectangle(f64, f64)
+                Triangle(f64, f64, f64)
             end
         "#;
 
