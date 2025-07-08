@@ -3052,8 +3052,6 @@ mod tests {
             _ => panic!("Expected variable declaration"),
         }
     }
-
-    // #[ignore = "Binary operation expressions seem to be shy."]
     #[test]
     fn test_simple_function_declaration() {
         let input = r#"
@@ -3134,14 +3132,13 @@ mod tests {
         }
     }
 
-    #[ignore = "not connected to initialization"]
     #[test]
     fn test_if_statement() {
         let input = r#"
             if x > 10 then
-                println~("Greater than 10")
+                y = 1
             else
-                println~("Not greater than 10")
+                y = 2
             end
         "#;
 
