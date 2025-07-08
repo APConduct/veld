@@ -1574,7 +1574,41 @@ impl Parser {
             };
 
             self.consume(&Token::FatArrow, "Expeected '=>' after match pattern")?;
-            let body = self.expression()?;
+            let body = if self.match_token(&[Token::Do]) {
+                // Parse statements until 'end', allowing a final expression before 'end'
+                let mut statements = Vec::new();
+                let mut final_expr = None;
+                while !self.check(&Token::End) && !self.is_at_end() {
+                    // If the next token can start an expression and the following token is 'end',
+                    // treat it as a final expression, not a statement.
+                    if self.is_start_of_expression()
+                        && self.tokens.get(self.current + 1) == Some(&Token::End)
+                    {
+                        final_expr = Some(Box::new(self.expression()?));
+                        break;
+                    }
+                    if let Ok(stmt) = self.statement() {
+                        statements.push(stmt);
+                    } else {
+                        // Only try to parse a final expression if the next token can start an expression
+                        if !self.check(&Token::End) && self.is_start_of_expression() {
+                            final_expr = Some(Box::new(self.expression()?));
+                        }
+                        break;
+                    }
+                }
+                println!(
+                    "DEBUG: About to consume 'end' in match arm block, current token: {:?}",
+                    self.peek()
+                );
+                self.consume(&Token::End, "Expected 'end' after match arm block")?;
+                Expr::BlockExpression {
+                    statements,
+                    final_expr,
+                }
+            } else {
+                self.expression()?
+            };
 
             arms.push(MatchArm {
                 pat: pattern,
@@ -3385,6 +3419,11 @@ mod tests {
             end
         "#;
 
+        // Dump tokens for debugging
+        let mut lexer = crate::lexer::Lexer::new(input);
+        let tokens: Vec<_> = lexer.collect_tokens().unwrap();
+        println!("DEBUG TOKENS: {:?}", tokens);
+
         let statements = parse_code(input);
         assert_eq!(statements.len(), 1);
 
@@ -3910,3 +3949,22 @@ mod tests {
 }
 
 // TODO: add ignore attribs to tests that failed
+
+impl Parser {
+    fn is_start_of_expression(&self) -> bool {
+        match self.peek() {
+            Token::Identifier(_)
+            | Token::IntegerLiteral(_)
+            | Token::FloatLiteral(_)
+            | Token::StringLiteral(_)
+            | Token::True
+            | Token::False
+            | Token::LParen
+            | Token::Fn
+            | Token::Do
+            | Token::If
+            | Token::SelfToken => true,
+            _ => false,
+        }
+    }
+}
