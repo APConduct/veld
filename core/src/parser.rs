@@ -1377,7 +1377,7 @@ impl Parser {
     }
 
     fn consume(&mut self, token: &Token, message: &str) -> Result<Token> {
-        println!("Consuming token: {:?}", token);
+        tracing::debug!("Consuming token: {:?}", token);
         if self.check(token) {
             Ok(self.advance())
         } else {
@@ -1386,7 +1386,7 @@ impl Parser {
     }
 
     fn consume_identifier(&mut self, message: &str) -> Result<String> {
-        println!("Consuming identifier");
+        tracing::debug!("Consuming identifier");
         match self.advance() {
             Token::Identifier(s) => Ok(s),
             _ => Err(VeldError::ParserError(message.to_string())),
@@ -1394,7 +1394,7 @@ impl Parser {
     }
 
     fn consume_parameter_name(&mut self, message: &str) -> Result<String> {
-        println!("Consuming parameter name");
+        tracing::debug!("Consuming parameter name");
         match self.advance() {
             Token::Identifier(s) => Ok(s),
             Token::SelfToken => Ok("self".to_string()),
@@ -1487,7 +1487,6 @@ impl Parser {
             "Parsing statement, current token: {:?}",
             self.tokens.get(self.current)
         );
-        println!("DEBUG statement() called: current token: {:?}", self.peek());
 
         if self.check(&Token::Tilde) {
             return self.parse_macro_invocation();
@@ -1513,9 +1512,8 @@ impl Parser {
         } else {
             // Try to parse as expression statement
             let expr = self.expression()?;
-            println!("DEBUG expression parsed: {:?}", expr);
+            tracing::debug!("Parser: expression parsed: {:?}", expr);
             // Print token after expression
-            println!("DEBUG token after expression: {:?}", self.peek());
             Ok(Statement::ExprStatement(expr))
         }
     }
@@ -1569,13 +1567,14 @@ impl Parser {
                 loop {
                     let field_name =
                         self.consume_identifier("Expected field name in struct pattern")?;
-                    println!("parse_match_pattern: Parsed field_name: {}", field_name);
+                    tracing::debug!("parse_match_pattern: Parsed field_name: {}", field_name);
 
                     let field_pattern = if self.match_token(&[Token::Colon]) {
                         let pattern = self.parse_match_pattern()?;
-                        println!(
+                        tracing::debug!(
                             "parse_match_pattern: Parsed field_pattern for {}: {:?}",
-                            field_name, pattern
+                            field_name,
+                            pattern
                         );
                         Some(Box::new(pattern))
                     } else {
@@ -1583,14 +1582,14 @@ impl Parser {
                     };
 
                     fields.push((field_name, field_pattern));
-                    println!("parse_match_pattern: Fields so far: {:?}", fields);
+                    tracing::debug!("parse_match_pattern: Fields so far: {:?}", fields);
 
                     if self.check(&Token::RParen) {
-                        println!("parse_match_pattern: Found RParen, breaking");
+                        tracing::debug!("parse_match_pattern: Found RParen, breaking");
                         break;
                     }
                     if !self.match_token(&[Token::Comma]) {
-                        println!("parse_match_pattern: No comma, breaking");
+                        tracing::debug!("parse_match_pattern: No comma, breaking");
                         break;
                     }
                 }
@@ -1631,16 +1630,16 @@ impl Parser {
                     if self.is_start_of_expression()
                         && self.tokens.get(self.current + 1) == Some(&Token::End)
                     {
-                        println!("I think this is a final expression (first check)");
+                        tracing::debug!("I think this is a final expression (first check)");
                         final_expr = Some(Box::new(self.expression()?));
                         break;
                     }
                     if let Ok(stmt) = self.statement() {
-                        println!("I think this is a statement");
+                        tracing::debug!("I think this is a statement");
 
                         statements.push(stmt);
                     } else {
-                        println!("I think this is a final expression");
+                        tracing::debug!("I think this is a final expression");
                         // Only try to parse a final expression if the next token can start an expression
                         if !self.check(&Token::End) && self.is_start_of_expression() {
                             final_expr = Some(Box::new(self.expression()?));
@@ -1648,7 +1647,7 @@ impl Parser {
                         break;
                     }
                 }
-                println!(
+                tracing::debug!(
                     "DEBUG: About to consume 'end' in match arm block, current token: {:?}",
                     self.peek()
                 );
@@ -1808,7 +1807,7 @@ impl Parser {
 
     fn pipeline(&mut self) -> Result<Expr> {
         let mut expr = self.logical()?;
-        println!("Here is the logical expression: {:?}", expr);
+        tracing::debug!("Here is the logical expression: {:?}", expr);
 
         while self.match_token(&[Token::Pipe]) {
             let right = self.logical()?;
@@ -1838,7 +1837,7 @@ impl Parser {
         }
 
         let result = self.pipeline();
-        println!("Here is the pipeline result: {:?}", result);
+        tracing::debug!("Here is the pipeline result: {:?}", result);
 
         self.recursive_depth -= 1;
 
@@ -1925,7 +1924,7 @@ impl Parser {
 
     fn logical(&mut self) -> Result<Expr> {
         let mut expr = self.comparison()?;
-        println!("Here is the comparison: {:?}", expr);
+        tracing::debug!("Here is the comparison: {:?}", expr);
 
         while self.match_token(&[Token::And, Token::Or]) {
             let operator = match self.previous() {
@@ -2020,18 +2019,16 @@ impl Parser {
 
         // If no unary operator, delegate to postfix
         let pos = self.postfix();
-        println!("Unary: Completed with result: {:?}", pos);
+        tracing::debug!("Unary: Completed with result: {:?}", pos);
         pos
     }
 
     fn postfix(&mut self) -> Result<Expr> {
         tracing::debug!("Postfix: Starting...");
-        println!("Postfix: Starting...");
 
         let mut expr = self.primary()?;
 
         tracing::debug!(?expr, "Postfix: Got primary expression");
-        println!("Postfix: Got primary expression: {:?}", expr);
 
         loop {
             if self.is_at_end() {
@@ -2286,11 +2283,11 @@ impl Parser {
             // Parse if expression: if condition then expr [else expr] end
             return self.parse_if_expression();
         }
-        println!("About to check for left parenthesis");
-        println!("Next token is {:?}", self.peek());
+        tracing::debug!("About to check for left parenthesis");
+        tracing::debug!("Next token is {:?}", self.peek());
 
         if self.match_token(&[Token::LParen]) {
-            println!("found left parenthesis");
+            tracing::debug!("found left parenthesis");
             // Empty tuple or grouped expression
             if self.match_token(&[Token::RParen]) {
                 return Ok(Expr::UnitLiteral);
@@ -2390,22 +2387,19 @@ impl Parser {
         let mut final_expr = None;
 
         while !self.check(&Token::End) && !self.is_at_end() {
-            println!(
-                "DEBUG block parsing loop: current token at start of iteration: {:?}",
-                self.peek()
-            );
+            tracing::debug!("Current token at start of iteration: {:?}", self.peek());
             // Look ahead to see if this might be the final expression
             if self.is_likely_final_expression() {
                 final_expr = Some(Box::new(self.expression()?));
-                println!(
-                    "DEBUG after parsing final_expr in block, current token: {:?}",
+                tracing::debug!(
+                    "After parsing final_expr in block, current token: {:?}",
                     self.peek()
                 );
                 break;
             } else if self.check_statement_start() {
                 statements.push(self.statement()?);
-                println!(
-                    "DEBUG after parsing statement in block, current token: {:?}",
+                tracing::debug!(
+                    "After parsing statement in block, current token: {:?}",
                     self.peek()
                 );
             } else {
@@ -2425,12 +2419,12 @@ impl Parser {
     fn is_likely_final_expression(&self) -> bool {
         // Heuristic: if the next token after this line would be 'end',
         // then this is likely the final expression
-        println!(
-            "DEBUG is_likely_final_expression: checking token {:?}",
+        tracing::debug!(
+            "Parser: is_likely_final_expression: checking token {:?}",
             self.peek()
         );
         if self.is_at_end() {
-            println!("DEBUG is_likely_final_expression: at end, returning false");
+            tracing::debug!("Parser: is_likely_final_expression: at end, returning false");
             return false;
         }
 
@@ -2449,8 +2443,8 @@ impl Parser {
             | Token::Do
             | Token::Fn
             | Token::Proc => {
-                println!(
-                    "DEBUG is_likely_final_expression: found statement keyword {:?}, returning false",
+                tracing::debug!(
+                    "Parser: is_likely_final_expression: found statement keyword {:?}, returning false",
                     self.peek()
                 );
                 false
@@ -2458,8 +2452,8 @@ impl Parser {
             _ => {
                 // Look ahead to see if 'end' comes after this expression
                 let result = self.expression_followed_by_end();
-                println!(
-                    "DEBUG is_likely_final_expression: expression_followed_by_end() for token {:?} returned {}",
+                tracing::debug!(
+                    "Parser: is_likely_final_expression: expression_followed_by_end() for token {:?} returned {}",
                     self.peek(),
                     result
                 );
@@ -2634,7 +2628,7 @@ impl Parser {
 
     fn comparison(&mut self) -> Result<Expr> {
         let mut expr = self.term()?;
-        println!("Here is the term: {:?}", expr);
+        tracing::debug!("Parser: Here is the term: {:?}", expr);
 
         while self.match_token(&[
             Token::LessEq,
@@ -2666,8 +2660,8 @@ impl Parser {
 
     fn term(&mut self) -> Result<Expr> {
         let mut expr = self.factor()?;
-        println!("Here is the factor: {:?}", expr);
-        println!("DEBUG token after factor: {:?}", self.peek());
+        tracing::debug!("Parser: Here is the factor: {:?}", expr);
+        tracing::debug!("Parser: token after factor: {:?}", self.peek());
 
         while self.match_token(&[Token::Plus, Token::Minus]) {
             let operator = match self.previous() {
@@ -2689,8 +2683,11 @@ impl Parser {
     fn factor(&mut self) -> Result<Expr> {
         let mut expr = self.exponent()?;
 
-        println!("Here is the exponent result: {:?}", expr);
-        println!("Here is the token after exponent: {:?}", self.peek());
+        tracing::debug!("Parser: Here is the exponent result: {:?}", expr);
+        tracing::debug!(
+            "Parser: Here is the token after exponent: {:?}",
+            self.peek()
+        );
 
         while self.match_token(&[Token::Star, Token::Slash, Token::Modulo]) {
             let operator = match self.previous() {
@@ -2712,8 +2709,8 @@ impl Parser {
 
     fn exponent(&mut self) -> Result<Expr> {
         let mut expr = self.unary()?;
-        println!("Here is the unary expression: {:?}", expr);
-        println!("Here is the token after unary: {:?}", self.peek());
+        tracing::debug!("Here is the unary expression: {:?}", expr);
+        tracing::debug!("Here is the token after unary: {:?}", self.peek());
 
         if self.match_token(&[Token::ExpOp]) {
             // For right associativity, we recursively parse the right side at the same precedence level
@@ -4089,7 +4086,6 @@ mod tests {
     // #[ignore = "Matching over variants is not fully fleshed out."]
     #[test]
     fn test_match_statement() {
-        tracing_subscriber::fmt::init();
         let input = r#"
             match shape
                 Shape.Circle(radius) => 3.14 * radius * radius,
@@ -4104,7 +4100,6 @@ mod tests {
         // Dump tokens for debugging
         let mut lexer = crate::lexer::Lexer::new(input);
         let tokens: Vec<_> = lexer.collect_tokens().unwrap();
-        println!("DEBUG TOKENS: {:?}", tokens);
 
         let statements = parse_code(input);
         assert_eq!(statements.len(), 1);
