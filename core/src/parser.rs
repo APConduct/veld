@@ -3353,7 +3353,7 @@ mod tests {
         }
     }
 
-    #[ignore = "Matching over variants is not fully fleshed out."]
+    // #[ignore = "Matching over variants is not fully fleshed out."]
     #[test]
     fn test_match_statement() {
         let input = r#"
