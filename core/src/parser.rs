@@ -1677,6 +1677,9 @@ impl Parser {
         let iterable = self.expression()?;
 
         let mut body = Vec::new();
+        // Require 'do' after for loop header
+        self.consume(&Token::Do, "Expected 'do' after for loop header")?;
+
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
         }
@@ -3176,7 +3179,6 @@ mod tests {
         }
     }
 
-    #[ignore = "generic for-loop iteration is not complete."]
     #[test]
     fn test_for_loop() {
         let input = r#"
