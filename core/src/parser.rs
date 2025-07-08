@@ -2002,6 +2002,51 @@ impl Parser {
                 break;
             }
 
+            // Enum variant creation: Enum.Variant(...)
+            // Only treat as enum variant if left side is a bare identifier starting with uppercase (likely a type/enum)
+            if let Expr::Identifier(enum_name) = &expr {
+                if self.check(&Token::Dot) {
+                    // Only treat as enum variant if enum_name starts with uppercase
+                    if enum_name
+                        .chars()
+                        .next()
+                        .map(|c| c.is_uppercase())
+                        .unwrap_or(false)
+                    {
+                        if let Some(Token::Identifier(_)) = self.tokens.get(self.current + 1) {
+                            if self.tokens.get(self.current + 2) == Some(&Token::LParen) {
+                                self.advance(); // consume Dot
+                                let variant_name = self
+                                    .consume_identifier("Expected enum variant name after '.'")?;
+                                self.consume(
+                                    &Token::LParen,
+                                    "Expected '(' after enum variant name",
+                                )?;
+                                let mut fields = Vec::new();
+                                if !self.check(&Token::RParen) {
+                                    loop {
+                                        fields.push(self.expression()?);
+                                        if !self.match_token(&[Token::Comma]) {
+                                            break;
+                                        }
+                                    }
+                                }
+                                self.consume(
+                                    &Token::RParen,
+                                    "Expected ')' after enum variant fields",
+                                )?;
+                                expr = Expr::EnumVariant {
+                                    enum_name: enum_name.clone(),
+                                    variant_name,
+                                    fields,
+                                };
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
             if self.match_token(&[Token::As]) {
                 tracing::debug!("Postfix: Found 'as' keyword for type casting");
                 let target_type = self.parse_type()?;
@@ -3816,7 +3861,7 @@ mod tests {
         }
     }
 
-    #[ignore = "not connected to initialization"]
+    // #[ignore = "not connected to initialization"]
     #[test]
     fn test_enum_variant_creation() {
         let input = r#"let shape = Shape.Circle(5.0)"#;
