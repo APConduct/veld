@@ -3082,12 +3082,12 @@ mod tests {
         }
     }
 
-    #[ignore = "Built-in macros are not yet implemented and their parsing seems to be flawed."]
+    // #[ignore = "Built-in macros are not yet implemented and their parsing seems to be flawed."]
     #[test]
     fn test_proc_declaration() {
         let input = r#"
             proc greet(name: str)
-                println~("Hello, {}!", name)
+                let unused = name == "John"
             end
         "#;
 
@@ -3368,7 +3368,6 @@ mod tests {
         }
     }
 
-    // #[ignore = "Don't work"]
     #[test]
     fn test_arrow_function() {
         let input = "fn square(x: i32) -> i32 => x * x";
