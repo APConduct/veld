@@ -2658,6 +2658,9 @@ impl Parser {
                     alias: None,
                     is_public,
                 });
+            } else if self.check(&Token::LBrace) {
+                // Grouped import: import math.{add, subtract}
+                break;
             } else {
                 path.push(self.consume_identifier("Expected identifier after '.'")?);
             }
@@ -3291,7 +3294,6 @@ mod tests {
         }
     }
 
-    #[ignore = "Math std mod and grouped imports are unfinished."]
     #[test]
     fn test_import_declaration() {
         let input = r#"import math.{add, subtract}"#;
