@@ -1999,10 +1999,25 @@ impl Parser {
                     self.consume(&Token::RParen, "Expected ')' after arguments")?;
                     tracing::debug!("Postfix: Completed function call arguments");
 
-                    expr = Expr::FunctionCall {
-                        name,
-                        arguments: args,
-                    };
+                    // If all arguments are named, treat as struct instantiation
+                    let all_named = args.iter().all(|arg| matches!(arg, Argument::Named { .. }));
+                    if all_named {
+                        expr = Expr::StructCreate {
+                            struct_name: name,
+                            fields: args
+                                .into_iter()
+                                .map(|arg| match arg {
+                                    Argument::Named { name, value } => (name, value),
+                                    _ => unreachable!(),
+                                })
+                                .collect(),
+                        };
+                    } else {
+                        expr = Expr::FunctionCall {
+                            name,
+                            arguments: args,
+                        };
+                    }
                 } else {
                     return Err(VeldError::ParserError(
                         "Internal error: expected identifier before '('".to_string(),
@@ -3082,7 +3097,6 @@ mod tests {
         }
     }
 
-    // #[ignore = "Built-in macros are not yet implemented and their parsing seems to be flawed."]
     #[test]
     fn test_proc_declaration() {
         let input = r#"
@@ -3631,7 +3645,7 @@ mod tests {
         }
     }
 
-    #[ignore = "Struct creation implementation is incomplete."]
+    // #[ignore = "Struct creation implementation is incomplete."]
     #[test]
     fn test_struct_instantiation() {
         let input = r#"let p = Point(x: 10.0, y: 20.0)"#;
@@ -3643,6 +3657,7 @@ mod tests {
             Statement::VariableDeclaration { name, value, .. } => {
                 assert_eq!(name, "p");
 
+                println!("Parsed value: {:?}", value);
                 match &**value {
                     Expr::StructCreate {
                         struct_name,
@@ -3653,7 +3668,7 @@ mod tests {
                         assert_eq!(fields[0].0, "x");
                         assert_eq!(fields[1].0, "y");
                     }
-                    _ => panic!("Expected struct creation"),
+                    other => panic!("Expected struct creation, got: {:?}", other),
                 }
             }
             _ => panic!("Expected variable declaration"),
