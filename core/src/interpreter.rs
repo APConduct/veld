@@ -717,6 +717,9 @@ impl Interpreter {
         free_vars: &mut HashSet<String>,
     ) {
         match expr {
+            Expr::SelfReference => {
+                // 'self' is always bound in a method context, so it does not contribute to free variables.
+            }
             Expr::Identifier(name) => {
                 if !bound_vars.contains(name) {
                     free_vars.insert(name.clone());
@@ -1281,11 +1284,7 @@ impl Interpreter {
                 Ok(last_value)
             }
             Statement::ProcDeclaration {
-                name,
-                params,
-                body,
-                
-                ..
+                name, params, body, ..
             } => {
                 tracing::debug!(proc_name = %name, "Executing proc declaration");
                 // Convert to a function with Unit return type
@@ -1864,6 +1863,9 @@ impl Interpreter {
 
     fn evaluate_expression(&mut self, expr: Expr) -> Result<Value> {
         match expr {
+            Expr::SelfReference => self
+                .get_variable("self")
+                .ok_or_else(|| VeldError::RuntimeError("self not found".to_string())),
             Expr::IfExpression {
                 condition,
                 then_expr,

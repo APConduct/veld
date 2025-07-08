@@ -869,30 +869,25 @@ impl Parser {
             TypeAnnotation::Unit
         };
 
-        self.consume(&Token::Equals, "Expected '=' after method signature")?;
-
-        // Check for empty method body
-        if self.check(&Token::End) {
-            // Empty method body
-            self.consume(&Token::End, "Expected 'end' after method body")?;
-            return Ok(StructMethod {
-                name: method_name,
-                params,
-                return_type,
-                body: Vec::new(),
-            });
-        }
-
-        // Try parsing a single expression for single-line method
-        if !self.check_statement_start() && !self.check(&Token::Fn) {
-            let expr = self.expression()?;
-
-            // For single-line methods, consume semicolon if present but don't require it
-            self.match_token(&[Token::Semicolon]);
-
-            // If we're at end of input or the next token looks like a new method/declaration,
-            // this is a single-line method without 'end'
-            if self.is_at_end() || self.check(&Token::Fn) || self.check_declaration_start() {
+        // Single-expression or block-bodied method with '=>'
+        if self.match_token(&[Token::FatArrow]) {
+            if self.match_token(&[Token::Do]) {
+                // Block-bodied method using => do ... end
+                let mut body = Vec::new();
+                while !self.check(&Token::End) && !self.is_at_end() {
+                    body.push(self.statement()?);
+                }
+                self.consume(&Token::End, "Expected 'end' after method body")?;
+                return Ok(StructMethod {
+                    name: method_name,
+                    params,
+                    return_type,
+                    body,
+                });
+            } else {
+                // Single-expression method
+                let expr = self.expression()?;
+                self.match_token(&[Token::Semicolon]);
                 return Ok(StructMethod {
                     name: method_name,
                     params,
@@ -900,28 +895,9 @@ impl Parser {
                     body: vec![Statement::Return(Some(expr))],
                 });
             }
-
-            // Otherwise, it's a multi-line method starting with an expression
-            let mut body = vec![Statement::ExprStatement(expr)];
-
-            // Parse the rest of the multi-line body
-            while !self.check(&Token::End) && !self.is_at_end() && !self.check(&Token::Fn) {
-                body.push(self.statement()?);
-            }
-
-            if !self.check(&Token::Fn) {
-                self.consume(&Token::End, "Expected 'end' after method body")?;
-            }
-
-            return Ok(StructMethod {
-                name: method_name,
-                params,
-                return_type,
-                body,
-            });
         }
 
-        // Multi-line method
+        // Block-bodied method: parse statements until 'end'
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() && !self.check(&Token::Fn) {
             body.push(self.statement()?);
@@ -2179,6 +2155,10 @@ impl Parser {
                 self.advance(); // consume '['
                 self.parse_array_literal()?
             }
+            Token::SelfToken => {
+                self.advance();
+                Expr::SelfReference
+            }
             _ => {
                 return Err(VeldError::ParserError(format!(
                     "Unexpected token: {:?}",
@@ -3227,7 +3207,6 @@ mod tests {
         }
     }
 
-    #[ignore = "Method parsing looks for equals sign for some reason..."]
     #[test]
     fn test_struct_declaration() {
         let input = r#"

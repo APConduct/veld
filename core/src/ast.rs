@@ -80,6 +80,7 @@ pub enum Expr {
         statements: Vec<Statement>,
         final_expr: Option<Box<Expr>>,
     },
+    SelfReference,
     IfExpression {
         condition: Box<Expr>,
         then_expr: Box<Expr>,
