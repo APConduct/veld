@@ -62,7 +62,7 @@ fn add(a: i32, b: i32) -> i32
 end
 
 # Multi-line function with optional 'do' keyword
-fn calculate(x: i32, y: i32) -> i32 do
+fn calculate(x: i32, y: i32) -> i32 => do
     let temp = x * 2
     temp + y
 end
@@ -147,7 +147,7 @@ let result = data
 
 ```veld
 # Basic struct with fields
-struct Point do
+struct Point
     x: f64,
     y: f64,
 end
@@ -164,7 +164,7 @@ struct Rectangle
     fn area(self) -> f64 => self.width * self.height
 
     # Method with block syntax and optional 'do'
-    fn scale(self, factor: f64) -> Rectangle do
+    fn scale(self, factor: f64) -> Rectangle => do
         Rectangle(
             width: self.width * factor,
             height: self.height * factor
@@ -210,7 +210,7 @@ end
 kind Comparable
     fn compare(self, other: Self) -> i32
 
-    fn less_than(self, other: Self) -> bool do
+    fn less_than(self, other: Self) -> bool => do
         self.compare(other) < 0
     end
 
@@ -320,7 +320,7 @@ end
 
 # Multiplication with 'for' syntax
 impl Mul<Complex, Output = Complex> for Complex
-    fn mul(self, rhs: Complex) -> Complex do
+    fn mul(self, rhs: Complex) -> Complex => do
         Complex(
             real: self.real * rhs.real - self.imag * rhs.imag,
             imag: self.real * rhs.imag + self.imag * rhs.real
@@ -450,7 +450,7 @@ let shape = Shape.Circle(5.0)
 let area = match shape
     Shape.Circle(radius) => 3.14 * radius * radius,
     Shape.Rectangle(w, h) => w * h,
-    Shape.Triangle(a, b, c) do
+    Shape.Triangle(a, b, c) =>  do
         let s = (a + b + c) / 2.0
         (s * (s - a) * (s - b) * (s - c)).sqrt()
     end,
