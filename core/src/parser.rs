@@ -2072,6 +2072,28 @@ impl Parser {
                 }
             }
 
+            // Macro invocation: name~(...)
+            if let Expr::Identifier(name) = &expr {
+                if self.match_token(&[Token::Tilde]) {
+                    self.consume(&Token::LParen, "Expected '(' after macro invocation '~'")?;
+                    let mut args = Vec::new();
+                    if !self.check(&Token::RParen) {
+                        loop {
+                            args.push(self.expression()?);
+                            if !self.match_token(&[Token::Comma]) {
+                                break;
+                            }
+                        }
+                    }
+                    self.consume(&Token::RParen, "Expected ')' after macro arguments")?;
+                    expr = Expr::MacroExpr {
+                        name: name.clone(),
+                        arguments: args,
+                    };
+                    continue;
+                }
+            }
+
             if self.match_token(&[Token::As]) {
                 tracing::debug!("Postfix: Found 'as' keyword for type casting");
                 let target_type = self.parse_type()?;
@@ -3764,7 +3786,7 @@ mod tests {
         }
     }
 
-    #[ignore = "Macro invocation is not fully fleshed out."]
+    // #[ignore = "Macro invocation is not fully fleshed out."]
     #[test]
     fn test_macro_invocation() {
         let input = r#"let numbers = vec~(1, 2, 3)"#;
