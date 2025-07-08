@@ -3692,7 +3692,6 @@ mod tests {
         }
     }
 
-    // #[ignore = "not connected to initialization of kind named 'Shape'"]
     #[test]
     fn test_implementation() {
         let input = r#"
@@ -3760,7 +3759,6 @@ mod tests {
         }
     }
 
-    // #[ignore = "Macro declaration is not fully fleshed out."]
     #[test]
     fn test_macro_declaration() {
         let input = r#"
@@ -3786,7 +3784,6 @@ mod tests {
         }
     }
 
-    // #[ignore = "Macro invocation is not fully fleshed out."]
     #[test]
     fn test_macro_invocation() {
         let input = r#"let numbers = vec~(1, 2, 3)"#;
@@ -3920,7 +3917,6 @@ mod tests {
         }
     }
 
-    // #[ignore = "not connected to initialization"]
     #[test]
     fn test_enum_variant_creation() {
         let input = r#"let shape = Shape.Circle(5.0)"#;
