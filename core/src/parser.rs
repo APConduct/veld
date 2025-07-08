@@ -3053,7 +3053,7 @@ mod tests {
         }
     }
 
-    #[ignore = "Binary operation expressions seem to be shy."]
+    // #[ignore = "Binary operation expressions seem to be shy."]
     #[test]
     fn test_simple_function_declaration() {
         let input = r#"
@@ -3090,8 +3090,8 @@ mod tests {
                 assert!(!is_public);
 
                 match &body[0] {
-                    Statement::ExprStatement(Expr::BinaryOp { .. }) => (),
-                    _ => panic!("Expected binary operation expression"),
+                    Statement::Return(Some(Expr::BinaryOp { .. })) => (),
+                    _ => panic!("Expected return of binary operation expression"),
                 }
             }
             _ => panic!("Expected function declaration"),
