@@ -1284,7 +1284,7 @@ impl Interpreter {
                 name,
                 params,
                 body,
-                is_public,
+                
                 ..
             } => {
                 tracing::debug!(proc_name = %name, "Executing proc declaration");

@@ -1330,7 +1330,7 @@ impl TypeChecker {
                 name,
                 params,
                 body,
-                is_public,
+                
                 ..
             } => {
                 println!("Type checking proc declaration: {}", name);
