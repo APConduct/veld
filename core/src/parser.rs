@@ -1680,6 +1680,9 @@ impl Parser {
     fn while_statement(&mut self) -> Result<Statement> {
         let condition = self.expression()?;
 
+        // Require 'do' after the condition
+        self.consume(&Token::Do, "Expected 'do' after while condition")?;
+
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
@@ -3166,13 +3169,12 @@ mod tests {
         }
     }
 
-    #[ignore = "While-loop mistakenly looks for extra 'end' keyword."]
     #[test]
     fn test_while_loop() {
         let input = r#"
             while i < 10 do
-                println~(i)
                 i = i + 1
+                j = i
             end
         "#;
 
