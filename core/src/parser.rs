@@ -1506,26 +1506,44 @@ impl Parser {
             }
         }
 
-        let ident = self.consume_identifier("Expected identifier in match pattern")?;
+        // Support qualified (dotted) names in match patterns, e.g., Shape.Circle
+        let mut ident = self.consume_identifier("Expected identifier in match pattern")?;
+        while self.match_token(&[Token::Dot]) {
+            let next = self.consume_identifier("Expected identifier after '.' in match pattern")?;
+            ident.push('.');
+            ident.push_str(&next);
+        }
 
         if self.match_token(&[Token::LParen]) {
             let mut fields = Vec::new();
 
             if !self.check(&Token::RParen) {
                 loop {
+                    println!("parse_match_pattern: Current token: {:?}", self.peek());
                     let field_name =
                         self.consume_identifier("Expected field name in struct pattern")?;
+                    println!("parse_match_pattern: Parsed field_name: {}", field_name);
 
                     let field_pattern = if self.match_token(&[Token::Colon]) {
                         let pattern = self.parse_match_pattern()?;
+                        println!(
+                            "parse_match_pattern: Parsed field_pattern for {}: {:?}",
+                            field_name, pattern
+                        );
                         Some(Box::new(pattern))
                     } else {
                         None // Shorthand syntax for like 'Person(name)' binds 'name' directly
                     };
 
                     fields.push((field_name, field_pattern));
+                    println!("parse_match_pattern: Fields so far: {:?}", fields);
 
+                    if self.check(&Token::RParen) {
+                        println!("parse_match_pattern: Found RParen, breaking");
+                        break;
+                    }
                     if !self.match_token(&[Token::Comma]) {
+                        println!("parse_match_pattern: No comma, breaking");
                         break;
                     }
                 }
@@ -3353,7 +3371,7 @@ mod tests {
         }
     }
 
-    #[ignore = "Matching over variants is not fully fleshed out."]
+    // #[ignore = "Matching over variants is not fully fleshed out."]
     #[test]
     fn test_match_statement() {
         let input = r#"
