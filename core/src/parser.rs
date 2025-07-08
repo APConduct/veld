@@ -3368,7 +3368,7 @@ mod tests {
         }
     }
 
-    #[ignore = "Don't work"]
+    // #[ignore = "Don't work"]
     #[test]
     fn test_arrow_function() {
         let input = "fn square(x: i32) -> i32 => x * x";
@@ -3394,9 +3394,11 @@ mod tests {
 
                 assert_eq!(body.len(), 1);
 
+                println!("Parsed function body: {:?}", body[0]);
+
                 match &body[0] {
-                    Statement::ExprStatement(Expr::BinaryOp { .. }) => (),
-                    _ => panic!("Expected binary operation"),
+                    Statement::Return(Some(Expr::BinaryOp { .. })) => (),
+                    other => panic!("Expected return of binary operation, got: {:?}", other),
                 }
             }
             _ => panic!("Expected function declaration"),
