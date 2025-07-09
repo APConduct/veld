@@ -4225,7 +4225,7 @@ impl Interpreter {
                 // If a return was encountered, propagate it immediately
                 if matches!(result, Value::Return(_)) {
                     self.pop_scope();
-                    return Ok(result);
+                    return Ok(result.unwrap_return());
                 }
 
                 // Remove function scope
