@@ -1243,7 +1243,12 @@ impl Interpreter {
                 self.push_scope();
 
                 let mut last_value = Value::Unit;
-                for stmt in body {
+                let mut stmts = body.into_iter();
+                loop {
+                    let Some(stmt) = stmts.next() else {
+                        break;
+                    };
+                // for stmt in body {
                     let result = self.execute_statement(stmt)?;
 
                     // Handle control flow - early returns should bubble up
@@ -1271,39 +1276,51 @@ impl Interpreter {
             } => {
                 let cond_value = self.evaluate_expression(condition)?.unwrap_return();
 
+                let branch =
                 if self.is_truthy(cond_value) {
-                    for stmt in then_branch {
-                        let result = self.execute_statement(stmt)?;
-                        if matches!(result, Value::Return(_)) {
-                            return Ok(result);
-                        }
-                    }
+                    then_branch
                 } else if let Some(else_statements) = else_branch {
-                    for stmt in else_statements {
-                        let result = self.execute_statement(stmt)?;
-                        if matches!(result, Value::Return(_)) {
-                            return Ok(result);
-                        }
+                    else_statements
+                } else { return Ok(Value::Unit) };
+                let mut stmts = branch.into_iter();
+                loop {
+                    let Some(stmt) = stmts.next() else {
+                        break Ok(Value::Unit);
+                    };
+                    let result = self.execute_statement(stmt)?;
+                    if matches!(result, Value::Return(_)) {
+                        break Ok(result);
                     }
                 }
-                Ok(Value::Unit)
             }
             Statement::While { condition, body } => {
+                let mut maybe_stmts = None;
                 loop {
-                    let cond_result = self.evaluate_expression(condition.clone())?.unwrap_return();
-                    if !self.is_truthy(cond_result) {
-                        break;
-                    }
-
-                    for stmt in body.clone() {
-                        let result = self.execute_statement(stmt)?;
-                        match result {
-                            Value::Return(_) => return Ok(result),
-                            Value::Break => return Ok(Value::Unit),
-                            Value::Continue => break,
-                            _ => {}
+                    maybe_stmts = match maybe_stmts {
+                        None => {
+                            let cond_result = self.evaluate_expression(condition.clone())?.unwrap_return();
+                            if !self.is_truthy(cond_result) {
+                                break;
+                            };
+                            Some(body.clone().into_iter())
                         }
-                    }
+                        Some(mut stmts) => {
+                            if let Some(stmt) = stmts.next() {
+                                // Differential Type will be constructed here and loop state will be saved
+                                let result = self.execute_statement(stmt)?;
+                                match result {
+                                    Value::Return(_) => return Ok(result),
+                                    Value::Break => return Ok(Value::Unit),
+                                    Value::Continue => break,
+                                    _ => {}
+                                }
+                                Some(stmts)
+                            } else {
+                                None
+                            }
+                            // REMEMBER: hold onto variable before loop into Frame structure
+                        }
+                    };
                 }
                 Ok(Value::Unit)
             }
@@ -1316,35 +1333,94 @@ impl Interpreter {
 
                 match iterable_value {
                     Value::Array(elements) => {
-                        for element in elements {
-                            self.current_scope_mut().set(iterator.clone(), element);
-
-                            for stmt in body.clone() {
-                                let result = self.execute_statement(stmt)?;
-                                match result {
-                                    Value::Return(_) => return Ok(result),
-                                    Value::Break => return Ok(Value::Unit),
-                                    Value::Continue => break,
-                                    _ => {}
+                        let mut inner_loop = None;
+                        let mut elements = elements.into_iter();
+                        loop {
+                            inner_loop = match inner_loop {
+                                None => {
+                                    match elements.next() {
+                                        None => break,
+                                        Some(element) => {
+                                            self.current_scope_mut()
+                                                .set(iterator.clone(), element);
+                                            Some(body.clone().into_iter())
+                                        }
+                                    }
                                 }
-                            }
+                                Some(mut stmts) => {
+                                    if let Some(stmt) = stmts.next() {
+                                        let result = self.execute_statement(stmt)?;
+                                        match result {
+                                            Value::Return(_) => return Ok(result),
+                                            Value::Break => return Ok(Value::Unit),
+                                            Value::Continue => break,
+                                            _ => {}
+                                        }
+                                        Some(stmts)
+                                    } else {
+                                        None
+                                    }
+
+                                }
+                            };
+                        // for element in elements {
+                        //     self.current_scope_mut().set(iterator.clone(), element);
+                            // for stmt in body.clone() {
+                            //     let result = self.execute_statement(stmt)?;
+                            //     match result {
+                            //         Value::Return(_) => return Ok(result),
+                            //         Value::Break => return Ok(Value::Unit),
+                            //         Value::Continue => break,
+                            //         _ => {}
+                            //     }
+                            // }
                         }
                     }
                     Value::String(s) => {
-                        for c in s.chars() {
-                            self.current_scope_mut()
-                                .set(iterator.clone(), Value::String(c.to_string()));
-
-                            for stmt in body.clone() {
-                                let result = self.execute_statement(stmt)?;
-                                match result {
-                                    Value::Return(_) => return Ok(result),
-                                    Value::Break => return Ok(Value::Unit),
-                                    Value::Continue => break,
-                                    _ => {}
+                        let mut inner_loop = None;
+                        let mut chars = s.chars();
+                        loop {
+                            inner_loop = match inner_loop {
+                                None => {
+                                    match chars.next() {
+                                        None => break,
+                                        Some(c) => {
+                                            self.current_scope_mut()
+                                                .set(iterator.clone(), Value::String(c.to_string()));
+                                            Some(body.clone().into_iter())
+                                        }
+                                    }
                                 }
-                            }
+                                Some(mut stmts) => {
+                                    if let Some(stmt) = stmts.next() {
+                                        let result = self.execute_statement(stmt)?;
+                                        match result {
+                                            Value::Return(_) => return Ok(result),
+                                            Value::Break => return Ok(Value::Unit),
+                                            Value::Continue => break,
+                                            _ => {}
+                                        }
+                                        Some(stmts)
+                                    } else {
+                                        None
+                                    }
+                                }
+                            };
                         }
+                        // for c in s.chars() {
+                        //     self.current_scope_mut()
+                        //         .set(iterator.clone(), Value::String(c.to_string()));
+                        //
+                        //     for stmt in body.clone() {
+                        //         let result = self.execute_statement(stmt)?;
+                        //         match result {
+                        //             Value::Return(_) => return Ok(result),
+                        //             Value::Break => return Ok(Value::Unit),
+                        //             Value::Continue => break,
+                        //             _ => {}
+                        //         }
+                        //     }
+                        // }
                     }
                     _ => {
                         return Err(VeldError::RuntimeError(format!(
