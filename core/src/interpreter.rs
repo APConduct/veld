@@ -1347,11 +1347,6 @@ impl Interpreter {
                             } else {
                                 Ok(Value::Unit)
                             }
-                            // let result = self.execute_statement(stmt)?;
-                            // if matches!(result, Value::Return(_)) {
-                            //     break Ok(result);
-                            // }
-                            // }
                         }
                         Statement::While { condition, body } => {
                             let mut maybe_stmts = None;
