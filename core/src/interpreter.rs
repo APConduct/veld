@@ -1772,7 +1772,8 @@ impl Interpreter {
             ControlFlow::Break(last_value)
         }
     }
-
+}
+impl Interpreter {
     fn execute_return(&mut self, expr_opt: Option<Expr>) -> Result<Result<Value>> {
         let val = if let Some(e) = expr_opt {
             self.evaluate_expression(e)?
