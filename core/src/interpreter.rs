@@ -1,8 +1,4 @@
-use crate::ast::{
-    Argument, BinaryOperator, EnumVariant, Expr, FunctionDeclaration, GenericArgument, ImportItem,
-    Literal, MacroExpansion, MacroPattern, MatchPattern, Statement, StructField, TypeAnnotation,
-    UnaryOperator, VarKind,
-};
+use crate::ast::{Argument, BinaryOperator, EnumVariant, Expr, FunctionDeclaration, GenericArgument, ImportItem, Literal, MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField, StructMethod, TypeAnnotation, UnaryOperator, VarKind};
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
 use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
@@ -1190,85 +1186,53 @@ impl Interpreter {
                 return_type,
                 body,
                 ..
-            } => {
-                let span = tracing::info_span!("function_declaration", name = %name);
-                let _enter = span.enter();
-
-                let processed_body = if !body.is_empty() {
-                    // If we don't have any explicit returns and the last statement is an expression,
-                    // convert it to a return
-                    if !body.iter().any(|s| matches!(s, Statement::Return(_))) {
-                        let mut new_body = body.clone();
-                        if let Some(Statement::ExprStatement(expr)) = new_body.clone().last() {
-                            new_body.pop();
-                            new_body.push(Statement::Return(Some(expr.clone())));
-                        }
-                        new_body
-                    } else {
-                        body.clone()
-                    }
-                } else {
-                    body.clone()
-                };
-
-                let actual_return_type = match &return_type {
-                    TypeAnnotation::Basic(name) if name == "infer" => {
-                        // Try to infer from the body
-                        if let Some(Statement::Return(Some(expr))) = processed_body.last() {
-                            match expr {
-                                Expr::Literal(Literal::String(_)) => {
-                                    TypeAnnotation::Basic("str".to_string())
-                                }
-                                Expr::Literal(Literal::Integer(_)) => {
-                                    TypeAnnotation::Basic("i32".to_string())
-                                }
-                                Expr::Literal(Literal::Float(_)) => {
-                                    TypeAnnotation::Basic("f64".to_string())
-                                }
-                                Expr::Literal(Literal::Boolean(_)) => {
-                                    TypeAnnotation::Basic("bool".to_string())
-                                }
-                                Expr::Literal(Literal::Char(_)) => {
-                                    TypeAnnotation::Basic("char".to_string())
-                                }
-                                _ => return_type.clone(),
-                            }
-                        } else {
-                            TypeAnnotation::Unit
-                        }
-                    }
-                    _ => return_type.clone(),
-                };
-
-                // Insert the function name into the environment first with an empty body to support mutual recursion
-                self.current_scope_mut().set(
-                    name.clone(),
-                    Value::Function {
-                        params: params.clone(),
-                        body: vec![],
-                        return_type: actual_return_type.clone(),
-                        captured_vars: HashMap::new(),
-                    },
-                );
-
-                let function = Value::Function {
-                    params: params.clone(),
-                    body: processed_body,
-                    return_type: actual_return_type,
-                    captured_vars: HashMap::new(), // No captured vars for top-level functions
-                };
-
-                // Overwrite with the real function body
-                self.current_scope_mut().set(name, function);
+            } => self.execute_function_declaration(name, params, &return_type, body),
+            Statement::ModuleDeclaration {
+                name,
+                body,
+                is_public,
+            } => self.execute_module_declaration(name, body, is_public),
+            Statement::ImportDeclaration {
+                path,
+                items,
+                alias,
+                is_public,
+            } => self.execute_import_declaration(path, items, alias, is_public),
+            Statement::CompoundAssignment {
+                name,
+                operator,
+                value,
+            } => self.execute_compound_assignment(name, operator, value)?,
+            Statement::EnumDeclaration { name, variants, .. } => {
+                self.enums.insert(name, variants);
                 Ok(Value::Unit)
             }
-            Statement::Return(expr_opt) => {
-                let val = if let Some(e) = expr_opt {
-                    self.evaluate_expression(e)?
-                } else {
-                    Value::Unit
-                };
-                Ok(Value::Return(Box::new(val)))
+            Statement::Break => Ok(Value::Break),
+            Statement::Continue => Ok(Value::Continue),
+            Statement::Match { value, arms } => self.execute_match(value, arms),
+            Statement::Assignment { name, value } => self.execute_assignment(name, value),
+            Statement::MacroInvocation { name, arguments } => self.execute_macro_invocation(&name, arguments)?,
+            Statement::Return(expr_opt) => self.execute_return(expr_opt)?,
+            Statement::ProcDeclaration {
+                name, params, body, ..
+            } => self.execute_proc_declaration(name, params, body),
+            Statement::StructDeclaration {
+                name,
+                fields,
+                methods,
+                generic_params,
+                is_public: _,
+            } => self.execute_struct_declaration(name, fields, methods, generic_params),
+            Statement::Implementation {
+                type_name,
+                kind_name: _,
+                methods,
+                generic_args: _,
+            } => self.execute_implementation(type_name, methods),
+
+            Statement::ExprStatement(expr) => {
+                let value = self.evaluate_expression(expr)?;
+                Ok(value.unwrap_return())
             }
             Statement::BlockScope { body } => {
                 let span = tracing::debug_span!("block_scope", statement_count = body.len());
@@ -1299,97 +1263,7 @@ impl Interpreter {
                 self.pop_scope();
                 Ok(last_value)
             }
-            Statement::ProcDeclaration {
-                name, params, body, ..
-            } => {
-                tracing::debug!(proc_name = %name, "Executing proc declaration");
-                // Convert to a function with Unit return type
-                let function = Value::Function {
-                    params: params
-                        .into_iter()
-                        .map(|(name, type_anno)| (name, type_anno))
-                        .collect(),
-                    body,
-                    return_type: TypeAnnotation::Unit,
-                    captured_vars: HashMap::new(),
-                };
 
-                self.current_scope_mut().set(name, function);
-                Ok(Value::Unit)
-            }
-
-            Statement::StructDeclaration {
-                name,
-                fields,
-                methods,
-                generic_params,
-                is_public: _,
-            } => {
-                // Register the struct type
-                if generic_params.is_empty() {
-                    self.structs.insert(name.clone(), fields);
-                } else {
-                    let struct_info = StructInfo {
-                        fields: fields
-                            .into_iter()
-                            .map(|f| (f.name, f.type_annotation))
-                            .collect(),
-                        generic_params: generic_params.clone(),
-                    };
-                    self.generic_structs.insert(name.clone(), struct_info);
-                    self.structs.insert(name.clone(), vec![]);
-                };
-
-                // Register methods if any
-                if !methods.is_empty() {
-                    let mut method_map = HashMap::new();
-
-                    for method in methods {
-                        let method_value = Value::Function {
-                            params: method.params,
-                            body: method.body,
-                            return_type: method.return_type,
-                            captured_vars: HashMap::new(), // No captured vars for struct methods
-                        };
-
-                        method_map.insert(method.name, method_value);
-                    }
-
-                    self.struct_methods.insert(name, method_map);
-                }
-
-                Ok(Value::Unit)
-            }
-            Statement::Implementation {
-                type_name,
-                kind_name: _,
-                methods,
-                generic_args: _,
-            } => {
-                // Just register all methods for now, ignoring kinds
-                let method_map = self
-                    .struct_methods
-                    .entry(type_name.clone())
-                    .or_insert_with(HashMap::new);
-
-                for method in methods {
-                    let method_value = Value::Function {
-                        params: method.params,
-                        body: method.body,
-                        return_type: method.return_type,
-                        captured_vars: HashMap::new(),
-                    };
-
-                    method_map.insert(method.name, method_value);
-                }
-
-                Ok(Value::Unit)
-            }
-
-            Statement::ExprStatement(expr) => {
-                let value = self.evaluate_expression(expr)?;
-                Ok(value.unwrap_return())
-            }
             Statement::If {
                 condition,
                 then_branch,
@@ -1481,109 +1355,247 @@ impl Interpreter {
                 }
                 Ok(Value::Unit)
             }
-            Statement::ModuleDeclaration {
-                name,
-                body,
-                is_public,
-            } => self.execute_module_declaration(name, body, is_public),
-            Statement::ImportDeclaration {
-                path,
-                items,
-                alias,
-                is_public,
-            } => self.execute_import_declaration(path, items, alias, is_public),
-            Statement::CompoundAssignment {
-                name,
-                operator,
-                value,
-            } => {
-                let current = self.get_variable(&name).ok_or_else(|| {
-                    VeldError::RuntimeError(format!("Undefined variable '{}'", name))
-                })?;
-                let new_value = self.evaluate_expression(*value)?;
-                let result = self.evaluate_binary_op(current, operator, new_value)?;
 
-                // Convert the result back to an expression for assignment
-                let result_expr = self.value_to_expr(result)?;
-                self.execute_assignment(name, Box::new(result_expr))
-            }
-            Statement::EnumDeclaration { name, variants, .. } => {
-                self.enums.insert(name, variants);
-                Ok(Value::Unit)
-            }
-            Statement::Break => Ok(Value::Break),
-            Statement::Continue => Ok(Value::Continue),
-            Statement::Match { value, arms } => {
-                let match_value = self.evaluate_expression(value)?.unwrap_return();
-
-                for arm in arms {
-                    if let Some(bindings) = self.pattern_matches(&arm.pat, &match_value)? {
-                        if let Some(gaurd) = arm.gaurd {
-                            self.push_scope();
-
-                            for (name, val) in &bindings {
-                                self.current_scope_mut().set(name.clone(), val.clone());
-                            }
-
-                            let guard_result = self.evaluate_expression(gaurd)?.unwrap_return();
-                            let gaurd_passed = self.is_truthy(guard_result);
-
-                            self.pop_scope();
-
-                            if !gaurd_passed {
-                                continue;
-                            }
-                        }
-
-                        self.push_scope();
-
-                        for (name, val) in bindings {
-                            self.current_scope_mut().set(name, val)
-                        }
-
-                        let result = self.evaluate_expression(arm.body)?.unwrap_return();
-
-                        self.pop_scope();
-                        return Ok(result);
-                    }
-                }
-                Err(VeldError::RuntimeError(
-                    "No match arm matched the value".to_string(),
-                ))
-            }
-
-            Statement::Assignment { name, value } => self.execute_assignment(name, value),
-            Statement::MacroInvocation { name, arguments } => {
-                // Evaluate all arguments
-                let mut evaluated_args = Vec::new();
-                for arg in arguments {
-                    let arg_value = self.evaluate_expression(arg)?;
-                    evaluated_args.push(arg_value);
-                }
-
-                let current_mod = self.current_module.clone();
-                let macro_def = self.find_macro(&current_mod, &name)?;
-
-                match macro_def {
-                    Statement::MacroDeclaration {
-                        patterns,
-                        body: None,
-                        ..
-                    } => self.expand_pattern_macro(name.as_str(), &patterns, &evaluated_args),
-                    // Procedural macro
-                    Statement::MacroDeclaration {
-                        patterns: _,
-                        body: Some(body),
-                        ..
-                    } => self.execute_procedural_macro(name.as_str(), &body, &evaluated_args),
-                    _ => Err(VeldError::RuntimeError(format!(
-                        "Invalid macro definition for '{}'",
-                        name
-                    ))),
-                }
-            }
             _ => Ok(Value::Unit),
         }
+    }
+
+    fn execute_return(&mut self, expr_opt: Option<Expr>) -> Result<Result<Value>> {
+        let val = if let Some(e) = expr_opt {
+            self.evaluate_expression(e)?
+        } else {
+            Value::Unit
+        };
+        Ok(Ok(Value::Return(Box::new(val))))
+    }
+
+    fn execute_match(&mut self, value: Expr, arms: Vec<MatchArm>) -> Result<Value> {
+        let match_value = self.evaluate_expression(value)?.unwrap_return();
+
+        for arm in arms {
+            if let Some(bindings) = self.pattern_matches(&arm.pat, &match_value)? {
+                if let Some(guard) = arm.gaurd {
+                    self.push_scope();
+
+                    for (name, val) in &bindings {
+                        self.current_scope_mut().set(name.clone(), val.clone());
+                    }
+
+                    let guard_result = self.evaluate_expression(guard)?.unwrap_return();
+                    let guard_passed = self.is_truthy(guard_result);
+
+                    self.pop_scope();
+
+                    if !guard_passed {
+                        continue;
+                    }
+                }
+
+                self.push_scope();
+
+                for (name, val) in bindings {
+                    self.current_scope_mut().set(name, val)
+                }
+
+                let result = self.evaluate_expression(arm.body)?.unwrap_return();
+
+                self.pop_scope();
+                return Ok(result);
+            }
+        }
+        Err(VeldError::RuntimeError(
+            "No match arm matched the value".to_string(),
+        ))
+    }
+
+    fn execute_macro_invocation(&mut self, name: &String, arguments: Vec<Expr>) -> Result<Result<Value>> {
+        // Evaluate all arguments
+        let mut evaluated_args = Vec::new();
+        for arg in arguments {
+            let arg_value = self.evaluate_expression(arg)?;
+            evaluated_args.push(arg_value);
+        }
+
+        let current_mod = self.current_module.clone();
+        let macro_def = self.find_macro(&current_mod, &name)?;
+
+        Ok(match macro_def {
+            Statement::MacroDeclaration {
+                patterns,
+                body: None,
+                ..
+            } => self.expand_pattern_macro(name.as_str(), &patterns, &evaluated_args),
+            // Procedural macro
+            Statement::MacroDeclaration {
+                patterns: _,
+                body: Some(body),
+                ..
+            } => self.execute_procedural_macro(name.as_str(), &body, &evaluated_args),
+            _ => Err(VeldError::RuntimeError(format!(
+                "Invalid macro definition for '{}'",
+                name
+            ))),
+        })
+    }
+
+    fn execute_compound_assignment(&mut self, name: String, operator: BinaryOperator, value: Box<Expr>) -> Result<Result<Value>> {
+        let current = self.get_variable(&name).ok_or_else(|| {
+            VeldError::RuntimeError(format!("Undefined variable '{}'", name))
+        })?;
+        let new_value = self.evaluate_expression(*value)?;
+        let result = self.evaluate_binary_op(current, operator, new_value)?;
+
+        // Convert the result back to an expression for assignment
+        let result_expr = self.value_to_expr(result)?;
+        Ok(self.execute_assignment(name, Box::new(result_expr)))
+    }
+
+    fn execute_implementation(&mut self, type_name: String, methods: Vec<MethodImpl>) -> Result<Value> {
+        // Just register all methods for now, ignoring kinds
+        let method_map = self
+            .struct_methods
+            .entry(type_name.clone())
+            .or_insert_with(HashMap::new);
+
+        for method in methods {
+            let method_value = Value::Function {
+                params: method.params,
+                body: method.body,
+                return_type: method.return_type,
+                captured_vars: HashMap::new(),
+            };
+
+            method_map.insert(method.name, method_value);
+        }
+
+        Ok(Value::Unit)
+    }
+
+    fn execute_struct_declaration(&mut self, name: String, fields: Vec<StructField>, methods: Vec<StructMethod>, generic_params: Vec<GenericArgument>) -> Result<Value> {
+        // Register the struct type
+        if generic_params.is_empty() {
+            self.structs.insert(name.clone(), fields);
+        } else {
+            let struct_info = StructInfo {
+                fields: fields
+                    .into_iter()
+                    .map(|f| (f.name, f.type_annotation))
+                    .collect(),
+                generic_params: generic_params.clone(),
+            };
+            self.generic_structs.insert(name.clone(), struct_info);
+            self.structs.insert(name.clone(), vec![]);
+        };
+
+        // Register methods if any
+        if !methods.is_empty() {
+            let mut method_map = HashMap::new();
+
+            for method in methods {
+                let method_value = Value::Function {
+                    params: method.params,
+                    body: method.body,
+                    return_type: method.return_type,
+                    captured_vars: HashMap::new(), // No captured vars for struct methods
+                };
+
+                method_map.insert(method.name, method_value);
+            }
+
+            self.struct_methods.insert(name, method_map);
+        }
+
+        Ok(Value::Unit)
+    }
+
+    fn execute_proc_declaration(&mut self, name: String, params: Vec<(String, TypeAnnotation)>, body: Vec<Statement>) -> Result<Value> {
+        tracing::debug!(proc_name = %name, "Executing proc declaration");
+        // Convert to a function with Unit return type
+        let function = Value::Function {
+            params: params
+                .into_iter()
+                .map(|(name, type_anno)| (name, type_anno))
+                .collect(),
+            body,
+            return_type: TypeAnnotation::Unit,
+            captured_vars: HashMap::new(),
+        };
+
+        self.current_scope_mut().set(name, function);
+        Ok(Value::Unit)
+    }
+
+    fn execute_function_declaration(&mut self, name: String, params: Vec<(String, TypeAnnotation)>, return_type: &TypeAnnotation, body: Vec<Statement>) -> Result<Value> {
+        let span = tracing::info_span!("function_declaration", name = %name);
+        let _enter = span.enter();
+
+        let processed_body = if !body.is_empty() {
+            // If we don't have any explicit returns and the last statement is an expression,
+            // convert it to a return
+            if !body.iter().any(|s| matches!(s, Statement::Return(_))) {
+                let mut new_body = body.clone();
+                if let Some(Statement::ExprStatement(expr)) = new_body.clone().last() {
+                    new_body.pop();
+                    new_body.push(Statement::Return(Some(expr.clone())));
+                }
+                new_body
+            } else {
+                body.clone()
+            }
+        } else {
+            body.clone()
+        };
+
+        let actual_return_type = match &return_type {
+            TypeAnnotation::Basic(name) if name == "infer" => {
+                // Try to infer from the body
+                if let Some(Statement::Return(Some(expr))) = processed_body.last() {
+                    match expr {
+                        Expr::Literal(Literal::String(_)) => {
+                            TypeAnnotation::Basic("str".to_string())
+                        }
+                        Expr::Literal(Literal::Integer(_)) => {
+                            TypeAnnotation::Basic("i32".to_string())
+                        }
+                        Expr::Literal(Literal::Float(_)) => {
+                            TypeAnnotation::Basic("f64".to_string())
+                        }
+                        Expr::Literal(Literal::Boolean(_)) => {
+                            TypeAnnotation::Basic("bool".to_string())
+                        }
+                        Expr::Literal(Literal::Char(_)) => {
+                            TypeAnnotation::Basic("char".to_string())
+                        }
+                        _ => return_type.clone(),
+                    }
+                } else {
+                    TypeAnnotation::Unit
+                }
+            }
+            _ => return_type.clone(),
+        };
+
+        // Insert the function name into the environment first with an empty body to support mutual recursion
+        self.current_scope_mut().set(
+            name.clone(),
+            Value::Function {
+                params: params.clone(),
+                body: vec![],
+                return_type: actual_return_type.clone(),
+                captured_vars: HashMap::new(),
+            },
+        );
+
+        let function = Value::Function {
+            params: params.clone(),
+            body: processed_body,
+            return_type: actual_return_type,
+            captured_vars: HashMap::new(), // No captured vars for top-level functions
+        };
+
+        // Overwrite with the real function body
+        self.current_scope_mut().set(name, function);
+        Ok(Value::Unit)
     }
 
     fn execute_assignment(&mut self, name: String, value: Box<Expr>) -> Result<Value> {
