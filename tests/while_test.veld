@@ -1,0 +1,12 @@
+# Example of a while loop in veld
+
+fn while_loop()
+    let mut counter = 0;
+
+    while counter < 5 do
+        counter += 1
+    end
+    counter
+end
+
+let _ = while_loop()

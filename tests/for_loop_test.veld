@@ -1,0 +1,13 @@
+# Example of a for loop in veld
+
+fn count_chars()
+    let mut word_to_count = "hello"
+    let mut counter = 0
+
+    for char in word_to_count do
+        counter += 1
+    end
+    counter
+end
+
+let _ = count_chars()
