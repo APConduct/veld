@@ -1179,10 +1179,10 @@ struct BlockScope1 {
 }
 
 struct If1 {
-    // condition: Expr,
     stmts: IntoIter<Statement>,
-    // else_stmts: Option<Vec<Statement>>,
 }
+
+struct While1 {}
 
 enum Frame {
     BlockScope1(BlockScope1),
@@ -1212,7 +1212,7 @@ impl Interpreter {
                                         Ok(r)
                                     }
                                     r => {
-                                        break 'continue_case self.loop_cond(
+                                        break 'continue_case self.block_flow(
                                             &mut stack,
                                             Ok(r),
                                             stmts,
@@ -1317,7 +1317,7 @@ impl Interpreter {
                             self.push_scope();
 
                             // loop {
-                            break 'continue_case self.loop_cond(
+                            break 'continue_case self.block_flow(
                                 &mut stack,
                                 Ok(Value::Unit),
                                 body.into_iter(),
@@ -1755,7 +1755,7 @@ impl Interpreter {
         // }
     }
 
-    fn loop_cond(
+    fn block_flow(
         &mut self,
         mut stack: &mut Vec<Frame>,
         mut last_value: Result<Value>,
