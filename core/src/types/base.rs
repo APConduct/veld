@@ -1315,7 +1315,7 @@ impl TypeChecker {
                 Ok(())
             }
             Statement::BlockScope { body } => {
-                println!("Type checking block scope");
+                tracing::debug!("Type checking block scope");
 
                 self.env.push_scope();
 
@@ -1327,13 +1327,9 @@ impl TypeChecker {
                 Ok(())
             }
             Statement::ProcDeclaration {
-                name,
-                params,
-                body,
-                
-                ..
+                name, params, body, ..
             } => {
-                println!("Type checking proc declaration: {}", name);
+                tracing::debug!("Type checking proc declaration: {}", name);
 
                 // Type check as a function returning unit
                 self.type_check_function(name, params, &TypeAnnotation::Unit, body)
@@ -1511,7 +1507,7 @@ impl TypeChecker {
             } => {
                 let left_val = self.evaluate_const_expr(left)?;
                 let right_val = self.evaluate_const_expr(right)?;
-                todo!("inplement const binary operations")
+                todo!("implement const binary operations")
             }
             _ => Err(VeldError::TypeError(format!(
                 "Cannot evaluate constant expression for: {:?}",
@@ -1766,7 +1762,7 @@ impl TypeChecker {
             } => self.infer_block_lambda_type(params, body, return_type.as_ref()),
             Expr::Literal(lit) => {
                 let ty = self.infer_literal_type(lit)?;
-                println!("Inferred literal type: {:?} for {:?}", ty, lit);
+                tracing::debug!("Inferred literal type: {:?} for {:?}", ty, lit);
                 Ok(ty)
             }
             Expr::UnitLiteral => Ok(Type::Unit),
@@ -1787,12 +1783,12 @@ impl TypeChecker {
                 body,
                 return_type,
             } => {
-                println!(
+                tracing::debug!(
                     "Inferring lambda type with return_type hint: {:?}",
                     return_type
                 );
                 let inferred = self.infer_lambda_type(params, body, return_type.as_ref())?;
-                println!("Inferred lambda type: {:?}", inferred);
+                tracing::debug!("Inferred lambda type: {:?}", inferred);
                 Ok(inferred)
             }
             Expr::MethodCall {
@@ -1835,7 +1831,7 @@ impl TypeChecker {
             EnumVariant => todo!(),
         };
         if let Ok(ref t) = result {
-            println!("Final inferred type for expression: {:?} -> {:?}", expr, t);
+            tracing::debug!("Final inferred type for expression: {:?} -> {:?}", expr, t);
         }
         result
     }
@@ -1983,7 +1979,7 @@ impl TypeChecker {
                     Type::I64
                 };
 
-                println!("Inferred integer literal {} as {:?}", value, inferred_type);
+                tracing::debug!("Inferred integer literal {} as {:?}", value, inferred_type);
                 Ok(inferred_type)
             }
             Literal::Float(value) => {
@@ -1994,23 +1990,23 @@ impl TypeChecker {
                     Type::F64
                 };
 
-                println!("Inferred float literal {} as {:?}", value, inferred_type);
+                tracing::debug!("Inferred float literal {} as {:?}", value, inferred_type);
                 Ok(inferred_type)
             }
             Literal::String(_) => {
-                println!("Inferred string literal as str");
+                tracing::debug!("Inferred string literal as str");
                 Ok(Type::String)
             }
             Literal::Boolean(_) => {
-                println!("Inferred boolean literal as bool");
+                tracing::debug!("Inferred boolean literal as bool");
                 Ok(Type::Bool)
             }
             Literal::Unit => {
-                println!("Inferred unit literal as unit");
+                tracing::debug!("Inferred unit literal as unit");
                 Ok(Type::Unit)
             }
             Literal::Char(_) => {
-                println!("Inferred char literal as char");
+                tracing::debug!("Inferred char literal as char");
                 Ok(Type::Char)
             }
         }
@@ -2423,24 +2419,24 @@ impl TypeChecker {
             } else {
                 self.env.fresh_type_var()
             };
-            println!("Lambda parameter {} type: {:?}", name, param_type);
+            tracing::debug!("Lambda parameter {} type: {:?}", name, param_type);
             param_types.push(param_type.clone());
             self.env.define(name, param_type);
         }
 
         let body_type = self.infer_expression_type(body)?;
-        println!("Lambda body type before constraints: {:?}", body_type);
+        tracing::debug!("Lambda body type before constraints: {:?}", body_type);
 
         let body_type = self.env.apply_substitutions(&body_type);
-        println!("Lambda body type after substitution: {:?}", body_type);
+        tracing::debug!("Lambda body type after substitution: {:?}", body_type);
 
         let return_type = if let Some(anno) = return_type_anno {
             let rt = self.env.from_annotation(anno, None)?;
-            println!("Using explicit return type: {:?}", rt);
+            tracing::debug!("Using explicit return type: {:?}", rt);
             self.env.add_constraint(body_type.clone(), rt.clone());
             rt
         } else {
-            println!("Using inferred return type: {:?}", body_type);
+            tracing::debug!("Using inferred return type: {:?}", body_type);
             body_type
         };
 
@@ -2453,9 +2449,10 @@ impl TypeChecker {
             .map(|t| self.env.apply_substitutions(t))
             .collect::<Vec<_>>();
 
-        println!(
+        tracing::debug!(
             "Final lambda type: fn({:?}) -> {:?}",
-            final_param_types, final_return_type
+            final_param_types,
+            final_return_type
         );
 
         Ok(Type::Function {

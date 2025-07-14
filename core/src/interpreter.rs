@@ -373,7 +373,7 @@ impl Interpreter {
         // Register other native functions
         self.register_math_functions();
         self.register_io_functions();
-        self.initialize_operator_kinds();
+        let _ = self.initialize_operator_kinds();
     }
 
     fn register_math_functions(&mut self) {
@@ -617,7 +617,7 @@ impl Interpreter {
 
     fn register_io_functions(&mut self) {
         // Capture a raw pointer to the interpreter for use in closures
-        let interpreter_ptr = self as *const Interpreter;
+        let _interpreter_ptr = self as *const Interpreter;
 
         self.native_registry
             .register_static("std.io.print", Self::io_print);
@@ -3031,108 +3031,108 @@ impl Interpreter {
         args.split_whitespace().map(|s| s.to_string()).collect()
     }
 
-    fn match_pattern_tokens(&self, pattern: &[PatternToken], args: &[String]) -> bool {
-        let mut p_idx = 0;
-        let mut a_idx = 0;
+    // fn match_pattern_tokens(&self, pattern: &[PatternToken], args: &[String]) -> bool {
+    //     let mut p_idx = 0;
+    //     let mut a_idx = 0;
 
-        while p_idx < pattern.len() {
-            if a_idx >= args.len() && p_idx < pattern.len() {
-                // Check if remaining patterns are optional
-                return self.remaining_patterns_optional(&pattern[p_idx..]);
-            }
+    //     while p_idx < pattern.len() {
+    //         if a_idx >= args.len() && p_idx < pattern.len() {
+    //             // Check if remaining patterns are optional
+    //             return self.remaining_patterns_optional(&pattern[p_idx..]);
+    //         }
 
-            match &pattern[p_idx] {
-                PatternToken::Literal(lit) => {
-                    if a_idx >= args.len() || &args[a_idx] != lit {
-                        return false; // Literal mismatch
-                    }
-                    a_idx += 1; // Move to next argument
-                }
-                PatternToken::Variable(_) => {
-                    // Variables match anything
-                    if a_idx >= args.len() {
-                        return false;
-                    }
-                    a_idx += 1; // Move to next argument
-                }
-                PatternToken::Repetition { min, separator, .. } => {
-                    // Handle repetition
-                    let mut matched = 0;
+    //         match &pattern[p_idx] {
+    //             PatternToken::Literal(lit) => {
+    //                 if a_idx >= args.len() || &args[a_idx] != lit {
+    //                     return false; // Literal mismatch
+    //                 }
+    //                 a_idx += 1; // Move to next argument
+    //             }
+    //             PatternToken::Variable(_) => {
+    //                 // Variables match anything
+    //                 if a_idx >= args.len() {
+    //                     return false;
+    //                 }
+    //                 a_idx += 1; // Move to next argument
+    //             }
+    //             PatternToken::Repetition { min, separator, .. } => {
+    //                 // Handle repetition
+    //                 let mut matched = 0;
 
-                    while a_idx < args.len() {
-                        // Check for seperator if not first match
-                        if matched > 0 && separator.is_some() {
-                            if a_idx >= args.len() || &args[a_idx] != separator.as_ref().unwrap() {
-                                break;
-                            }
-                            a_idx += 1; // Skip separator
-                        }
+    //                 while a_idx < args.len() {
+    //                     // Check for seperator if not first match
+    //                     if matched > 0 && separator.is_some() {
+    //                         if a_idx >= args.len() || &args[a_idx] != separator.as_ref().unwrap() {
+    //                             break;
+    //                         }
+    //                         a_idx += 1; // Skip separator
+    //                     }
 
-                        // Check if next pattern is hit
-                        if p_idx + 1 < pattern.len() {
-                            if let PatternToken::Literal(next_lit) = &pattern[p_idx + 1] {
-                                if &args[a_idx] == next_lit {
-                                    break;
-                                }
-                            }
-                        }
+    //                     // Check if next pattern is hit
+    //                     if p_idx + 1 < pattern.len() {
+    //                         if let PatternToken::Literal(next_lit) = &pattern[p_idx + 1] {
+    //                             if &args[a_idx] == next_lit {
+    //                                 break;
+    //                             }
+    //                         }
+    //                     }
 
-                        matched += 1;
-                        a_idx += 1;
-                    }
+    //                     matched += 1;
+    //                     a_idx += 1;
+    //                 }
 
-                    // Check if minimum matches
-                    if matched < *min {
-                        return false;
-                    }
-                }
-            }
-            p_idx += 1;
-        }
-        // Check if we consumed all arguments
-        a_idx >= args.len()
-    }
+    //                 // Check if minimum matches
+    //                 if matched < *min {
+    //                     return false;
+    //                 }
+    //             }
+    //         }
+    //         p_idx += 1;
+    //     }
+    //     // Check if we consumed all arguments
+    //     a_idx >= args.len()
+    // }
 
-    fn remaining_patterns_optional(&self, patterns: &[PatternToken]) -> bool {
-        patterns.iter().all(|token| match token {
-            PatternToken::Repetition { min, .. } => *min == 0,
-            _ => false,
-        })
-    }
+    // fn remaining_patterns_optional(&self, patterns: &[PatternToken]) -> bool {
+    //     patterns.iter().all(|token| match token {
+    //         PatternToken::Repetition { min, .. } => *min == 0,
+    //         _ => false,
+    //     })
+    // }
 
-    fn pattern_matches_args(&self, pattern: &str, args_str: &str) -> bool {
-        // Parse the pattern into tokens
-        let pattern_tokens = self.tokenize_pattern(pattern);
-        let arg_tokens = self.tokenize_args(args_str);
+    // fn pattern_matches_args(&self, pattern: &str, args_str: &str) -> bool {
+    //     // Parse the pattern into tokens
+    //     let pattern_tokens = self.tokenize_pattern(pattern);
+    //     let arg_tokens = self.tokenize_args(args_str);
 
-        // Match with more advanced features
-        self.match_pattern_tokens(&pattern_tokens, &arg_tokens)
-    }
+    //     // Match with more advanced features
+    //     self.match_pattern_tokens(&pattern_tokens, &arg_tokens)
+    // }
 
-    fn execute_macro_expansion(
-        &mut self,
-        expansion: &MacroExpansion,
-        args: &[Value],
-    ) -> Result<Value> {
-        self.push_scope();
+    // fn execute_macro_expansion(
+    //     &mut self,
+    //     expansion: &MacroExpansion,
+    //     args: &[Value],
+    // ) -> Result<Value> {
+    //     self.push_scope();
 
-        let mut result = Value::Unit;
-        for stmt in expansion.0.clone() {
-            match self.execute_statement(stmt) {
-                Ok(value) => {
-                    result = value;
-                }
+    //     let mut result = Value::Unit;
+    //     for stmt in expansion.0.clone() {
+    //         match self.execute_statement(stmt) {
+    //             Ok(value) => {
+    //                 result = value;
+    //             }
 
-                Err(e) => {
-                    self.pop_scope();
-                    return Err(e);
-                }
-            }
-        }
+    //             Err(e) => {
+    //                 self.pop_scope();
+    //                 return Err(e);
+    //             }
+    //         }
+    //     }
 
-        self.pop_scope();
-        Ok(result)
-    }
+    //     self.pop_scope();
+    //     Ok(result)
+    // }
 
     fn execute_procedural_macro(
         &mut self,
@@ -4129,7 +4129,7 @@ impl Interpreter {
             );
 
             // Create a specialized function and call it with the provided arguments
-            let function = Value::Function {
+            let _function = Value::Function {
                 params: specialized_params.clone(),
                 body: generic_fn.body.clone(),
                 return_type: specialized_return_type,

@@ -159,7 +159,7 @@ impl NumericValue {
             },
             _ => unreachable!("Coercion should have handled this case"),
         };
-        println!("DEBUG: NumericValue::sub result = {:?}", result);
+        tracing::debug!("NumericValue::sub result = {:?}", result);
         result
     }
 
