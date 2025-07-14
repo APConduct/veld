@@ -2346,28 +2346,6 @@ impl Interpreter {
             Expr::SelfReference => self
                 .get_variable("self")
                 .ok_or_else(|| VeldError::RuntimeError("self not found".to_string())),
-            Expr::IfExpression {
-                condition,
-                then_expr,
-                else_expr,
-            } => {
-                let cond_value = self.evaluate_expression(*condition)?.unwrap_return();
-
-                let truthy = self.is_truthy(cond_value.clone());
-
-                if truthy {
-                    self.evaluate_expression(*then_expr)
-                } else if let Some(else_expr) = else_expr {
-                    self.evaluate_expression(*else_expr)
-                } else {
-                    Ok(Value::Unit)
-                }
-            }
-            Expr::BlockLambda {
-                params,
-                body,
-                return_type,
-            } => Ok(self.create_block_lambda(params, body, return_type)),
             Expr::Literal(lit) => Ok(match lit {
                 Literal::Integer(n) => {
                     // Default to i32, but this could be context-sensitive in the future
@@ -2391,6 +2369,28 @@ impl Interpreter {
             Expr::Identifier(name) => self
                 .get_variable(&name)
                 .ok_or_else(|| VeldError::RuntimeError(format!("Undefined variable '{}'", name))),
+            Expr::BlockLambda {
+                params,
+                body,
+                return_type,
+            } => Ok(self.create_block_lambda(params, body, return_type)),
+            Expr::IfExpression {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                let cond_value = self.evaluate_expression(*condition)?.unwrap_return();
+
+                let truthy = self.is_truthy(cond_value.clone());
+
+                if truthy {
+                    self.evaluate_expression(*then_expr)
+                } else if let Some(else_expr) = else_expr {
+                    self.evaluate_expression(*else_expr)
+                } else {
+                    Ok(Value::Unit)
+                }
+            }
             Expr::BinaryOp {
                 left,
                 operator,
@@ -2790,8 +2790,8 @@ impl Interpreter {
                                             IntegerValue::I16(v) => IntegerValue::I16(-v),
                                             IntegerValue::I32(v) => IntegerValue::I32(-v),
                                             IntegerValue::I64(v) => IntegerValue::I64(-v),
-                                            // For unsigned types, we'd need special handling
-                                            // This is simplified - you might want to handle overflow
+                                            // For unsigned types, we will need special handling
+                                            // TODO: handle overflow
                                             IntegerValue::U8(_)
                                             | IntegerValue::U16(_)
                                             | IntegerValue::U32(_)
