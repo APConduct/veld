@@ -1,12 +1,18 @@
-use crate::ast::{Argument, BinaryOperator, EnumVariant, Expr, FunctionDeclaration, GenericArgument, ImportItem, Literal, MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField, StructMethod, TypeAnnotation, UnaryOperator, VarKind};
+use crate::ast::{
+    Argument, BinaryOperator, EnumVariant, Expr, FunctionDeclaration, GenericArgument, ImportItem,
+    Literal, MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement,
+    StructField, StructMethod, TypeAnnotation, UnaryOperator, VarKind,
+};
 use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
 use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
+use std::vec::IntoIter;
 
 enum PatternToken {
     Literal(String),
@@ -1166,273 +1172,609 @@ impl Interpreter {
             ))),
         }
     }
+}
+struct BlockScope1 {
+    stmts: IntoIter<Statement>,
+    // last_val: Result<Value>,
+}
 
+struct If1 {
+    // condition: Expr,
+    stmts: IntoIter<Statement>,
+    // else_stmts: Option<Vec<Statement>>,
+}
+
+enum Frame {
+    BlockScope1(BlockScope1),
+    If1(If1),
+}
+impl Interpreter {
     fn execute_statement(&mut self, statement: Statement) -> Result<Value> {
         let span = tracing::debug_span!("execute_statement", statement = ?statement);
         let _enter = span.enter();
 
+        let mut stack = Vec::new();
+
+        use std::ops::ControlFlow;
         tracing::debug!(?statement, "Executing statement");
-        match statement {
-            Statement::VariableDeclaration {
-                name,
-                var_kind,
-                type_annotation,
-                value,
-                ..
-            } => self.execute_variable_declaration(name, var_kind, type_annotation, value),
-            Statement::FunctionDeclaration {
-                name,
-                params,
-                return_type,
-                body,
-                ..
-            } => self.execute_function_declaration(name, params, &return_type, body),
-            Statement::ModuleDeclaration {
-                name,
-                body,
-                is_public,
-            } => self.execute_module_declaration(name, body, is_public),
-            Statement::ImportDeclaration {
-                path,
-                items,
-                alias,
-                is_public,
-            } => self.execute_import_declaration(path, items, alias, is_public),
-            Statement::CompoundAssignment {
-                name,
-                operator,
-                value,
-            } => self.execute_compound_assignment(name, operator, value)?,
-            Statement::EnumDeclaration { name, variants, .. } => {
-                self.enums.insert(name, variants);
-                Ok(Value::Unit)
-            }
-            Statement::Break => Ok(Value::Break),
-            Statement::Continue => Ok(Value::Continue),
-            Statement::Match { value, arms } => self.execute_match(value, arms),
-            Statement::Assignment { name, value } => self.execute_assignment(name, value),
-            Statement::MacroInvocation { name, arguments } => self.execute_macro_invocation(&name, arguments)?,
-            Statement::Return(expr_opt) => self.execute_return(expr_opt)?,
-            Statement::ProcDeclaration {
-                name, params, body, ..
-            } => self.execute_proc_declaration(name, params, body),
-            Statement::StructDeclaration {
-                name,
-                fields,
-                methods,
-                generic_params,
-                is_public: _,
-            } => self.execute_struct_declaration(name, fields, methods, generic_params),
-            Statement::Implementation {
-                type_name,
-                kind_name: _,
-                methods,
-                generic_args: _,
-            } => self.execute_implementation(type_name, methods),
+        let mut action: ControlFlow<Result<Value>, Statement> = ControlFlow::Continue(statement);
+        loop {
+            action = 'continue_case: {
+                ControlFlow::Break(match action {
+                    ControlFlow::Break(value) => {
+                        if let Some(frame) = stack.pop() {
+                            let result = value?;
 
-            Statement::ExprStatement(expr) => {
-                let value = self.evaluate_expression(expr)?;
-                Ok(value.unwrap_return())
-            }
-            Statement::BlockScope { body } => {
-                let span = tracing::debug_span!("block_scope", statement_count = body.len());
-                let _enter = span.enter();
-
-                tracing::debug!(statement_count = body.len(), "Executing block scope");
-                // Create new scope for the block
-                self.push_scope();
-
-                let mut last_value = Value::Unit;
-                let mut stmts = body.into_iter();
-                loop {
-                    let Some(stmt) = stmts.next() else {
-                        break;
-                    };
-                // for stmt in body {
-                    let result = self.execute_statement(stmt)?;
-
-                    // Handle control flow - early returns should bubble up
-                    match result {
-                        Value::Return(_) => {
-                            self.pop_scope();
-                            return Ok(result);
-                        }
-                        Value::Break | Value::Continue => {
-                            self.pop_scope();
-                            return Ok(result);
-                        }
-                        _ => last_value = result,
-                    }
-                }
-
-                self.pop_scope();
-                Ok(last_value)
-            }
-
-            Statement::If {
-                condition,
-                then_branch,
-                else_branch,
-            } => {
-                let cond_value = self.evaluate_expression(condition)?.unwrap_return();
-
-                let branch =
-                if self.is_truthy(cond_value) {
-                    then_branch
-                } else if let Some(else_statements) = else_branch {
-                    else_statements
-                } else { return Ok(Value::Unit) };
-                let mut stmts = branch.into_iter();
-                loop {
-                    let Some(stmt) = stmts.next() else {
-                        break Ok(Value::Unit);
-                    };
-                    let result = self.execute_statement(stmt)?;
-                    if matches!(result, Value::Return(_)) {
-                        break Ok(result);
-                    }
-                }
-            }
-            Statement::While { condition, body } => {
-                let mut maybe_stmts = None;
-                loop {
-                    maybe_stmts = match maybe_stmts {
-                        None => {
-                            let cond_result = self.evaluate_expression(condition.clone())?.unwrap_return();
-                            if !self.is_truthy(cond_result) {
-                                break;
-                            };
-                            Some(body.clone().into_iter())
-                        }
-                        Some(mut stmts) => {
-                            if let Some(stmt) = stmts.next() {
-                                // Differential Type will be constructed here and loop state will be saved
-                                let result = self.execute_statement(stmt)?;
-                                match result {
-                                    Value::Return(_) => return Ok(result),
-                                    Value::Break => return Ok(Value::Unit),
-                                    Value::Continue => break,
-                                    _ => {}
-                                }
-                                Some(stmts)
-                            } else {
-                                None
-                            }
-                            // REMEMBER: hold onto variable before loop into Frame structure
-                        }
-                    };
-                }
-                Ok(Value::Unit)
-            }
-            Statement::For {
-                iterator,
-                iterable,
-                body,
-            } => {
-                let iterable_value = self.evaluate_expression(iterable.clone())?.unwrap_return();
-
-                match iterable_value {
-                    Value::Array(elements) => {
-                        let mut inner_loop = None;
-                        let mut elements = elements.into_iter();
-                        loop {
-                            inner_loop = match inner_loop {
-                                None => {
-                                    match elements.next() {
-                                        None => break,
-                                        Some(element) => {
-                                            self.current_scope_mut()
-                                                .set(iterator.clone(), element);
-                                            Some(body.clone().into_iter())
-                                        }
+                            match frame {
+                                Frame::BlockScope1(BlockScope1 { stmts, .. }) => match result {
+                                    r @ (Value::Return(_) | Value::Break | Value::Continue) => {
+                                        self.pop_scope();
+                                        Ok(r)
                                     }
-                                }
-                                Some(mut stmts) => {
-                                    if let Some(stmt) = stmts.next() {
-                                        let result = self.execute_statement(stmt)?;
-                                        match result {
-                                            Value::Return(_) => return Ok(result),
-                                            Value::Break => return Ok(Value::Unit),
-                                            Value::Continue => break,
-                                            _ => {}
-                                        }
-                                        Some(stmts)
+                                    r => {
+                                        break 'continue_case self.loop_cond(
+                                            &mut stack,
+                                            Ok(r),
+                                            stmts,
+                                        );
+                                    }
+                                },
+                                Frame::If1(If1 { mut stmts }) => {
+                                    if matches!(result, Value::Return(_)) {
+                                        Ok(result)
+                                    } else if let Some(stmt) = stmts.next() {
+                                        stack.push(Frame::If1(If1 { stmts }));
+                                        break 'continue_case ControlFlow::Continue(stmt);
                                     } else {
-                                        None
+                                        Ok(Value::Unit)
                                     }
-
                                 }
+                            }
+                        } else {
+                            return value;
+                        }
+                    }
+                    ControlFlow::Continue(statement) => match statement {
+                        Statement::VariableDeclaration {
+                            name,
+                            var_kind,
+                            type_annotation,
+                            value,
+                            ..
+                        } => self.execute_variable_declaration(
+                            name,
+                            var_kind,
+                            type_annotation,
+                            value,
+                        ),
+                        Statement::FunctionDeclaration {
+                            name,
+                            params,
+                            return_type,
+                            body,
+                            ..
+                        } => self.execute_function_declaration(name, params, &return_type, body),
+                        Statement::ModuleDeclaration {
+                            name,
+                            body,
+                            is_public,
+                        } => self.execute_module_declaration(name, body, is_public),
+                        Statement::ImportDeclaration {
+                            path,
+                            items,
+                            alias,
+                            is_public,
+                        } => self.execute_import_declaration(path, items, alias, is_public),
+                        Statement::CompoundAssignment {
+                            name,
+                            operator,
+                            value,
+                        } => self.execute_compound_assignment(name, operator, value)?,
+                        Statement::EnumDeclaration { name, variants, .. } => {
+                            self.enums.insert(name, variants);
+                            Ok(Value::Unit)
+                        }
+                        Statement::Break => Ok(Value::Break),
+                        Statement::Continue => Ok(Value::Continue),
+                        Statement::Match { value, arms } => self.execute_match(value, arms),
+                        Statement::Assignment { name, value } => {
+                            self.execute_assignment(name, value)
+                        }
+                        Statement::MacroInvocation { name, arguments } => {
+                            self.execute_macro_invocation(&name, arguments)?
+                        }
+                        Statement::Return(expr_opt) => self.execute_return(expr_opt)?,
+                        Statement::ProcDeclaration {
+                            name, params, body, ..
+                        } => self.execute_proc_declaration(name, params, body),
+                        Statement::StructDeclaration {
+                            name,
+                            fields,
+                            methods,
+                            generic_params,
+                            is_public: _,
+                        } => self.execute_struct_declaration(name, fields, methods, generic_params),
+                        Statement::Implementation {
+                            type_name,
+                            kind_name: _,
+                            methods,
+                            generic_args: _,
+                        } => self.execute_implementation(type_name, methods),
+
+                        Statement::ExprStatement(expr) => {
+                            let value = self.evaluate_expression(expr)?;
+                            Ok(value.unwrap_return())
+                        }
+
+                        // Recursive cases
+                        Statement::BlockScope { body } => {
+                            let span =
+                                tracing::debug_span!("block_scope", statement_count = body.len());
+                            let _enter = span.enter();
+
+                            tracing::debug!(statement_count = body.len(), "Executing block scope");
+                            // Create new scope for the block
+                            self.push_scope();
+
+                            // loop {
+                            break 'continue_case self.loop_cond(
+                                &mut stack,
+                                Ok(Value::Unit),
+                                body.into_iter(),
+                            );
+                            // Block scope 1
+                        }
+
+                        Statement::If {
+                            condition,
+                            then_branch,
+                            else_branch,
+                        } => {
+                            let cond_value = self.evaluate_expression(condition)?.unwrap_return();
+
+                            let branch = if self.is_truthy(cond_value) {
+                                then_branch
+                            } else if let Some(else_statements) = else_branch {
+                                else_statements
+                            } else {
+                                break 'continue_case ControlFlow::Break(Ok(Value::Unit));
                             };
-                        // for element in elements {
-                        //     self.current_scope_mut().set(iterator.clone(), element);
-                            // for stmt in body.clone() {
-                            //     let result = self.execute_statement(stmt)?;
-                            //     match result {
-                            //         Value::Return(_) => return Ok(result),
-                            //         Value::Break => return Ok(Value::Unit),
-                            //         Value::Continue => break,
-                            //         _ => {}
-                            //     }
+                            let mut stmts = branch.into_iter();
+                            // loop {
+                            if let Some(stmt) = stmts.next() {
+                                stack.push(Frame::If1(If1 { stmts }));
+                                break 'continue_case ControlFlow::Continue(stmt);
+                            } else {
+                                Ok(Value::Unit)
+                            }
+                            // let result = self.execute_statement(stmt)?;
+                            // if matches!(result, Value::Return(_)) {
+                            //     break Ok(result);
+                            // }
                             // }
                         }
-                    }
-                    Value::String(s) => {
-                        let mut inner_loop = None;
-                        let mut chars = s.chars();
-                        loop {
-                            inner_loop = match inner_loop {
-                                None => {
-                                    match chars.next() {
-                                        None => break,
-                                        Some(c) => {
-                                            self.current_scope_mut()
-                                                .set(iterator.clone(), Value::String(c.to_string()));
-                                            Some(body.clone().into_iter())
-                                        }
+                        Statement::While { condition, body } => {
+                            let mut maybe_stmts = None;
+                            loop {
+                                maybe_stmts = match maybe_stmts {
+                                    None => {
+                                        let cond_result = self
+                                            .evaluate_expression(condition.clone())?
+                                            .unwrap_return();
+                                        if !self.is_truthy(cond_result) {
+                                            break;
+                                        };
+                                        Some(body.clone().into_iter())
                                     }
-                                }
-                                Some(mut stmts) => {
-                                    if let Some(stmt) = stmts.next() {
-                                        let result = self.execute_statement(stmt)?;
-                                        match result {
-                                            Value::Return(_) => return Ok(result),
-                                            Value::Break => return Ok(Value::Unit),
-                                            Value::Continue => break,
-                                            _ => {}
+                                    Some(mut stmts) => {
+                                        if let Some(stmt) = stmts.next() {
+                                            // Differential Type will be constructed here and loop state will be saved
+                                            let result = self.execute_statement(stmt)?;
+                                            match result {
+                                                Value::Return(_) => return Ok(result),
+                                                Value::Break => return Ok(Value::Unit),
+                                                Value::Continue => break,
+                                                _ => {}
+                                            }
+                                            Some(stmts)
+                                        } else {
+                                            None
                                         }
-                                        Some(stmts)
-                                    } else {
-                                        None
+                                        // REMEMBER: hold onto variable before loop into Frame structure
                                     }
-                                }
-                            };
+                                };
+                            }
+                            Ok(Value::Unit)
                         }
-                        // for c in s.chars() {
-                        //     self.current_scope_mut()
-                        //         .set(iterator.clone(), Value::String(c.to_string()));
-                        //
-                        //     for stmt in body.clone() {
-                        //         let result = self.execute_statement(stmt)?;
-                        //         match result {
-                        //             Value::Return(_) => return Ok(result),
-                        //             Value::Break => return Ok(Value::Unit),
-                        //             Value::Continue => break,
-                        //             _ => {}
-                        //         }
-                        //     }
-                        // }
-                    }
-                    _ => {
-                        return Err(VeldError::RuntimeError(format!(
-                            "Cannot iterate over value of type {:?}",
-                            iterable_value
-                        )));
-                    }
-                }
-                Ok(Value::Unit)
-            }
+                        Statement::For {
+                            iterator,
+                            iterable,
+                            body,
+                        } => {
+                            let iterable_value =
+                                self.evaluate_expression(iterable.clone())?.unwrap_return();
 
-            _ => Ok(Value::Unit),
+                            match iterable_value {
+                                Value::Array(elements) => {
+                                    let mut inner_loop = None;
+                                    let mut elements = elements.into_iter();
+                                    loop {
+                                        inner_loop = match inner_loop {
+                                            None => match elements.next() {
+                                                None => break,
+                                                Some(element) => {
+                                                    self.current_scope_mut()
+                                                        .set(iterator.clone(), element);
+                                                    Some(body.clone().into_iter())
+                                                }
+                                            },
+                                            Some(mut stmts) => {
+                                                if let Some(stmt) = stmts.next() {
+                                                    let result = self.execute_statement(stmt)?;
+                                                    match result {
+                                                        Value::Return(_) => return Ok(result),
+                                                        Value::Break => return Ok(Value::Unit),
+                                                        Value::Continue => break,
+                                                        _ => {}
+                                                    }
+                                                    Some(stmts)
+                                                } else {
+                                                    None
+                                                }
+                                            }
+                                        };
+                                        // for element in elements {
+                                        //     self.current_scope_mut().set(iterator.clone(), element);
+                                        // for stmt in body.clone() {
+                                        //     let result = self.execute_statement(stmt)?;
+                                        //     match result {
+                                        //         Value::Return(_) => return Ok(result),
+                                        //         Value::Break => return Ok(Value::Unit),
+                                        //         Value::Continue => break,
+                                        //         _ => {}
+                                        //     }
+                                        // }
+                                    }
+                                }
+                                Value::String(s) => {
+                                    let mut inner_loop = None;
+                                    let mut chars = s.chars();
+                                    loop {
+                                        inner_loop = match inner_loop {
+                                            None => match chars.next() {
+                                                None => break,
+                                                Some(c) => {
+                                                    self.current_scope_mut().set(
+                                                        iterator.clone(),
+                                                        Value::String(c.to_string()),
+                                                    );
+                                                    Some(body.clone().into_iter())
+                                                }
+                                            },
+                                            Some(mut stmts) => {
+                                                if let Some(stmt) = stmts.next() {
+                                                    let result = self.execute_statement(stmt)?;
+                                                    match result {
+                                                        Value::Return(_) => return Ok(result),
+                                                        Value::Break => return Ok(Value::Unit),
+                                                        Value::Continue => break,
+                                                        _ => {}
+                                                    }
+                                                    Some(stmts)
+                                                } else {
+                                                    None
+                                                }
+                                            }
+                                        };
+                                    }
+                                    // for c in s.chars() {
+                                    //     self.current_scope_mut()
+                                    //         .set(iterator.clone(), Value::String(c.to_string()));
+                                    //
+                                    //     for stmt in body.clone() {
+                                    //         let result = self.execute_statement(stmt)?;
+                                    //         match result {
+                                    //             Value::Return(_) => return Ok(result),
+                                    //             Value::Break => return Ok(Value::Unit),
+                                    //             Value::Continue => break,
+                                    //             _ => {}
+                                    //         }
+                                    //     }
+                                    // }
+                                }
+                                _ => {
+                                    return Err(VeldError::RuntimeError(format!(
+                                        "Cannot iterate over value of type {:?}",
+                                        iterable_value
+                                    )));
+                                }
+                            }
+                            Ok(Value::Unit)
+                        }
+
+                        _ => Ok(Value::Unit),
+                    },
+                })
+            }
+        }
+
+        // match statement {
+        //     Statement::VariableDeclaration {
+        //         name,
+        //         var_kind,
+        //         type_annotation,
+        //         value,
+        //         ..
+        //     } => self.execute_variable_declaration(name, var_kind, type_annotation, value),
+        //     Statement::FunctionDeclaration {
+        //         name,
+        //         params,
+        //         return_type,
+        //         body,
+        //         ..
+        //     } => self.execute_function_declaration(name, params, &return_type, body),
+        //     Statement::ModuleDeclaration {
+        //         name,
+        //         body,
+        //         is_public,
+        //     } => self.execute_module_declaration(name, body, is_public),
+        //     Statement::ImportDeclaration {
+        //         path,
+        //         items,
+        //         alias,
+        //         is_public,
+        //     } => self.execute_import_declaration(path, items, alias, is_public),
+        //     Statement::CompoundAssignment {
+        //         name,
+        //         operator,
+        //         value,
+        //     } => self.execute_compound_assignment(name, operator, value)?,
+        //     Statement::EnumDeclaration { name, variants, .. } => {
+        //         self.enums.insert(name, variants);
+        //         Ok(Value::Unit)
+        //     }
+        //     Statement::Break => Ok(Value::Break),
+        //     Statement::Continue => Ok(Value::Continue),
+        //     Statement::Match { value, arms } => self.execute_match(value, arms),
+        //     Statement::Assignment { name, value } => self.execute_assignment(name, value),
+        //     Statement::MacroInvocation { name, arguments } => {
+        //         self.execute_macro_invocation(&name, arguments)?
+        //     }
+        //     Statement::Return(expr_opt) => self.execute_return(expr_opt)?,
+        //     Statement::ProcDeclaration {
+        //         name, params, body, ..
+        //     } => self.execute_proc_declaration(name, params, body),
+        //     Statement::StructDeclaration {
+        //         name,
+        //         fields,
+        //         methods,
+        //         generic_params,
+        //         is_public: _,
+        //     } => self.execute_struct_declaration(name, fields, methods, generic_params),
+        //     Statement::Implementation {
+        //         type_name,
+        //         kind_name: _,
+        //         methods,
+        //         generic_args: _,
+        //     } => self.execute_implementation(type_name, methods),
+
+        //     Statement::ExprStatement(expr) => {
+        //         let value = self.evaluate_expression(expr)?;
+        //         Ok(value.unwrap_return())
+        //     }
+        //     Statement::BlockScope { body } => {
+        //         let span = tracing::debug_span!("block_scope", statement_count = body.len());
+        //         let _enter = span.enter();
+
+        //         tracing::debug!(statement_count = body.len(), "Executing block scope");
+        //         // Create new scope for the block
+        //         self.push_scope();
+
+        //         let mut last_value = Value::Unit;
+        //         let mut stmts = body.into_iter();
+        //         loop {
+        //             let Some(stmt) = stmts.next() else {
+        //                 break;
+        //             };
+        //             // for stmt in body {
+        //             let result = self.execute_statement(stmt)?;
+
+        //             // Handle control flow - early returns should bubble up
+        //             match result {
+        //                 Value::Return(_) => {
+        //                     self.pop_scope();
+        //                     return Ok(result);
+        //                 }
+        //                 Value::Break | Value::Continue => {
+        //                     self.pop_scope();
+        //                     return Ok(result);
+        //                 }
+        //                 _ => last_value = result,
+        //             }
+        //         }
+
+        //         self.pop_scope();
+        //         Ok(last_value)
+        //     }
+
+        //     Statement::If {
+        //         condition,
+        //         then_branch,
+        //         else_branch,
+        //     } => {
+        //         let cond_value = self.evaluate_expression(condition)?.unwrap_return();
+
+        //         let branch = if self.is_truthy(cond_value) {
+        //             then_branch
+        //         } else if let Some(else_statements) = else_branch {
+        //             else_statements
+        //         } else {
+        //             return Ok(Value::Unit);
+        //         };
+        //         let mut stmts = branch.into_iter();
+        //         loop {
+        //             let Some(stmt) = stmts.next() else {
+        //                 break Ok(Value::Unit);
+        //             };
+        //             let result = self.execute_statement(stmt)?;
+        //             if matches!(result, Value::Return(_)) {
+        //                 break Ok(result);
+        //             }
+        //         }
+        //     }
+        //     Statement::While { condition, body } => {
+        //         let mut maybe_stmts = None;
+        //         loop {
+        //             maybe_stmts = match maybe_stmts {
+        //                 None => {
+        //                     let cond_result =
+        //                         self.evaluate_expression(condition.clone())?.unwrap_return();
+        //                     if !self.is_truthy(cond_result) {
+        //                         break;
+        //                     };
+        //                     Some(body.clone().into_iter())
+        //                 }
+        //                 Some(mut stmts) => {
+        //                     if let Some(stmt) = stmts.next() {
+        //                         // Differential Type will be constructed here and loop state will be saved
+        //                         let result = self.execute_statement(stmt)?;
+        //                         match result {
+        //                             Value::Return(_) => return Ok(result),
+        //                             Value::Break => return Ok(Value::Unit),
+        //                             Value::Continue => break,
+        //                             _ => {}
+        //                         }
+        //                         Some(stmts)
+        //                     } else {
+        //                         None
+        //                     }
+        //                     // REMEMBER: hold onto variable before loop into Frame structure
+        //                 }
+        //             };
+        //         }
+        //         Ok(Value::Unit)
+        //     }
+        //     Statement::For {
+        //         iterator,
+        //         iterable,
+        //         body,
+        //     } => {
+        //         let iterable_value = self.evaluate_expression(iterable.clone())?.unwrap_return();
+
+        //         match iterable_value {
+        //             Value::Array(elements) => {
+        //                 let mut inner_loop = None;
+        //                 let mut elements = elements.into_iter();
+        //                 loop {
+        //                     inner_loop = match inner_loop {
+        //                         None => match elements.next() {
+        //                             None => break,
+        //                             Some(element) => {
+        //                                 self.current_scope_mut().set(iterator.clone(), element);
+        //                                 Some(body.clone().into_iter())
+        //                             }
+        //                         },
+        //                         Some(mut stmts) => {
+        //                             if let Some(stmt) = stmts.next() {
+        //                                 let result = self.execute_statement(stmt)?;
+        //                                 match result {
+        //                                     Value::Return(_) => return Ok(result),
+        //                                     Value::Break => return Ok(Value::Unit),
+        //                                     Value::Continue => break,
+        //                                     _ => {}
+        //                                 }
+        //                                 Some(stmts)
+        //                             } else {
+        //                                 None
+        //                             }
+        //                         }
+        //                     };
+        //                     // for element in elements {
+        //                     //     self.current_scope_mut().set(iterator.clone(), element);
+        //                     // for stmt in body.clone() {
+        //                     //     let result = self.execute_statement(stmt)?;
+        //                     //     match result {
+        //                     //         Value::Return(_) => return Ok(result),
+        //                     //         Value::Break => return Ok(Value::Unit),
+        //                     //         Value::Continue => break,
+        //                     //         _ => {}
+        //                     //     }
+        //                     // }
+        //                 }
+        //             }
+        //             Value::String(s) => {
+        //                 let mut inner_loop = None;
+        //                 let mut chars = s.chars();
+        //                 loop {
+        //                     inner_loop = match inner_loop {
+        //                         None => match chars.next() {
+        //                             None => break,
+        //                             Some(c) => {
+        //                                 self.current_scope_mut()
+        //                                     .set(iterator.clone(), Value::String(c.to_string()));
+        //                                 Some(body.clone().into_iter())
+        //                             }
+        //                         },
+        //                         Some(mut stmts) => {
+        //                             if let Some(stmt) = stmts.next() {
+        //                                 let result = self.execute_statement(stmt)?;
+        //                                 match result {
+        //                                     Value::Return(_) => return Ok(result),
+        //                                     Value::Break => return Ok(Value::Unit),
+        //                                     Value::Continue => break,
+        //                                     _ => {}
+        //                                 }
+        //                                 Some(stmts)
+        //                             } else {
+        //                                 None
+        //                             }
+        //                         }
+        //                     };
+        //                 }
+        //                 // for c in s.chars() {
+        //                 //     self.current_scope_mut()
+        //                 //         .set(iterator.clone(), Value::String(c.to_string()));
+        //                 //
+        //                 //     for stmt in body.clone() {
+        //                 //         let result = self.execute_statement(stmt)?;
+        //                 //         match result {
+        //                 //             Value::Return(_) => return Ok(result),
+        //                 //             Value::Break => return Ok(Value::Unit),
+        //                 //             Value::Continue => break,
+        //                 //             _ => {}
+        //                 //         }
+        //                 //     }
+        //                 // }
+        //             }
+        //             _ => {
+        //                 return Err(VeldError::RuntimeError(format!(
+        //                     "Cannot iterate over value of type {:?}",
+        //                     iterable_value
+        //                 )));
+        //             }
+        //         }
+        //         Ok(Value::Unit)
+        //     }
+
+        //     _ => Ok(Value::Unit),
+        // }
+    }
+
+    fn loop_cond(
+        &mut self,
+        mut stack: &mut Vec<Frame>,
+        mut last_value: Result<Value>,
+        mut stmts: IntoIter<Statement>,
+    ) -> ControlFlow<Result<Value>, Statement> {
+        if let Some(stmt) = stmts.next() {
+            stack.push(Frame::BlockScope1(BlockScope1 {
+                stmts,
+                // last_val: Ok(Value::Unit),
+            }));
+            ControlFlow::Continue(stmt)
+        } else {
+            self.pop_scope();
+            ControlFlow::Break(last_value)
         }
     }
 
@@ -1484,7 +1826,11 @@ impl Interpreter {
         ))
     }
 
-    fn execute_macro_invocation(&mut self, name: &String, arguments: Vec<Expr>) -> Result<Result<Value>> {
+    fn execute_macro_invocation(
+        &mut self,
+        name: &String,
+        arguments: Vec<Expr>,
+    ) -> Result<Result<Value>> {
         // Evaluate all arguments
         let mut evaluated_args = Vec::new();
         for arg in arguments {
@@ -1514,10 +1860,15 @@ impl Interpreter {
         })
     }
 
-    fn execute_compound_assignment(&mut self, name: String, operator: BinaryOperator, value: Box<Expr>) -> Result<Result<Value>> {
-        let current = self.get_variable(&name).ok_or_else(|| {
-            VeldError::RuntimeError(format!("Undefined variable '{}'", name))
-        })?;
+    fn execute_compound_assignment(
+        &mut self,
+        name: String,
+        operator: BinaryOperator,
+        value: Box<Expr>,
+    ) -> Result<Result<Value>> {
+        let current = self
+            .get_variable(&name)
+            .ok_or_else(|| VeldError::RuntimeError(format!("Undefined variable '{}'", name)))?;
         let new_value = self.evaluate_expression(*value)?;
         let result = self.evaluate_binary_op(current, operator, new_value)?;
 
@@ -1526,7 +1877,11 @@ impl Interpreter {
         Ok(self.execute_assignment(name, Box::new(result_expr)))
     }
 
-    fn execute_implementation(&mut self, type_name: String, methods: Vec<MethodImpl>) -> Result<Value> {
+    fn execute_implementation(
+        &mut self,
+        type_name: String,
+        methods: Vec<MethodImpl>,
+    ) -> Result<Value> {
         // Just register all methods for now, ignoring kinds
         let method_map = self
             .struct_methods
@@ -1547,7 +1902,13 @@ impl Interpreter {
         Ok(Value::Unit)
     }
 
-    fn execute_struct_declaration(&mut self, name: String, fields: Vec<StructField>, methods: Vec<StructMethod>, generic_params: Vec<GenericArgument>) -> Result<Value> {
+    fn execute_struct_declaration(
+        &mut self,
+        name: String,
+        fields: Vec<StructField>,
+        methods: Vec<StructMethod>,
+        generic_params: Vec<GenericArgument>,
+    ) -> Result<Value> {
         // Register the struct type
         if generic_params.is_empty() {
             self.structs.insert(name.clone(), fields);
@@ -1584,7 +1945,12 @@ impl Interpreter {
         Ok(Value::Unit)
     }
 
-    fn execute_proc_declaration(&mut self, name: String, params: Vec<(String, TypeAnnotation)>, body: Vec<Statement>) -> Result<Value> {
+    fn execute_proc_declaration(
+        &mut self,
+        name: String,
+        params: Vec<(String, TypeAnnotation)>,
+        body: Vec<Statement>,
+    ) -> Result<Value> {
         tracing::debug!(proc_name = %name, "Executing proc declaration");
         // Convert to a function with Unit return type
         let function = Value::Function {
@@ -1601,7 +1967,13 @@ impl Interpreter {
         Ok(Value::Unit)
     }
 
-    fn execute_function_declaration(&mut self, name: String, params: Vec<(String, TypeAnnotation)>, return_type: &TypeAnnotation, body: Vec<Statement>) -> Result<Value> {
+    fn execute_function_declaration(
+        &mut self,
+        name: String,
+        params: Vec<(String, TypeAnnotation)>,
+        return_type: &TypeAnnotation,
+        body: Vec<Statement>,
+    ) -> Result<Value> {
         let span = tracing::info_span!("function_declaration", name = %name);
         let _enter = span.enter();
 
