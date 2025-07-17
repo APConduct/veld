@@ -2332,483 +2332,1030 @@ impl Interpreter {
         };
         Ok(Value::Numeric(result))
     }
+}
 
+struct If2 {}
+struct BinOpFrame {}
+struct FunCallFrame {}
+struct PropAccFrame {}
+struct TypeCastFrame {}
+struct MethodCallFrame {}
+struct StructCreateFrame {}
+struct ArrayLiteralFrame {}
+struct IndexAccessFrame {}
+struct EnumVarFrame {}
+struct TupleLiteralFrame {}
+struct TupleAccessFrame {}
+struct BlockExprFrame {}
+struct MatchExprFrame {}
+struct UnOpFrame {}
+
+struct ExprFrame {}
+
+impl Interpreter {
     fn evaluate_expression(&mut self, expr: Expr) -> Result<Value> {
-        match expr {
-            Expr::MacroVar(ref name) => {
-                // TODO: Implement macro variable lookup in macro expansion context.
-                // For now, return an error.
-                return Err(VeldError::RuntimeError(format!(
-                    "Macro variable ${} not supported in interpreter (implement macro expansion context lookup)",
-                    name
-                )));
-            }
-            Expr::SelfReference => self
-                .get_variable("self")
-                .ok_or_else(|| VeldError::RuntimeError("self not found".to_string())),
-            Expr::Literal(lit) => evaluate_literal_expression(lit),
-            Expr::UnitLiteral => Ok(Value::Unit),
-            Expr::Identifier(name) => self
-                .get_variable(&name)
-                .ok_or_else(|| VeldError::RuntimeError(format!("Undefined variable '{}'", name))),
-            Expr::BlockLambda {
-                params,
-                body,
-                return_type,
-            } => Ok(self.create_block_lambda(params, body, return_type)),
-            Expr::Lambda {
-                params,
-                body,
-                return_type,
-            } => Ok(self.create_lambda(params, body, return_type)),
-            Expr::IfExpression {
-                condition,
-                then_expr,
-                else_expr,
-            } => {
-                let cond_value = self.evaluate_expression(*condition)?.unwrap_return();
-
-                let truthy = self.is_truthy(cond_value.clone());
-
-                if truthy {
-                    self.evaluate_expression(*then_expr)
-                } else if let Some(else_expr) = else_expr {
-                    self.evaluate_expression(*else_expr)
-                } else {
-                    Ok(Value::Unit)
-                }
-            }
-            Expr::BinaryOp {
-                left,
-                operator,
-                right,
-            } => {
-                if operator == BinaryOperator::Pipe {
-                    // Handle pipe operator as a special case
-                    let left_val = self.evaluate_expression(*left)?.unwrap_return();
-                    // Handle the types of the right side expression(s)
-                    match *right {
-                        // Fn call with args
-                        Expr::FunctionCall { name, arguments } => {
-                            let left_expr = self.value_to_expr(left_val.clone())?;
-                            let mut new_args = vec![Argument::Positional(left_expr)];
-
-                            // Add rest of args
-                            for arg in arguments {
-                                new_args.push(arg);
-                            }
-
-                            let func_call = Expr::FunctionCall {
-                                name,
-                                arguments: new_args,
-                            };
-
-                            self.evaluate_expression(func_call)
-                        }
-                        Expr::MethodCall {
-                            object,
-                            method,
-                            arguments,
-                        } => {
-                            let obj_val = self.evaluate_expression(*object)?;
-
-                            let mut arg_values = vec![left_val];
-                            for arg in arguments {
-                                match arg {
-                                    Argument::Positional(expr) => {
-                                        let val = self.evaluate_expression(expr)?;
-                                        arg_values.push(val);
-                                    }
-                                    Argument::Named { name: _, value } => {
-                                        let val = self.evaluate_expression(value)?;
-                                        arg_values.push(val);
-                                    }
-                                }
-                            }
-                            self.call_method_value(obj_val, method, arg_values)
-                        }
-                        Expr::Identifier(name) => {
-                            let arg_values = vec![left_val];
-                            self.call_function_with_values(name, arg_values)
-                        }
-                        _ => {
-                            let right_val = self.evaluate_expression(*right)?;
-                            // If it's a function, call it with left_val
-                            match right_val {
-                                Value::Function { .. } => {
-                                    // Convert the function to a string name to call it
-                                    // This is a workaround since call_function_with_values expects a name
-                                    let arg_values = vec![left_val];
-                                    let temp_name = "___pipe_temp___".to_string();
-
-                                    // Temporarily store the function in the current scope
-                                    self.current_scope_mut().set(temp_name.clone(), right_val);
-
-                                    // Call the function
-                                    let result = self
-                                        .call_function_with_values(temp_name.clone(), arg_values);
-
-                                    result
-                                }
-                                _ => Err(VeldError::RuntimeError(format!(
-                                    "Cannot pipe into non-function value: {:?}",
-                                    right_val
-                                ))),
-                            }
-                        }
+        // let mut stack = Vec::new();
+        let mut action: ControlFlow<Result<Value>, Expr> = ControlFlow::Continue(expr.to_owned());
+        loop {
+            action = 'cont: {
+                ControlFlow::Break(match action {
+                    ControlFlow::Break(result) => {
+                        // If we hit a break, return the result for now
+                        return result;
                     }
-                } else {
-                    let left_val = self.evaluate_expression(*left)?.unwrap_return();
-                    let right_val = self.evaluate_expression(*right)?.unwrap_return();
-                    self.evaluate_binary_op(left_val, operator, right_val)
-                }
-            }
-            Expr::FunctionCall { name, arguments } => {
-                // Evaluate each argument and handle both named and positional arguments
-                let mut arg_values = Vec::new();
-                let mut named_args = HashMap::new();
-
-                for arg in arguments {
-                    match arg {
-                        Argument::Positional(expr) => {
-                            let value = self.evaluate_expression(expr)?;
-                            arg_values.push(value);
-                        }
-                        Argument::Named { name, value } => {
-                            let value = self.evaluate_expression(value)?;
-                            named_args.insert(name, value);
-                        }
-                    }
-                }
-
-                // Special handling for standard library functions
-                if name == "sqrt" {
-                    if arg_values.len() != 1 {
-                        return Err(VeldError::RuntimeError(
-                            "sqrt() takes exactly one argument".to_string(),
-                        ));
-                    }
-
-                    // Extract the argument and compute square root
-                    match arg_values[0] {
-                        Value::Float(f) => Ok(Value::Float(f.sqrt())),
-                        _ => Err(VeldError::RuntimeError(
-                            "sqrt() requires a floating-point argument".to_string(),
-                        )),
-                    }
-                } else {
-                    // Regular function call
-                    self.call_function_with_values(name, arg_values)
-                }
-            }
-            Expr::PropertyAccess { object, property } => {
-                let obj_value = self.evaluate_expression(*object)?;
-                self.get_property(obj_value, &property)
-            }
-            Expr::TypeCast { expr, target_type } => {
-                let value = self.evaluate_expression(*expr)?;
-                let target = self.type_checker.env.from_annotation(&target_type, None)?;
-                self.cast_value(value, &target)
-            }
-
-            Expr::MethodCall {
-                object,
-                method,
-                arguments,
-            } => {
-                let obj_value = self.evaluate_expression(*object)?;
-
-                // Handle array methods
-                match &obj_value {
-                    Value::Array(_) => {
-                        // Evaluate all arguments
-                        let mut arg_values = Vec::new();
-                        for arg in arguments {
-                            let expr = match arg {
-                                Argument::Positional(expr) => expr,
-                                Argument::Named { name: _, value } => value,
-                            };
-                            let value = self.evaluate_expression(expr)?;
-                            arg_values.push(value);
-                        }
-
-                        // Call the array method directly
-                        self.call_method_value(obj_value, method, arg_values)
-                    }
-                    _ => {
-                        // Empty arguments list means it's a property access
-                        if arguments.is_empty() {
-                            self.get_property(obj_value, &method)
-                        } else {
-                            // Evaluate all arguments
-                            let mut arg_values = Vec::new();
-                            for arg in arguments {
-                                // Extract and evaluate the expression from the Argument
-                                let expr = match arg {
-                                    Argument::Positional(expr) => expr,
-                                    Argument::Named { name: _, value } => value,
-                                };
-                                let value = self.evaluate_expression(expr)?;
-                                arg_values.push(value);
-                            }
-
-                            self.call_method_value(obj_value, method, arg_values)
-                        }
-                    }
-                }
-            }
-
-            Expr::StructCreate {
-                struct_name,
-                fields,
-            } => {
-                // Check if struct exists
-                if !self.structs.contains_key(&struct_name) {
-                    return Err(VeldError::RuntimeError(format!(
-                        "Undefined struct '{}'",
-                        struct_name
-                    )));
-                }
-
-                let mut field_values = HashMap::new();
-
-                // Evaluate each field value
-                for (field_name, field_expr) in fields {
-                    let value = self.evaluate_expression(field_expr)?;
-                    field_values.insert(field_name, value.unwrap_return());
-                }
-
-                Ok(Value::Struct {
-                    name: struct_name,
-                    fields: field_values,
-                })
-            }
-            Expr::ArrayLiteral(elements) => {
-                let mut values = Vec::new();
-                for element in elements {
-                    values.push(self.evaluate_expression(element)?.unwrap_return());
-                }
-                Ok(Value::Array(values))
-            }
-            Expr::IndexAccess { object, index } => {
-                let obj_value = self.evaluate_expression(*object)?.unwrap_return();
-                let idx_value = self.evaluate_expression(*index)?.unwrap_return();
-
-                match obj_value {
-                    Value::Array(elements) => match idx_value {
-                        Value::Integer(i) => {
-                            if i < 0 || i >= elements.len() as i64 {
+                    ControlFlow::Continue(expr) => {
+                        match expr {
+                            Expr::MacroVar(ref name) => {
+                                // TODO: Implement macro variable lookup in macro expansion context.
+                                // For now, return an error.
                                 return Err(VeldError::RuntimeError(format!(
-                                    "Array index out of bounds: {}",
-                                    i
+                                    "Macro variable ${} not supported in interpreter (implement macro expansion context lookup)",
+                                    name
                                 )));
                             }
-                            Ok(elements[i as usize].clone())
-                        }
-                        _ => Err(VeldError::RuntimeError(
-                            "Array index must be an integer".to_string(),
-                        )),
-                    },
-                    Value::String(s) => {
-                        // Allow indexing into strings
-                        match idx_value {
-                            Value::Integer(i) => {
-                                if i < 0 || i >= s.len() as i64 {
+                            Expr::SelfReference => self.get_variable("self").ok_or_else(|| {
+                                VeldError::RuntimeError("self not found".to_string())
+                            }),
+                            Expr::Literal(lit) => evaluate_literal_expression(lit),
+                            Expr::UnitLiteral => Ok(Value::Unit),
+                            Expr::Identifier(name) => self.get_variable(&name).ok_or_else(|| {
+                                VeldError::RuntimeError(format!("Undefined variable '{}'", name))
+                            }),
+                            Expr::BlockLambda {
+                                params,
+                                body,
+                                return_type,
+                            } => Ok(self.create_block_lambda(params, body, return_type)),
+                            Expr::Lambda {
+                                params,
+                                body,
+                                return_type,
+                            } => Ok(self.create_lambda(params, body, return_type)),
+                            Expr::IfExpression {
+                                condition,
+                                then_expr,
+                                else_expr,
+                            } => {
+                                let cond_value =
+                                    self.evaluate_expression(*condition)?.unwrap_return();
+
+                                let truthy = self.is_truthy(cond_value.clone());
+
+                                if truthy {
+                                    self.evaluate_expression(*then_expr)
+                                } else if let Some(else_expr) = else_expr {
+                                    self.evaluate_expression(*else_expr)
+                                } else {
+                                    Ok(Value::Unit)
+                                }
+                            }
+                            Expr::BinaryOp {
+                                left,
+                                operator,
+                                right,
+                            } => {
+                                if operator == BinaryOperator::Pipe {
+                                    // Handle pipe operator as a special case
+                                    let left_val = self.evaluate_expression(*left)?.unwrap_return();
+                                    // Handle the types of the right side expression(s)
+                                    match *right {
+                                        // Fn call with args
+                                        Expr::FunctionCall { name, arguments } => {
+                                            let left_expr = self.value_to_expr(left_val.clone())?;
+                                            let mut new_args =
+                                                vec![Argument::Positional(left_expr)];
+
+                                            // Add rest of args
+                                            for arg in arguments {
+                                                new_args.push(arg);
+                                            }
+
+                                            let func_call = Expr::FunctionCall {
+                                                name,
+                                                arguments: new_args,
+                                            };
+
+                                            self.evaluate_expression(func_call)
+                                        }
+                                        Expr::MethodCall {
+                                            object,
+                                            method,
+                                            arguments,
+                                        } => {
+                                            let obj_val = self.evaluate_expression(*object)?;
+
+                                            let mut arg_values = vec![left_val];
+                                            for arg in arguments {
+                                                match arg {
+                                                    Argument::Positional(expr) => {
+                                                        let val = self.evaluate_expression(expr)?;
+                                                        arg_values.push(val);
+                                                    }
+                                                    Argument::Named { name: _, value } => {
+                                                        let val =
+                                                            self.evaluate_expression(value)?;
+                                                        arg_values.push(val);
+                                                    }
+                                                }
+                                            }
+                                            self.call_method_value(obj_val, method, arg_values)
+                                        }
+                                        Expr::Identifier(name) => {
+                                            let arg_values = vec![left_val];
+                                            self.call_function_with_values(name, arg_values)
+                                        }
+                                        _ => {
+                                            let right_val = self.evaluate_expression(*right)?;
+                                            // If it's a function, call it with left_val
+                                            match right_val {
+                                                Value::Function { .. } => {
+                                                    // Convert the function to a string name to call it
+                                                    // This is a workaround since call_function_with_values expects a name
+                                                    let arg_values = vec![left_val];
+                                                    let temp_name = "___pipe_temp___".to_string();
+
+                                                    // Temporarily store the function in the current scope
+                                                    self.current_scope_mut()
+                                                        .set(temp_name.clone(), right_val);
+
+                                                    // Call the function
+                                                    let result = self.call_function_with_values(
+                                                        temp_name.clone(),
+                                                        arg_values,
+                                                    );
+
+                                                    result
+                                                }
+                                                _ => Err(VeldError::RuntimeError(format!(
+                                                    "Cannot pipe into non-function value: {:?}",
+                                                    right_val
+                                                ))),
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    let left_val = self.evaluate_expression(*left)?.unwrap_return();
+                                    let right_val =
+                                        self.evaluate_expression(*right)?.unwrap_return();
+                                    self.evaluate_binary_op(left_val, operator, right_val)
+                                }
+                            }
+                            Expr::FunctionCall { name, arguments } => {
+                                // Evaluate each argument and handle both named and positional arguments
+                                let mut arg_values = Vec::new();
+                                let mut named_args = HashMap::new();
+
+                                for arg in arguments {
+                                    match arg {
+                                        Argument::Positional(expr) => {
+                                            let value = self.evaluate_expression(expr)?;
+                                            arg_values.push(value);
+                                        }
+                                        Argument::Named { name, value } => {
+                                            let value = self.evaluate_expression(value)?;
+                                            named_args.insert(name, value);
+                                        }
+                                    }
+                                }
+
+                                // Special handling for standard library functions
+                                if name == "sqrt" {
+                                    if arg_values.len() != 1 {
+                                        return Err(VeldError::RuntimeError(
+                                            "sqrt() takes exactly one argument".to_string(),
+                                        ));
+                                    }
+
+                                    // Extract the argument and compute square root
+                                    match arg_values[0] {
+                                        Value::Float(f) => Ok(Value::Float(f.sqrt())),
+                                        _ => Err(VeldError::RuntimeError(
+                                            "sqrt() requires a floating-point argument".to_string(),
+                                        )),
+                                    }
+                                } else {
+                                    // Regular function call
+                                    self.call_function_with_values(name, arg_values)
+                                }
+                            }
+                            Expr::PropertyAccess { object, property } => {
+                                let obj_value = self.evaluate_expression(*object)?;
+                                self.get_property(obj_value, &property)
+                            }
+                            Expr::TypeCast { expr, target_type } => {
+                                let value = self.evaluate_expression(*expr)?;
+                                let target =
+                                    self.type_checker.env.from_annotation(&target_type, None)?;
+                                self.cast_value(value, &target)
+                            }
+
+                            Expr::MethodCall {
+                                object,
+                                method,
+                                arguments,
+                            } => {
+                                let obj_value = self.evaluate_expression(*object)?;
+
+                                // Handle array methods
+                                match &obj_value {
+                                    Value::Array(_) => {
+                                        // Evaluate all arguments
+                                        let mut arg_values = Vec::new();
+                                        for arg in arguments {
+                                            let expr = match arg {
+                                                Argument::Positional(expr) => expr,
+                                                Argument::Named { name: _, value } => value,
+                                            };
+                                            let value = self.evaluate_expression(expr)?;
+                                            arg_values.push(value);
+                                        }
+
+                                        // Call the array method directly
+                                        self.call_method_value(obj_value, method, arg_values)
+                                    }
+                                    _ => {
+                                        // Empty arguments list means it's a property access
+                                        if arguments.is_empty() {
+                                            self.get_property(obj_value, &method)
+                                        } else {
+                                            // Evaluate all arguments
+                                            let mut arg_values = Vec::new();
+                                            for arg in arguments {
+                                                // Extract and evaluate the expression from the Argument
+                                                let expr = match arg {
+                                                    Argument::Positional(expr) => expr,
+                                                    Argument::Named { name: _, value } => value,
+                                                };
+                                                let value = self.evaluate_expression(expr)?;
+                                                arg_values.push(value);
+                                            }
+
+                                            self.call_method_value(obj_value, method, arg_values)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Expr::StructCreate {
+                                struct_name,
+                                fields,
+                            } => {
+                                // Check if struct exists
+                                if !self.structs.contains_key(&struct_name) {
                                     return Err(VeldError::RuntimeError(format!(
-                                        "String index out of bounds: {}",
-                                        i
+                                        "Undefined struct '{}'",
+                                        struct_name
                                     )));
                                 }
 
-                                let char_value = s.chars().nth(i as usize).unwrap().to_string();
-                                Ok(Value::String(char_value))
+                                let mut field_values = HashMap::new();
+
+                                // Evaluate each field value
+                                for (field_name, field_expr) in fields {
+                                    let value = self.evaluate_expression(field_expr)?;
+                                    field_values.insert(field_name, value.unwrap_return());
+                                }
+
+                                Ok(Value::Struct {
+                                    name: struct_name,
+                                    fields: field_values,
+                                })
                             }
-                            _ => Err(VeldError::RuntimeError(
-                                "String index must be an integer".to_string(),
-                            )),
-                        }
-                    }
-                    _ => Err(VeldError::RuntimeError(
-                        "Cannot index into non-array value".to_string(),
-                    )),
-                }
-            }
-            Expr::EnumVariant {
-                enum_name,
-                variant_name,
-                fields,
-            } => {
-                // Check if enum exists
-                if !self.enums.contains_key(&enum_name) {
-                    return Err(VeldError::RuntimeError(format!(
-                        "Undefined enum '{}'",
-                        enum_name
-                    )));
-                }
+                            Expr::ArrayLiteral(elements) => {
+                                let mut values = Vec::new();
+                                for element in elements {
+                                    values.push(self.evaluate_expression(element)?.unwrap_return());
+                                }
+                                Ok(Value::Array(values))
+                            }
+                            Expr::IndexAccess { object, index } => {
+                                let obj_value = self.evaluate_expression(*object)?.unwrap_return();
+                                let idx_value = self.evaluate_expression(*index)?.unwrap_return();
 
-                // Evaluate fields
-                let mut field_values = Vec::new();
-                for field in fields {
-                    let val = self.evaluate_expression(field)?;
-                    field_values.push(val.unwrap_return());
-                }
-
-                Ok(Value::Enum {
-                    enum_name,
-                    variant_name,
-                    fields: field_values,
-                })
-            }
-            Expr::TupleLiteral(elements) => {
-                let mut values = Vec::new();
-                for element in elements {
-                    values.push(self.evaluate_expression(element)?.unwrap_return());
-                }
-                Ok(Value::Tuple(values))
-            }
-            Expr::TupleAccess { tuple, index } => {
-                let tuple_val = self.evaluate_expression(*tuple)?.unwrap_return();
-
-                match tuple_val {
-                    Value::Tuple(elements) => {
-                        if index < elements.len() {
-                            Ok(elements[index].clone())
-                        } else {
-                            Err(VeldError::RuntimeError(format!(
-                                "Tuple index out of bounds: {}",
-                                index
-                            )))
-                        }
-                    }
-                    _ => Err(VeldError::RuntimeError(
-                        "Cannot access tuple field on non-tuple value".to_string(),
-                    )),
-                }
-            }
-            Expr::BlockExpression {
-                statements,
-                final_expr,
-            } => {
-                let span =
-                    tracing::debug_span!("block_expression", statement_count = statements.len());
-                let _enter = span.enter();
-
-                tracing::debug!(
-                    statement_count = statements.len(),
-                    "Evaluating block expression"
-                );
-
-                // Create new scope for the block
-                self.push_scope();
-
-                // Execute all statements
-                for stmt in statements {
-                    let result = self.execute_statement(stmt)?;
-
-                    // Handle early returns
-                    match result {
-                        Value::Return(_) | Value::Break | Value::Continue => {
-                            self.pop_scope();
-                            return Ok(result);
-                        }
-                        _ => {} // Continue with next statement
-                    }
-                }
-
-                // Evaluate final expression or return unit
-                let result = if let Some(expr) = final_expr {
-                    self.evaluate_expression(*expr)?
-                } else {
-                    Value::Unit
-                };
-
-                self.pop_scope();
-                Ok(result)
-            }
-            Expr::MacroExpr { name, arguments } => {
-                // Evaluate all arguments
-                let mut evaluated_args = Vec::new();
-                for arg in arguments {
-                    let arg_value = self.evaluate_expression(arg)?;
-                    evaluated_args.push(arg_value);
-                }
-
-                // Find macro definition
-                let current_mod = self.current_module.clone();
-                let macro_def = self.find_macro(&current_mod, &name)?;
-
-                match macro_def {
-                    // Pattern-based macro
-                    Statement::MacroDeclaration {
-                        patterns,
-                        body: None,
-                        ..
-                    } => self.expand_pattern_macro(&name, &patterns, &evaluated_args),
-                    // Procedure macro
-                    Statement::MacroDeclaration {
-                        patterns: _,
-                        body: Some(body),
-                        ..
-                    } => self.execute_procedural_macro(&name, &body, &evaluated_args),
-                    _ => Err(VeldError::RuntimeError(format!(
-                        "Invalid macro definition for '{name}'"
-                    ))),
-                }
-            }
-            Expr::UnaryOp { operator, operand } => {
-                let operand_value = self.evaluate_expression(*operand)?.unwrap_return();
-
-                match operator {
-                    UnaryOperator::Negate => {
-                        match operand_value {
-                            Value::Integer(i) => Ok(Value::Integer(-i)),
-                            Value::Float(f) => Ok(Value::Float(-f)),
-                            Value::Numeric(num) => {
-                                match num {
-                                    NumericValue::Integer(int_val) => {
-                                        let negated = match int_val {
-                                            IntegerValue::I8(v) => IntegerValue::I8(-v),
-                                            IntegerValue::I16(v) => IntegerValue::I16(-v),
-                                            IntegerValue::I32(v) => IntegerValue::I32(-v),
-                                            IntegerValue::I64(v) => IntegerValue::I64(-v),
-                                            // For unsigned types, we will need special handling
-                                            // TODO: handle overflow
-                                            IntegerValue::U8(_)
-                                            | IntegerValue::U16(_)
-                                            | IntegerValue::U32(_)
-                                            | IntegerValue::U64(_) => {
-                                                return Err(VeldError::RuntimeError(
-                                                    "Cannot negate unsigned integer".to_string(),
-                                                ));
+                                match obj_value {
+                                    Value::Array(elements) => match idx_value {
+                                        Value::Integer(i) => {
+                                            if i < 0 || i >= elements.len() as i64 {
+                                                return Err(VeldError::RuntimeError(format!(
+                                                    "Array index out of bounds: {}",
+                                                    i
+                                                )));
                                             }
-                                        };
-                                        Ok(Value::Numeric(NumericValue::Integer(negated)))
+                                            Ok(elements[i as usize].clone())
+                                        }
+                                        _ => Err(VeldError::RuntimeError(
+                                            "Array index must be an integer".to_string(),
+                                        )),
+                                    },
+                                    Value::String(s) => {
+                                        // Allow indexing into strings
+                                        match idx_value {
+                                            Value::Integer(i) => {
+                                                if i < 0 || i >= s.len() as i64 {
+                                                    return Err(VeldError::RuntimeError(format!(
+                                                        "String index out of bounds: {}",
+                                                        i
+                                                    )));
+                                                }
+
+                                                let char_value =
+                                                    s.chars().nth(i as usize).unwrap().to_string();
+                                                Ok(Value::String(char_value))
+                                            }
+                                            _ => Err(VeldError::RuntimeError(
+                                                "String index must be an integer".to_string(),
+                                            )),
+                                        }
                                     }
-                                    NumericValue::Float(float_val) => {
-                                        let negated = match float_val {
-                                            FloatValue::F32(v) => FloatValue::F32(-v),
-                                            FloatValue::F64(v) => FloatValue::F64(-v),
-                                        };
-                                        Ok(Value::Numeric(NumericValue::Float(negated)))
-                                    }
+                                    _ => Err(VeldError::RuntimeError(
+                                        "Cannot index into non-array value".to_string(),
+                                    )),
                                 }
                             }
-                            _ => Err(VeldError::RuntimeError(format!(
-                                "Cannot apply unary negation to {}",
-                                operand_value.type_of()
-                            ))),
+                            Expr::EnumVariant {
+                                enum_name,
+                                variant_name,
+                                fields,
+                            } => {
+                                // Check if enum exists
+                                if !self.enums.contains_key(&enum_name) {
+                                    return Err(VeldError::RuntimeError(format!(
+                                        "Undefined enum '{}'",
+                                        enum_name
+                                    )));
+                                }
+
+                                // Evaluate fields
+                                let mut field_values = Vec::new();
+                                for field in fields {
+                                    let val = self.evaluate_expression(field)?;
+                                    field_values.push(val.unwrap_return());
+                                }
+
+                                Ok(Value::Enum {
+                                    enum_name,
+                                    variant_name,
+                                    fields: field_values,
+                                })
+                            }
+                            Expr::TupleLiteral(elements) => {
+                                let mut values = Vec::new();
+                                for element in elements {
+                                    values.push(self.evaluate_expression(element)?.unwrap_return());
+                                }
+                                Ok(Value::Tuple(values))
+                            }
+                            Expr::TupleAccess { tuple, index } => {
+                                let tuple_val = self.evaluate_expression(*tuple)?.unwrap_return();
+
+                                match tuple_val {
+                                    Value::Tuple(elements) => {
+                                        if index < elements.len() {
+                                            Ok(elements[index].clone())
+                                        } else {
+                                            Err(VeldError::RuntimeError(format!(
+                                                "Tuple index out of bounds: {}",
+                                                index
+                                            )))
+                                        }
+                                    }
+                                    _ => Err(VeldError::RuntimeError(
+                                        "Cannot access tuple field on non-tuple value".to_string(),
+                                    )),
+                                }
+                            }
+                            Expr::BlockExpression {
+                                statements,
+                                final_expr,
+                            } => {
+                                let span = tracing::debug_span!(
+                                    "block_expression",
+                                    statement_count = statements.len()
+                                );
+                                let _enter = span.enter();
+
+                                tracing::debug!(
+                                    statement_count = statements.len(),
+                                    "Evaluating block expression"
+                                );
+
+                                // Create new scope for the block
+                                self.push_scope();
+
+                                // Execute all statements
+                                for stmt in statements {
+                                    let result = self.execute_statement(stmt)?;
+
+                                    // Handle early returns
+                                    match result {
+                                        Value::Return(_) | Value::Break | Value::Continue => {
+                                            self.pop_scope();
+                                            return Ok(result);
+                                        }
+                                        _ => {} // Continue with next statement
+                                    }
+                                }
+
+                                // Evaluate final expression or return unit
+                                let result = if let Some(expr) = final_expr {
+                                    self.evaluate_expression(*expr)?
+                                } else {
+                                    Value::Unit
+                                };
+
+                                self.pop_scope();
+                                Ok(result)
+                            }
+                            Expr::MacroExpr { name, arguments } => {
+                                // Evaluate all arguments
+                                let mut evaluated_args = Vec::new();
+                                for arg in arguments {
+                                    let arg_value = self.evaluate_expression(arg)?;
+                                    evaluated_args.push(arg_value);
+                                }
+
+                                // Find macro definition
+                                let current_mod = self.current_module.clone();
+                                let macro_def = self.find_macro(&current_mod, &name)?;
+
+                                match macro_def {
+                                    // Pattern-based macro
+                                    Statement::MacroDeclaration {
+                                        patterns,
+                                        body: None,
+                                        ..
+                                    } => {
+                                        self.expand_pattern_macro(&name, &patterns, &evaluated_args)
+                                    }
+                                    // Procedure macro
+                                    Statement::MacroDeclaration {
+                                        patterns: _,
+                                        body: Some(body),
+                                        ..
+                                    } => {
+                                        self.execute_procedural_macro(&name, &body, &evaluated_args)
+                                    }
+                                    _ => Err(VeldError::RuntimeError(format!(
+                                        "Invalid macro definition for '{name}'"
+                                    ))),
+                                }
+                            }
+                            Expr::UnaryOp { operator, operand } => {
+                                let operand_value =
+                                    self.evaluate_expression(*operand)?.unwrap_return();
+
+                                match operator {
+                                    UnaryOperator::Negate => {
+                                        match operand_value {
+                                            Value::Integer(i) => Ok(Value::Integer(-i)),
+                                            Value::Float(f) => Ok(Value::Float(-f)),
+                                            Value::Numeric(num) => {
+                                                match num {
+                                                    NumericValue::Integer(int_val) => {
+                                                        let negated = match int_val {
+                                                            IntegerValue::I8(v) => {
+                                                                IntegerValue::I8(-v)
+                                                            }
+                                                            IntegerValue::I16(v) => {
+                                                                IntegerValue::I16(-v)
+                                                            }
+                                                            IntegerValue::I32(v) => {
+                                                                IntegerValue::I32(-v)
+                                                            }
+                                                            IntegerValue::I64(v) => {
+                                                                IntegerValue::I64(-v)
+                                                            }
+                                                            // For unsigned types, we will need special handling
+                                                            // TODO: handle overflow
+                                                            IntegerValue::U8(_)
+                                                            | IntegerValue::U16(_)
+                                                            | IntegerValue::U32(_)
+                                                            | IntegerValue::U64(_) => {
+                                                                return Err(VeldError::RuntimeError(
+                                                                "Cannot negate unsigned integer"
+                                                                    .to_string(),
+                                                            ));
+                                                            }
+                                                        };
+                                                        Ok(Value::Numeric(NumericValue::Integer(
+                                                            negated,
+                                                        )))
+                                                    }
+                                                    NumericValue::Float(float_val) => {
+                                                        let negated = match float_val {
+                                                            FloatValue::F32(v) => {
+                                                                FloatValue::F32(-v)
+                                                            }
+                                                            FloatValue::F64(v) => {
+                                                                FloatValue::F64(-v)
+                                                            }
+                                                        };
+                                                        Ok(Value::Numeric(NumericValue::Float(
+                                                            negated,
+                                                        )))
+                                                    }
+                                                }
+                                            }
+                                            _ => Err(VeldError::RuntimeError(format!(
+                                                "Cannot apply unary negation to {}",
+                                                operand_value.type_of()
+                                            ))),
+                                        }
+                                    }
+                                    UnaryOperator::Not => match operand_value {
+                                        Value::Boolean(b) => Ok(Value::Boolean(!b)),
+                                        _ => Err(VeldError::RuntimeError(format!(
+                                            "Cannot apply logical NOT to {}",
+                                            operand_value.type_of()
+                                        ))),
+                                    },
+                                }
+                            }
                         }
                     }
-                    UnaryOperator::Not => match operand_value {
-                        Value::Boolean(b) => Ok(Value::Boolean(!b)),
-                        _ => Err(VeldError::RuntimeError(format!(
-                            "Cannot apply logical NOT to {}",
-                            operand_value.type_of()
-                        ))),
-                    },
-                }
+                })
             }
         }
+        // match expr {
+        //     Expr::MacroVar(ref name) => {
+        //         // TODO: Implement macro variable lookup in macro expansion context.
+        //         // For now, return an error.
+        //         return Err(VeldError::RuntimeError(format!(
+        //             "Macro variable ${} not supported in interpreter (implement macro expansion context lookup)",
+        //             name
+        //         )));
+        //     }
+        //     Expr::SelfReference => self
+        //         .get_variable("self")
+        //         .ok_or_else(|| VeldError::RuntimeError("self not found".to_string())),
+        //     Expr::Literal(lit) => evaluate_literal_expression(lit),
+        //     Expr::UnitLiteral => Ok(Value::Unit),
+        //     Expr::Identifier(name) => self.get_variable(&name).ok_or_else(|| {
+        //         VeldError::RuntimeError(format!("Undefined variable '{}'", name))
+        //     }),
+        //     Expr::BlockLambda {
+        //         params,
+        //         body,
+        //         return_type,
+        //     } => Ok(self.create_block_lambda(params, body, return_type)),
+        //     Expr::Lambda {
+        //         params,
+        //         body,
+        //         return_type,
+        //     } => Ok(self.create_lambda(params, body, return_type)),
+        //     Expr::IfExpression {
+        //         condition,
+        //         then_expr,
+        //         else_expr,
+        //     } => {
+        //         let cond_value = self.evaluate_expression(*condition)?.unwrap_return();
+
+        //         let truthy = self.is_truthy(cond_value.clone());
+
+        //         if truthy {
+        //             self.evaluate_expression(*then_expr)
+        //         } else if let Some(else_expr) = else_expr {
+        //             self.evaluate_expression(*else_expr)
+        //         } else {
+        //             Ok(Value::Unit)
+        //         }
+        //     }
+        //     Expr::BinaryOp {
+        //         left,
+        //         operator,
+        //         right,
+        //     } => {
+        //         if operator == BinaryOperator::Pipe {
+        //             // Handle pipe operator as a special case
+        //             let left_val = self.evaluate_expression(*left)?.unwrap_return();
+        //             // Handle the types of the right side expression(s)
+        //             match *right {
+        //                 // Fn call with args
+        //                 Expr::FunctionCall { name, arguments } => {
+        //                     let left_expr = self.value_to_expr(left_val.clone())?;
+        //                     let mut new_args = vec![Argument::Positional(left_expr)];
+
+        //                     // Add rest of args
+        //                     for arg in arguments {
+        //                         new_args.push(arg);
+        //                     }
+
+        //                     let func_call = Expr::FunctionCall {
+        //                         name,
+        //                         arguments: new_args,
+        //                     };
+
+        //                     self.evaluate_expression(func_call)
+        //                 }
+        //                 Expr::MethodCall {
+        //                     object,
+        //                     method,
+        //                     arguments,
+        //                 } => {
+        //                     let obj_val = self.evaluate_expression(*object)?;
+
+        //                     let mut arg_values = vec![left_val];
+        //                     for arg in arguments {
+        //                         match arg {
+        //                             Argument::Positional(expr) => {
+        //                                 let val = self.evaluate_expression(expr)?;
+        //                                 arg_values.push(val);
+        //                             }
+        //                             Argument::Named { name: _, value } => {
+        //                                 let val = self.evaluate_expression(value)?;
+        //                                 arg_values.push(val);
+        //                             }
+        //                         }
+        //                     }
+        //                     self.call_method_value(obj_val, method, arg_values)
+        //                 }
+        //                 Expr::Identifier(name) => {
+        //                     let arg_values = vec![left_val];
+        //                     self.call_function_with_values(name, arg_values)
+        //                 }
+        //                 _ => {
+        //                     let right_val = self.evaluate_expression(*right)?;
+        //                     // If it's a function, call it with left_val
+        //                     match right_val {
+        //                         Value::Function { .. } => {
+        //                             // Convert the function to a string name to call it
+        //                             // This is a workaround since call_function_with_values expects a name
+        //                             let arg_values = vec![left_val];
+        //                             let temp_name = "___pipe_temp___".to_string();
+
+        //                             // Temporarily store the function in the current scope
+        //                             self.current_scope_mut().set(temp_name.clone(), right_val);
+
+        //                             // Call the function
+        //                             let result = self.call_function_with_values(
+        //                                 temp_name.clone(),
+        //                                 arg_values,
+        //                             );
+
+        //                             result
+        //                         }
+        //                         _ => Err(VeldError::RuntimeError(format!(
+        //                             "Cannot pipe into non-function value: {:?}",
+        //                             right_val
+        //                         ))),
+        //                     }
+        //                 }
+        //             }
+        //         } else {
+        //             let left_val = self.evaluate_expression(*left)?.unwrap_return();
+        //             let right_val = self.evaluate_expression(*right)?.unwrap_return();
+        //             self.evaluate_binary_op(left_val, operator, right_val)
+        //         }
+        //     }
+        //     Expr::FunctionCall { name, arguments } => {
+        //         // Evaluate each argument and handle both named and positional arguments
+        //         let mut arg_values = Vec::new();
+        //         let mut named_args = HashMap::new();
+
+        //         for arg in arguments {
+        //             match arg {
+        //                 Argument::Positional(expr) => {
+        //                     let value = self.evaluate_expression(expr)?;
+        //                     arg_values.push(value);
+        //                 }
+        //                 Argument::Named { name, value } => {
+        //                     let value = self.evaluate_expression(value)?;
+        //                     named_args.insert(name, value);
+        //                 }
+        //             }
+        //         }
+
+        //         // Special handling for standard library functions
+        //         if name == "sqrt" {
+        //             if arg_values.len() != 1 {
+        //                 return Err(VeldError::RuntimeError(
+        //                     "sqrt() takes exactly one argument".to_string(),
+        //                 ));
+        //             }
+
+        //             // Extract the argument and compute square root
+        //             match arg_values[0] {
+        //                 Value::Float(f) => Ok(Value::Float(f.sqrt())),
+        //                 _ => Err(VeldError::RuntimeError(
+        //                     "sqrt() requires a floating-point argument".to_string(),
+        //                 )),
+        //             }
+        //         } else {
+        //             // Regular function call
+        //             self.call_function_with_values(name, arg_values)
+        //         }
+        //     }
+        //     Expr::PropertyAccess { object, property } => {
+        //         let obj_value = self.evaluate_expression(*object)?;
+        //         self.get_property(obj_value, &property)
+        //     }
+        //     Expr::TypeCast { expr, target_type } => {
+        //         let value = self.evaluate_expression(*expr)?;
+        //         let target = self.type_checker.env.from_annotation(&target_type, None)?;
+        //         self.cast_value(value, &target)
+        //     }
+
+        //     Expr::MethodCall {
+        //         object,
+        //         method,
+        //         arguments,
+        //     } => {
+        //         let obj_value = self.evaluate_expression(*object)?;
+
+        //         // Handle array methods
+        //         match &obj_value {
+        //             Value::Array(_) => {
+        //                 // Evaluate all arguments
+        //                 let mut arg_values = Vec::new();
+        //                 for arg in arguments {
+        //                     let expr = match arg {
+        //                         Argument::Positional(expr) => expr,
+        //                         Argument::Named { name: _, value } => value,
+        //                     };
+        //                     let value = self.evaluate_expression(expr)?;
+        //                     arg_values.push(value);
+        //                 }
+
+        //                 // Call the array method directly
+        //                 self.call_method_value(obj_value, method, arg_values)
+        //             }
+        //             _ => {
+        //                 // Empty arguments list means it's a property access
+        //                 if arguments.is_empty() {
+        //                     self.get_property(obj_value, &method)
+        //                 } else {
+        //                     // Evaluate all arguments
+        //                     let mut arg_values = Vec::new();
+        //                     for arg in arguments {
+        //                         // Extract and evaluate the expression from the Argument
+        //                         let expr = match arg {
+        //                             Argument::Positional(expr) => expr,
+        //                             Argument::Named { name: _, value } => value,
+        //                         };
+        //                         let value = self.evaluate_expression(expr)?;
+        //                         arg_values.push(value);
+        //                     }
+
+        //                     self.call_method_value(obj_value, method, arg_values)
+        //                 }
+        //             }
+        //         }
+        //     }
+
+        //     Expr::StructCreate {
+        //         struct_name,
+        //         fields,
+        //     } => {
+        //         // Check if struct exists
+        //         if !self.structs.contains_key(&struct_name) {
+        //             return Err(VeldError::RuntimeError(format!(
+        //                 "Undefined struct '{}'",
+        //                 struct_name
+        //             )));
+        //         }
+
+        //         let mut field_values = HashMap::new();
+
+        //         // Evaluate each field value
+        //         for (field_name, field_expr) in fields {
+        //             let value = self.evaluate_expression(field_expr)?;
+        //             field_values.insert(field_name, value.unwrap_return());
+        //         }
+
+        //         Ok(Value::Struct {
+        //             name: struct_name,
+        //             fields: field_values,
+        //         })
+        //     }
+        //     Expr::ArrayLiteral(elements) => {
+        //         let mut values = Vec::new();
+        //         for element in elements {
+        //             values.push(self.evaluate_expression(element)?.unwrap_return());
+        //         }
+        //         Ok(Value::Array(values))
+        //     }
+        //     Expr::IndexAccess { object, index } => {
+        //         let obj_value = self.evaluate_expression(*object)?.unwrap_return();
+        //         let idx_value = self.evaluate_expression(*index)?.unwrap_return();
+
+        //         match obj_value {
+        //             Value::Array(elements) => match idx_value {
+        //                 Value::Integer(i) => {
+        //                     if i < 0 || i >= elements.len() as i64 {
+        //                         return Err(VeldError::RuntimeError(format!(
+        //                             "Array index out of bounds: {}",
+        //                             i
+        //                         )));
+        //                     }
+        //                     Ok(elements[i as usize].clone())
+        //                 }
+        //                 _ => Err(VeldError::RuntimeError(
+        //                     "Array index must be an integer".to_string(),
+        //                 )),
+        //             },
+        //             Value::String(s) => {
+        //                 // Allow indexing into strings
+        //                 match idx_value {
+        //                     Value::Integer(i) => {
+        //                         if i < 0 || i >= s.len() as i64 {
+        //                             return Err(VeldError::RuntimeError(format!(
+        //                                 "String index out of bounds: {}",
+        //                                 i
+        //                             )));
+        //                         }
+
+        //                         let char_value = s.chars().nth(i as usize).unwrap().to_string();
+        //                         Ok(Value::String(char_value))
+        //                     }
+        //                     _ => Err(VeldError::RuntimeError(
+        //                         "String index must be an integer".to_string(),
+        //                     )),
+        //                 }
+        //             }
+        //             _ => Err(VeldError::RuntimeError(
+        //                 "Cannot index into non-array value".to_string(),
+        //             )),
+        //         }
+        //     }
+        //     Expr::EnumVariant {
+        //         enum_name,
+        //         variant_name,
+        //         fields,
+        //     } => {
+        //         // Check if enum exists
+        //         if !self.enums.contains_key(&enum_name) {
+        //             return Err(VeldError::RuntimeError(format!(
+        //                 "Undefined enum '{}'",
+        //                 enum_name
+        //             )));
+        //         }
+
+        //         // Evaluate fields
+        //         let mut field_values = Vec::new();
+        //         for field in fields {
+        //             let val = self.evaluate_expression(field)?;
+        //             field_values.push(val.unwrap_return());
+        //         }
+
+        //         Ok(Value::Enum {
+        //             enum_name,
+        //             variant_name,
+        //             fields: field_values,
+        //         })
+        //     }
+        //     Expr::TupleLiteral(elements) => {
+        //         let mut values = Vec::new();
+        //         for element in elements {
+        //             values.push(self.evaluate_expression(element)?.unwrap_return());
+        //         }
+        //         Ok(Value::Tuple(values))
+        //     }
+        //     Expr::TupleAccess { tuple, index } => {
+        //         let tuple_val = self.evaluate_expression(*tuple)?.unwrap_return();
+
+        //         match tuple_val {
+        //             Value::Tuple(elements) => {
+        //                 if index < elements.len() {
+        //                     Ok(elements[index].clone())
+        //                 } else {
+        //                     Err(VeldError::RuntimeError(format!(
+        //                         "Tuple index out of bounds: {}",
+        //                         index
+        //                     )))
+        //                 }
+        //             }
+        //             _ => Err(VeldError::RuntimeError(
+        //                 "Cannot access tuple field on non-tuple value".to_string(),
+        //             )),
+        //         }
+        //     }
+        //     Expr::BlockExpression {
+        //         statements,
+        //         final_expr,
+        //     } => {
+        //         let span = tracing::debug_span!(
+        //             "block_expression",
+        //             statement_count = statements.len()
+        //         );
+        //         let _enter = span.enter();
+
+        //         tracing::debug!(
+        //             statement_count = statements.len(),
+        //             "Evaluating block expression"
+        //         );
+
+        //         // Create new scope for the block
+        //         self.push_scope();
+
+        //         // Execute all statements
+        //         for stmt in statements {
+        //             let result = self.execute_statement(stmt)?;
+
+        //             // Handle early returns
+        //             match result {
+        //                 Value::Return(_) | Value::Break | Value::Continue => {
+        //                     self.pop_scope();
+        //                     return Ok(result);
+        //                 }
+        //                 _ => {} // Continue with next statement
+        //             }
+        //         }
+
+        //         // Evaluate final expression or return unit
+        //         let result = if let Some(expr) = final_expr {
+        //             self.evaluate_expression(*expr)?
+        //         } else {
+        //             Value::Unit
+        //         };
+
+        //         self.pop_scope();
+        //         Ok(result)
+        //     }
+        //     Expr::MacroExpr { name, arguments } => {
+        //         // Evaluate all arguments
+        //         let mut evaluated_args = Vec::new();
+        //         for arg in arguments {
+        //             let arg_value = self.evaluate_expression(arg)?;
+        //             evaluated_args.push(arg_value);
+        //         }
+
+        //         // Find macro definition
+        //         let current_mod = self.current_module.clone();
+        //         let macro_def = self.find_macro(&current_mod, &name)?;
+
+        //         match macro_def {
+        //             // Pattern-based macro
+        //             Statement::MacroDeclaration {
+        //                 patterns,
+        //                 body: None,
+        //                 ..
+        //             } => self.expand_pattern_macro(&name, &patterns, &evaluated_args),
+        //             // Procedure macro
+        //             Statement::MacroDeclaration {
+        //                 patterns: _,
+        //                 body: Some(body),
+        //                 ..
+        //             } => self.execute_procedural_macro(&name, &body, &evaluated_args),
+        //             _ => Err(VeldError::RuntimeError(format!(
+        //                 "Invalid macro definition for '{name}'"
+        //             ))),
+        //         }
+        //     }
+        //     Expr::UnaryOp { operator, operand } => {
+        //         let operand_value = self.evaluate_expression(*operand)?.unwrap_return();
+
+        //         match operator {
+        //             UnaryOperator::Negate => {
+        //                 match operand_value {
+        //                     Value::Integer(i) => Ok(Value::Integer(-i)),
+        //                     Value::Float(f) => Ok(Value::Float(-f)),
+        //                     Value::Numeric(num) => {
+        //                         match num {
+        //                             NumericValue::Integer(int_val) => {
+        //                                 let negated = match int_val {
+        //                                     IntegerValue::I8(v) => IntegerValue::I8(-v),
+        //                                     IntegerValue::I16(v) => IntegerValue::I16(-v),
+        //                                     IntegerValue::I32(v) => IntegerValue::I32(-v),
+        //                                     IntegerValue::I64(v) => IntegerValue::I64(-v),
+        //                                     // For unsigned types, we will need special handling
+        //                                     // TODO: handle overflow
+        //                                     IntegerValue::U8(_)
+        //                                     | IntegerValue::U16(_)
+        //                                     | IntegerValue::U32(_)
+        //                                     | IntegerValue::U64(_) => {
+        //                                         return Err(VeldError::RuntimeError(
+        //                                             "Cannot negate unsigned integer"
+        //                                                 .to_string(),
+        //                                         ));
+        //                                     }
+        //                                 };
+        //                                 Ok(Value::Numeric(NumericValue::Integer(negated)))
+        //                             }
+        //                             NumericValue::Float(float_val) => {
+        //                                 let negated = match float_val {
+        //                                     FloatValue::F32(v) => FloatValue::F32(-v),
+        //                                     FloatValue::F64(v) => FloatValue::F64(-v),
+        //                                 };
+        //                                 Ok(Value::Numeric(NumericValue::Float(negated)))
+        //                             }
+        //                         }
+        //                     }
+        //                     _ => Err(VeldError::RuntimeError(format!(
+        //                         "Cannot apply unary negation to {}",
+        //                         operand_value.type_of()
+        //                     ))),
+        //                 }
+        //             }
+        //             UnaryOperator::Not => match operand_value {
+        //                 Value::Boolean(b) => Ok(Value::Boolean(!b)),
+        //                 _ => Err(VeldError::RuntimeError(format!(
+        //                     "Cannot apply logical NOT to {}",
+        //                     operand_value.type_of()
+        //                 ))),
+        //             },
+        //         }
+        //     }
+        // };
     }
 
     fn find_generic_function(&mut self, name: &str) -> Option<FunctionDeclaration> {
