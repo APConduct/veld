@@ -2346,25 +2346,7 @@ impl Interpreter {
             Expr::SelfReference => self
                 .get_variable("self")
                 .ok_or_else(|| VeldError::RuntimeError("self not found".to_string())),
-            Expr::Literal(lit) => Ok(match lit {
-                Literal::Integer(n) => {
-                    // Default to i32, but this could be context-sensitive in the future
-                    let int_val = if n >= i32::MIN as i64 && n <= i32::MAX as i64 {
-                        IntegerValue::I32(n as i32)
-                    } else {
-                        IntegerValue::I64(n)
-                    };
-                    Value::Numeric(NumericValue::Integer(int_val))
-                }
-                Literal::Float(n) => {
-                    // Default to f64, but could be context-sensitive in the future
-                    Value::Float(n)
-                }
-                Literal::String(s) => Value::String(s),
-                Literal::Boolean(b) => Value::Boolean(b),
-                Literal::Char(c) => Value::Char(c),
-                Literal::Unit => Value::Unit,
-            }),
+            Expr::Literal(lit) => evaluate_literal_expression(lit),
             Expr::UnitLiteral => Ok(Value::Unit),
             Expr::Identifier(name) => self
                 .get_variable(&name)
@@ -2374,6 +2356,11 @@ impl Interpreter {
                 body,
                 return_type,
             } => Ok(self.create_block_lambda(params, body, return_type)),
+            Expr::Lambda {
+                params,
+                body,
+                return_type,
+            } => Ok(self.create_lambda(params, body, return_type)),
             Expr::IfExpression {
                 condition,
                 then_expr,
@@ -2523,12 +2510,6 @@ impl Interpreter {
                 let target = self.type_checker.env.from_annotation(&target_type, None)?;
                 self.cast_value(value, &target)
             }
-
-            Expr::Lambda {
-                params,
-                body,
-                return_type,
-            } => Ok(self.create_lambda(params, body, return_type)),
 
             Expr::MethodCall {
                 object,
@@ -5614,4 +5595,26 @@ impl Interpreter {
         }
         Ok(None) // No operator method found
     }
+}
+
+fn evaluate_literal_expression(lit: Literal) -> Result<Value> {
+    Ok(match lit {
+        Literal::Integer(n) => {
+            // Default to i32, but this could be context-sensitive in the future
+            let int_val = if n >= i32::MIN as i64 && n <= i32::MAX as i64 {
+                IntegerValue::I32(n as i32)
+            } else {
+                IntegerValue::I64(n)
+            };
+            Value::Numeric(NumericValue::Integer(int_val))
+        }
+        Literal::Float(n) => {
+            // Default to f64, but could be context-sensitive in the future
+            Value::Float(n)
+        }
+        Literal::String(s) => Value::String(s),
+        Literal::Boolean(b) => Value::Boolean(b),
+        Literal::Char(c) => Value::Char(c),
+        Literal::Unit => Value::Unit,
+    })
 }
