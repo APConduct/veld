@@ -6,4 +6,4 @@ fn countdown(n)
   end
 end
 
-countdown(242) # <-- Current max input without overflow
+countdown(113) # <-- Current max input without overflow is 242 on windows, 113 on macOS
