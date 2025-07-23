@@ -1,0 +1,4 @@
+import std.option.{Option}
+let foo = Option.None
+let bar = Option.Some(42)
+let baz = Option.Some("Hello, World!")
