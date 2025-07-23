@@ -1,0 +1,2 @@
+import std.option.{Option}
+let foo = Option.None
