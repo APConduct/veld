@@ -1178,7 +1178,7 @@ impl Parser {
     }
 
     fn parse_impl_method(&mut self, type_name: String) -> Result<MethodImpl> {
-        tracing::info!("Method Implementation: Starting...");
+        tracing::debug!("Method Implementation: Starting...");
         let method_name = self.consume_identifier("Expected method name")?;
         tracing::debug!(method_name = %method_name, "Method Implementation: Name");
 
