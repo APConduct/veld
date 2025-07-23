@@ -114,6 +114,9 @@ pub enum Value {
         variant_name: String,
         fields: Vec<Value>,
     },
+    EnumType {
+        name: String,
+    },
     Tuple(Vec<Value>),
 
     Break,
@@ -5231,6 +5234,7 @@ impl Interpreter {
     }
 
     fn get_property(&self, object: Value, property: &str) -> Result<Value> {
+        println!("get_property: object = {:?}", object);
         match object {
             Value::Struct { name, fields } => {
                 if let Some(value) = fields.get(property) {
@@ -5266,6 +5270,30 @@ impl Interpreter {
                         "Property '{}' not found on array",
                         property
                     ))),
+                }
+            }
+            Value::EnumType { name } => {
+                // Property access on enum type, e.g., Option.None
+                // Look up the enum and variant
+                if let Some(variants) = self.enums.get(&name) {
+                    if let Some(variant) = variants.iter().find(|v| v.name == property) {
+                        // Return a value representing the enum variant constructor (no fields)
+                        Ok(Value::Enum {
+                            enum_name: name.clone(),
+                            variant_name: property.to_string(),
+                            fields: vec![],
+                        })
+                    } else {
+                        Err(VeldError::RuntimeError(format!(
+                            "Enum '{}' has no variant '{}'",
+                            name, property
+                        )))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(format!(
+                        "Enum '{}' not found",
+                        name
+                    )))
                 }
             }
             _ => Err(VeldError::RuntimeError(
@@ -5962,14 +5990,17 @@ impl Interpreter {
             // Get the exports we want
             let exports = self.module_manager.get_exports(&module_path_str, &items)?;
 
-            // Process each export and add to current scope
-            for (name, export_item) in exports {
-                // Get module to extract statements from
+            // To avoid double borrowing, collect all needed data first
+            let module_statements = {
                 let module = self
                     .module_manager
                     .get_module(&module_path_str)
                     .ok_or_else(|| VeldError::RuntimeError("Module not found".to_string()))?;
+                module.statements.clone()
+            };
 
+            // Process each export and add to current scope
+            for (name, export_item) in exports {
                 match export_item {
                     ExportedItem::Function(idx) => {
                         if let Statement::FunctionDeclaration {
@@ -5977,7 +6008,7 @@ impl Interpreter {
                             return_type,
                             body,
                             ..
-                        } = &module.statements[idx]
+                        } = &module_statements[idx]
                         {
                             let function = Value::Function {
                                 params: params.clone(),
@@ -5991,16 +6022,52 @@ impl Interpreter {
                     ExportedItem::Struct(idx) => {
                         // Handle struct imports - for now just remember the name
                         if let Statement::StructDeclaration {
-                            name: struct_name,
+                            name: _struct_name,
                             fields,
                             ..
-                        } = &module.statements[idx]
+                        } = &module_statements[idx]
                         {
                             // Register the struct type in this scope
                             self.structs.insert(name, fields.clone());
                         }
                     }
-                    // TODO - Handle other items here
+                    ExportedItem::Enum(idx) => {
+                        // To avoid borrow checker issues, clone what we need first
+                        let (enum_name, variants) = if let Statement::EnumDeclaration {
+                            name: enum_name,
+                            variants,
+                            ..
+                        } = &module_statements[idx]
+                        {
+                            (enum_name.clone(), variants.clone())
+                        } else {
+                            continue;
+                        };
+                        println!(
+                            "import: inserting {} = {:?}",
+                            enum_name,
+                            Value::EnumType {
+                                name: enum_name.clone()
+                            }
+                        );
+                        self.enums.insert(enum_name.clone(), variants.clone());
+                        // Also add the enum name to the current scope as a "type value"
+                        // This allows Option.None, Option.Some, etc
+                        self.current_scope_mut().set(
+                            enum_name.clone(),
+                            Value::EnumType {
+                                name: enum_name.clone(),
+                            },
+                        );
+                        // Optionally, also add each variant as Option.Variant
+                        for variant in &variants {
+                            let variant_full = format!("{}.{}", enum_name, variant.name);
+                            self.current_scope_mut().set(
+                                variant_full,
+                                Value::Unit, // Placeholder, could use a special EnumVariant value
+                            );
+                        }
+                    }
                     _ => {}
                 }
             }

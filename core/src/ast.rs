@@ -390,6 +390,12 @@ pub enum Statement {
         name: String,
         variants: Vec<EnumVariant>,
         is_public: bool,
+        generic_params: Vec<GenericArgument>,
+    },
+    InherentImpl {
+        type_name: String,
+        generic_params: Vec<GenericArgument>,
+        methods: Vec<MethodImpl>,
     },
     Match {
         value: Expr,

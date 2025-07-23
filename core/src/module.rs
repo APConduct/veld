@@ -416,7 +416,7 @@ impl ModuleManager {
                 } => {
                     // Only export public enums
                     if *is_public {
-                        exports.insert(name.clone(), ExportedItem::Variable(i));
+                        exports.insert(name.clone(), ExportedItem::Enum(i));
                     }
                 }
 

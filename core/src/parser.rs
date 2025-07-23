@@ -1086,12 +1086,14 @@ impl Parser {
         let mut methods = Vec::new();
 
         while !self.check(&Token::End) && !self.is_at_end() {
+            let is_public = self.match_token(&[Token::Pub]);
             if !self.match_token(&[Token::Fn]) {
                 return Err(VeldError::ParserError(
                     "Expected 'fn' to start method defenition".to_string(),
                 ));
             }
-            let method = self.parse_impl_method(type_name.clone())?;
+            let mut method = self.parse_impl_method(type_name.clone())?;
+            method.is_public = is_public;
             methods.push(method);
 
             self.match_token(&[Token::Comma]);
@@ -1103,8 +1105,10 @@ impl Parser {
     fn implementation_declaration(&mut self) -> Result<Statement> {
         // Assume 'impl' has already been consumed
 
+        // Parse optional generic parameters after 'impl'
+        let generic_params = self.parse_generic_args_if_present()?;
+
         // Peek ahead to decide which syntax we're dealing with
-        // We check the next token after 'impl'
         let next_token = if self.current < self.tokens.len() {
             &self.tokens[self.current]
         } else {
@@ -1115,33 +1119,47 @@ impl Parser {
 
         match next_token {
             Token::Identifier(_) => {
-                // impl TypeName <- KindName
+                // Parse type name
                 let type_name = self.consume_identifier("Expected type name after 'impl'")?;
-                let kind_name = if self.match_token(&[Token::LeftArrow]) {
-                    Some(self.consume_identifier("Expected kind name after '<-'")?)
+
+                // Optionally parse type generics (e.g., Option<T>)
+                let _type_generics = self.parse_generic_args_if_present()?; // can be used for validation
+
+                // Check for trait/kind implementation
+                if self.match_token(&[Token::LeftArrow]) {
+                    let kind_name = Some(self.consume_identifier("Expected kind name after '<-'")?);
+                    let generic_args = self.parse_generic_args_if_present()?;
+                    let methods = self.parse_implementation_methods(type_name.clone())?;
+                    Ok(Statement::Implementation {
+                        type_name,
+                        kind_name,
+                        methods,
+                        generic_args,
+                    })
+                } else if self.match_token(&[Token::For]) {
+                    // impl KindName for TypeName
+                    let kind_name = Some(type_name.clone());
+                    let type_name = self.consume_identifier("Expected type name after 'for'")?;
+                    let methods = self.parse_implementation_methods(type_name.clone())?;
+                    Ok(Statement::Implementation {
+                        type_name,
+                        kind_name,
+                        methods,
+                        generic_args: generic_params,
+                    })
                 } else {
-                    None
-                };
-                let generic_args = if kind_name.is_some() {
-                    self.parse_generic_args_if_present()?
-                } else {
-                    Vec::new()
-                };
-                let methods = self.parse_implementation_methods(type_name.clone())?;
-                Ok(Statement::Implementation {
-                    type_name,
-                    kind_name,
-                    methods,
-                    generic_args,
-                })
+                    // Inherent impl block
+                    let methods = self.parse_implementation_methods(type_name.clone())?;
+                    Ok(Statement::InherentImpl {
+                        type_name,
+                        generic_params,
+                        methods,
+                    })
+                }
             }
-            Token::For => {
-                // This branch is not standard, but included for completeness
-                // Could be extended for other forms if needed
-                Err(VeldError::ParserError(
-                    "Unexpected 'for' after 'impl'".to_string(),
-                ))
-            }
+            Token::For => Err(VeldError::ParserError(
+                "Unexpected 'for' after 'impl'".to_string(),
+            )),
             _ => {
                 // impl KindName for TypeName
                 let kind_name = self.consume_identifier("Expected kind name after 'impl'")?;
@@ -1163,6 +1181,9 @@ impl Parser {
         tracing::info!("Method Implementation: Starting...");
         let method_name = self.consume_identifier("Expected method name")?;
         tracing::debug!(method_name = %method_name, "Method Implementation: Name");
+
+        // Parse optional generic parameters for the method (e.g., <U>)
+        let _method_generic_params = self.parse_generic_args_if_present()?;
 
         self.consume(&Token::LParen, "Expected '(' after method name")?;
 
@@ -1212,7 +1233,7 @@ impl Parser {
                     params,
                     return_type,
                     body: statements,
-                    is_public: false, // Default visibility
+                    is_public: false, // Will be set by caller
                 })
             } else {
                 // Single-expression body: => expr
@@ -1227,14 +1248,25 @@ impl Parser {
                     name: method_name,
                     params,
                     return_type,
-                    body: vec![Statement::Return(Some(expr))],
-                    is_public: false, // Default visibility
+                    body: vec![Statement::ExprStatement(expr)],
+                    is_public: false, // Will be set by caller
                 })
             }
         } else {
-            return Err(VeldError::ParserError(
-                "Expected '=>' after method signature".to_string(),
-            ));
+            // Allow method body to start immediately after signature (for inherent impls)
+            // Parse as a block until 'end'
+            let mut statements = Vec::new();
+            while !self.check(&Token::End) && !self.is_at_end() {
+                statements.push(self.statement()?);
+            }
+            self.consume(&Token::End, "Expected 'end' after method body")?;
+            Ok(MethodImpl {
+                name: method_name,
+                params,
+                return_type,
+                body: statements,
+                is_public: false, // Will be set by caller
+            })
         }
     }
 
@@ -1276,7 +1308,16 @@ impl Parser {
 
             // If there is only one type without a comma, it's a parenthesized type, not a tuple
             if types.len() == 1 && !saw_comma {
-                Ok(types[0].clone())
+                // Check for function type: (T) -> U
+                if self.match_token(&[Token::Arrow]) {
+                    let return_type = Box::new(self.parse_type()?);
+                    Ok(TypeAnnotation::Function {
+                        params: vec![types[0].clone()],
+                        return_type,
+                    })
+                } else {
+                    Ok(types[0].clone())
+                }
             } else {
                 Ok(TypeAnnotation::Tuple(types))
             }
@@ -2909,12 +2950,24 @@ impl Parser {
 
         // Handle import items if present: import std.io.{read_file, write_file}
         if self.match_token(&[Token::LBrace]) {
+            tracing::debug!(
+                "Parser: Entered LBrace for import items. Current token: {:?}",
+                self.peek()
+            );
             // Parse import items
             loop {
                 if self.match_token(&[Token::Star]) {
                     items.push(ImportItem::All);
                 } else {
+                    tracing::debug!(
+                        "Parser: Attempting to consume identifier for import item. Current token: {:?}",
+                        self.peek()
+                    );
                     let item_name = self.consume_identifier("Expected import item name")?;
+                    tracing::debug!(
+                        "Parser: Successfully consumed import item name: {}",
+                        item_name
+                    );
                     if self.match_token(&[Token::As]) {
                         let item_alias = self.consume_identifier("Expected alias after 'as'")?;
                         items.push(ImportItem::NamedWithAlias {
@@ -2990,6 +3043,9 @@ impl Parser {
         tracing::debug!("Parsing enum declaration...");
         let name = self.consume_identifier("Expected enum name after 'enum'")?;
 
+        // Parse optional generic parameters
+        let generic_params = self.parse_generic_args_if_present()?;
+
         let mut variants = Vec::new();
 
         // Handle single-line enums: enum Color(Red, Green, Blue)
@@ -3046,6 +3102,7 @@ impl Parser {
             name,
             variants,
             is_public,
+            generic_params,
         })
     }
 
@@ -3568,6 +3625,7 @@ mod tests {
                 name,
                 variants,
                 is_public,
+                ..
             } => {
                 assert_eq!(name, "Shape");
                 assert_eq!(variants.len(), 3);
