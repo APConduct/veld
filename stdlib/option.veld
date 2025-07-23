@@ -1,14 +1,34 @@
 #| Option type for veld
 #| Represents a value that may or may not be present
 
-
+#| Provides methods to handle optional values safely
+#| and perform transformations without panicking
+#|
+#| This is a basic implementation of the Option type
+#| which can be used to represent optional values
+#| in a type-safe manner.
 pub enum Option<T>
     Some(T),
     None,
 end
 
 impl<T> Option<T>
-    # Returns the contained value or a default
+    #| Returns the contained value or a default
+    #| value if the option is None.
+    #| Equivalent to `unwrap_or` in Rust.
+    #| # Example:
+    #| ```
+    #| let opt = Option.Some(42)
+    #| let value = opt.unwrap_or(0)  # value will be 42
+    #| ```
+    #| If the option is None, the provided default value is returned.
+    #| # Example:
+    #| ```
+    #| let opt = Option.None
+    #| let value = opt.unwrap_or(0)  # value will be 0
+    #| ```
+    #| This method is useful for providing a fallback value
+    #| when dealing with optional values.
     pub fn unwrap_or(self, default: T) -> T
         match self
             Option.Some(value) => value,
@@ -16,7 +36,29 @@ impl<T> Option<T>
         end
     end
 
-     # Transform the option with a function if it contains a value
+    #| Transform the option with a function if it contains a value
+    #| Returns a new Option with the transformed value
+    #| or None if the original option was None.
+    #| # Example:
+    #| ```
+    #| let opt = Option.Some(42)
+    #| let new_opt = opt.map(x => x * 2)  # new_opt will be Option.Some(84)
+    #| ```
+    #| If the option is None, the function is not applied
+    #| and None is returned.
+    #| # Example:
+    #| ```
+    #| let opt = Option.None
+    #| let new_opt = opt.map(x => x * 2)  # new_opt will be Option.None
+    #| ```
+    #| This method is useful for chaining operations on optional values
+    #| without needing to check for None explicitly.
+    #| It allows for a functional style of programming
+    #| where operations can be applied to the contained value
+    #| if it exists, or skipped if it does not.
+    #| The function `f` should take a value of type T and return a value
+    #| of type U, where U is the type of the new Option.
+    #| The resulting Option will be of type Option<U>.
     pub fn map<U>(self, f: (T) -> U) -> Option<U>
         match self
             Option.Some(value) => Option.Some(f(value)),
@@ -24,7 +66,23 @@ impl<T> Option<T>
         end
     end
 
-    # Return true if the option contains a value
+    #| Return true if the option contains a value
+    #| This method checks if the Option is of type Some
+    #| and returns true if it does, false otherwise.
+    #| # Example:
+    #| ```
+    #| let opt = Option.Some(42)
+    #| let has_value = opt.is_some()  # has_value will be true
+    #| ```
+    #| If the option is None, it returns false.
+    #| # Example:
+    #| ```
+    #| let opt = Option.None
+    #| let has_value = opt.is_some()  # has_value will be false
+    #| ```
+    #| This method is useful for checking if an optional value
+    #| is present before performing operations on it.
+    #| It allows for safe handling of optional values
     pub fn is_some(self) -> bool
         match self
             Option.Some(_) => true,
@@ -39,4 +97,20 @@ impl<T> Option<T>
             Option.None => true,
         end
     end
+end
+
+# Constructors for Option type
+
+#| Creates an Option with a value
+#| Equivalent to Option.Some(value)
+pub fn some<T>(value: T) -> Option<T>
+    # Option<T>.Some(value)
+    Option.Some(value)
+end
+
+#| Creates an Option with no value
+#| Equivalent to Option.None
+pub fn none<T>() -> Option<T>
+    # Option<T>.None
+    Option.None
 end
