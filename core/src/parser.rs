@@ -4178,6 +4178,23 @@ mod tests {
     }
 }
 
+#[ignore = "Anonymous structs are not fully fleshed out yet."]
+#[test]
+fn test_anon_struct_no_methods() {
+    let input = r#"
+        let point = {
+            x: 10.0,
+            y: 20.0,
+        }
+    "#;
+    let mut lexer = crate::lexer::Lexer::new(input);
+    let tokens = lexer.collect_tokens().unwrap();
+    let mut parser = Parser::new(tokens);
+    let statements = parser.parse().unwrap();
+    assert_eq!(statements.len(), 1);
+    // TODO: Add assertions for the parsed anonymous struct
+}
+
 impl Parser {
     fn is_start_of_expression(&self) -> bool {
         match self.peek() {
