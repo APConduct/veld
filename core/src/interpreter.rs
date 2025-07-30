@@ -1587,8 +1587,8 @@ impl Interpreter {
 
     fn block_flow(
         &mut self,
-        mut stack: &mut Vec<Frame>,
-        mut last_value: Result<Value>,
+        stack: &mut Vec<Frame>,
+        last_value: Result<Value>,
         mut stmts: IntoIter<Statement>,
     ) -> ControlFlow<Result<Value>, Statement> {
         if let Some(stmt) = stmts.next() {
