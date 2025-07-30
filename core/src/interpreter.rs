@@ -14,6 +14,11 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::vec::IntoIter;
 
+pub mod scope;
+pub mod value;
+pub use scope::Scope;
+pub use value::Value;
+
 enum PatternToken {
     Literal(String),
     Variable(String),
@@ -84,184 +89,6 @@ impl StructInfo {
         Self {
             fields,
             generic_params,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Value {
-    Numeric(NumericValue),
-    Integer(i64),
-    Float(f64),
-    String(String),
-    Boolean(bool),
-    Char(char),
-    Return(Box<Value>),
-    Unit,
-    Function {
-        params: Vec<(String, TypeAnnotation)>,
-        body: Vec<Statement>,
-        return_type: TypeAnnotation,
-        captured_vars: HashMap<String, Value>, // Captured variables for closures
-    },
-    Struct {
-        name: String,
-        fields: HashMap<String, Value>,
-    },
-    Array(Vec<Value>),
-    Enum {
-        enum_name: String,
-        variant_name: String,
-        fields: Vec<Value>,
-    },
-    EnumType {
-        name: String,
-    },
-    Tuple(Vec<Value>),
-
-    Break,
-    Continue,
-}
-
-impl Value {
-    // Helper method to unwrap return values
-    fn unwrap_return(self) -> Value {
-        match self {
-            Value::Return(val) => *val,
-            val => val,
-        }
-    }
-
-    pub fn type_of(&self) -> Type {
-        match self {
-            Value::Numeric(numeric) => numeric.clone().type_of(),
-            Value::Integer(_) => Type::I64,
-            Value::Float(_) => Type::F64,
-            Value::String(_) => Type::String,
-            Value::Boolean(_) => Type::Bool,
-            Value::Char(_) => Type::Char,
-            Value::Return(_) => Type::Unit, // Return values are not a type
-            Value::Unit => Type::Unit,
-            Value::Array(_) => Type::Array(Box::new(Type::Any)), // Default to Any for arrays
-            Value::Break | Value::Continue => Type::Unit, // Break and Continue are control flow, not values
-            _ => todo!("Handle other Value types"),
-        }
-    }
-
-    pub fn perform_binary_op(&self, op: &BinaryOperator, rhs: &Value) -> Result<Value> {
-        let span = tracing::debug_span!("binary_op", op = ?op, lhs = ?self, rhs = ?rhs);
-        let _enter = span.enter();
-
-        match (self, rhs) {
-            (Value::Numeric(a), Value::Numeric(b)) => {
-                Ok(Value::Numeric(a.perform_operation(op, b)?))
-            }
-            // TODO: Handle other numeric types
-            _ => Err(VeldError::RuntimeError(format!(
-                "Invalid operation {:?} between {:?} and {:?}",
-                op, self, rhs
-            ))),
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct Scope {
-    values: HashMap<String, Value>,
-    var_kinds: HashMap<String, VarKind>,
-    scope_level: usize,
-}
-
-impl Scope {
-    fn new(level: usize) -> Self {
-        Self {
-            values: HashMap::new(),
-            var_kinds: HashMap::new(),
-            scope_level: level,
-        }
-    }
-
-    fn get(&self, name: &str) -> Option<Value> {
-        self.values.get(name).cloned()
-    }
-
-    fn set(&mut self, name: String, value: Value) {
-        self.values.insert(name, value);
-    }
-
-    fn set_with_kind(&mut self, name: String, value: Value, kind: VarKind) {
-        self.values.insert(name.clone(), value);
-        self.var_kinds.insert(name, kind);
-    }
-
-    fn is_mutable(&self, name: &str) -> bool {
-        match self.var_kinds.get(name) {
-            Some(VarKind::Var) | Some(VarKind::LetMut) => true,
-            _ => false,
-        }
-    }
-
-    pub fn values(&self) -> Vec<(String, Value)> {
-        self.values
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect()
-    }
-
-    fn declare(&mut self, name: String, value: Value, kind: VarKind) -> Result<()> {
-        let span = tracing::debug_span!("declare_variable", name = %name, kind = ?kind);
-        let _enter = span.enter();
-
-        // Check for const reassignment
-        if let Some(existing_kind) = self.var_kinds.get(&name) {
-            match existing_kind {
-                VarKind::Const => {
-                    return Err(VeldError::RuntimeError(format!(
-                        "Cannot redeclare constant '{}'",
-                        name
-                    )));
-                }
-                VarKind::Let => {
-                    // Let can be shadowed
-                }
-                VarKind::Var | VarKind::LetMut => {
-                    // Mutable variables can be reassigned but not redeclared
-                    return Err(VeldError::RuntimeError(format!(
-                        "Variable '{}' is already declared in this scope",
-                        name
-                    )));
-                }
-            }
-        }
-
-        self.values.insert(name.clone(), value);
-        self.var_kinds.insert(name, kind);
-        Ok(())
-    }
-
-    fn assign(&mut self, name: &str, value: Value) -> Result<()> {
-        let span = tracing::debug_span!("declare_variable",
-            name = %name,
-        );
-        let _enter = span.enter();
-
-        match self.var_kinds.get(name) {
-            Some(VarKind::Var | VarKind::LetMut) => {
-                self.values.insert(name.to_string(), value);
-                Ok(())
-            }
-            Some(VarKind::Const) => Err(VeldError::RuntimeError(format!(
-                "Cannot assign to constant '{}'",
-                name
-            ))),
-            Some(VarKind::Let) => Err(VeldError::RuntimeError(format!(
-                "Cannot assign to immutable variable '{}'",
-                name
-            ))),
-            None => Err(VeldError::RuntimeError(format!(
-                "Cannot assign to undefined variable '{}'",
-                name
-            ))),
         }
     }
 }
@@ -2050,7 +1877,7 @@ impl Interpreter {
 
         // Find the variable in scopes (starting from innermost) and check mutability
         for scope in self.scopes.iter_mut().rev() {
-            if scope.values.contains_key(&name) {
+            if scope.vals().contains_key(&name) {
                 return match scope.assign(&name, new_value) {
                     Ok(_) => Ok(Value::Unit),
                     Err(e) => Err(e),
