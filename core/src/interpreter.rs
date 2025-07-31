@@ -2262,80 +2262,27 @@ impl Interpreter {
                                 if operator == BinaryOperator::Pipe {
                                     // Handle pipe operator as a special case
                                     let left_val = self.evaluate_expression(*left)?.unwrap_return();
-                                    // Handle the types of the right side expression(s)
                                     match *right {
-                                        // Fn call with args
-                                        Expr::FunctionCall { name, arguments } => {
+                                        Expr::Call { callee, arguments } => {
+                                            // Insert left_val as the first argument
                                             let left_expr = self.value_to_expr(left_val.clone())?;
                                             let mut new_args =
                                                 vec![Argument::Positional(left_expr)];
-
-                                            // Add rest of args
-                                            for arg in arguments {
-                                                new_args.push(arg);
-                                            }
-
-                                            let func_call = Expr::FunctionCall {
-                                                name,
+                                            new_args.extend(arguments);
+                                            let new_call = Expr::Call {
+                                                callee,
                                                 arguments: new_args,
                                             };
-
-                                            self.evaluate_expression(func_call)
-                                        }
-                                        Expr::MethodCall {
-                                            object,
-                                            method,
-                                            arguments,
-                                        } => {
-                                            let obj_val = self.evaluate_expression(*object)?;
-
-                                            let mut arg_values = vec![left_val];
-                                            for arg in arguments {
-                                                match arg {
-                                                    Argument::Positional(expr) => {
-                                                        let val = self.evaluate_expression(expr)?;
-                                                        arg_values.push(val);
-                                                    }
-                                                    Argument::Named { name: _, value } => {
-                                                        let val =
-                                                            self.evaluate_expression(value)?;
-                                                        arg_values.push(val);
-                                                    }
-                                                }
-                                            }
-                                            self.call_method_value(obj_val, method, arg_values)
-                                        }
-                                        Expr::Identifier(name) => {
-                                            let arg_values = vec![left_val];
-                                            self.call_function_with_values(name, arg_values)
+                                            self.evaluate_expression(new_call)
                                         }
                                         _ => {
-                                            let right_val = self.evaluate_expression(*right)?;
-                                            // If it's a function, call it with left_val
-                                            match right_val {
-                                                Value::Function { .. } => {
-                                                    // Convert the function to a string name to call it
-                                                    // This is a workaround since call_function_with_values expects a name
-                                                    let arg_values = vec![left_val];
-                                                    let temp_name = "___pipe_temp___".to_string();
-
-                                                    // Temporarily store the function in the current scope
-                                                    self.current_scope_mut()
-                                                        .set(temp_name.clone(), right_val);
-
-                                                    // Call the function
-                                                    let result = self.call_function_with_values(
-                                                        temp_name.clone(),
-                                                        arg_values,
-                                                    );
-
-                                                    result
-                                                }
-                                                _ => Err(VeldError::RuntimeError(format!(
-                                                    "Cannot pipe into non-function value: {:?}",
-                                                    right_val
-                                                ))),
-                                            }
+                                            // Treat as a function call with left_val as the only argument
+                                            let left_expr = self.value_to_expr(left_val)?;
+                                            let call = Expr::Call {
+                                                callee: Box::new(*right),
+                                                arguments: vec![Argument::Positional(left_expr)],
+                                            };
+                                            self.evaluate_expression(call)
                                         }
                                     }
                                 } else {
