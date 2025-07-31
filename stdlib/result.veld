@@ -39,3 +39,11 @@ impl<T, E> Result<T, E>
         end
     end
 end
+
+pub fn ok<T, E>(value: T) -> Result<T, E>
+    Result.Ok(value)
+end
+
+pub fn err<T, E>(error: E) -> Result<T, E>
+    Result.Err(error)
+end

@@ -1,6 +1,24 @@
+#| # Tests for the veld stdlib Option type and module
+
+# import using group import syntax
 import std.option.{Option, some}
+
+#| Basic usage of the Option type
+
+# create some Option values
+
+# binds a 'None' value to foo
 let foo = Option.None
+
+# binds a 'Some' value containing 42 to bar
 let bar = Option.Some(42)
+
+# binds a 'Some' value containing a string to baz
 let baz = Option.Some("Hello, World!")
+
+# binds a 'Some' value containing a float to qux
 let qux = some(3.14)
+
+# using the option module directly through chaining after the standard library import
+# This can be done instead of using explicit 'import' statements
 let foo_bar = std.option.some(69)
