@@ -45,7 +45,7 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Vec<Statement>> {
         tracing::debug!("Parser: Starting parsing with {} tokens", self.tokens.len());
         // Debug print for tokens
-        println!("Tokens: {:?}", self.tokens);
+        tracing::debug!("Tokens: {:?}", self.tokens);
 
         let mut statements = Vec::new();
         let mut step_count = 0;
@@ -73,7 +73,7 @@ impl Parser {
             "Parsing completed successfully"
         );
         // Debug print for AST
-        println!("AST: {:?}", statements);
+        tracing::debug!("AST: {:?}", statements);
         Ok(statements)
     }
 

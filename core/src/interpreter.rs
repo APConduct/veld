@@ -2332,9 +2332,10 @@ impl Interpreter {
                             }
                             Expr::PropertyAccess { object, property } => {
                                 let obj_value = self.evaluate_expression(*object)?;
-                                println!(
+                                tracing::debug!(
                                     "PropertyAccess: object = {:?}, property = {:?}",
-                                    obj_value, property
+                                    obj_value,
+                                    property
                                 );
                                 self.get_property(obj_value, &property)
                             }
@@ -2347,7 +2348,7 @@ impl Interpreter {
                                 self.cast_value(value, &target)
                             }
                             Expr::Call { callee, arguments } => {
-                                println!("Call: callee = {:?}", callee);
+                                tracing::debug!("Call: callee = {:?}", callee);
                                 let callee_val = self.evaluate_expression(*callee)?;
                                 let mut arg_values = Vec::new();
                                 for arg in arguments {
@@ -5048,7 +5049,7 @@ impl Interpreter {
     }
 
     fn get_property(&mut self, object: Value, property: &str) -> Result<Value> {
-        println!("get_property: object = {:?}", object);
+        tracing::debug!("get_property: object = {:?}", object);
         match object {
             Value::Struct { name, fields } => {
                 if let Some(value) = fields.get(property) {
@@ -6003,10 +6004,10 @@ impl Interpreter {
                         } else {
                             continue;
                         };
-                        println!(
+                        tracing::debug!(
                             "import: inserting {} = {:?}",
                             enum_name,
-                            Value::EnumType {
+                            value::Value::EnumType {
                                 name: enum_name.clone()
                             }
                         );
