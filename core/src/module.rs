@@ -484,6 +484,11 @@ impl ModuleManager {
                 _ => {}
             }
         }
+        // Debug print to show what is being exported
+        println!(
+            "extract_exports: Exported keys: {:?}",
+            exports.keys().collect::<Vec<_>>()
+        );
         exports
     }
 

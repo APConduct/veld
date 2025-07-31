@@ -112,6 +112,11 @@ pub enum Expr {
         body: Box<Expr>,
         return_type: Option<TypeAnnotation>,
     },
+    /// General function/method call: callee can be any Expr (including PropertyAccess)
+    Call {
+        callee: Box<Expr>,
+        arguments: Vec<Argument>,
+    },
     MethodCall {
         object: Box<Expr>,
         method: String,

@@ -82,6 +82,7 @@ pub enum Type {
     TypeVar(usize),
 
     KindSelf(String),
+    Module(String),
 }
 
 impl Type {
@@ -181,7 +182,7 @@ impl std::fmt::Display for Type {
             Type::U16 => write!(f, "u16"),
             Type::I8 => write!(f, "i8"),
             Type::I16 => write!(f, "i16"),
-
+            Type::Module(name) => write!(f, "module: {}", name),
             Type::IntegerLiteral(_value) => write!(f, "int"),
             Type::FloatLiteral(_value) => write!(f, "float"),
             Type::Number => write!(f, "number"),

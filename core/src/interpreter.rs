@@ -710,6 +710,21 @@ impl Interpreter {
                 // Collect free variables from the operand
                 self.collect_free_variables_expr(operand, bound_vars, free_vars);
             }
+            Expr::Call { callee, arguments } => {
+                // Collect free variables from the callee
+                self.collect_free_variables_expr(callee, bound_vars, free_vars);
+                // Collect free variables from each argument
+                for arg in arguments {
+                    match arg {
+                        Argument::Positional(expr) => {
+                            self.collect_free_variables_expr(expr, bound_vars, free_vars);
+                        }
+                        Argument::Named { name: _, value } => {
+                            self.collect_free_variables_expr(value, bound_vars, free_vars);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -2370,6 +2385,10 @@ impl Interpreter {
                             }
                             Expr::PropertyAccess { object, property } => {
                                 let obj_value = self.evaluate_expression(*object)?;
+                                println!(
+                                    "PropertyAccess: object = {:?}, property = {:?}",
+                                    obj_value, property
+                                );
                                 self.get_property(obj_value, &property)
                             }
                             Expr::TypeCast { expr, target_type } => {
@@ -2379,6 +2398,22 @@ impl Interpreter {
                                     .env()
                                     .from_annotation(&target_type, None)?;
                                 self.cast_value(value, &target)
+                            }
+                            Expr::Call { callee, arguments } => {
+                                println!("Call: callee = {:?}", callee);
+                                let callee_val = self.evaluate_expression(*callee)?;
+                                let mut arg_values = Vec::new();
+                                for arg in arguments {
+                                    match arg {
+                                        Argument::Positional(expr) => {
+                                            arg_values.push(self.evaluate_expression(expr)?)
+                                        }
+                                        Argument::Named { name: _, value } => {
+                                            arg_values.push(self.evaluate_expression(value)?)
+                                        }
+                                    }
+                                }
+                                self.call_function_value(callee_val, arg_values)
                             }
 
                             Expr::MethodCall {
@@ -2702,6 +2737,9 @@ impl Interpreter {
                                         ))),
                                     },
                                 }
+                            }
+                            Expr::Call { callee, arguments } => {
+                                todo!("Implement call expression evaluation")
                             }
                         }
                     }
@@ -5062,7 +5100,7 @@ impl Interpreter {
         }
     }
 
-    fn get_property(&self, object: Value, property: &str) -> Result<Value> {
+    fn get_property(&mut self, object: Value, property: &str) -> Result<Value> {
         println!("get_property: object = {:?}", object);
         match object {
             Value::Struct { name, fields } => {
@@ -5130,10 +5168,26 @@ impl Interpreter {
                 if let Some(export) = module.exports.get(property) {
                     match export {
                         crate::module::ExportedItem::Function(idx) => {
-                            Err(VeldError::RuntimeError(format!(
-                                "Function '{}' exported from module '{}' is not directly callable yet (implement function resolution here)",
-                                property, module.name
-                            )))
+                            // Look up the function statement in module.statements
+                            if let Some(Statement::FunctionDeclaration {
+                                params,
+                                body,
+                                return_type,
+                                ..
+                            }) = module.statements.get(*idx)
+                            {
+                                Ok(Value::Function {
+                                    params: params.clone(),
+                                    body: body.clone(),
+                                    return_type: return_type.clone(),
+                                    captured_vars: HashMap::new(),
+                                })
+                            } else {
+                                Err(VeldError::RuntimeError(format!(
+                                    "Function '{}' not found in module '{}'",
+                                    property, module.name
+                                )))
+                            }
                         }
                         crate::module::ExportedItem::Struct(idx) => {
                             Err(VeldError::RuntimeError(format!(
@@ -5173,6 +5227,11 @@ impl Interpreter {
                 } else {
                     // Dynamic submodule resolution: try to load submodule by fully qualified name
                     let fq_name = format!("{}.{}", module.name, property);
+                    // If the submodule is not loaded, load it now!
+                    if !self.module_manager.is_module_loaded(&fq_name) {
+                        let path: Vec<String> = fq_name.split('.').map(|s| s.to_string()).collect();
+                        let _ = self.module_manager.load_module(&path);
+                    }
                     if let Some(submodule) = self.module_manager.get_module(&fq_name) {
                         Ok(Value::Module(submodule.clone()))
                     } else {
@@ -5681,6 +5740,62 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
+        }
+    }
+
+    // Call a function value (not just by name), supporting closures, property-accessed functions, etc.
+    fn call_function_value(&mut self, func: Value, arg_values: Vec<Value>) -> Result<Value> {
+        match func {
+            Value::Function {
+                params,
+                body,
+                return_type: _,
+                captured_vars,
+            } => {
+                self.push_scope();
+
+                // Set up captured variables in the new scope
+                for (var_name, var_value) in captured_vars {
+                    self.current_scope_mut().set(var_name, var_value);
+                }
+
+                // Bind arguments
+                if arg_values.len() != params.len() {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Expected {} arguments but got {}",
+                        params.len(),
+                        arg_values.len()
+                    )));
+                }
+
+                for (i, arg) in arg_values.iter().enumerate() {
+                    let param_name = params[i].0.clone();
+                    let arg_value = arg.clone();
+                    self.current_scope_mut().set(param_name, arg_value);
+                }
+
+                // Execute function body
+                let mut result = Value::Unit;
+                for stmt in &body {
+                    result = self.execute_statement(stmt.clone())?;
+                    if matches!(result, Value::Return(_)) {
+                        break;
+                    }
+                }
+
+                self.pop_scope();
+
+                // For functions without explicit returns, if the last statement produced a value,
+                // consider it the return value
+                if !matches!(result, Value::Return(_)) && !matches!(result, Value::Unit) {
+                    result = Value::Return(Box::new(result));
+                }
+
+                Ok(result.unwrap_return())
+            }
+            // If you have native functions, add a case here
+            // Value::NativeFunction(f) => f(arg_values),
+            _ => Err(VeldError::RuntimeError("Value is not callable".to_string())),
         }
     }
 

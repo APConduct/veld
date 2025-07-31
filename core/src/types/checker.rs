@@ -944,6 +944,11 @@ impl TypeChecker {
             Expr::TupleAccess { .. } => todo!("Tuple access type inference"),
             Expr::MacroExpr { .. } => todo!("Macro expression type inference"),
             Expr::MacroVar(_) => todo!("Macro variable type inference"),
+            Expr::Call { callee, arguments } => todo!(
+                "Call expression type inference: {:?} with args: {:?}",
+                callee,
+                arguments
+            ),
         };
         if let Ok(ref t) = result {
             tracing::debug!("Final inferred type for expression: {:?} -> {:?}", expr, t);

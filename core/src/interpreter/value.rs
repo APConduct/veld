@@ -61,6 +61,7 @@ impl Value {
             Value::Unit => Type::Unit,
             Value::Array(_) => Type::Array(Box::new(Type::Any)), // Default to Any for arrays
             Value::Break | Value::Continue => Type::Unit, // Break and Continue are control flow, not values
+            Value::Module(module) => Type::Module(module.name.clone()),
             _ => todo!("Handle other Value types"),
         }
     }

@@ -44,6 +44,9 @@ impl Parser {
 
     pub fn parse(&mut self) -> Result<Vec<Statement>> {
         tracing::debug!("Parser: Starting parsing with {} tokens", self.tokens.len());
+        // Debug print for tokens
+        println!("Tokens: {:?}", self.tokens);
+
         let mut statements = Vec::new();
         let mut step_count = 0;
         const MAX_STEPS: usize = 1000;
@@ -69,6 +72,8 @@ impl Parser {
             statement_count = statements.len(),
             "Parsing completed successfully"
         );
+        // Debug print for AST
+        println!("AST: {:?}", statements);
         Ok(statements)
     }
 
@@ -2165,39 +2170,36 @@ impl Parser {
                         index: *idx as usize,
                     };
                 } else {
-                    // Method call or property access
-                    let method =
+                    // Always treat as property access (no method call here)
+                    let property =
                         self.consume_identifier("Expected property or method name after '.'")?;
-                    tracing::debug!(method = %method, "Postfix: Method/property name");
+                    tracing::debug!(method = %property, "Postfix: Property name");
 
-                    if self.match_token(&[Token::LParen]) {
-                        // Method call with arguments
-                        let mut args = Vec::new();
-                        if !self.check(&Token::RParen) {
-                            if self.check_named_arguments() {
-                                args = self.parse_named_arguments()?;
-                            } else {
-                                loop {
-                                    args.push(Argument::Positional(self.expression()?));
-                                    if !self.match_token(&[Token::Comma]) {
-                                        break;
-                                    }
-                                }
+                    expr = Expr::PropertyAccess {
+                        object: Box::new(expr),
+                        property,
+                    };
+                }
+            } else if self.match_token(&[Token::LParen]) {
+                // Function call on identifier or property access chain
+                let mut args = Vec::new();
+                if !self.check(&Token::RParen) {
+                    if self.check_named_arguments() {
+                        args = self.parse_named_arguments()?;
+                    } else {
+                        loop {
+                            args.push(Argument::Positional(self.expression()?));
+                            if !self.match_token(&[Token::Comma]) {
+                                break;
                             }
                         }
-                        self.consume(&Token::RParen, "Expected ')' after method arguments")?;
-                        expr = Expr::MethodCall {
-                            object: Box::new(expr),
-                            method,
-                            arguments: args,
-                        };
-                    } else {
-                        expr = Expr::PropertyAccess {
-                            object: Box::new(expr),
-                            property: method,
-                        };
                     }
                 }
+                self.consume(&Token::RParen, "Expected ')' after arguments")?;
+                expr = Expr::Call {
+                    callee: Box::new(expr),
+                    arguments: args,
+                };
             } else if self.check(&Token::LParen) && matches!(expr, Expr::Identifier(_)) {
                 self.advance(); // now consume LParen
                 // Function call
@@ -2238,8 +2240,8 @@ impl Parser {
                                 .collect(),
                         };
                     } else {
-                        expr = Expr::FunctionCall {
-                            name,
+                        expr = Expr::Call {
+                            callee: Box::new(Expr::Identifier(name)),
                             arguments: args,
                         };
                     }
