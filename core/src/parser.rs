@@ -4185,18 +4185,45 @@ mod tests {
 #[ignore = "Anonymous structs are not fully fleshed out yet."]
 #[test]
 fn test_anon_struct_no_methods() {
-    let input = r#"
+    let proposed_syntax1 = r#"
         let point = {
             x: 10.0,
             y: 20.0,
         }
     "#;
-    let mut lexer = crate::lexer::Lexer::new(input);
-    let tokens = lexer.collect_tokens().unwrap();
-    let mut parser = Parser::new(tokens);
-    let statements = parser.parse().unwrap();
-    assert_eq!(statements.len(), 1);
+    let proposed_syntax2 = r#"
+        let point = struct
+            x: 10.0,
+            y: 20.0,
+        end
+    "#;
+
+    let input = proposed_syntax1; // or proposed_syntax2
+    // let mut lexer = crate::lexer::Lexer::new(input);
+    // let tokens = lexer.collect_tokens().unwrap();
+    // let mut parser = Parser::new(tokens);
+    // let statements = parser.parse().unwrap();
+    // assert_eq!(statements.len(), 1);
     // TODO: Add assertions for the parsed anonymous struct
+}
+
+#[ignore = "Anonymous enums are not fully fleshed out yet, and may not even be in the final design or implemented at all."]
+#[test]
+fn test_anon_enum_no_methods() {
+    // TS-style with '|' syntax as a delimiter for shorter syntax
+    let proposed_syntax1 = r#"
+        let shape = enum
+            Circle(f64) |
+            Rectangle(f64, f64)
+            # specify which enum variants are the instance named shape is (Circle or Rectangle)
+        as Circle(2.0) # Specify value of the instance (Circle with radius 2.0)
+    "#;
+
+    let proposed_syntax2 = r#"
+        let shape : enum Circle(f64) | Rectangle(f64, f64) = Circle(2.0)
+    "#;
+
+    let input = proposed_syntax2; // or proposed_syntax1
 }
 
 impl Parser {

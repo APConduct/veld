@@ -5125,6 +5125,64 @@ impl Interpreter {
                     )))
                 }
             }
+            Value::Module(module) => {
+                // Try to resolve as an exported item first
+                if let Some(export) = module.exports.get(property) {
+                    match export {
+                        crate::module::ExportedItem::Function(idx) => {
+                            Err(VeldError::RuntimeError(format!(
+                                "Function '{}' exported from module '{}' is not directly callable yet (implement function resolution here)",
+                                property, module.name
+                            )))
+                        }
+                        crate::module::ExportedItem::Struct(idx) => {
+                            Err(VeldError::RuntimeError(format!(
+                                "Struct '{}' exported from module '{}' is not directly accessible yet (implement struct resolution here)",
+                                property, module.name
+                            )))
+                        }
+                        crate::module::ExportedItem::Variable(idx) => {
+                            Err(VeldError::RuntimeError(format!(
+                                "Variable '{}' exported from module '{}' is not directly accessible yet (implement variable resolution here)",
+                                property, module.name
+                            )))
+                        }
+                        crate::module::ExportedItem::Kind(idx) => {
+                            Err(VeldError::RuntimeError(format!(
+                                "Kind '{}' exported from module '{}' is not directly accessible yet (implement kind resolution here)",
+                                property, module.name
+                            )))
+                        }
+                        crate::module::ExportedItem::Enum(idx) => {
+                            Err(VeldError::RuntimeError(format!(
+                                "Enum '{}' exported from module '{}' is not directly accessible yet (implement enum resolution here)",
+                                property, module.name
+                            )))
+                        }
+                        crate::module::ExportedItem::Module(submod_name) => {
+                            if let Some(submodule) = self.module_manager.get_module(submod_name) {
+                                Ok(Value::Module(submodule.clone()))
+                            } else {
+                                Err(VeldError::RuntimeError(format!(
+                                    "Submodule '{}' not found in module '{}'",
+                                    submod_name, module.name
+                                )))
+                            }
+                        }
+                    }
+                } else {
+                    // Dynamic submodule resolution: try to load submodule by fully qualified name
+                    let fq_name = format!("{}.{}", module.name, property);
+                    if let Some(submodule) = self.module_manager.get_module(&fq_name) {
+                        Ok(Value::Module(submodule.clone()))
+                    } else {
+                        Err(VeldError::RuntimeError(format!(
+                            "Module '{}' has no export or submodule '{}'",
+                            module.name, property
+                        )))
+                    }
+                }
+            }
             _ => Err(VeldError::RuntimeError(
                 "Cannot access property on non-struct value".to_string(),
             )),
@@ -5749,11 +5807,22 @@ impl Interpreter {
     }
 
     fn get_variable(&self, name: &str) -> Option<Value> {
+        // 1. Check local scopes (from innermost to outermost)
         for scope in self.scopes.iter().rev() {
-            if let Some(value) = scope.get(name) {
-                return Some(value);
+            if let Some(val) = scope.get(name) {
+                return Some(val);
             }
         }
+
+        // 2. Check if it's a loaded root module (like "std")
+        if self.module_manager.is_module_loaded(name) {
+            if let Some(module) = self.module_manager.get_module(name) {
+                // Return the module as a Value::Module
+                return Some(Value::Module(module.clone()));
+            }
+        }
+
+        // 3. Not found
         None
     }
 

@@ -36,6 +36,8 @@ pub enum Value {
 
     Break,
     Continue,
+
+    Module(crate::module::Module),
 }
 
 impl Value {

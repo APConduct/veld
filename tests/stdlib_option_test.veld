@@ -3,4 +3,4 @@ let foo = Option.None
 let bar = Option.Some(42)
 let baz = Option.Some("Hello, World!")
 let qux = some(3.14)
-# let foo_bar = std.option.Option.Some(69)
+let foo_bar = std.option.some(69)
