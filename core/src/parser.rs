@@ -72,6 +72,10 @@ impl Parser {
         Ok(statements)
     }
 
+    pub fn total_steps(&self) -> usize {
+        self.total_steps
+    }
+
     fn is_declaration_keyword(&self) -> bool {
         match self.peek() {
             Token::Let | Token::Var | Token::Const => true,
@@ -717,7 +721,7 @@ impl Parser {
         })
     }
 
-    fn block_scope_statement(&mut self) -> Result<Statement> {
+    pub fn block_scope_statement(&mut self) -> Result<Statement> {
         tracing::info!("Parsing block scope");
 
         let mut body = Vec::new();
@@ -739,7 +743,7 @@ impl Parser {
             || self.check(&Token::Do)
     }
 
-    fn check_declaration_start(&self) -> bool {
+    pub fn check_declaration_start(&self) -> bool {
         self.check(&Token::Fn)
             || self.check(&Token::Proc)
             || self.check(&Token::Struct)
@@ -1072,7 +1076,7 @@ impl Parser {
         }
     }
 
-    fn peek_next_is_identifier(&self) -> bool {
+    pub fn peek_next_is_identifier(&self) -> bool {
         if self.current + 1 >= self.tokens.len() {
             return false;
         }
@@ -1098,7 +1102,7 @@ impl Parser {
 
             self.match_token(&[Token::Comma]);
         }
-        self.consume(&Token::End, "Expected 'end' after implementation methods");
+        let _ = self.consume(&Token::End, "Expected 'end' after implementation methods");
         Ok(methods)
     }
 
@@ -2642,7 +2646,7 @@ impl Parser {
         }
     }
 
-    fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
+    pub fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
         tracing::info!(
             "Parsing struct fields, token: {:?}",
             self.tokens.get(self.current)
@@ -2856,7 +2860,7 @@ impl Parser {
     //     Ok(expr)
     // }
 
-    fn check_named_argument(&self) -> bool {
+    pub fn check_named_argument(&self) -> bool {
         // Look ahead for "identifier: value" pattern
         if self.current + 1 < self.tokens.len() {
             if let Token::Identifier(_) = &self.tokens[self.current] {
@@ -2866,7 +2870,7 @@ impl Parser {
         false
     }
 
-    fn arguments(&mut self) -> Result<Vec<Expr>> {
+    pub fn arguments(&mut self) -> Result<Vec<Expr>> {
         tracing::info!("In arguments(): Parsing arguments");
 
         let mut args = Vec::new();
@@ -4159,7 +4163,7 @@ mod tests {
 
         // Dump tokens for debugging
         let mut lexer = crate::lexer::Lexer::new(input);
-        let tokens: Vec<_> = lexer.collect_tokens().unwrap();
+        let _tokens: Vec<_> = lexer.collect_tokens().unwrap();
 
         let statements = parse_code(input);
         assert_eq!(statements.len(), 1);

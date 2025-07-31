@@ -19,6 +19,10 @@ impl Scope {
         }
     }
 
+    pub fn scope_level(&self) -> usize {
+        self.scope_level
+    }
+
     pub fn values_mut(&mut self) -> &mut HashMap<String, Value> {
         &mut self.values
     }
@@ -35,12 +39,12 @@ impl Scope {
         self.values.insert(name, value);
     }
 
-    fn set_with_kind(&mut self, name: String, value: Value, kind: VarKind) {
+    pub fn set_with_kind(&mut self, name: String, value: Value, kind: VarKind) {
         self.values.insert(name.clone(), value);
         self.var_kinds.insert(name, kind);
     }
 
-    fn is_mutable(&self, name: &str) -> bool {
+    pub fn is_mutable(&self, name: &str) -> bool {
         match self.var_kinds.get(name) {
             Some(VarKind::Var) | Some(VarKind::LetMut) => true,
             _ => false,

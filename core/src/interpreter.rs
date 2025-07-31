@@ -1919,7 +1919,7 @@ impl Interpreter {
 
         // Type checking with annotations
         if let Some(type_anno) = type_annotation {
-            let expected_type = self.type_checker.env.from_annotation(&type_anno, None)?;
+            let expected_type = self.type_checker.env().from_annotation(&type_anno, None)?;
             self.validate_value_type(&evaluated_value, &expected_type)?;
         }
 
@@ -2374,8 +2374,10 @@ impl Interpreter {
                             }
                             Expr::TypeCast { expr, target_type } => {
                                 let value = self.evaluate_expression(*expr)?;
-                                let target =
-                                    self.type_checker.env.from_annotation(&target_type, None)?;
+                                let target = self
+                                    .type_checker
+                                    .env()
+                                    .from_annotation(&target_type, None)?;
                                 self.cast_value(value, &target)
                             }
 
@@ -5948,7 +5950,7 @@ impl Interpreter {
 
         add_kind_methods.insert("add".to_string(), add_method_type);
 
-        self.type_checker.env.add_kind(
+        self.type_checker.env().add_kind(
             "Add",
             add_kind_methods,
             HashMap::new(),
@@ -5964,7 +5966,7 @@ impl Interpreter {
             return_type: Box::new(Type::TypeParam("Output".to_string())),
         };
         sub_kind_methods.insert("sub".to_string(), sub_method_type);
-        self.type_checker.env.add_kind(
+        self.type_checker.env().add_kind(
             "Sub",
             sub_kind_methods,
             HashMap::new(),
@@ -5980,7 +5982,7 @@ impl Interpreter {
             return_type: Box::new(Type::TypeParam("Output".to_string())),
         };
         mul_kind_methods.insert("mul".to_string(), mul_method_type);
-        self.type_checker.env.add_kind(
+        self.type_checker.env().add_kind(
             "Mul",
             mul_kind_methods,
             HashMap::new(),
@@ -5996,7 +5998,7 @@ impl Interpreter {
             return_type: Box::new(Type::TypeParam("Output".to_string())),
         };
         div_kind_methods.insert("div".to_string(), div_method_type);
-        self.type_checker.env.add_kind(
+        self.type_checker.env().add_kind(
             "Div",
             div_kind_methods,
             HashMap::new(),
