@@ -1888,62 +1888,6 @@ impl Parser {
         Ok(expr)
     }
 
-    // fn addition(&mut self) -> Result<Expr> {
-    //     println!("Addition: Starting...");
-
-    //     let mut expr = self.multiplication()?;
-    //     println!("Addition: Got left operand: {:?}", expr);
-
-    //     while self.match_token(&[Token::Plus, Token::Minus]) {
-    //         let operator = match self.previous() {
-    //             Token::Plus => BinaryOperator::Add,
-    //             Token::Minus => BinaryOperator::Subtract,
-    //             _ => unreachable!(),
-    //         };
-
-    //         println!("Addition: Found operator: {:?}", operator);
-    //         let right = self.multiplication()?;
-    //         println!("Addition: Got right operand: {:?}", right);
-
-    //         expr = Expr::BinaryOp {
-    //             left: Box::new(expr),
-    //             operator,
-    //             right: Box::new(right),
-    //         };
-    //     }
-
-    //     println!("Addition: Completed with result: {:?}", expr);
-    //     Ok(expr)
-    // }
-
-    // fn multiplication(&mut self) -> Result<Expr> {
-    //     println!("Multiplication: Starting...");
-
-    //     let mut expr = self.unary()?;
-    //     println!("Multiplication: Got left operand: {:?}", expr);
-
-    //     while self.match_token(&[Token::Star, Token::Slash]) {
-    //         let operator = match self.previous() {
-    //             Token::Star => BinaryOperator::Multiply,
-    //             Token::Slash => BinaryOperator::Divide,
-    //             _ => unreachable!(),
-    //         };
-
-    //         println!("Multiplication: Found operator: {:?}", operator);
-    //         let right = self.unary()?;
-    //         println!("Multiplication: Got right operand: {:?}", right);
-
-    //         expr = Expr::BinaryOp {
-    //             left: Box::new(expr),
-    //             operator,
-    //             right: Box::new(right),
-    //         };
-    //     }
-
-    //     println!("Multiplication: Completed with result: {:?}", expr);
-    //     Ok(expr)
-    // }
-
     fn unary(&mut self) -> Result<Expr> {
         // Check for unary operators
         if self.match_token(&[Token::Minus, Token::Bang]) {
@@ -2439,12 +2383,6 @@ impl Parser {
         })
     }
 
-    // Helper method that parses expressions but stops at control flow keywords
-    // fn parse_limited_expression(&mut self) -> Result<Expr> {
-    //     // This is like expression() but doesn't try to parse if/else/end as expressions
-    //     self.logical()
-    // }
-
     fn parse_function_expression(&mut self) -> Result<Expr> {
         // Parse parameters
         self.consume(&Token::LParen, "Expected '(' after 'fn'")?;
@@ -2655,52 +2593,6 @@ impl Parser {
             });
         }
     }
-
-    // fn call(&mut self) -> Result<Expr> {
-    //     let mut expr = self.primary()?;
-
-    //     loop {
-    //         if self.match_token(&[Token::LParen]) && matches!(expr, Expr::Identifier(_)) {
-    //             // Function call
-    //             if let Expr::Identifier(name) = expr {
-    //                 // Parse arguments
-    //                 let mut arguments = Vec::new();
-    //                 if !self.check(&Token::RParen) {
-    //                     loop {
-    //                         // Check for named arguments (identifier followed by colon)
-    //                         if self.check_named_argument() {
-    //                             let arg_name = self.consume_identifier("Expected argument name")?;
-    //                             self.consume(&Token::Colon, "Expected ':' after argument name")?;
-    //                             let arg_value = self.expression()?;
-    //                             arguments.push(Argument::Named {
-    //                                 name: arg_name,
-    //                                 value: arg_value,
-    //                             });
-    //                         } else {
-    //                             // Normal positional argument
-    //                             let arg = self.expression()?;
-    //                             arguments.push(Argument::Positional(arg));
-    //                         }
-
-    //                         if !self.match_token(&[Token::Comma]) {
-    //                             break;
-    //                         }
-    //                     }
-    //                 }
-
-    //                 self.consume(&Token::RParen, "Expected ')' after arguments")?;
-    //                 expr = Expr::FunctionCall { name, arguments };
-    //             }
-    //         } else {
-    //             // FUTURE ENHANCEMENT: Implement method calls on objects with dot notation
-    //             // This will be needed later for expressions like (1.0 + 2.0).sqrt()
-    //             // For now, we're focused on standard function calls
-    //             break;
-    //         }
-    //     }
-
-    //     Ok(expr)
-    // }
 
     pub fn check_named_argument(&self) -> bool {
         // Look ahead for "identifier: value" pattern
