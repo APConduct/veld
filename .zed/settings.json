@@ -1,0 +1,12 @@
+// Workaround to make Veld have like *any* syntax highlighting
+{
+  "languages": {
+    "Elixir": {
+      "enable_language_server": false,
+      "format_on_save": "off"
+    }
+  },
+  "file_types": {
+    "Elixir": ["veld"]
+  }
+}

@@ -1,0 +1,16 @@
+[
+  { "label": "Cargo Build", "command": "cargo build" },
+  { "label": "Cargo Run Debug (REPL)", "command": "cargo run" },
+  {
+    "label": "Cargo Run (LOG) Debug (REPL)",
+    "command": "RUST_LOG=debug cargo run"
+  },
+  {
+    "label": "Cargo Run Debug current Veld file",
+    "command": "cargo run -- $ZED_RELATIVE_FILE"
+  },
+  {
+    "label": "Cargo Run (LOG DEBUG) current Veld file",
+    "command": "RUST_LOG=debug cargo run -- $ZED_RELATIVE_FILE"
+  }
+]
