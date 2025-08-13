@@ -43,9 +43,7 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> Result<Vec<Statement>> {
-        tracing::debug!("Parser: Starting parsing with {} tokens", self.tokens.len());
         // Debug print for tokens
-        tracing::debug!("Tokens: {:?}", self.tokens);
 
         let mut statements = Vec::new();
         let mut step_count = 0;
@@ -60,20 +58,11 @@ impl Parser {
                 )));
             }
 
-            tracing::debug!(current_token = ?self.tokens.get(self.current), "Parser: Current token");
-            tracing::debug!(context = %self.debug_token_context(), "Parser: Context");
-
             let stmt = self.declaration()?;
-            tracing::debug!(?stmt, "Parser: Successfully parsed statement");
             statements.push(stmt);
         }
 
-        tracing::debug!(
-            statement_count = statements.len(),
-            "Parsing completed successfully"
-        );
         // Debug print for AST
-        tracing::debug!("AST: {:?}", statements);
         Ok(statements)
     }
 
@@ -265,17 +254,10 @@ impl Parser {
     }
 
     fn function_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        tracing::debug!("Function declaration: Starting");
         let name = self.consume_identifier("Expected function name")?;
 
-        tracing::debug!(name = %name, "Function declaration: Name");
         // Parse generic type parameters if present
         let generic_params = self.parse_generic_args_if_present()?;
-
-        tracing::debug!(
-            ?generic_params,
-            "Function declaration: Parsed generic params"
-        );
 
         self.consume(&Token::LParen, "Expected '(' after function name")?;
 
@@ -376,8 +358,6 @@ impl Parser {
             self.consume(&Token::End, "Expected 'end' after function body")?;
         }
 
-        tracing::debug!(?return_type, "Function declaration: Final return type");
-
         Ok(Statement::FunctionDeclaration {
             name,
             params,
@@ -390,7 +370,6 @@ impl Parser {
     }
 
     fn lambda_expression(&mut self) -> Result<Expr> {
-        tracing::debug!("Lambda expression: Starting parsing");
         let mut params = Vec::new();
         let mut return_type_anno: Option<TypeAnnotation> = None;
         let mut is_block_demi = false;
@@ -476,11 +455,6 @@ impl Parser {
             let inferred_return_type =
                 return_type_anno.or_else(|| self.infer_lambda_return_type(&expr));
 
-            tracing::debug!(
-                ?inferred_return_type,
-                "Lambda expression: Final inferred return type"
-            );
-
             Ok(Expr::Lambda {
                 params,
                 body: Box::new(expr),
@@ -526,8 +500,6 @@ impl Parser {
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
     ) -> Result<Expr> {
-        tracing::debug!("Parsing block lambda with {} parameters", params.len());
-
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
@@ -573,29 +545,20 @@ impl Parser {
     }
 
     fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        tracing::debug!("Struct declaration: Starting...");
-
         let name = self.consume_identifier("Expected struct name")?;
         tracing::info!(name = %name, "Struct declaration: Name");
 
-        tracing::debug!(
-            "Checking for generic parameters, token: {:?}",
-            self.tokens.get(self.current)
-        );
         let generic_params = self.parse_generic_args_if_present()?;
-        tracing::debug!(?generic_params, "Parsed generic params");
 
         let mut fields = Vec::new();
         let mut methods = Vec::new();
 
         // Check for parentheses style
         if self.match_token(&[Token::LParen]) {
-            tracing::debug!("Struct declaration: Parentheses style");
             if !self.check(&Token::RParen) {
                 loop {
                     let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
-                    tracing::debug!(field_name = %field_name, "Struct declaration: Field name");
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
                     fields.push((field_name, field_type, field_visibility));
@@ -610,18 +573,10 @@ impl Parser {
             self.consume(&Token::Semicolon, "Expected ';' after struct declaration")?;
         } else {
             // Block style struct declaration
-            tracing::debug!("Struct declaration: Block style");
             while !self.check(&Token::End) && !self.is_at_end() {
-                tracing::debug!(
-                    "Struct declaration: Parsing field or method, current token: {:?}",
-                    self.tokens.get(self.current)
-                );
-
                 if self.match_token(&[Token::Fn]) {
-                    tracing::debug!("Struct declaration: Found method");
                     methods.push(self.parse_struct_method(name.clone())?);
                 } else if self.match_token(&[Token::Impl]) {
-                    tracing::debug!("Struct declaration: Found impl block");
                     while !self.check(&Token::End) && !self.is_at_end() {
                         if self.match_token(&[Token::Fn]) {
                             methods.push(self.parse_struct_method(name.clone())?);
@@ -636,7 +591,6 @@ impl Parser {
                     // Parse field
                     let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
-                    tracing::debug!(field_name = %field_name, "Struct declaration: Field name");
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
                     fields.push((field_name, field_type, field_visibility));
@@ -646,11 +600,9 @@ impl Parser {
                 }
             }
 
-            tracing::debug!("Struct declaration: End of fields and methods, expecting 'end'");
             self.consume(&Token::End, "Expected 'end' after struct definition")?;
         }
 
-        tracing::debug!("Struct declaration: Completed");
         Ok(Statement::StructDeclaration {
             name,
             fields: fields
@@ -672,7 +624,6 @@ impl Parser {
     }
 
     fn proc_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        tracing::debug!("Proc declaration: Starting...");
         let name = self.consume_identifier("Expected procedure name")?;
 
         self.consume(&Token::LParen, "Expected '(' after procedure name")?;
@@ -768,27 +719,19 @@ impl Parser {
     fn struct_declaration(&mut self) -> Result<Statement> {
         tracing::info!("Struct declaration: Starting...");
         let name = self.consume_identifier("Expected struct name")?;
-        tracing::debug!(name = %name, "Struct declaration: Name");
 
-        tracing::debug!(
-            "Checking for generic parameters, token: {:?}",
-            self.tokens.get(self.current)
-        );
         let generic_params = self.parse_generic_args_if_present()?;
-        tracing::debug!(?generic_params, "Parsed generic params");
 
         let mut fields = Vec::new();
         let mut methods = Vec::new();
 
         // Check for parentheses style
         if self.match_token(&[Token::LParen]) {
-            tracing::debug!("Struct declaration: Parentheses style");
             if !self.check(&Token::RParen) {
                 loop {
                     // Check for pub keyword before field name
                     let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
-                    tracing::debug!(field_name = %field_name, "Struct declaration: Field name");
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
                     // Store visibility along with field name and type
@@ -804,18 +747,10 @@ impl Parser {
             self.consume(&Token::Semicolon, "Expected ';' after struct declaration")?;
         } else {
             // Block style struct declaration
-            tracing::debug!("Struct declaration: Block style");
             while !self.check(&Token::End) && !self.is_at_end() {
-                tracing::debug!(
-                    "Struct declaration: Parsing field or method, current token: {:?}",
-                    self.tokens.get(self.current)
-                );
-
                 if self.match_token(&[Token::Fn]) {
-                    tracing::debug!("Struct declaration: Found method");
                     methods.push(self.parse_struct_method(name.clone())?);
                 } else if self.match_token(&[Token::Impl]) {
-                    tracing::debug!("Struct declaration: Found impl block");
                     while !self.check(&Token::End) && !self.is_at_end() {
                         if self.match_token(&[Token::Fn]) {
                             methods.push(self.parse_struct_method(name.clone())?);
@@ -830,7 +765,6 @@ impl Parser {
                     // Parse field
                     let field_visibility = self.match_token(&[Token::Pub]);
                     let field_name = self.consume_identifier("Expected field name")?;
-                    tracing::debug!(field_name = %field_name, "Struct declaration: Field name");
                     self.consume(&Token::Colon, "Expected ':' after field name")?;
                     let field_type = self.parse_type()?;
                     fields.push((field_name, field_type, field_visibility));
@@ -840,7 +774,6 @@ impl Parser {
                 }
             }
 
-            tracing::debug!("Struct declaration: End of fields and methods, expecting 'end'");
             self.consume(&Token::End, "Expected 'end' after struct definition")?;
         }
 
@@ -1187,9 +1120,7 @@ impl Parser {
     }
 
     fn parse_impl_method(&mut self, type_name: String) -> Result<MethodImpl> {
-        tracing::debug!("Method Implementation: Starting...");
         let method_name = self.consume_identifier("Expected method name")?;
-        tracing::debug!(method_name = %method_name, "Method Implementation: Name");
 
         // Parse optional generic parameters for the method (e.g., <U>)
         let _method_generic_params = self.parse_generic_args_if_present()?;
@@ -1218,10 +1149,8 @@ impl Parser {
         self.consume(&Token::RParen, "Expected ')' after parameters")?;
 
         let return_type = if self.match_token(&[Token::Arrow]) {
-            tracing::debug!("Method Implementation: Parsing return type");
             self.parse_type()?
         } else {
-            tracing::debug!("Method Implementation: No return type, using Unit");
             TypeAnnotation::Unit
         };
 
@@ -1235,7 +1164,6 @@ impl Parser {
                     statements.push(self.statement()?);
                 }
                 self.consume(&Token::End, "Expected 'end' after block body")?;
-                tracing::debug!("Method Implementation: Parsed block body");
                 tracing::info!("Method Implementation: Completed (block body)");
                 Ok(MethodImpl {
                     name: method_name,
@@ -1247,11 +1175,8 @@ impl Parser {
             } else {
                 // Single-expression body: => expr
                 let expr = self.expression()?;
-                tracing::debug!(?expr, "Method Implementation: Parsed expression");
                 // Optional semicolon after expression
-                if self.match_token(&[Token::Semicolon]) {
-                    tracing::debug!("Method Implementation: Found semicolon after expression");
-                }
+                if self.match_token(&[Token::Semicolon]) {}
                 tracing::info!("Method Implementation: Completed (single expression body)");
                 Ok(MethodImpl {
                     name: method_name,
@@ -1428,7 +1353,6 @@ impl Parser {
     }
 
     fn consume(&mut self, token: &Token, message: &str) -> Result<Token> {
-        tracing::debug!("Consuming token: {:?}", token);
         if self.check(token) {
             Ok(self.advance())
         } else {
@@ -1437,7 +1361,6 @@ impl Parser {
     }
 
     fn consume_identifier(&mut self, message: &str) -> Result<String> {
-        tracing::debug!("Consuming identifier");
         match self.advance() {
             Token::Identifier(s) => Ok(s),
             _ => Err(VeldError::ParserError(message.to_string())),
@@ -1445,7 +1368,6 @@ impl Parser {
     }
 
     fn consume_parameter_name(&mut self, message: &str) -> Result<String> {
-        tracing::debug!("Consuming parameter name");
         match self.advance() {
             Token::Identifier(s) => Ok(s),
             Token::SelfToken => Ok("self".to_string()),
@@ -1534,11 +1456,6 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement> {
-        tracing::debug!(
-            "Parsing statement, current token: {:?}",
-            self.tokens.get(self.current)
-        );
-
         if self.check(&Token::Tilde) {
             return self.parse_macro_invocation();
         } else if self.match_token(&[Token::Match]) {
@@ -1563,7 +1480,6 @@ impl Parser {
         } else {
             // Try to parse as expression statement
             let expr = self.expression()?;
-            tracing::debug!("Parser: expression parsed: {:?}", expr);
             // Print token after expression
             Ok(Statement::ExprStatement(expr))
         }
@@ -1618,29 +1534,21 @@ impl Parser {
                 loop {
                     let field_name =
                         self.consume_identifier("Expected field name in struct pattern")?;
-                    tracing::debug!("parse_match_pattern: Parsed field_name: {}", field_name);
 
                     let field_pattern = if self.match_token(&[Token::Colon]) {
                         let pattern = self.parse_match_pattern()?;
-                        tracing::debug!(
-                            "parse_match_pattern: Parsed field_pattern for {}: {:?}",
-                            field_name,
-                            pattern
-                        );
+
                         Some(Box::new(pattern))
                     } else {
                         None // Shorthand syntax for like 'Person(name)' binds 'name' directly
                     };
 
                     fields.push((field_name, field_pattern));
-                    tracing::debug!("parse_match_pattern: Fields so far: {:?}", fields);
 
                     if self.check(&Token::RParen) {
-                        tracing::debug!("parse_match_pattern: Found RParen, breaking");
                         break;
                     }
                     if !self.match_token(&[Token::Comma]) {
-                        tracing::debug!("parse_match_pattern: No comma, breaking");
                         break;
                     }
                 }
@@ -1681,16 +1589,12 @@ impl Parser {
                     if self.is_start_of_expression()
                         && self.tokens.get(self.current + 1) == Some(&Token::End)
                     {
-                        tracing::debug!("I think this is a final expression (first check)");
                         final_expr = Some(Box::new(self.expression()?));
                         break;
                     }
                     if let Ok(stmt) = self.statement() {
-                        tracing::debug!("I think this is a statement");
-
                         statements.push(stmt);
                     } else {
-                        tracing::debug!("I think this is a final expression");
                         // Only try to parse a final expression if the next token can start an expression
                         if !self.check(&Token::End) && self.is_start_of_expression() {
                             final_expr = Some(Box::new(self.expression()?));
@@ -1698,10 +1602,7 @@ impl Parser {
                         break;
                     }
                 }
-                tracing::debug!(
-                    "DEBUG: About to consume 'end' in match arm block, current token: {:?}",
-                    self.peek()
-                );
+
                 self.consume(&Token::End, "Expected 'end' after match arm block")?;
                 Expr::BlockExpression {
                     statements,
@@ -1725,8 +1626,6 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<Statement> {
-        tracing::debug!("if_statement: Starting parsing if statement");
-
         let condition = self.expression()?;
         self.consume(&Token::Then, "Expected 'then' after if condition")?;
 
@@ -1858,7 +1757,6 @@ impl Parser {
 
     fn pipeline(&mut self) -> Result<Expr> {
         let mut expr = self.logical()?;
-        tracing::debug!("Here is the logical expression: {:?}", expr);
 
         while self.match_token(&[Token::Pipe]) {
             let right = self.logical()?;
@@ -1872,7 +1770,6 @@ impl Parser {
     }
 
     pub fn expression(&mut self) -> Result<Expr> {
-        tracing::debug!("Expression: Starting...");
         self.recursive_depth += 1;
         if self.recursive_depth > 100 {
             self.recursive_depth -= 1;
@@ -1888,11 +1785,9 @@ impl Parser {
         }
 
         let result = self.pipeline();
-        tracing::debug!("Here is the pipeline result: {:?}", result);
 
         self.recursive_depth -= 1;
 
-        tracing::debug!(?result, "Expression: Completed with result");
         result
     }
 
@@ -1975,7 +1870,6 @@ impl Parser {
 
     fn logical(&mut self) -> Result<Expr> {
         let mut expr = self.comparison()?;
-        tracing::debug!("Here is the comparison: {:?}", expr);
 
         while self.match_token(&[Token::And, Token::Or]) {
             let operator = match self.previous() {
@@ -2070,16 +1964,11 @@ impl Parser {
 
         // If no unary operator, delegate to postfix
         let pos = self.postfix();
-        tracing::debug!("Unary: Completed with result: {:?}", pos);
         pos
     }
 
     fn postfix(&mut self) -> Result<Expr> {
-        tracing::debug!("Postfix: Starting...");
-
         let mut expr = self.primary()?;
-
-        tracing::debug!(?expr, "Postfix: Got primary expression");
 
         loop {
             if self.is_at_end() {
@@ -2154,13 +2043,11 @@ impl Parser {
             }
 
             if self.match_token(&[Token::As]) {
-                tracing::debug!("Postfix: Found 'as' keyword for type casting");
                 let target_type = self.parse_type()?;
                 expr = Expr::TypeCast {
                     expr: Box::new(expr),
                     target_type: target_type.clone(),
                 };
-                tracing::debug!(?target_type, "Postfix: Completed type cast");
             } else if self.match_token(&[Token::Dot]) {
                 // Check for numeric tuple index
                 if let Some(Token::IntegerLiteral(idx)) = self.tokens.clone().get(self.current) {
@@ -2173,7 +2060,6 @@ impl Parser {
                     // Always treat as property access (no method call here)
                     let property =
                         self.consume_identifier("Expected property or method name after '.'")?;
-                    tracing::debug!(method = %property, "Postfix: Property name");
 
                     expr = Expr::PropertyAccess {
                         object: Box::new(expr),
@@ -2204,8 +2090,6 @@ impl Parser {
                 self.advance(); // now consume LParen
                 // Function call
                 if let Expr::Identifier(name) = expr {
-                    tracing::debug!(name = %name, "Postfix: Function call");
-
                     // Parse arguments
                     let mut args = Vec::new();
                     if !self.check(&Token::RParen) {
@@ -2223,7 +2107,6 @@ impl Parser {
                     }
 
                     self.consume(&Token::RParen, "Expected ')' after arguments")?;
-                    tracing::debug!("Postfix: Completed function call arguments");
 
                     // If all arguments are named and there is at least one argument, treat as struct instantiation
                     let all_named = !args.is_empty()
@@ -2264,7 +2147,6 @@ impl Parser {
             }
         }
 
-        tracing::debug!(?expr, "Postfix: Completed with result");
         Ok(expr)
     }
     fn check_named_arguments(&self) -> bool {
@@ -2282,13 +2164,11 @@ impl Parser {
     }
 
     fn parse_named_arguments(&mut self) -> Result<Vec<Argument>> {
-        tracing::debug!("Parsing named arguments");
         let mut args = Vec::new();
 
         while !self.check(&Token::RParen) {
             // Get argument name
             let arg_name = self.consume_identifier("Expected argument name")?;
-            tracing::debug!(arg_name = %arg_name, "Named argument found");
 
             // Expect colon after name
             self.consume(&Token::Colon, "Expected ':' after argument name")?;
@@ -2332,11 +2212,8 @@ impl Parser {
             // Parse if expression: if condition then expr [else expr] end
             return self.parse_if_expression();
         }
-        tracing::debug!("About to check for left parenthesis");
-        tracing::debug!("Next token is {:?}", self.peek());
 
         if self.match_token(&[Token::LParen]) {
-            tracing::debug!("found left parenthesis");
             // Empty tuple or grouped expression
             if self.match_token(&[Token::RParen]) {
                 return Ok(Expr::UnitLiteral);
@@ -2430,27 +2307,17 @@ impl Parser {
     }
 
     fn parse_block_expression(&mut self) -> Result<Expr> {
-        tracing::debug!("Parsing block expression");
-
         let mut statements = Vec::new();
         let mut final_expr = None;
 
         while !self.check(&Token::End) && !self.is_at_end() {
-            tracing::debug!("Current token at start of iteration: {:?}", self.peek());
             // Look ahead to see if this might be the final expression
             if self.is_likely_final_expression() {
                 final_expr = Some(Box::new(self.expression()?));
-                tracing::debug!(
-                    "After parsing final_expr in block, current token: {:?}",
-                    self.peek()
-                );
+
                 break;
             } else if self.check_statement_start() {
                 statements.push(self.statement()?);
-                tracing::debug!(
-                    "After parsing statement in block, current token: {:?}",
-                    self.peek()
-                );
             } else {
                 // Unexpected token, break out of the block parsing loop
                 break;
@@ -2468,12 +2335,8 @@ impl Parser {
     fn is_likely_final_expression(&self) -> bool {
         // Heuristic: if the next token after this line would be 'end',
         // then this is likely the final expression
-        tracing::debug!(
-            "Parser: is_likely_final_expression: checking token {:?}",
-            self.peek()
-        );
+
         if self.is_at_end() {
-            tracing::debug!("Parser: is_likely_final_expression: at end, returning false");
             return false;
         }
 
@@ -2491,21 +2354,11 @@ impl Parser {
             | Token::Continue
             | Token::Do
             | Token::Fn
-            | Token::Proc => {
-                tracing::debug!(
-                    "Parser: is_likely_final_expression: found statement keyword {:?}, returning false",
-                    self.peek()
-                );
-                false
-            }
+            | Token::Proc => false,
             _ => {
                 // Look ahead to see if 'end' comes after this expression
                 let result = self.expression_followed_by_end();
-                tracing::debug!(
-                    "Parser: is_likely_final_expression: expression_followed_by_end() for token {:?} returned {}",
-                    self.peek(),
-                    result
-                );
+
                 result
             }
         }
@@ -2552,8 +2405,6 @@ impl Parser {
 
     // Parse if expression: if condition then expr else expr end
     fn parse_if_expression(&mut self) -> Result<Expr> {
-        tracing::debug!("Parsing if expression");
-
         // Parse condition (we already consumed 'if')
         let condition = self.expression()?;
 
@@ -2677,7 +2528,6 @@ impl Parser {
 
     fn comparison(&mut self) -> Result<Expr> {
         let mut expr = self.term()?;
-        tracing::debug!("Parser: Here is the term: {:?}", expr);
 
         while self.match_token(&[
             Token::LessEq,
@@ -2709,8 +2559,6 @@ impl Parser {
 
     fn term(&mut self) -> Result<Expr> {
         let mut expr = self.factor()?;
-        tracing::debug!("Parser: Here is the factor: {:?}", expr);
-        tracing::debug!("Parser: token after factor: {:?}", self.peek());
 
         while self.match_token(&[Token::Plus, Token::Minus]) {
             let operator = match self.previous() {
@@ -2732,12 +2580,6 @@ impl Parser {
     fn factor(&mut self) -> Result<Expr> {
         let mut expr = self.exponent()?;
 
-        tracing::debug!("Parser: Here is the exponent result: {:?}", expr);
-        tracing::debug!(
-            "Parser: Here is the token after exponent: {:?}",
-            self.peek()
-        );
-
         while self.match_token(&[Token::Star, Token::Slash, Token::Modulo]) {
             let operator = match self.previous() {
                 Token::Star => BinaryOperator::Multiply,
@@ -2758,8 +2600,6 @@ impl Parser {
 
     fn exponent(&mut self) -> Result<Expr> {
         let mut expr = self.unary()?;
-        tracing::debug!("Here is the unary expression: {:?}", expr);
-        tracing::debug!("Here is the token after unary: {:?}", self.peek());
 
         if self.match_token(&[Token::ExpOp]) {
             // For right associativity, we recursively parse the right side at the same precedence level
@@ -2879,17 +2719,14 @@ impl Parser {
 
         // Check if the argument list is empty
         if self.check(&Token::RParen) {
-            tracing::debug!("In arguments(): Empty argument list");
             return Ok(args); // Return empty vector for empty argument list
         }
 
         // If we get here, there's at least one argument
-        tracing::debug!("In arguments(): Parsing first argument");
         args.push(self.expression()?);
 
         // Parse additional arguments
         while self.match_token(&[Token::Comma]) {
-            tracing::debug!("In arguments(): Parsing next argument");
             args.push(self.expression()?);
         }
 
@@ -2956,24 +2793,13 @@ impl Parser {
 
         // Handle import items if present: import std.io.{read_file, write_file}
         if self.match_token(&[Token::LBrace]) {
-            tracing::debug!(
-                "Parser: Entered LBrace for import items. Current token: {:?}",
-                self.peek()
-            );
             // Parse import items
             loop {
                 if self.match_token(&[Token::Star]) {
                     items.push(ImportItem::All);
                 } else {
-                    tracing::debug!(
-                        "Parser: Attempting to consume identifier for import item. Current token: {:?}",
-                        self.peek()
-                    );
                     let item_name = self.consume_identifier("Expected import item name")?;
-                    tracing::debug!(
-                        "Parser: Successfully consumed import item name: {}",
-                        item_name
-                    );
+
                     if self.match_token(&[Token::As]) {
                         let item_alias = self.consume_identifier("Expected alias after 'as'")?;
                         items.push(ImportItem::NamedWithAlias {
@@ -3013,7 +2839,6 @@ impl Parser {
     }
 
     fn parse_array_literal(&mut self) -> Result<Expr> {
-        tracing::debug!("Parsing array literal");
         let mut elements = Vec::new();
 
         // Empty array case
@@ -3046,7 +2871,6 @@ impl Parser {
     }
 
     fn enum_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
-        tracing::debug!("Parsing enum declaration...");
         let name = self.consume_identifier("Expected enum name after 'enum'")?;
 
         // Parse optional generic parameters
@@ -3114,17 +2938,8 @@ impl Parser {
 
     fn kind_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         let name = self.consume_identifier("Expected kind name")?;
-        tracing::debug!("Kind name: {}", name);
 
-        tracing::debug!(
-            "Before parsing generic params, token: {:?}",
-            self.tokens.get(self.current)
-        );
         let generic_params = self.parse_generic_args_if_present()?;
-        tracing::debug!(
-            "After parsing generic params, token: {:?}",
-            self.tokens.get(self.current)
-        );
 
         let mut methods = Vec::new();
         if self.match_token(&[Token::Equals]) {

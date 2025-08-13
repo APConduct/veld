@@ -12,5 +12,13 @@
   {
     "label": "Cargo Run (LOG DEBUG) current Veld file",
     "command": "RUST_LOG=debug cargo run -- $ZED_RELATIVE_FILE"
+  },
+  {
+    "label": "Build With no Warnings",
+    "command": "RUSTFLAGS=\"-Awarnings\" cargo build"
+  },
+  {
+    "label": "Cargo Run REPL With no Warnings",
+    "command": "RUSTFLAGS=\"-Awarnings\" cargo run"
   }
 ]
