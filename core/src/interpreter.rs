@@ -2119,11 +2119,15 @@ impl Interpreter {
                                 fields,
                             } => {
                                 // Check if enum exists
+                                tracing::debug!("Checking if enum '{}' exists", enum_name);
                                 if !self.enums.contains_key(&enum_name) {
+                                    tracing::debug!("Enum '{}' does not exist", enum_name);
                                     return Err(VeldError::RuntimeError(format!(
                                         "Undefined enum '{}'",
                                         enum_name
                                     )));
+                                } else {
+                                    tracing::debug!("Enum '{}' exists", enum_name);
                                 }
 
                                 // Evaluate fields
@@ -2311,9 +2315,6 @@ impl Interpreter {
                                         ))),
                                     },
                                 }
-                            }
-                            Expr::Call { callee, arguments } => {
-                                todo!("Implement call expression evaluation")
                             }
                         }
                     }
@@ -4086,6 +4087,13 @@ impl Interpreter {
                 // Property access on enum type, e.g., Option.None
                 // Look up the enum and variant
                 if let Some(variants) = self.enums.get(&name) {
+                    // Print the variants and their data
+                    tracing::info!(
+                        "Enum '{}' has {} variants: {:?}",
+                        name,
+                        variants.len(),
+                        variants
+                    );
                     if let Some(variant) = variants.iter().find(|v| v.name == property) {
                         // Return a value representing the enum variant constructor (no fields)
                         Ok(Value::Enum {
