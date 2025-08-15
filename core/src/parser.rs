@@ -43,8 +43,6 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> Result<Vec<Statement>> {
-        // Debug print for tokens
-
         let mut statements = Vec::new();
         let mut step_count = 0;
         const MAX_STEPS: usize = 1000;
@@ -61,8 +59,6 @@ impl Parser {
             let stmt = self.declaration()?;
             statements.push(stmt);
         }
-
-        // Debug print for AST
         Ok(statements)
     }
 
@@ -677,7 +673,7 @@ impl Parser {
         })
     }
 
-    pub fn block_scope_statement(&mut self) -> Result<Statement> {
+    fn block_scope_statement(&mut self) -> Result<Statement> {
         tracing::info!("Parsing block scope");
 
         let mut body = Vec::new();
@@ -1014,7 +1010,7 @@ impl Parser {
         }
     }
 
-    pub fn peek_next_is_identifier(&self) -> bool {
+    fn peek_next_is_identifier(&self) -> bool {
         if self.current + 1 >= self.tokens.len() {
             return false;
         }
@@ -2437,7 +2433,7 @@ impl Parser {
         }
     }
 
-    pub fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
+    fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
         tracing::info!(
             "Parsing struct fields, token: {:?}",
             self.tokens.get(self.current)
@@ -2594,7 +2590,7 @@ impl Parser {
         }
     }
 
-    pub fn check_named_argument(&self) -> bool {
+    fn check_named_argument(&self) -> bool {
         // Look ahead for "identifier: value" pattern
         if self.current + 1 < self.tokens.len() {
             if let Token::Identifier(_) = &self.tokens[self.current] {
@@ -2604,7 +2600,7 @@ impl Parser {
         false
     }
 
-    pub fn arguments(&mut self) -> Result<Vec<Expr>> {
+    fn arguments(&mut self) -> Result<Vec<Expr>> {
         tracing::info!("In arguments(): Parsing arguments");
 
         let mut args = Vec::new();
