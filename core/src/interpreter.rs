@@ -4193,19 +4193,34 @@ impl Interpreter {
             } => {
                 // Check if any of our enums have the property
                 if let Some(variants) = self.enums.get(&enum_name) {
+                    tracing::debug!("Enum '{}' has variants: {:?}", enum_name, variants);
                     if let Some(variant) = variants.iter().find(|v| v.name == variant_name) {
+                        // Debug print the variant and its fields
+                        tracing::debug!(
+                            "Variant '{}' has methods: {:?}",
+                            variant.name,
+                            variant.methods
+                        );
                         if let Some(method) = variant.methods.get(property) {
+                            tracing::debug!(
+                                "Method '{}' found with params: {:?}",
+                                method.name,
+                                method.params
+                            );
                             return Ok(Value::Function {
                                 params: method.params.clone(),
                                 body: method.body.clone(),
                                 return_type: method.return_type.clone(),
                                 captured_vars: HashMap::new(),
                             });
+                        } else {
+                            tracing::debug!("Method '{}' not found", property);
                         }
                     }
                 }
+
                 Err(VeldError::RuntimeError(format!(
-                    "Enum '{}' has no variant '{}' or field '{}'",
+                    "Enum '{}' of variant '{}' has no property, method, or field named '{}'.",
                     enum_name, variant_name, property
                 )))
             }
