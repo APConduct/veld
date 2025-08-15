@@ -14,11 +14,23 @@
     "command": "RUST_LOG=debug cargo run -- $ZED_RELATIVE_FILE"
   },
   {
-    "label": "Build With no Warnings",
-    "command": "RUSTFLAGS=\"-Awarnings\" cargo build"
-  },
-  {
     "label": "Cargo Run REPL With no Warnings",
     "command": "RUSTFLAGS=\"-Awarnings\" cargo run"
+  },
+  {
+    "label": "Run Veld std.Option usage",
+    "command": "cargo run -- ./tests/stdlib_option_test.veld"
+  },
+  {
+    "label": "Debug Veld std.Option usage",
+    "command": "RUST_LOG=debug cargo run -- ./tests/stdlib_option_test.veld"
+  },
+  {
+    "label": "Run Veld std.Result usage",
+    "command": "cargo run -- ./tests/stdlib_result_test.veld"
+  },
+  {
+    "label": "Debug Veld std.Result usage",
+    "command": "RUST_LOG=debug cargo run -- ./tests/stdlib_result_test.veld"
   }
 ]
