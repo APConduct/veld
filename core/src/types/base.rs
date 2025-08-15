@@ -267,6 +267,8 @@ pub struct TypeEnvironment {
 
     enums: HashMap<String, HashMap<String, EnumVariant>>,
 
+    enum_methods: HashMap<String, HashMap<String, Type>>,
+
     kinds: HashMap<String, KindDefenition>,
 
     type_params: Vec<HashSet<String>>,
@@ -296,6 +298,7 @@ impl TypeEnvironment {
             structs: HashMap::new(),
             struct_methods: HashMap::new(),
             enums: HashMap::new(),
+            enum_methods: HashMap::new(),
             kinds: HashMap::new(),
             type_params: vec![HashSet::new()],
             next_type_var: 0,
@@ -402,6 +405,14 @@ impl TypeEnvironment {
 
     pub fn add_enum(&mut self, name: &str, variants: HashMap<String, EnumVariant>) {
         self.enums.insert(name.to_string(), variants);
+    }
+
+    pub fn add_enum_method(&mut self, enum_name: &str, method_name: &str, method_type: Type) {
+        let methods = self
+            .enum_methods
+            .entry(enum_name.to_string())
+            .or_insert_with(HashMap::new);
+        methods.insert(method_name.to_string(), method_type);
     }
 
     pub fn push_type_param_scope(&mut self) {
