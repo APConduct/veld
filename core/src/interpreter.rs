@@ -4082,7 +4082,7 @@ impl Interpreter {
                     ))),
                 }
             }
-            Value::EnumType { name } => {
+            Value::EnumType { name, methods } => {
                 // Property access on enum type, e.g., Option.None
                 // Look up the enum and variant
                 if let Some(variants) = self.enums.get(&name) {
@@ -4092,6 +4092,7 @@ impl Interpreter {
                             enum_name: name.clone(),
                             variant_name: property.to_string(),
                             fields: vec![],
+                            // methods,
                         })
                     } else {
                         Err(VeldError::RuntimeError(format!(
@@ -4184,6 +4185,29 @@ impl Interpreter {
                         )))
                     }
                 }
+            }
+            Value::Enum {
+                enum_name,
+                variant_name,
+                fields,
+            } => {
+                // Check if any of our enums have the property
+                if let Some(variants) = self.enums.get(&enum_name) {
+                    if let Some(variant) = variants.iter().find(|v| v.name == variant_name) {
+                        if let Some(method) = variant.methods.get(property) {
+                            return Ok(Value::Function {
+                                params: method.params.clone(),
+                                body: method.body.clone(),
+                                return_type: method.return_type.clone(),
+                                captured_vars: HashMap::new(),
+                            });
+                        }
+                    }
+                }
+                Err(VeldError::RuntimeError(format!(
+                    "Enum '{}' has no variant '{}' or field '{}'",
+                    enum_name, variant_name, property
+                )))
             }
             _ => Err(VeldError::RuntimeError(
                 "Cannot access property on non-struct value".to_string(),
@@ -4905,7 +4929,8 @@ impl Interpreter {
                             "import: inserting {} = {:?}",
                             enum_name,
                             value::Value::EnumType {
-                                name: enum_name.clone()
+                                name: enum_name.clone(),
+                                methods: None
                             }
                         );
                         self.enums.insert(enum_name.clone(), variants.clone());
@@ -4915,6 +4940,7 @@ impl Interpreter {
                             enum_name.clone(),
                             Value::EnumType {
                                 name: enum_name.clone(),
+                                methods: None,
                             },
                         );
                         // Optionally, also add each variant as Option.Variant
@@ -4953,14 +4979,17 @@ impl Interpreter {
             EnumVariant {
                 name: "Less".to_string(),
                 fields: None,
+                methods: HashMap::new(),
             },
             EnumVariant {
                 name: "Equal".to_string(),
                 fields: None,
+                methods: HashMap::new(),
             },
             EnumVariant {
                 name: "Greater".to_string(),
                 fields: None,
+                methods: HashMap::new(),
             },
         ];
 

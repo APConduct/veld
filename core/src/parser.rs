@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ast::UnaryOperator;
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
@@ -2773,6 +2775,7 @@ impl Parser {
                 variants.push(EnumVariant {
                     name: variant_name,
                     fields: None,
+                    methods: HashMap::new(),
                 });
 
                 if !self.match_token(&[Token::Comma]) {
@@ -2807,6 +2810,7 @@ impl Parser {
                 variants.push(EnumVariant {
                     name: variant_name,
                     fields,
+                    methods: HashMap::new(),
                 });
 
                 // Optional comma

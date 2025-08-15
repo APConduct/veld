@@ -25,12 +25,14 @@ pub enum Value {
     },
     Array(Vec<Value>),
     Enum {
-        enum_name: String,
+        enum_name: String, // This is the name of the enum type, not the instance or variant
         variant_name: String,
         fields: Vec<Value>,
+        // methods: Option<HashMap<String, Value>>, // Methods are accessible via the EnumType
     },
     EnumType {
         name: String,
+        methods: Option<HashMap<String, Value>>, // Methods are only stored on the EnumType
     },
     Tuple(Vec<Value>),
 

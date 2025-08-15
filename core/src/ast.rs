@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MacroPattern(pub String);
@@ -273,9 +273,18 @@ pub struct StructMethod {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct EnumMethod {
+    pub name: String,
+    pub params: Vec<(String, TypeAnnotation)>,
+    pub return_type: TypeAnnotation,
+    pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumVariant {
     pub name: String,
     pub fields: Option<Vec<TypeAnnotation>>, // For variants with fields
+    pub methods: HashMap<String, EnumMethod>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
