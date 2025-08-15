@@ -155,4 +155,4 @@ fn is_even(n: i32) -> bool => if n <= 0 then true else is_odd(n - 1) end
 fn is_odd(n: i32) -> bool => if n <= 0 then false else is_even(n - 1) end
 
 let even_test = is_even(4)  # Should be true
-let odd_test = is_odd(7)    # Should be true (max 152 pass-in value for current stack allowance)
+let odd_test = is_odd(7)    # Should be true
