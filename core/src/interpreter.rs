@@ -5121,14 +5121,7 @@ impl Interpreter {
                         } else {
                             continue;
                         };
-                        tracing::debug!(
-                            "import: inserting {} = {:?}",
-                            enum_name,
-                            value::Value::EnumType {
-                                name: enum_name.clone(),
-                                methods: None
-                            }
-                        );
+
                         self.enums.insert(enum_name.clone(), variants.clone());
                         // Also add the enum name to the current scope as a "type value"
                         // This allows Option.None, Option.Some, etc

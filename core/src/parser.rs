@@ -59,7 +59,6 @@ impl Parser {
             }
 
             let stmt = self.declaration()?;
-            println!("Parsed statement: {:?}", stmt);
             statements.push(stmt);
         }
         Ok(statements)
@@ -468,8 +467,6 @@ impl Parser {
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
     ) -> Result<Expr> {
-        tracing::info!("Parsing block demi lambda with {} parameters", params.len());
-
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
@@ -545,7 +542,6 @@ impl Parser {
 
     fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         let name = self.consume_identifier("Expected struct name")?;
-        tracing::info!(name = %name, "Struct declaration: Name");
 
         let generic_params = self.parse_generic_args_if_present()?;
 
@@ -677,8 +673,6 @@ impl Parser {
     }
 
     fn block_scope_statement(&mut self) -> Result<Statement> {
-        tracing::info!("Parsing block scope");
-
         let mut body = Vec::new();
         while !self.check(&Token::End) && !self.is_at_end() {
             body.push(self.statement()?);
@@ -716,7 +710,6 @@ impl Parser {
     }
 
     fn struct_declaration(&mut self) -> Result<Statement> {
-        tracing::info!("Struct declaration: Starting...");
         let name = self.consume_identifier("Expected struct name")?;
 
         let generic_params = self.parse_generic_args_if_present()?;
@@ -776,7 +769,6 @@ impl Parser {
             self.consume(&Token::End, "Expected 'end' after struct definition")?;
         }
 
-        tracing::info!("Struct declaration: Completed");
         Ok(Statement::StructDeclaration {
             name,
             fields: fields
@@ -1163,7 +1155,7 @@ impl Parser {
                     statements.push(self.statement()?);
                 }
                 self.consume(&Token::End, "Expected 'end' after block body")?;
-                tracing::info!("Method Implementation: Completed (block body)");
+
                 Ok(MethodImpl {
                     name: method_name,
                     params,
@@ -1176,7 +1168,7 @@ impl Parser {
                 let expr = self.expression()?;
                 // Optional semicolon after expression
                 if self.match_token(&[Token::Semicolon]) {}
-                tracing::info!("Method Implementation: Completed (single expression body)");
+
                 Ok(MethodImpl {
                     name: method_name,
                     params,
@@ -2437,10 +2429,6 @@ impl Parser {
     }
 
     fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
-        tracing::info!(
-            "Parsing struct fields, token: {:?}",
-            self.tokens.get(self.current)
-        );
         let mut fields = Vec::new();
 
         while !self.check(&Token::End) && !self.check(&Token::RBrace) && !self.is_at_end() {
@@ -2604,8 +2592,6 @@ impl Parser {
     }
 
     fn arguments(&mut self) -> Result<Vec<Expr>> {
-        tracing::info!("In arguments(): Parsing arguments");
-
         let mut args = Vec::new();
 
         // Check if the argument list is empty
@@ -2621,7 +2607,6 @@ impl Parser {
             args.push(self.expression()?);
         }
 
-        tracing::info!(count = args.len(), "In arguments(): Returning arguments");
         Ok(args)
     }
 
@@ -2836,8 +2821,6 @@ impl Parser {
 
         let mut methods = Vec::new();
         if self.match_token(&[Token::Equals]) {
-            tracing::info!("Found equals token, parsing single method");
-
             self.consume(&Token::Fn, "Expected 'fn' after in method declaration")?;
             let method_name = self.consume_identifier("Expected method name")?;
 
