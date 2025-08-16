@@ -114,11 +114,6 @@ impl Interpreter {
         let span = tracing::info_span!("interpret", statement_count = statements.len());
         let _enter = span.enter();
 
-        tracing::info!(
-            statement_count = statements.len(),
-            "Starting interpretation"
-        );
-
         // First pass: register all function declarations
         for stmt in &statements {
             if let Statement::FunctionDeclaration { .. } = stmt {
@@ -129,13 +124,11 @@ impl Interpreter {
         // Second pass: execute everything else
         let mut last_value = Value::Unit;
         for stmt in statements {
-            println!("Executing statement: {:?}", stmt);
             if !matches!(stmt, Statement::FunctionDeclaration { .. }) {
                 last_value = self.execute_statement(stmt)?;
             }
         }
 
-        tracing::info!("Interpetation complete");
         Ok(last_value)
     }
 
@@ -350,16 +343,12 @@ impl Interpreter {
 
     fn io_println(&self, args: Vec<Value>) -> Result<Value> {
         if args.is_empty() {
-            tracing::info!("");
             return Ok(Value::Unit);
         }
 
         if let Some(value) = args.get(0) {
             match self.value_to_string(value) {
-                Ok(s) => {
-                    tracing::info!("{}", s);
-                    Ok(Value::Unit)
-                }
+                Ok(s) => Ok(Value::Unit),
                 Err(e) => Err(e),
             }
         } else {
@@ -823,12 +812,6 @@ impl Interpreter {
         // Capture the current values of free variables
         let captured_vars = self.capture_variables(&free_vars);
 
-        tracing::debug!(
-            captured = ?captured_vars.keys().collect::<Vec<_>>(),
-            captured_count = captured_vars.len(),
-            "Lambda created with captured variables"
-        );
-
         let actual_return_type = match return_type {
             Some(type_anno) => type_anno,
             None => {
@@ -884,12 +867,6 @@ impl Interpreter {
 
         // Capture the current values of free variables
         let captured_vars = self.capture_variables(&free_vars);
-
-        tracing::debug!(
-            captured = ?captured_vars.keys().collect::<Vec<_>>(),
-            captured_count = captured_vars.len(),
-            "Block lambda created with captured variables"
-        );
 
         let actual_return_type = return_type.unwrap_or(TypeAnnotation::Unit);
 
@@ -972,7 +949,6 @@ impl Interpreter {
         let mut stack = Vec::new();
 
         use std::ops::ControlFlow;
-        tracing::debug!(?statement, "Executing statement");
         let mut action: ControlFlow<Result<Value>, Statement> = ControlFlow::Continue(statement);
         loop {
             action = 'continue_case: {
@@ -1100,7 +1076,6 @@ impl Interpreter {
                                 tracing::debug_span!("block_scope", statement_count = body.len());
                             let _enter = span.enter();
 
-                            tracing::debug!(statement_count = body.len(), "Executing block scope");
                             // Create new scope for the block
                             self.push_scope();
 
@@ -1380,33 +1355,16 @@ impl Interpreter {
         type_name: String,
         methods: Vec<MethodImpl>,
     ) -> Result<Value> {
-        tracing::debug!(
-            "execute_implementation called for type_name: {:?}",
-            type_name
-        );
         // Always register methods for enum type
         let method_map = self
             .enum_methods
             .entry(type_name.clone())
             .or_insert_with(HashMap::new);
 
-        for method in methods.iter() {
-            tracing::debug!(
-                "Registering enum method: '{}' for enum '{}', params: {:?}",
-                method.name,
-                type_name,
-                method.params
-            );
-        }
+        for method in methods.iter() {}
         for method in methods {
             method_map.insert(method.name.clone(), method);
         }
-        tracing::debug!(
-            "Enum '{}' methods registered: {:?}",
-            type_name,
-            method_map.keys().collect::<Vec<_>>()
-        );
-
         Ok(Value::Unit)
     }
 
@@ -1459,7 +1417,6 @@ impl Interpreter {
         params: Vec<(String, TypeAnnotation)>,
         body: Vec<Statement>,
     ) -> Result<Value> {
-        tracing::debug!(proc_name = %name, "Executing proc declaration");
         // Convert to a function with Unit return type
         let function = Value::Function {
             params: params
@@ -2053,11 +2010,6 @@ impl Interpreter {
                             }
                             Expr::PropertyAccess { object, property } => {
                                 let obj_value = self.evaluate_expression(*object)?;
-                                tracing::debug!(
-                                    "PropertyAccess: object = {:?}, property = {:?}",
-                                    obj_value,
-                                    property
-                                );
                                 self.get_property(obj_value, &property)
                             }
                             Expr::TypeCast { expr, target_type } => {
@@ -2069,11 +2021,6 @@ impl Interpreter {
                                 self.cast_value(value, &target)
                             }
                             Expr::Call { callee, arguments } => {
-                                tracing::debug!(
-                                    "EVAL: Expr::Call callee={:?}, arguments={:?}",
-                                    callee,
-                                    arguments
-                                );
                                 // If callee is a PropertyAccess, treat as method call or module function call
                                 if let Expr::PropertyAccess { object, property } = &*callee {
                                     let obj_value = self.evaluate_expression(*object.clone())?;
@@ -2153,12 +2100,6 @@ impl Interpreter {
                                 method,
                                 arguments,
                             } => {
-                                tracing::debug!(
-                                    "EVAL: Expr::MethodCall object={:?}, method={:?}, arguments={:?}",
-                                    object,
-                                    method,
-                                    arguments
-                                );
                                 let obj_value = self.evaluate_expression(*object)?;
 
                                 // Handle array methods
@@ -2195,13 +2136,11 @@ impl Interpreter {
                                                 arg_values.push(value);
                                             }
 
-                                            tracing::debug!(
-                                                "METHOD DISPATCH: Calling call_method_value with obj_value = {:?}, method = {:?}, arg_values = {:?}",
+                                            self.call_method_value(
                                                 obj_value,
-                                                method,
-                                                arg_values
-                                            );
-                                            self.call_method_value(obj_value, method, arg_values)
+                                                method.clone(),
+                                                arg_values,
+                                            )
                                         }
                                     }
                                 }
@@ -2289,15 +2228,11 @@ impl Interpreter {
                                 fields,
                             } => {
                                 // Check if enum exists
-                                tracing::debug!("Checking if enum '{}' exists", enum_name);
                                 if !self.enums.contains_key(&enum_name) {
-                                    tracing::debug!("Enum '{}' does not exist", enum_name);
                                     return Err(VeldError::RuntimeError(format!(
                                         "Undefined enum '{}'",
                                         enum_name
                                     )));
-                                } else {
-                                    tracing::debug!("Enum '{}' exists", enum_name);
                                 }
 
                                 // Evaluate fields
@@ -2348,11 +2283,6 @@ impl Interpreter {
                                     statement_count = statements.len()
                                 );
                                 let _enter = span.enter();
-
-                                tracing::debug!(
-                                    statement_count = statements.len(),
-                                    "Evaluating block expression"
-                                );
 
                                 // Create new scope for the block
                                 self.push_scope();
@@ -4164,12 +4094,6 @@ impl Interpreter {
                     self.current_scope_mut().set(var_name, var_value);
                 }
 
-                // Debug: Show params and arg_values before argument count check
-                tracing::debug!(
-                    "call_function_with_values: params = {:?}, arg_values = {:?}",
-                    params,
-                    arg_values
-                );
                 // Bind arguments
                 if arg_values.len() != params.len() {
                     return Err(VeldError::RuntimeError(format!(
@@ -4262,13 +4186,6 @@ impl Interpreter {
                 // Property access on enum type, e.g., Option.None
                 // Look up the enum and variant
                 if let Some(variants) = self.enums.get(name.as_str()) {
-                    // Print the variants and their data
-                    tracing::info!(
-                        "Enum '{}' has {} variants: {:?}",
-                        name,
-                        variants.len(),
-                        variants
-                    );
                     if let Some(variant) = variants.iter().find(|v| v.name == property) {
                         // Return a value representing the enum variant constructor (no fields)
                         Ok(Value::Enum {
