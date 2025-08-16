@@ -4209,12 +4209,7 @@ impl Interpreter {
             }
             Value::Module(module) => {
                 // Debug: Show module exports when looking up property
-                tracing::debug!(
-                    "get_property: Looking up '{}' in module '{}', exports: {:?}",
-                    property,
-                    module.name,
-                    module.exports.keys().collect::<Vec<_>>()
-                );
+
                 // Try to resolve as an exported item first
                 if let Some(export) = module.exports.get(property) {
                     match export {
@@ -4302,19 +4297,8 @@ impl Interpreter {
 
                 // First, check for methods on the variant itself
                 if let Some(variants) = self.enums.get(enum_name) {
-                    tracing::debug!("Enum '{}' has variants: {:?}", enum_name, variants);
                     if let Some(variant) = variants.iter().find(|v| &v.name == variant_name) {
-                        tracing::debug!(
-                            "Variant '{}' has methods: {:?}",
-                            variant.name,
-                            variant.methods.keys().collect::<Vec<_>>()
-                        );
                         if let Some(method) = variant.methods.get(property) {
-                            tracing::debug!(
-                                "Method '{}' found with params: {:?}",
-                                method.name,
-                                method.params
-                            );
                             return Ok(Value::Function {
                                 params: method.params.clone(),
                                 body: method.body.clone(),
@@ -4322,41 +4306,16 @@ impl Interpreter {
                                 captured_vars: HashMap::new(),
                             });
                         } else {
-                            tracing::debug!(
-                                "Variant '{}' does not have method '{}'.",
-                                variant.name,
-                                property
-                            );
                         }
                     } else {
-                        tracing::debug!(
-                            "Variant '{}' not found in enum '{}'.",
-                            variant_name,
-                            enum_name
-                        );
                     }
                 } else {
-                    tracing::debug!("Enum '{}' not found in self.enums.", enum_name);
                 }
 
                 // If not found, check for methods on the enum type itself
-                tracing::debug!(
-                    "enum_methods keys: {:?}",
-                    self.enum_methods.keys().collect::<Vec<_>>()
-                );
-                tracing::debug!("Looking up enum_methods for enum_name: {:?}", enum_name);
+
                 if let Some(enum_methods) = self.enum_methods.get(enum_name) {
-                    tracing::debug!(
-                        "Checking enum_methods for enum '{}': {:?}",
-                        enum_name,
-                        enum_methods.keys().collect::<Vec<_>>()
-                    );
                     if let Some(method) = enum_methods.get(property) {
-                        tracing::debug!(
-                            "Enum type method '{}' found for enum '{}'",
-                            property,
-                            enum_name
-                        );
                         let mut captured_vars = HashMap::new();
                         captured_vars.insert("self".to_string(), enum_instance);
                         return Ok(Value::Function {
@@ -4366,14 +4325,8 @@ impl Interpreter {
                             captured_vars,
                         });
                     } else {
-                        tracing::debug!(
-                            "Enum type '{}' does not have method '{}'.",
-                            enum_name,
-                            property
-                        );
                     }
                 } else {
-                    tracing::debug!("No enum_methods entry for enum '{}'.", enum_name);
                 }
 
                 Err(VeldError::RuntimeError(format!(
@@ -4701,47 +4654,20 @@ impl Interpreter {
                         ))
                     })?;
 
-                tracing::debug!(
-                    "ENUM METHOD DISPATCH: Retrieved method for enum '{}', method '{}': {:?}, type: {}",
-                    enum_name,
-                    method_name,
-                    &method,
-                    std::any::type_name_of_val(&method)
-                );
-
                 match &method {
                     MethodImpl { params, body, .. } => {
-                        tracing::debug!(
-                            "ENUM METHOD DISPATCH: Entering MethodImpl for enum '{}', method '{}', params = {:?}, args = {:?}",
-                            enum_name,
-                            method_name,
-                            params,
-                            args
-                        );
                         self.push_scope();
 
                         // Bind 'self' to the enum instance
                         self.current_scope_mut().set("self".to_string(), object);
 
                         // Debug: Show params and args before argument count check
-                        tracing::debug!(
-                            "Dispatching enum method '{}': params = {:?}, args = {:?}",
-                            method_name,
-                            params,
-                            args
-                        );
+
                         // Assert argument count logic
                         assert_eq!(args.len(), params.len() - 1, "Argument count logic error!");
 
                         // Check argument count (excluding self)
                         if args.len() != params.len() - 1 {
-                            tracing::debug!(
-                                "Argument count mismatch: params.len() = {}, args.len() = {}, params = {:?}, args = {:?}",
-                                params.len(),
-                                args.len(),
-                                params,
-                                args
-                            );
                             return Err(VeldError::RuntimeError(format!(
                                 "ENUM DISPATCH: Method '{}' expects {} arguments but got {}",
                                 method_name,
@@ -4766,12 +4692,6 @@ impl Interpreter {
 
                         self.pop_scope();
 
-                        tracing::debug!(
-                            "ENUM METHOD DISPATCH: Returning from MethodImpl for enum '{}', method '{}', result = {:?}",
-                            enum_name,
-                            method_name,
-                            result
-                        );
                         Ok(result.unwrap_return())
                     }
                     _ => Err(VeldError::RuntimeError(
