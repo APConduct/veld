@@ -101,6 +101,90 @@ impl Type {
             _ => false,
         }
     }
+
+    pub fn from_annotation(
+        annotation: &TypeAnnotation,
+        current_kind: Option<&str>,
+    ) -> Result<Type> {
+        match annotation {
+            TypeAnnotation::Unit => Ok(Type::Unit),
+            TypeAnnotation::Basic(name) => {
+                if let Some(kind_name) = current_kind {
+                    if name == kind_name {
+                        return Ok(Type::KindSelf(name.clone()));
+                    }
+                }
+                match name.as_str() {
+                    "i32" => Ok(Type::I32),
+                    "f64" => Ok(Type::F64),
+                    "bool" => Ok(Type::Bool),
+                    "str" => Ok(Type::String),
+                    "char" => Ok(Type::Char),
+                    "i64" => Ok(Type::I64),
+                    "f32" => Ok(Type::F32),
+                    "u32" => Ok(Type::U32),
+                    "u64" => Ok(Type::U64),
+                    "u8" => Ok(Type::U8),
+                    "u16" => Ok(Type::U16),
+                    "i8" => Ok(Type::I8),
+                    "i16" => Ok(Type::I16),
+                    "any" => Ok(Type::Any),
+                    _ => Err(VeldError::TypeError(format!("Unknown type: {}", name))),
+                }
+            }
+            TypeAnnotation::Function {
+                params,
+                return_type,
+            } => {
+                let param_types = params
+                    .iter()
+                    .map(|param| Type::from_annotation(param, None))
+                    .collect::<Result<Vec<_>>>()?;
+                let return_type = Type::from_annotation(return_type, None)?;
+                Ok(Type::Function {
+                    params: param_types,
+                    return_type: Box::new(return_type),
+                })
+            }
+            TypeAnnotation::Generic { base, type_args } => {
+                let type_args = type_args
+                    .iter()
+                    .map(|arg| Type::from_annotation(arg, None))
+                    .collect::<Result<Vec<_>>>()?;
+
+                if base == "Array" {
+                    if type_args.len() != 1 {
+                        return Err(VeldError::TypeError(
+                            "Array must have exactly one type argument".into(),
+                        ));
+                    }
+                    return Ok(Type::Array(Box::new(type_args[0].clone())));
+                } else {
+                    Ok(Type::Generic {
+                        base: base.clone(),
+                        type_args,
+                    })
+                }
+            }
+            TypeAnnotation::Array(elem_type) => {
+                let elem_type = Type::from_annotation(elem_type, None)?;
+                Ok(Type::Array(Box::new(elem_type)))
+            }
+            TypeAnnotation::Tuple(types) => {
+                let types = types
+                    .iter()
+                    .map(|t| Type::from_annotation(t, None))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Type::Tuple(types))
+            }
+            TypeAnnotation::Constrained {
+                base_type: _,
+                constraints: _,
+            } => {
+                todo!("Handle constrained types")
+            }
+        }
+    }
 }
 
 impl PartialEq for Type {

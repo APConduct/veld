@@ -77,6 +77,7 @@ pub struct Interpreter {
     current_module: String,
     imported_modules: HashMap<String, String>, // alias -> module name
     enums: HashMap<String, Vec<EnumVariant>>,
+    enum_methods: HashMap<String, HashMap<String, MethodImpl>>, // enum name -> (method name -> method)
     pub type_checker: TypeChecker,
     native_registry: NativeFunctionRegistry,
     native_method_registry: NativeMethodRegistry,
@@ -101,6 +102,7 @@ impl Interpreter {
             native_registry: NativeFunctionRegistry::new(),
             native_method_registry: NativeMethodRegistry::new(),
             recursion_depth: 0,
+            enum_methods: HashMap::new(),
         };
 
         interpreter.initialize_std_modules();
@@ -127,6 +129,7 @@ impl Interpreter {
         // Second pass: execute everything else
         let mut last_value = Value::Unit;
         for stmt in statements {
+            println!("Executing statement: {:?}", stmt);
             if !matches!(stmt, Statement::FunctionDeclaration { .. }) {
                 last_value = self.execute_statement(stmt)?;
             }
@@ -1074,6 +1077,18 @@ impl Interpreter {
                             generic_args: _,
                         } => self.execute_implementation(type_name, methods),
 
+                        Statement::InherentImpl {
+                            type_name,
+                            generic_params: _,
+                            methods,
+                        } => self.execute_implementation(type_name, methods),
+
+                        Statement::InherentImpl {
+                            type_name,
+                            generic_params: _,
+                            methods,
+                        } => self.execute_implementation(type_name, methods),
+
                         Statement::ExprStatement(expr) => {
                             let value = self.evaluate_expression(expr)?;
                             Ok(value.unwrap_return())
@@ -1365,22 +1380,32 @@ impl Interpreter {
         type_name: String,
         methods: Vec<MethodImpl>,
     ) -> Result<Value> {
-        // Just register all methods for now, ignoring kinds
+        tracing::debug!(
+            "execute_implementation called for type_name: {:?}",
+            type_name
+        );
+        // Always register methods for enum type
         let method_map = self
-            .struct_methods
+            .enum_methods
             .entry(type_name.clone())
             .or_insert_with(HashMap::new);
 
-        for method in methods {
-            let method_value = Value::Function {
-                params: method.params,
-                body: method.body,
-                return_type: method.return_type,
-                captured_vars: HashMap::new(),
-            };
-
-            method_map.insert(method.name, method_value);
+        for method in methods.iter() {
+            tracing::debug!(
+                "Registering enum method: '{}' for enum '{}', params: {:?}",
+                method.name,
+                type_name,
+                method.params
+            );
         }
+        for method in methods {
+            method_map.insert(method.name.clone(), method);
+        }
+        tracing::debug!(
+            "Enum '{}' methods registered: {:?}",
+            type_name,
+            method_map.keys().collect::<Vec<_>>()
+        );
 
         Ok(Value::Unit)
     }
@@ -1724,7 +1749,39 @@ impl Interpreter {
                 Ok(Some(bindings))
             }
             MatchPattern::Struct { name, fields } => {
-                if let Value::Struct {
+                // Support matching enum variants as struct patterns
+                if let Value::Enum {
+                    enum_name,
+                    variant_name,
+                    fields: value_fields,
+                } = value
+                {
+                    let expected_name = format!("{}.{}", enum_name, variant_name);
+                    if name != &expected_name {
+                        return Ok(None); // Wrong enum variant
+                    }
+
+                    let mut all_bindings = HashMap::new();
+
+                    for (i, (field_name, field_pattern)) in fields.iter().enumerate() {
+                        if let Some(field_value) = value_fields.get(i) {
+                            if let Some(pattern) = field_pattern {
+                                if let Some(bindings) =
+                                    self.pattern_matches(&**pattern, field_value)?
+                                {
+                                    all_bindings.extend(bindings);
+                                } else {
+                                    return Ok(None); // Field did not match
+                                }
+                            } else {
+                                all_bindings.insert(field_name.clone(), field_value.clone());
+                            }
+                        } else {
+                            return Ok(None);
+                        }
+                    }
+                    Ok(Some(all_bindings))
+                } else if let Value::Struct {
                     name: value_name,
                     fields: value_fields,
                 } = value
@@ -1754,10 +1811,48 @@ impl Interpreter {
                     }
                     Ok(Some(all_bindings))
                 } else {
-                    Ok(None) // Not a struct
+                    Ok(None) // Not a struct or enum
                 }
             }
-            // TODO - Implement Enum pattern matching
+            MatchPattern::Enum {
+                name,
+                variant,
+                fields,
+            } => {
+                if let Value::Enum {
+                    enum_name,
+                    variant_name,
+                    fields: value_fields,
+                } = value
+                {
+                    if name != enum_name || variant != variant_name {
+                        return Ok(None); // Wrong enum or variant
+                    }
+
+                    let mut all_bindings = HashMap::new();
+
+                    for (i, (field_name, field_pattern)) in fields.iter().enumerate() {
+                        if let Some(field_value) = value_fields.get(i) {
+                            if let Some(pattern) = field_pattern {
+                                if let Some(bindings) =
+                                    self.pattern_matches(&**pattern, field_value)?
+                                {
+                                    all_bindings.extend(bindings);
+                                } else {
+                                    return Ok(None); // Field did not match
+                                }
+                            } else {
+                                all_bindings.insert(field_name.clone(), field_value.clone());
+                            }
+                        } else {
+                            return Ok(None);
+                        }
+                    }
+                    Ok(Some(all_bindings))
+                } else {
+                    Ok(None) // Not an enum
+                }
+            }
             _ => Ok(None), // Not implemented yet
         }
     }
@@ -1974,7 +2069,70 @@ impl Interpreter {
                                 self.cast_value(value, &target)
                             }
                             Expr::Call { callee, arguments } => {
-                                tracing::debug!("Call: callee = {:?}", callee);
+                                tracing::debug!(
+                                    "EVAL: Expr::Call callee={:?}, arguments={:?}",
+                                    callee,
+                                    arguments
+                                );
+                                // If callee is a PropertyAccess, treat as method call or module function call
+                                if let Expr::PropertyAccess { object, property } = &*callee {
+                                    let obj_value = self.evaluate_expression(*object.clone())?;
+                                    // If the object is a module, treat as function call
+                                    if let Value::Module(module) = &obj_value {
+                                        // Look up the property in module.exports
+                                        if let Some(export) = module.exports.get(property) {
+                                            // If it's a function, call as function
+                                            if let crate::module::ExportedItem::Function(idx) =
+                                                export
+                                            {
+                                                if let Some(Statement::FunctionDeclaration {
+                                                    params,
+                                                    body,
+                                                    return_type,
+                                                    ..
+                                                }) = module.statements.get(*idx)
+                                                {
+                                                    let func_val = Value::Function {
+                                                        params: params.clone(),
+                                                        body: body.clone(),
+                                                        return_type: return_type.clone(),
+                                                        captured_vars: HashMap::new(),
+                                                    };
+                                                    let mut arg_values = Vec::new();
+                                                    for arg in arguments {
+                                                        let expr = match arg {
+                                                            Argument::Positional(expr) => expr,
+                                                            Argument::Named { name: _, value } => {
+                                                                value
+                                                            }
+                                                        };
+                                                        let value =
+                                                            self.evaluate_expression(expr)?;
+                                                        arg_values.push(value);
+                                                    }
+                                                    return self
+                                                        .call_function_value(func_val, arg_values);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // Otherwise, treat as method call
+                                    let mut arg_values = Vec::new();
+                                    for arg in arguments {
+                                        let expr = match arg {
+                                            Argument::Positional(expr) => expr,
+                                            Argument::Named { name: _, value } => value,
+                                        };
+                                        let value = self.evaluate_expression(expr)?;
+                                        arg_values.push(value);
+                                    }
+                                    return self.call_method_value(
+                                        obj_value,
+                                        property.clone(),
+                                        arg_values,
+                                    );
+                                }
+                                // Otherwise, treat as regular function call
                                 let callee_val = self.evaluate_expression(*callee)?;
                                 let mut arg_values = Vec::new();
                                 for arg in arguments {
@@ -1995,6 +2153,12 @@ impl Interpreter {
                                 method,
                                 arguments,
                             } => {
+                                tracing::debug!(
+                                    "EVAL: Expr::MethodCall object={:?}, method={:?}, arguments={:?}",
+                                    object,
+                                    method,
+                                    arguments
+                                );
                                 let obj_value = self.evaluate_expression(*object)?;
 
                                 // Handle array methods
@@ -2031,6 +2195,12 @@ impl Interpreter {
                                                 arg_values.push(value);
                                             }
 
+                                            tracing::debug!(
+                                                "METHOD DISPATCH: Calling call_method_value with obj_value = {:?}, method = {:?}, arg_values = {:?}",
+                                                obj_value,
+                                                method,
+                                                arg_values
+                                            );
                                             self.call_method_value(obj_value, method, arg_values)
                                         }
                                     }
@@ -3994,6 +4164,12 @@ impl Interpreter {
                     self.current_scope_mut().set(var_name, var_value);
                 }
 
+                // Debug: Show params and arg_values before argument count check
+                tracing::debug!(
+                    "call_function_with_values: params = {:?}, arg_values = {:?}",
+                    params,
+                    arg_values
+                );
                 // Bind arguments
                 if arg_values.len() != params.len() {
                     return Err(VeldError::RuntimeError(format!(
@@ -4045,8 +4221,7 @@ impl Interpreter {
     }
 
     fn get_property(&mut self, object: Value, property: &str) -> Result<Value> {
-        tracing::debug!("get_property: object = {:?}", object);
-        match object {
+        match &object {
             Value::Struct { name, fields } => {
                 if let Some(value) = fields.get(property) {
                     Ok(value.clone())
@@ -4086,7 +4261,7 @@ impl Interpreter {
             Value::EnumType { name, methods } => {
                 // Property access on enum type, e.g., Option.None
                 // Look up the enum and variant
-                if let Some(variants) = self.enums.get(&name) {
+                if let Some(variants) = self.enums.get(name.as_str()) {
                     // Print the variants and their data
                     tracing::info!(
                         "Enum '{}' has {} variants: {:?}",
@@ -4116,6 +4291,13 @@ impl Interpreter {
                 }
             }
             Value::Module(module) => {
+                // Debug: Show module exports when looking up property
+                tracing::debug!(
+                    "get_property: Looking up '{}' in module '{}', exports: {:?}",
+                    property,
+                    module.name,
+                    module.exports.keys().collect::<Vec<_>>()
+                );
                 // Try to resolve as an exported item first
                 if let Some(export) = module.exports.get(property) {
                     match export {
@@ -4199,15 +4381,16 @@ impl Interpreter {
                 variant_name,
                 fields,
             } => {
-                // Check if any of our enums have the property
-                if let Some(variants) = self.enums.get(&enum_name) {
+                let enum_instance = object.clone(); // Now works, because object is not moved
+
+                // First, check for methods on the variant itself
+                if let Some(variants) = self.enums.get(enum_name) {
                     tracing::debug!("Enum '{}' has variants: {:?}", enum_name, variants);
-                    if let Some(variant) = variants.iter().find(|v| v.name == variant_name) {
-                        // Debug print the variant and its fields
+                    if let Some(variant) = variants.iter().find(|v| &v.name == variant_name) {
                         tracing::debug!(
                             "Variant '{}' has methods: {:?}",
                             variant.name,
-                            variant.methods
+                            variant.methods.keys().collect::<Vec<_>>()
                         );
                         if let Some(method) = variant.methods.get(property) {
                             tracing::debug!(
@@ -4222,9 +4405,58 @@ impl Interpreter {
                                 captured_vars: HashMap::new(),
                             });
                         } else {
-                            tracing::debug!("Method '{}' not found", property);
+                            tracing::debug!(
+                                "Variant '{}' does not have method '{}'.",
+                                variant.name,
+                                property
+                            );
                         }
+                    } else {
+                        tracing::debug!(
+                            "Variant '{}' not found in enum '{}'.",
+                            variant_name,
+                            enum_name
+                        );
                     }
+                } else {
+                    tracing::debug!("Enum '{}' not found in self.enums.", enum_name);
+                }
+
+                // If not found, check for methods on the enum type itself
+                tracing::debug!(
+                    "enum_methods keys: {:?}",
+                    self.enum_methods.keys().collect::<Vec<_>>()
+                );
+                tracing::debug!("Looking up enum_methods for enum_name: {:?}", enum_name);
+                if let Some(enum_methods) = self.enum_methods.get(enum_name) {
+                    tracing::debug!(
+                        "Checking enum_methods for enum '{}': {:?}",
+                        enum_name,
+                        enum_methods.keys().collect::<Vec<_>>()
+                    );
+                    if let Some(method) = enum_methods.get(property) {
+                        tracing::debug!(
+                            "Enum type method '{}' found for enum '{}'",
+                            property,
+                            enum_name
+                        );
+                        let mut captured_vars = HashMap::new();
+                        captured_vars.insert("self".to_string(), enum_instance);
+                        return Ok(Value::Function {
+                            params: method.params.clone(),
+                            body: method.body.clone(),
+                            return_type: method.return_type.clone(),
+                            captured_vars,
+                        });
+                    } else {
+                        tracing::debug!(
+                            "Enum type '{}' does not have method '{}'.",
+                            enum_name,
+                            property
+                        );
+                    }
+                } else {
+                    tracing::debug!("No enum_methods entry for enum '{}'.", enum_name);
                 }
 
                 Err(VeldError::RuntimeError(format!(
@@ -4467,7 +4699,7 @@ impl Interpreter {
         }
 
         // For built-in methods like "sqrt" on numeric values
-        match (&object, method_name.as_str()) {
+        match (&object.clone(), method_name.as_str()) {
             (Value::Float(f), "sqrt") => {
                 if args.is_empty() {
                     Ok(Value::Float(f.sqrt()))
@@ -4534,6 +4766,99 @@ impl Interpreter {
                     }
                     _ => Err(VeldError::RuntimeError(
                         "Internal error: method is not a function".to_string(),
+                    )),
+                }
+            }
+            // For enum instance methods
+            (Value::Enum { enum_name, .. }, _) => {
+                // Get the method from enum_methods
+                let method = self
+                    .enum_methods
+                    .get(enum_name)
+                    .and_then(|methods| methods.get(&method_name))
+                    .cloned()
+                    .ok_or_else(|| {
+                        VeldError::RuntimeError(format!(
+                            "Method '{}' not found on enum '{}'",
+                            method_name, enum_name
+                        ))
+                    })?;
+
+                tracing::debug!(
+                    "ENUM METHOD DISPATCH: Retrieved method for enum '{}', method '{}': {:?}, type: {}",
+                    enum_name,
+                    method_name,
+                    &method,
+                    std::any::type_name_of_val(&method)
+                );
+
+                match &method {
+                    MethodImpl { params, body, .. } => {
+                        tracing::debug!(
+                            "ENUM METHOD DISPATCH: Entering MethodImpl for enum '{}', method '{}', params = {:?}, args = {:?}",
+                            enum_name,
+                            method_name,
+                            params,
+                            args
+                        );
+                        self.push_scope();
+
+                        // Bind 'self' to the enum instance
+                        self.current_scope_mut().set("self".to_string(), object);
+
+                        // Debug: Show params and args before argument count check
+                        tracing::debug!(
+                            "Dispatching enum method '{}': params = {:?}, args = {:?}",
+                            method_name,
+                            params,
+                            args
+                        );
+                        // Assert argument count logic
+                        assert_eq!(args.len(), params.len() - 1, "Argument count logic error!");
+
+                        // Check argument count (excluding self)
+                        if args.len() != params.len() - 1 {
+                            tracing::debug!(
+                                "Argument count mismatch: params.len() = {}, args.len() = {}, params = {:?}, args = {:?}",
+                                params.len(),
+                                args.len(),
+                                params,
+                                args
+                            );
+                            return Err(VeldError::RuntimeError(format!(
+                                "ENUM DISPATCH: Method '{}' expects {} arguments but got {}",
+                                method_name,
+                                params.len() - 1,
+                                args.len()
+                            )));
+                        }
+
+                        // Bind arguments directly (already evaluated)
+                        for (i, arg) in args.into_iter().enumerate() {
+                            self.current_scope_mut().set(params[i + 1].0.clone(), arg);
+                        }
+
+                        // Execute method body
+                        let mut result = Value::Unit;
+                        for stmt in body {
+                            result = self.execute_statement(stmt.clone())?;
+                            if matches!(result, Value::Return(_)) {
+                                break;
+                            }
+                        }
+
+                        self.pop_scope();
+
+                        tracing::debug!(
+                            "ENUM METHOD DISPATCH: Returning from MethodImpl for enum '{}', method '{}', result = {:?}",
+                            enum_name,
+                            method_name,
+                            result
+                        );
+                        Ok(result.unwrap_return())
+                    }
+                    _ => Err(VeldError::RuntimeError(
+                        "Internal error: enum method is not a MethodImpl".to_string(),
                     )),
                 }
             }
@@ -4903,6 +5228,17 @@ impl Interpreter {
                     .ok_or_else(|| VeldError::RuntimeError("Module not found".to_string()))?;
                 module.statements.clone()
             };
+
+            // --- FIX: Execute all statements from the imported module ---
+            // To avoid double execution, track executed modules by name
+            if !self.imported_modules.contains_key(&module_path_str) {
+                self.imported_modules
+                    .insert(module_path_str.clone(), module_path_str.clone());
+                for statement in &module_statements {
+                    self.execute_statement(statement.clone())?;
+                }
+            }
+            // --- END FIX ---
 
             // Process each export and add to current scope
             for (name, export_item) in exports {

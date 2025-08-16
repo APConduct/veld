@@ -1,3 +1,5 @@
+use crate::ast;
+
 use super::super::error::{Result, VeldError};
 use super::super::interpreter::{BinaryOperator, Statement, TypeAnnotation};
 use super::super::types::{NumericValue, Type};
@@ -64,7 +66,32 @@ impl Value {
             Value::Array(_) => Type::Array(Box::new(Type::Any)), // Default to Any for arrays
             Value::Break | Value::Continue => Type::Unit, // Break and Continue are control flow, not values
             Value::Module(module) => Type::Module(module.name.clone()),
-            _ => todo!("Handle other Value types"),
+            Value::Function {
+                params,
+                return_type,
+                ..
+            } => Type::Function {
+                params: params
+                    .iter()
+                    .map(|(_, ty)| Type::from_annotation(ty, None).unwrap_or(Type::Any))
+                    .collect::<Vec<_>>(),
+                return_type: Box::new(
+                    Type::from_annotation(return_type, None).unwrap_or(Type::Any),
+                ),
+            },
+            Value::Struct { name, .. } => Type::Struct {
+                name: name.clone(),
+                fields: HashMap::new(),
+            },
+            Value::Enum { enum_name, .. } => Type::Enum {
+                name: enum_name.clone(),
+                variants: HashMap::new(),
+            },
+            Value::EnumType { name, .. } => Type::Enum {
+                name: name.clone(),
+                variants: HashMap::new(),
+            },
+            Value::Tuple(values) => Type::Tuple(values.iter().map(|v| v.type_of()).collect()),
         }
     }
 

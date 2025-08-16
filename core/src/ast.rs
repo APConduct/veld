@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fmt::Display};
 
+use crate::{error::VeldError, types::Type};
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MacroPattern(pub String);
 

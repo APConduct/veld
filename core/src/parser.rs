@@ -59,6 +59,7 @@ impl Parser {
             }
 
             let stmt = self.declaration()?;
+            println!("Parsed statement: {:?}", stmt);
             statements.push(stmt);
         }
         Ok(statements)

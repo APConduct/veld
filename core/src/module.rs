@@ -116,6 +116,23 @@ impl ModuleManager {
         let mut parser = crate::parser::Parser::new(tokens);
         let statements = parser.parse()?;
 
+        // --- Ensure all public imports are loaded before extracting exports ---
+        for stmt in &statements {
+            if let Statement::ImportDeclaration {
+                path, is_public, ..
+            } = stmt
+            {
+                if *is_public {
+                    let import_path = path.clone();
+                    let import_full_name = import_path.join(".");
+                    if !self.is_module_loaded(&import_full_name) {
+                        let _ = self.load_module(&import_path);
+                    }
+                }
+            }
+        }
+        // ---------------------------------------------------------------------
+
         // Extract exports
         let exports = self.extract_exports(&statements);
 
