@@ -2102,6 +2102,43 @@ impl Interpreter {
                             } => {
                                 let obj_value = self.evaluate_expression(*object)?;
 
+                                // Check if this is a module function call
+                                if let Value::Module(module) = &obj_value {
+                                    if let Some(export) = module.exports.get(&method) {
+                                        if let crate::module::ExportedItem::Function(idx) = export {
+                                            if let Some(Statement::FunctionDeclaration {
+                                                params,
+                                                body,
+                                                return_type,
+                                                ..
+                                            }) = module.statements.get(*idx)
+                                            {
+                                                let func_val = Value::Function {
+                                                    params: params.clone(),
+                                                    body: body.clone(),
+                                                    return_type: return_type.clone(),
+                                                    captured_vars: HashMap::new(),
+                                                };
+                                                let mut arg_values = Vec::new();
+                                                for arg in arguments {
+                                                    let expr = match arg {
+                                                        Argument::Positional(expr) => expr,
+                                                        Argument::Named { name: _, value } => value,
+                                                    };
+                                                    let value = self.evaluate_expression(expr)?;
+                                                    arg_values.push(value);
+                                                }
+                                                return self
+                                                    .call_function_value(func_val, arg_values);
+                                            }
+                                        }
+                                    }
+                                    return Err(VeldError::RuntimeError(format!(
+                                        "Function '{}' not found in module",
+                                        method
+                                    )));
+                                }
+
                                 // Handle array methods
                                 match &obj_value {
                                     Value::Array(_) => {

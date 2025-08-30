@@ -1992,14 +1992,40 @@ impl Parser {
                         index: *idx as usize,
                     };
                 } else {
-                    // Always treat as property access (no method call here)
+                    // Check if this is a method call (property followed by parentheses)
                     let property =
                         self.consume_identifier("Expected property or method name after '.'")?;
 
-                    expr = Expr::PropertyAccess {
-                        object: Box::new(expr),
-                        property,
-                    };
+                    // Check if the next token is an opening parenthesis for a method call
+                    if self.check(&Token::LParen) {
+                        self.advance(); // consume LParen
+                        let mut args = Vec::new();
+                        if !self.check(&Token::RParen) {
+                            if self.check_named_arguments() {
+                                args = self.parse_named_arguments()?;
+                            } else {
+                                loop {
+                                    args.push(Argument::Positional(self.expression()?));
+                                    if !self.match_token(&[Token::Comma]) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        self.consume(&Token::RParen, "Expected ')' after method arguments")?;
+
+                        expr = Expr::MethodCall {
+                            object: Box::new(expr),
+                            method: property,
+                            arguments: args,
+                        };
+                    } else {
+                        // Just a property access
+                        expr = Expr::PropertyAccess {
+                            object: Box::new(expr),
+                            property,
+                        };
+                    }
                 }
             } else if self.match_token(&[Token::LParen]) {
                 // Function call on identifier or property access chain
