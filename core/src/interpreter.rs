@@ -2157,28 +2157,23 @@ impl Interpreter {
                                         self.call_method_value(obj_value, method, arg_values)
                                     }
                                     _ => {
-                                        // Empty arguments list means it's a property access
-                                        if arguments.is_empty() {
-                                            self.get_property(obj_value, &method)
-                                        } else {
-                                            // Evaluate all arguments
-                                            let mut arg_values = Vec::new();
-                                            for arg in arguments {
-                                                // Extract and evaluate the expression from the Argument
-                                                let expr = match arg {
-                                                    Argument::Positional(expr) => expr,
-                                                    Argument::Named { name: _, value } => value,
-                                                };
-                                                let value = self.evaluate_expression(expr)?;
-                                                arg_values.push(value);
-                                            }
-
-                                            self.call_method_value(
-                                                obj_value,
-                                                method.clone(),
-                                                arg_values,
-                                            )
+                                        // Always call method for MethodCall expressions, even with zero arguments
+                                        let mut arg_values = Vec::new();
+                                        for arg in arguments {
+                                            // Extract and evaluate the expression from the Argument
+                                            let expr = match arg {
+                                                Argument::Positional(expr) => expr,
+                                                Argument::Named { name: _, value } => value,
+                                            };
+                                            let value = self.evaluate_expression(expr)?;
+                                            arg_values.push(value);
                                         }
+
+                                        self.call_method_value(
+                                            obj_value,
+                                            method.clone(),
+                                            arg_values,
+                                        )
                                     }
                                 }
                             }
