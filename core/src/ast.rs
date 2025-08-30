@@ -132,6 +132,9 @@ pub enum Expr {
         struct_name: String,
         fields: Vec<(String, Expr)>,
     },
+    Record {
+        fields: Vec<(String, Expr)>,
+    },
     ArrayLiteral(Vec<Expr>),
     IndexAccess {
         object: Box<Expr>,
@@ -158,9 +161,6 @@ pub enum Expr {
         expr: Box<Expr>,
         target_type: TypeAnnotation,
     },
-    // AnonymousStruct {
-    //     fields: Vec<(String, Expr)>,
-    // },
 }
 
 #[derive(Debug, Clone, PartialEq)]

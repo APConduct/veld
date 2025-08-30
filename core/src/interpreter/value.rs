@@ -4,14 +4,15 @@ use super::super::types::{NumericValue, Type};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct AnonymousStruct {
+// Anonymous struct like: { field1: Type, field2: Type }
+pub struct Record {
     name: String,
     fields: HashMap<String, Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    AnonymousStruct(AnonymousStruct),
+    AnonymousStruct(Record),
     Numeric(NumericValue),
     Integer(i64),
     Float(f64),

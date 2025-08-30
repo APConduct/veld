@@ -949,6 +949,7 @@ impl TypeChecker {
                 callee,
                 arguments
             ),
+            Expr::Record { fields } => todo!("Record type inference"),
         };
         if let Ok(ref t) = result {
             tracing::debug!("Final inferred type for expression: {:?} -> {:?}", expr, t);

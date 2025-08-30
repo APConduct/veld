@@ -631,6 +631,7 @@ impl Interpreter {
                     self.collect_free_variables_expr(expr, bound_vars, free_vars);
                 }
             }
+            Expr::Record { fields } => todo!("Implement record field collection"),
             Expr::ArrayLiteral(exprs) => {
                 for expr in exprs {
                     self.collect_free_variables_expr(expr, bound_vars, free_vars);
@@ -2448,6 +2449,7 @@ impl Interpreter {
                                     },
                                 }
                             }
+                            Expr::Record { fields } => todo!("Implement record field collection"),
                         }
                     }
                 })

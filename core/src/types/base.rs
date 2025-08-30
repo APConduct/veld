@@ -62,6 +62,12 @@ pub enum Type {
         fields: HashMap<String, Type>,
     },
 
+    // Anonymous struct(table), like this: { field1: Type, field2: Type }
+    Record {
+        name: String,
+        fields: HashMap<String, Type>,
+    },
+
     Generic {
         base: String,
         type_args: Vec<Type>,
@@ -273,6 +279,8 @@ impl std::fmt::Display for Type {
             Type::Number => write!(f, "number"),
 
             Type::KindSelf(name) => write!(f, "{}", name),
+
+            Type::Record { name, fields } => todo!("Implement Record type formatting"),
         }
     }
 }
