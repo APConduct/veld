@@ -2017,10 +2017,37 @@ impl Parser {
                     }
                 }
                 self.consume(&Token::RParen, "Expected ')' after arguments")?;
-                expr = Expr::Call {
-                    callee: Box::new(expr),
-                    arguments: args,
-                };
+                let all_named = !args.is_empty()
+                    && args.iter().all(|arg| matches!(arg, Argument::Named { .. }));
+                if all_named {
+                    // Fix: args is Vec<Argument>, but StructCreate expects Vec<(String, Expr)>
+                    let fields: Vec<(String, Expr)> = args
+                        .into_iter()
+                        .map(|arg| match arg {
+                            Argument::Named { name, value } => (name, value),
+                            _ => unreachable!(),
+                        })
+                        .collect();
+                    // Fix: struct_name expects String, not Box<Expr>
+                    let struct_name = match expr {
+                        Expr::Identifier(ref name) => name.clone(),
+                        _ => {
+                            return Err(VeldError::ParserError(
+                                "Struct instantiation expects identifier as struct name"
+                                    .to_string(),
+                            ));
+                        }
+                    };
+                    expr = Expr::StructCreate {
+                        struct_name,
+                        fields,
+                    };
+                } else {
+                    expr = Expr::Call {
+                        callee: Box::new(expr),
+                        arguments: args,
+                    };
+                }
             } else if self.check(&Token::LParen) && matches!(expr, Expr::Identifier(_)) {
                 self.advance(); // now consume LParen
                 // Function call
@@ -2047,15 +2074,17 @@ impl Parser {
                     let all_named = !args.is_empty()
                         && args.iter().all(|arg| matches!(arg, Argument::Named { .. }));
                     if all_named {
+                        // Fix: args is Vec<Argument>, but StructCreate expects Vec<(String, Expr)>
+                        let fields: Vec<(String, Expr)> = args
+                            .into_iter()
+                            .map(|arg| match arg {
+                                Argument::Named { name, value } => (name, value),
+                                _ => unreachable!(),
+                            })
+                            .collect();
                         expr = Expr::StructCreate {
                             struct_name: name,
-                            fields: args
-                                .into_iter()
-                                .map(|arg| match arg {
-                                    Argument::Named { name, value } => (name, value),
-                                    _ => unreachable!(),
-                                })
-                                .collect(),
+                            fields,
                         };
                     } else {
                         expr = Expr::Call {
@@ -3652,7 +3681,7 @@ mod tests {
                         assert_eq!(method, "area");
                         assert_eq!(arguments.len(), 0);
                     }
-                    _ => panic!("Expected method call"),
+                    _ => panic!("Expected method call, got {:?}", value),
                 }
             }
             _ => panic!("Expected variable declaration"),
@@ -3933,6 +3962,7 @@ impl Parser {
             | Token::Do
             | Token::If
             | Token::SelfToken => true,
+            // | Token::LBrace => true, // Let's hope this doesn't break anything
             _ => false,
         }
     }
