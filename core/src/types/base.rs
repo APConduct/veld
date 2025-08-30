@@ -57,6 +57,7 @@ pub enum Type {
     },
 
     Struct {
+        // Name could be _ if anonymous struct(table)
         name: String,
         fields: HashMap<String, Type>,
     },

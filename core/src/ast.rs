@@ -1,7 +1,5 @@
 use std::{collections::HashMap, fmt::Display};
 
-use crate::{error::VeldError, types::Type};
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct MacroPattern(pub String);
 
@@ -160,6 +158,9 @@ pub enum Expr {
         expr: Box<Expr>,
         target_type: TypeAnnotation,
     },
+    // AnonymousStruct {
+    //     fields: Vec<(String, Expr)>,
+    // },
 }
 
 #[derive(Debug, Clone, PartialEq)]
