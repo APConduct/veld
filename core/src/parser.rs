@@ -3987,7 +3987,7 @@ impl Parser {
             | Token::Do
             | Token::If
             | Token::SelfToken => true,
-            // | Token::LBrace => true, // Let's hope this doesn't break anything
+            Token::LBrace => true, // Start of Record instance, let's hope it doesn't break anything
             _ => false,
         }
     }
