@@ -163,6 +163,36 @@ pub enum Expr {
     },
 }
 
+impl Expr {
+    pub fn is_record(&self) -> bool {
+        matches!(self, Expr::Record { .. })
+    }
+
+    pub fn is_tuple(&self) -> bool {
+        matches!(self, Expr::TupleLiteral { .. })
+    }
+
+    pub fn is_tuple_access(&self) -> bool {
+        matches!(self, Expr::TupleAccess { .. })
+    }
+
+    pub fn is_tuple_literal(&self) -> bool {
+        matches!(self, Expr::TupleLiteral { .. })
+    }
+
+    pub fn is_lambda(&self) -> bool {
+        matches!(self, Expr::Lambda { .. })
+    }
+
+    pub fn is_block_lambda(&self) -> bool {
+        matches!(self, Expr::BlockLambda { .. })
+    }
+
+    pub fn is_enum_variant(&self) -> bool {
+        matches!(self, Expr::EnumVariant { .. })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOperator {
     Add,

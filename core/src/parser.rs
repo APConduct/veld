@@ -1769,6 +1769,13 @@ impl Parser {
             ));
         }
 
+        // Record/ Anonymous struct, looks like: {field1: value1, field2: value2}
+        if self.match_token(&[Token::LBrace]) {
+            // Parse record fields
+            let fields = self.record_fields()?;
+            return Ok(Expr::Record { fields });
+        };
+
         if self.check_lambda_start() {
             let result = self.lambda_expression();
             self.recursive_depth -= 1;
@@ -1780,6 +1787,36 @@ impl Parser {
         self.recursive_depth -= 1;
 
         result
+    }
+
+    fn record_fields(&mut self) -> Result<Vec<(String, Expr)>> {
+        let mut fields = Vec::new();
+
+        while !self.check(&Token::RBrace) {
+            if self.is_at_end() {
+                return Err(VeldError::ParserError(
+                    "Unexpected end of input".to_string(),
+                ));
+            }
+
+            let field_name = self.consume_identifier("Expected field name")?;
+            self.consume(&Token::Colon, "Expected ':' after field name")?;
+            let field_value = self.expression()?;
+
+            fields.push((format!("{}", field_name), field_value));
+
+            if self.check(&Token::Comma) {
+                self.advance();
+            } else if !self.check(&Token::RBrace) {
+                return Err(VeldError::ParserError(
+                    "Expected ',' or '}' after field".to_string(),
+                ));
+            }
+        }
+
+        self.advance();
+
+        Ok(fields)
     }
 
     fn check_lambda_start(&self) -> bool {
@@ -3895,7 +3932,7 @@ mod tests {
             _ => panic!("Expected variable declaration"),
         }
     }
-    // #[ignore = "Matching over variants is not fully fleshed out."]
+
     #[test]
     fn test_match_statement() {
         let input = r#"
@@ -3930,28 +3967,24 @@ mod tests {
     }
 }
 
-#[ignore = "Anonymous structs are not fully fleshed out yet."]
+// #[ignore = "Anonymous structs are not fully fleshed out yet."]
 #[test]
-fn test_anon_struct_no_methods() {
+fn test_anon_record() {
     let input = r#"
         let point = {
             x: 10.0,
             y: 20.0,
         }
     "#;
-    // let proposed_syntax2 = r#"
-    //     let point = struct
-    //         x: 10.0,
-    //         y: 20.0,
-    //     end
-    // "#;
 
     let mut lexer = crate::lexer::Lexer::new(input);
     let tokens = lexer.collect_tokens().unwrap();
     let mut parser = Parser::new(tokens);
     let statements = parser.parse().unwrap();
     assert_eq!(statements.len(), 1);
-    // TODO: Add assertions for the parsed anonymous struct
+    assert!(
+        matches!(&statements[0], Statement::VariableDeclaration { name, value, .. } if name == "point" && value.is_record())
+    );
 }
 
 // #[ignore = "Anonymous enums are not fully fleshed out yet, and may not even be in the final design or implemented at all."]
