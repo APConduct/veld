@@ -57,14 +57,12 @@ pub enum Type {
     },
 
     Struct {
-        // Name could be _ if anonymous struct(table)
         name: String,
         fields: HashMap<String, Type>,
     },
 
     // Anonymous struct(table), like this: { field1: Type, field2: Type }
     Record {
-        name: String,
         fields: HashMap<String, Type>,
     },
 
@@ -135,7 +133,7 @@ impl Type {
                     "u16" => Ok(Type::U16),
                     "i8" => Ok(Type::I8),
                     "i16" => Ok(Type::I16),
-                    "any" => Ok(Type::Any),
+                    // "any" => Ok(Type::Any),
                     _ => Err(VeldError::TypeError(format!("Unknown type: {}", name))),
                 }
             }
@@ -239,6 +237,17 @@ impl std::fmt::Display for Type {
                 write!(f, ") -> {}", return_type)
             }
             Type::Struct { name, .. } => write!(f, "{}", name),
+            // Anonymous struct(Record), looks like this: { field1: type1, field2: type2 }
+            Type::Record { fields } => {
+                write!(f, "{{")?;
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", field.0, field.1)?;
+                }
+                write!(f, "}}")
+            }
             Type::Generic { base, type_args } => {
                 write!(f, "{}<", base)?;
                 for (i, arg) in type_args.iter().enumerate() {
@@ -279,8 +288,6 @@ impl std::fmt::Display for Type {
             Type::Number => write!(f, "number"),
 
             Type::KindSelf(name) => write!(f, "{}", name),
-
-            Type::Record { name, fields } => todo!("Implement Record type formatting"),
         }
     }
 }
