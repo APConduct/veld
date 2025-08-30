@@ -165,16 +165,8 @@ pub enum Token {
     With,
     #[token("macro")]
     Macro,
-    #[token("async")]
-    Async,
-    #[token("await")]
-    Await,
-    #[token("spawn")]
-    Spawn,
     #[token("const")]
     Const,
-    #[token("static")]
-    Static,
     #[token("self")]
     SelfToken,
     #[token("|>")]
@@ -189,6 +181,15 @@ pub enum Token {
     Dollar,
     #[token(":expr")]
     ExprFragment,
+
+    #[token("static")]
+    Static,
+    #[token("async")]
+    Async,
+    #[token("await")]
+    Await,
+    #[token("spawn")]
+    Spawn,
 }
 
 pub struct Lexer<'a> {

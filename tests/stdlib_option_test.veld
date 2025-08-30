@@ -23,4 +23,4 @@ let qux = some(3.14)
 # This can be done instead of using explicit 'import' statements
 let foo_bar = std.option.some(69)
 
-# let b_res = foo_bar.is_some()
+let b_res = foo_bar.is_some() # Should be true (and is not None)
