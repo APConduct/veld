@@ -6,7 +6,14 @@ use super::super::types::{NumericValue, Type};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct AnonymousStruct {
+    name: String,
+    fields: HashMap<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
+    AnonymousStruct(AnonymousStruct),
     Numeric(NumericValue),
     Integer(i64),
     Float(f64),
@@ -79,9 +86,12 @@ impl Value {
                     Type::from_annotation(return_type, None).unwrap_or(Type::Any),
                 ),
             },
-            Value::Struct { name, .. } => Type::Struct {
+            Value::Struct { name, fields } => Type::Struct {
                 name: name.clone(),
-                fields: HashMap::new(),
+                fields: fields
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.type_of()))
+                    .collect(),
             },
             Value::Enum { enum_name, .. } => Type::Enum {
                 name: enum_name.clone(),
@@ -92,6 +102,14 @@ impl Value {
                 variants: HashMap::new(),
             },
             Value::Tuple(values) => Type::Tuple(values.iter().map(|v| v.type_of()).collect()),
+            Value::AnonymousStruct(anon) => Type::Struct {
+                name: anon.name.clone(),
+                fields: anon
+                    .fields
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.type_of()))
+                    .collect(),
+            },
         }
     }
 

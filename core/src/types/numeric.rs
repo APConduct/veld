@@ -2,6 +2,8 @@ use crate::error::Result;
 use crate::types::Type;
 use crate::types::TypeEnvironment;
 use std::collections::HashMap;
+use std::hash::Hash;
+use std::hash::Hasher;
 
 pub struct NumericKinds;
 
@@ -423,7 +425,7 @@ impl NumericKinds {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub enum IntegerValue {
     I8(i8),
     I16(i16),
@@ -477,6 +479,15 @@ pub enum FloatValue {
     F64(f64),
 }
 
+impl Hash for FloatValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            FloatValue::F32(f) => f.to_bits().hash(state),
+            FloatValue::F64(f) => f.to_bits().hash(state),
+        }
+    }
+}
+
 impl FloatValue {
     /// Promotes a FloatValue to a 64-bit floating point number.
     ///
@@ -498,7 +509,7 @@ impl FloatValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub enum NumericValue {
     Integer(IntegerValue),
     Float(FloatValue),
