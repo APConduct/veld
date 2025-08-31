@@ -17,7 +17,7 @@ pub kind Searchable
     fn contains(self, substring: str) -> bool
     fn starts_with(self, prefix: str) -> bool
     fn ends_with(self, suffix: str) -> bool
-    fn index_of(self, substring: str) -> i32
+    fn index_of(self, substring: str) -> i32  # TODO: define/implement a usize type
 end
 
 # String manipulation

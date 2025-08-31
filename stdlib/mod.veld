@@ -2,7 +2,7 @@
 #| that re-exports all the standard modules and their components.
 
 # Core types and behaviors - temporarily commented out until core module is fully implemented
-# pub import std.core
+pub import std.core
 
 # Core algebraic data types
 pub import std.option
@@ -12,7 +12,7 @@ pub import std.result
 pub import std.collections
 
 # String capabilities - temporarily commented out until string module is fully implemented
-# pub import std.string
+pub import std.string
 
 # Numeric capabilities - temporarily commented out until numeric module is fully implemented
 # pub import std.numeric
