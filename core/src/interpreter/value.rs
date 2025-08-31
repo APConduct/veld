@@ -12,7 +12,10 @@ pub struct Record {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    AnonymousStruct(Record),
+    Record {
+        name: String,
+        fields: HashMap<String, Value>,
+    },
     Numeric(NumericValue),
     Integer(i64),
     Float(f64),
@@ -101,10 +104,9 @@ impl Value {
                 variants: HashMap::new(),
             },
             Value::Tuple(values) => Type::Tuple(values.iter().map(|v| v.type_of()).collect()),
-            Value::AnonymousStruct(anon) => Type::Struct {
-                name: anon.name.clone(),
-                fields: anon
-                    .fields
+            Value::Record { name, fields } => Type::Struct {
+                name: name.clone(),
+                fields: fields
                     .iter()
                     .map(|(k, v)| (k.clone(), v.type_of()))
                     .collect(),
