@@ -1,0 +1,42 @@
+#| This is a test file interpreting veld record values
+#| The syntax for defining a record is:
+#|   {
+#|     <field_name>: <value>,
+#|     # ...
+#|   }
+
+let john_person = {
+    name: "John Doe",
+    age: 30,
+    email: "johndoe@example.com",
+    address: {
+        street: "123 Main St",
+        city: "Anytown",
+        state: "CA",
+        zip: "12345"
+    }
+}
+
+let jane_person = {
+    name: "Jane Smith",
+    age: 25,
+    email: "janesmith@example.com",
+    address: {
+        street: "456 Elm St",
+        city: "Othertown",
+        state: "NY",
+        zip: "67890"
+    }
+}
+
+let mary_person = {
+    name: "Mary Johnson",
+    age: 35,
+    email: "maryjohnson@example.com",
+    address: {
+        street: "789 Oak St",
+        city: "Somewhere",
+        state: "TX",
+        zip: "54321"
+    }
+}

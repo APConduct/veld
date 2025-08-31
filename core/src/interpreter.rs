@@ -2449,12 +2449,23 @@ impl Interpreter {
                                     },
                                 }
                             }
-                            Expr::Record { fields } => todo!("Implement record field collection"),
+                            Expr::Record { fields } => self.eval_record_fields(fields),
                         }
                     }
                 })
             }
         }
+    }
+
+    fn eval_record_fields(&mut self, fields: Vec<(String, Expr)>) -> Result<Value> {
+        // Evaluate each field expression and collect into a HashMap
+        let mut field_values = std::collections::HashMap::new();
+        for (field_name, field_expr) in fields {
+            let value = self.evaluate_expression(field_expr)?;
+            field_values.insert(field_name, value.unwrap_return());
+        }
+        // Create a Record value (anonymous struct)
+        Ok(Value::Record(field_values))
     }
 
     fn find_generic_function(&mut self, name: &str) -> Option<FunctionDeclaration> {

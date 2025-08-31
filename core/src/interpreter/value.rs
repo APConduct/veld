@@ -5,17 +5,11 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 // Anonymous struct like: { field1: Type, field2: Type }
-pub struct Record {
-    name: String,
-    fields: HashMap<String, Value>,
-}
+pub struct Record {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    Record {
-        name: String,
-        fields: HashMap<String, Value>,
-    },
+    Record(HashMap<String, Value>),
     Numeric(NumericValue),
     Integer(i64),
     Float(f64),
@@ -104,8 +98,7 @@ impl Value {
                 variants: HashMap::new(),
             },
             Value::Tuple(values) => Type::Tuple(values.iter().map(|v| v.type_of()).collect()),
-            Value::Record { name, fields } => Type::Struct {
-                name: name.clone(),
+            Value::Record(fields) => Type::Record {
                 fields: fields
                     .iter()
                     .map(|(k, v)| (k.clone(), v.type_of()))
