@@ -1,7 +1,7 @@
 mod base;
 mod bits;
 mod checker;
-mod numeric;
+pub mod numeric;
 mod numeric_ops;
 
 pub use base::*;

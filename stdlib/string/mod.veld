@@ -36,3 +36,5 @@ pub kind Parsable
     fn to_float(self) -> Option<f64>
     fn to_bool(self) -> Option<bool>
 end
+
+# TODO: make sure str type conforms/is registered as the kinds above

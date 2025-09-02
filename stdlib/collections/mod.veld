@@ -10,7 +10,7 @@
 
 
 # Basic sequence interfaces
-# pub import std.collections.sequence
+pub import std.collections.sequence
 
 # Map interfaces
 # pub import std.collections.map

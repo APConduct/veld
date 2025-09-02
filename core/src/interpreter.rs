@@ -9,6 +9,7 @@ use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::format;
 use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
@@ -171,7 +172,7 @@ impl Interpreter {
         self.initialize_core_capabilities();
         self.initialize_string_capabilities();
         self.initialize_numeric_capabilities();
-        self.initialize_array_methods(); // Your existing method
+        self.initialize_array_methods();
 
         // Register other native functions
         self.register_math_functions();
@@ -3503,32 +3504,46 @@ impl Interpreter {
 
         // Substring
         self.native_method_registry
-            .register("str", "substring", |args| {
-                if let (
-                    Some(Value::String(s)),
-                    Some(Value::Integer(start)),
-                    Some(Value::Integer(end)),
-                ) = (args.get(0), args.get(1), args.get(2))
-                {
-                    let start = *start as usize;
-                    let end = (*end as usize).min(s.len());
+                            .register("str", "substring", |args| {
+                                use crate::types::numeric::IntegerValue;
+                                if let (
+                                    Some(Value::String(s)),
+                                    Some(Value::Numeric(NumericValue::Integer(start))),
+                                    Some(Value::Numeric(NumericValue::Integer(end))),
+                                ) = (args.get(0), args.get(1), args.get(2))
+                                {
+                                    // Convert IntegerValue to i64, then to usize
+                                    fn integer_value_to_usize(iv: &IntegerValue) -> Option<usize> {
+                                        match iv {
+                                            IntegerValue::I8(v) => Some(*v as usize),
+                                            IntegerValue::I16(v) => Some(*v as usize),
+                                            IntegerValue::I32(v) => Some(*v as usize),
+                                            IntegerValue::I64(v) => Some(*v as usize),
+                                            IntegerValue::U8(v) => Some(*v as usize),
+                                            IntegerValue::U16(v) => Some(*v as usize),
+                                            IntegerValue::U32(v) => Some(*v as usize),
+                                            IntegerValue::U64(v) => Some(*v as usize),
+                                        }
+                                    }
+                                    let start = integer_value_to_usize(start).unwrap_or(0);
+                                    let end = integer_value_to_usize(end).unwrap_or(0).min(s.len());
 
-                    if start <= end && start <= s.len() {
-                        let substring = if start == s.len() {
-                            "".to_string()
-                        } else {
-                            s[start..end].to_string()
-                        };
-                        Ok(Value::String(substring))
-                    } else {
-                        Ok(Value::String("".to_string()))
-                    }
-                } else {
-                    Err(VeldError::RuntimeError(
-                        "substring called with invalid arguments".to_string(),
-                    ))
-                }
-            });
+                                    if start <= end && start <= s.len() {
+                                        let substring = if start == s.len() {
+                                            "".to_string()
+                                        } else {
+                                            s[start..end].to_string()
+                                        };
+                                        Ok(Value::String(substring))
+                                    } else {
+                                        Ok(Value::String("".to_string()))
+                                    }
+                                } else {
+                                    Err(VeldError::RuntimeError(
+                                       format!("substring called with invalid arguments: expected string, integer, integer, got {:?}", args),
+                                    ))
+                                }
+                            });
 
         // Split
         self.native_method_registry
@@ -3566,13 +3581,30 @@ impl Interpreter {
         // Repeat
         self.native_method_registry
             .register("str", "repeat", |args| {
-                if let (Some(Value::String(s)), Some(Value::Integer(count))) =
-                    (args.get(0), args.get(1))
+                use crate::types::numeric::IntegerValue;
+                if let (
+                    Some(Value::String(s)),
+                    Some(Value::Numeric(NumericValue::Integer(count))),
+                ) = (args.get(0), args.get(1))
                 {
-                    if *count < 0 {
+                    // Convert IntegerValue to usize properly
+                    fn integer_value_to_usize(iv: &IntegerValue) -> Option<usize> {
+                        match iv {
+                            IntegerValue::I8(v) => Some(*v as usize),
+                            IntegerValue::I16(v) => Some(*v as usize),
+                            IntegerValue::I32(v) => Some(*v as usize),
+                            IntegerValue::I64(v) => Some(*v as usize),
+                            IntegerValue::U8(v) => Some(*v as usize),
+                            IntegerValue::U16(v) => Some(*v as usize),
+                            IntegerValue::U32(v) => Some(*v as usize),
+                            IntegerValue::U64(v) => Some(*v as usize),
+                        }
+                    }
+                    let count_usize = integer_value_to_usize(count).unwrap_or(0);
+                    if count_usize == 0 {
                         return Ok(Value::String("".to_string()));
                     }
-                    Ok(Value::String(s.repeat(*count as usize)))
+                    Ok(Value::String(s.repeat(count_usize)))
                 } else {
                     Err(VeldError::RuntimeError(
                         "repeat called with invalid arguments".to_string(),
@@ -3583,13 +3615,27 @@ impl Interpreter {
         // Padding
         self.native_method_registry
             .register("str", "pad_start", |args| {
+                use crate::types::numeric::IntegerValue;
                 if let (
                     Some(Value::String(s)),
-                    Some(Value::Integer(length)),
+                    Some(Value::Numeric(NumericValue::Integer(length))),
                     Some(Value::String(pad_char)),
                 ) = (args.get(0), args.get(1), args.get(2))
                 {
-                    let target_len = *length as usize;
+                    // Convert IntegerValue to usize properly
+                    fn integer_value_to_usize(iv: &IntegerValue) -> Option<usize> {
+                        match iv {
+                            IntegerValue::I8(v) => Some(*v as usize),
+                            IntegerValue::I16(v) => Some(*v as usize),
+                            IntegerValue::I32(v) => Some(*v as usize),
+                            IntegerValue::I64(v) => Some(*v as usize),
+                            IntegerValue::U8(v) => Some(*v as usize),
+                            IntegerValue::U16(v) => Some(*v as usize),
+                            IntegerValue::U32(v) => Some(*v as usize),
+                            IntegerValue::U64(v) => Some(*v as usize),
+                        }
+                    }
+                    let target_len = integer_value_to_usize(length).unwrap_or(0);
                     if s.len() >= target_len || pad_char.is_empty() {
                         return Ok(Value::String(s.clone()));
                     }
@@ -3606,13 +3652,27 @@ impl Interpreter {
 
         self.native_method_registry
             .register("str", "pad_end", |args| {
+                use crate::types::numeric::IntegerValue;
                 if let (
                     Some(Value::String(s)),
-                    Some(Value::Integer(length)),
+                    Some(Value::Numeric(NumericValue::Integer(length))),
                     Some(Value::String(pad_char)),
                 ) = (args.get(0), args.get(1), args.get(2))
                 {
-                    let target_len = *length as usize;
+                    // Convert IntegerValue to usize properly
+                    fn integer_value_to_usize(iv: &IntegerValue) -> Option<usize> {
+                        match iv {
+                            IntegerValue::I8(v) => Some(*v as usize),
+                            IntegerValue::I16(v) => Some(*v as usize),
+                            IntegerValue::I32(v) => Some(*v as usize),
+                            IntegerValue::I64(v) => Some(*v as usize),
+                            IntegerValue::U8(v) => Some(*v as usize),
+                            IntegerValue::U16(v) => Some(*v as usize),
+                            IntegerValue::U32(v) => Some(*v as usize),
+                            IntegerValue::U64(v) => Some(*v as usize),
+                        }
+                    }
+                    let target_len = integer_value_to_usize(length).unwrap_or(0);
                     if s.len() >= target_len || pad_char.is_empty() {
                         return Ok(Value::String(s.clone()));
                     }
@@ -4003,6 +4063,61 @@ impl Interpreter {
                 ],
                 body: vec![], // Built-in method with custom implementation
                 return_type: TypeAnnotation::Basic("Array".to_string()),
+                captured_vars: HashMap::new(),
+            },
+        );
+
+        // get method
+        array_methods.insert(
+            "get".to_string(),
+            Value::Function {
+                params: vec![
+                    (
+                        "self".to_string(),
+                        TypeAnnotation::Basic("Array".to_string()),
+                    ),
+                    (
+                        "index".to_string(),
+                        TypeAnnotation::Basic("i32".to_string()),
+                    ),
+                ],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("Option".to_string()),
+                captured_vars: HashMap::new(),
+            },
+        );
+
+        // set method
+        array_methods.insert(
+            "set".to_string(),
+            Value::Function {
+                params: vec![
+                    (
+                        "self".to_string(),
+                        TypeAnnotation::Basic("Array".to_string()),
+                    ),
+                    (
+                        "index".to_string(),
+                        TypeAnnotation::Basic("i32".to_string()),
+                    ),
+                    (
+                        "value".to_string(),
+                        TypeAnnotation::Basic("any".to_string()),
+                    ),
+                ],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("bool".to_string()),
+                captured_vars: HashMap::new(),
+            },
+        );
+
+        // is_empty method
+        array_methods.insert(
+            "is_empty".to_string(),
+            Value::Function {
+                params: vec![],
+                body: vec![],
+                return_type: TypeAnnotation::Basic("bool".to_string()),
                 captured_vars: HashMap::new(),
             },
         );
@@ -5329,6 +5444,19 @@ impl Interpreter {
             }
         }
         Ok(None) // No operator method found
+    }
+}
+
+fn match_num_val(iv: &IntegerValue) -> Option<usize> {
+    match iv {
+        IntegerValue::I8(v) => Some(*v as usize),
+        IntegerValue::I16(v) => Some(*v as usize),
+        IntegerValue::I32(v) => Some(*v as usize),
+        IntegerValue::I64(v) => Some(*v as usize),
+        IntegerValue::U8(v) => Some(*v as usize),
+        IntegerValue::U16(v) => Some(*v as usize),
+        IntegerValue::U32(v) => Some(*v as usize),
+        IntegerValue::U64(v) => Some(*v as usize),
     }
 }
 
