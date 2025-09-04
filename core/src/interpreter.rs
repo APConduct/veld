@@ -4554,177 +4554,249 @@ impl Interpreter {
             }
         }
 
-        // Special handling for array methods
+        // Unified array method dispatch using struct_methods["Array"] registry
         if let Value::Array(elements) = &object {
-            match method_name.as_str() {
-                "last" => {
-                    if !args.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "last() takes no arguments".to_string(),
-                        ));
-                    }
-
-                    if elements.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "Cannot get last element of empty array".to_string(),
-                        ));
-                    }
-
-                    return Ok(elements.last().unwrap().clone());
-                }
-
-                "first" => {
-                    if !args.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "first() takes no arguments".to_string(),
-                        ));
-                    }
-
-                    if elements.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "Cannot get first element of empty array".to_string(),
-                        ));
-                    }
-
-                    return Ok(elements.first().unwrap().clone());
-                }
-                "init" => {
-                    if !args.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "init() takes no arguments".to_string(),
-                        ));
-                    }
-
-                    if elements.is_empty() {
-                        return Ok(Value::Array(vec![]));
-                    }
-
-                    let mut new_elements = elements.clone();
-                    new_elements.pop();
-                    return Ok(Value::Array(new_elements));
-                }
-
-                "tail" => {
-                    if !args.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "tail() takes no arguments".to_string(),
-                        ));
-                    }
-
-                    if elements.is_empty() {
-                        return Ok(Value::Array(vec![]));
-                    }
-
-                    let new_elements = elements.iter().skip(1).cloned().collect();
-                    return Ok(Value::Array(new_elements));
-                }
-                "with" => {
-                    if args.len() != 1 {
-                        return Err(VeldError::RuntimeError(
-                            "with() takes exactly one argument".to_string(),
-                        ));
-                    }
-
-                    let mut new_elements = elements.clone();
-                    new_elements.push(args[0].clone());
-                    return Ok(Value::Array(new_elements));
-                }
-
-                "take" => {
-                    if args.len() != 1 {
-                        return Err(VeldError::RuntimeError(
-                            "take() takes exactly one argument".to_string(),
-                        ));
-                    }
-
-                    if let Value::Integer(n) = &args[0] {
-                        if *n < 0 {
-                            return Err(VeldError::RuntimeError(
-                                "take() argument must be non-negative".to_string(),
-                            ));
+            if let Some(array_methods) = self.struct_methods.get("Array") {
+                if let Some(_method_value) = array_methods.get(&method_name) {
+                    match method_name.as_str() {
+                        "get" => {
+                            if args.len() != 1 {
+                                return Err(VeldError::RuntimeError(
+                                    "get() takes exactly one argument".to_string(),
+                                ));
+                            }
+                            match &args[0] {
+                                Value::Integer(i) => {
+                                    if *i < 0 || *i >= elements.len() as i64 {
+                                        return Ok(Value::Enum {
+                                            enum_name: "Option".to_string(),
+                                            variant_name: "None".to_string(),
+                                            fields: vec![],
+                                        });
+                                    }
+                                    return Ok(Value::Enum {
+                                        enum_name: "Option".to_string(),
+                                        variant_name: "Some".to_string(),
+                                        fields: vec![elements[*i as usize].clone()],
+                                    });
+                                }
+                                Value::Numeric(NumericValue::Integer(iv)) => {
+                                    let idx = match_num_val(iv).unwrap_or(usize::MAX) as i64;
+                                    if idx < 0 || idx >= elements.len() as i64 {
+                                        return Ok(Value::Enum {
+                                            enum_name: "Option".to_string(),
+                                            variant_name: "None".to_string(),
+                                            fields: vec![],
+                                        });
+                                    }
+                                    return Ok(Value::Enum {
+                                        enum_name: "Option".to_string(),
+                                        variant_name: "Some".to_string(),
+                                        fields: vec![elements[idx as usize].clone()],
+                                    });
+                                }
+                                _ => {
+                                    return Err(VeldError::RuntimeError(
+                                        "get() argument must be an integer".to_string(),
+                                    ));
+                                }
+                            }
                         }
-
-                        let n = *n as usize;
-                        let new_elements = elements.iter().take(n).cloned().collect();
-                        return Ok(Value::Array(new_elements));
-                    } else {
-                        return Err(VeldError::RuntimeError(
-                            "take() argument must be an integer".to_string(),
-                        ));
-                    }
-                }
-
-                "drop" => {
-                    if args.len() != 1 {
-                        return Err(VeldError::RuntimeError(
-                            "drop() takes exactly one argument".to_string(),
-                        ));
-                    }
-
-                    if let Value::Integer(n) = &args[0] {
-                        if *n < 0 {
-                            return Err(VeldError::RuntimeError(
-                                "drop() argument must be non-negative".to_string(),
-                            ));
+                        "set" => {
+                            if args.len() != 2 {
+                                return Err(VeldError::RuntimeError(
+                                    "set() takes exactly two arguments".to_string(),
+                                ));
+                            }
+                            match &args[0] {
+                                Value::Integer(i) => {
+                                    if *i < 0 || *i >= elements.len() as i64 {
+                                        return Ok(Value::Boolean(false));
+                                    }
+                                    return Ok(Value::Boolean(true));
+                                }
+                                Value::Numeric(NumericValue::Integer(iv)) => {
+                                    let idx = match_num_val(iv).unwrap_or(usize::MAX) as i64;
+                                    if idx < 0 || idx >= elements.len() as i64 {
+                                        return Ok(Value::Boolean(false));
+                                    }
+                                    return Ok(Value::Boolean(true));
+                                }
+                                _ => {
+                                    return Err(VeldError::RuntimeError(
+                                        "set() first argument must be an integer".to_string(),
+                                    ));
+                                }
+                            }
                         }
-
-                        let n = *n as usize;
-                        let new_elements = elements.iter().skip(n).cloned().collect();
-                        return Ok(Value::Array(new_elements));
-                    } else {
-                        return Err(VeldError::RuntimeError(
-                            "drop() argument must be an integer".to_string(),
-                        ));
-                    }
-                }
-                "len" => {
-                    if !args.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "len() takes no arguments".to_string(),
-                        ));
-                    }
-
-                    return Ok(Value::Integer(elements.len() as i64));
-                }
-                "map" => {
-                    if args.len() != 1 {
-                        return Err(VeldError::RuntimeError(
-                            "map() takes exactly one function argument".to_string(),
-                        ));
-                    }
-
-                    let func = &args[0];
-                    let mut result = Vec::new();
-
-                    for element in elements {
-                        let mapped =
-                            self.call_function_with_single_argument(func, element.clone())?;
-                        result.push(mapped);
-                    }
-
-                    return Ok(Value::Array(result));
-                }
-                "filter" => {
-                    if args.len() != 1 {
-                        return Err(VeldError::RuntimeError(
-                            "filter() takes exactly one function argument".to_string(),
-                        ));
-                    }
-
-                    let func = &args[0];
-                    let mut result = Vec::new();
-
-                    for element in elements {
-                        let pred_result =
-                            self.call_function_with_single_argument(func, element.clone())?;
-                        if self.is_truthy(pred_result) {
-                            result.push(element.clone());
+                        "last" => {
+                            if !args.is_empty() {
+                                return Err(VeldError::RuntimeError(
+                                    "last() takes no arguments".to_string(),
+                                ));
+                            }
+                            if elements.is_empty() {
+                                return Err(VeldError::RuntimeError(
+                                    "Cannot get last element of empty array".to_string(),
+                                ));
+                            }
+                            return Ok(elements.last().unwrap().clone());
+                        }
+                        "first" => {
+                            if !args.is_empty() {
+                                return Err(VeldError::RuntimeError(
+                                    "first() takes no arguments".to_string(),
+                                ));
+                            }
+                            if elements.is_empty() {
+                                return Err(VeldError::RuntimeError(
+                                    "Cannot get first element of empty array".to_string(),
+                                ));
+                            }
+                            return Ok(elements.first().unwrap().clone());
+                        }
+                        "init" => {
+                            if !args.is_empty() {
+                                return Err(VeldError::RuntimeError(
+                                    "init() takes no arguments".to_string(),
+                                ));
+                            }
+                            if elements.is_empty() {
+                                return Ok(Value::Array(vec![]));
+                            }
+                            let mut new_elements = elements.clone();
+                            new_elements.pop();
+                            return Ok(Value::Array(new_elements));
+                        }
+                        "tail" => {
+                            if !args.is_empty() {
+                                return Err(VeldError::RuntimeError(
+                                    "tail() takes no arguments".to_string(),
+                                ));
+                            }
+                            if elements.is_empty() {
+                                return Ok(Value::Array(vec![]));
+                            }
+                            let new_elements = elements.iter().skip(1).cloned().collect();
+                            return Ok(Value::Array(new_elements));
+                        }
+                        "with" => {
+                            if args.len() != 1 {
+                                return Err(VeldError::RuntimeError(
+                                    "with() takes exactly one argument".to_string(),
+                                ));
+                            }
+                            let mut new_elements = elements.clone();
+                            new_elements.push(args[0].clone());
+                            return Ok(Value::Array(new_elements));
+                        }
+                        "take" => {
+                            if args.len() != 1 {
+                                return Err(VeldError::RuntimeError(
+                                    "take() takes exactly one argument".to_string(),
+                                ));
+                            }
+                            if let Value::Integer(n) = &args[0] {
+                                if *n < 0 {
+                                    return Err(VeldError::RuntimeError(
+                                        "take() argument must be non-negative".to_string(),
+                                    ));
+                                }
+                                let n = *n as usize;
+                                let new_elements = elements.iter().take(n).cloned().collect();
+                                return Ok(Value::Array(new_elements));
+                            } else {
+                                return Err(VeldError::RuntimeError(
+                                    "take() argument must be an integer".to_string(),
+                                ));
+                            }
+                        }
+                        "drop" => {
+                            if args.len() != 1 {
+                                return Err(VeldError::RuntimeError(
+                                    "drop() takes exactly one argument".to_string(),
+                                ));
+                            }
+                            if let Value::Integer(n) = &args[0] {
+                                if *n < 0 {
+                                    return Err(VeldError::RuntimeError(
+                                        "drop() argument must be non-negative".to_string(),
+                                    ));
+                                }
+                                let n = *n as usize;
+                                let new_elements = elements.iter().skip(n).cloned().collect();
+                                return Ok(Value::Array(new_elements));
+                            } else {
+                                return Err(VeldError::RuntimeError(
+                                    "drop() argument must be an integer".to_string(),
+                                ));
+                            }
+                        }
+                        "len" => {
+                            if !args.is_empty() {
+                                return Err(VeldError::RuntimeError(
+                                    "len() takes no arguments".to_string(),
+                                ));
+                            }
+                            return Ok(Value::Integer(elements.len() as i64));
+                        }
+                        "is_empty" => {
+                            if !args.is_empty() {
+                                return Err(VeldError::RuntimeError(
+                                    "is_empty() takes no arguments".to_string(),
+                                ));
+                            }
+                            return Ok(Value::Boolean(elements.is_empty()));
+                        }
+                        "map" => {
+                            if args.len() != 1 {
+                                return Err(VeldError::RuntimeError(
+                                    "map() takes exactly one function argument".to_string(),
+                                ));
+                            }
+                            let func = &args[0];
+                            let mut result = Vec::new();
+                            for element in elements {
+                                let mapped =
+                                    self.call_function_with_single_argument(func, element.clone())?;
+                                result.push(mapped);
+                            }
+                            return Ok(Value::Array(result));
+                        }
+                        "filter" => {
+                            if args.len() != 1 {
+                                return Err(VeldError::RuntimeError(
+                                    "filter() takes exactly one function argument".to_string(),
+                                ));
+                            }
+                            let func = &args[0];
+                            let mut result = Vec::new();
+                            for element in elements {
+                                let pred_result =
+                                    self.call_function_with_single_argument(func, element.clone())?;
+                                if self.is_truthy(pred_result) {
+                                    result.push(element.clone());
+                                }
+                            }
+                            return Ok(Value::Array(result));
+                        }
+                        _ => {
+                            return Err(VeldError::RuntimeError(format!(
+                                "Method '{}' not found on array",
+                                method_name
+                            )));
                         }
                     }
-
-                    return Ok(Value::Array(result));
+                } else {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Method '{}' not found on array",
+                        method_name
+                    )));
                 }
-                _ => (), // Fallthrough to regular method handling
+            } else {
+                return Err(VeldError::RuntimeError(
+                    "Array type has no registered methods".to_string(),
+                ));
             }
         }
 

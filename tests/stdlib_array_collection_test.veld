@@ -3,12 +3,12 @@
 let an_array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 
-# let gotten = an_array.get(0)
-# let got = an_array.get(1)
+let gotten = an_array.get(0)
+let got = an_array.get(1)
 
-# let arr_res_bool = an_array.set(1, 100)
-# let arr_res_bool = an_array.set(2, 200)
+let arr_res_bool = an_array.set(1, 100)
+let arr_res_bool = an_array.set(2, 200)
 
 let arr_length = an_array.len()
 
-# let arr_empty = an_array.is_empty()
+let arr_empty = an_array.is_empty()
