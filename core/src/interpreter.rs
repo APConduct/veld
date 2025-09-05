@@ -5598,6 +5598,14 @@ impl Interpreter {
                             .collect();
                         self.type_checker.env().add_enum(&enum_name, variant_map);
 
+                        // Also register the enum as an identifier in the type environment
+                        // This allows enum types to be used in property access like Option.None
+                        let enum_type = crate::types::Type::Generic {
+                            base: enum_name.clone(),
+                            type_args: vec![],
+                        };
+                        self.type_checker.env().define(&enum_name, enum_type);
+
                         // Also add the enum name to the current scope as a "type value"
                         // This allows Option.None, Option.Some, etc
                         self.current_scope_mut().set(

@@ -1041,7 +1041,17 @@ impl TypeChecker {
                     }
                 }
             }
-            Expr::Record { fields: _ } => todo!("Record type inference"),
+            Expr::Record { fields: f } => {
+                // Fix: convert Vec<(String, Expr)> to HashMap<String, Type>
+                let mut field_types = std::collections::HashMap::new();
+                for (field_name, field_expr) in f {
+                    let field_type = self.infer_expression_type(field_expr)?;
+                    field_types.insert(field_name.clone(), field_type);
+                }
+                Ok(Type::Record {
+                    fields: field_types,
+                })
+            }
         };
         if let Ok(ref t) = result {
             tracing::debug!("Final inferred type for expression: {:?} -> {:?}", expr, t);
@@ -2335,6 +2345,7 @@ impl TypeChecker {
                 }
             }
             Type::Generic { base, type_args: _ } => {
+                // First check if it's a struct
                 if let Some(struct_fields) = self.env.structs().get(base) {
                     if let Some(field_type) = struct_fields.get(property) {
                         Ok(field_type.clone())
@@ -2344,8 +2355,38 @@ impl TypeChecker {
                             base, property
                         )))
                     }
+                }
+                // Then check if it's an enum
+                else if let Some(enum_variants) = self.env.enums.get(base) {
+                    if let Some(variant) = enum_variants.get(property) {
+                        match variant {
+                            EnumVariant::Simple => {
+                                // Return the generic enum type with the specific variant
+                                Ok(Type::Generic {
+                                    base: base.clone(),
+                                    type_args: vec![],
+                                })
+                            }
+                            EnumVariant::Tuple(types) => {
+                                // For tuple variants, we need to construct the variant type
+                                Ok(Type::Generic {
+                                    base: base.clone(),
+                                    type_args: types.clone(),
+                                })
+                            }
+                            EnumVariant::Struct(fields) => Ok(Type::Struct {
+                                name: property.to_string(),
+                                fields: fields.clone(),
+                            }),
+                        }
+                    } else {
+                        Err(VeldError::TypeError(format!(
+                            "Enum {} has no variant {}",
+                            base, property
+                        )))
+                    }
                 } else {
-                    Err(VeldError::TypeError(format!("Unknown struct: {}", base)))
+                    Err(VeldError::TypeError(format!("Unknown type: {}", base)))
                 }
             }
             Type::Enum { name, variants } => {

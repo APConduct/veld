@@ -5,8 +5,8 @@
       "enable_language_server": false,
       "format_on_save": "off"
     }
-  },
-  "file_types": {
-    "Elixir": ["veld"]
   }
+  // "file_types": {
+  //   "Elixir": ["veld"]
+  // }
 }
