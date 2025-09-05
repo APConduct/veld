@@ -144,6 +144,7 @@ pub enum Expr {
         enum_name: String,
         variant_name: String,
         fields: Vec<Expr>, // Fields for the variant if any
+        type_args: Option<Vec<TypeAnnotation>>,
     },
     TupleLiteral(Vec<Expr>), // (1, 2.0, "hello")
     TupleAccess {

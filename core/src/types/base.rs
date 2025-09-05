@@ -627,6 +627,11 @@ impl TypeEnvironment {
                         base: base.clone(),
                         type_args,
                     })
+                } else if self.enums.contains_key(base) {
+                    Ok(Type::Generic {
+                        base: base.clone(),
+                        type_args,
+                    })
                 } else {
                     Err(VeldError::TypeError(format!(
                         "Unknown generic type: {}",

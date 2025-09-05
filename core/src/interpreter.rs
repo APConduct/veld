@@ -646,6 +646,7 @@ impl Interpreter {
                 enum_name: _,
                 variant_name: _,
                 fields,
+                type_args,
             } => {
                 for expr in fields {
                     self.collect_free_variables_expr(expr, bound_vars, free_vars);
@@ -2268,6 +2269,7 @@ impl Interpreter {
                                 enum_name,
                                 variant_name,
                                 fields,
+                                type_args,
                             } => {
                                 // Check if enum exists
                                 if !self.enums.contains_key(&enum_name) {
@@ -5410,6 +5412,34 @@ impl Interpreter {
                         };
 
                         self.enums.insert(enum_name.clone(), variants.clone());
+                        // Register the enum in the type environment for type checking
+                        fn convert_ast_enum_variant_to_base(
+                            ast_variant: &crate::ast::EnumVariant,
+                        ) -> crate::types::EnumVariant {
+                            match &ast_variant.fields {
+                                None => crate::types::EnumVariant::Simple,
+                                Some(fields) => {
+                                    // For now, treat all as Tuple (adjust if you support named fields)
+                                    let tuple_types: Vec<crate::types::Type> = fields
+                                        .iter()
+                                        .map(|anno| {
+                                            crate::types::Type::from_annotation(anno, None)
+                                                .unwrap_or(crate::types::Type::Any)
+                                        })
+                                        .collect();
+                                    crate::types::EnumVariant::Tuple(tuple_types)
+                                }
+                            }
+                        }
+                        let variant_map: std::collections::HashMap<
+                            String,
+                            crate::types::EnumVariant,
+                        > = variants
+                            .iter()
+                            .map(|v| (v.name.clone(), convert_ast_enum_variant_to_base(v)))
+                            .collect();
+                        self.type_checker.env().add_enum(&enum_name, variant_map);
+
                         // Also add the enum name to the current scope as a "type value"
                         // This allows Option.None, Option.Some, etc
                         self.current_scope_mut().set(

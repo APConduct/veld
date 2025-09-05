@@ -1984,6 +1984,7 @@ impl Parser {
                                     enum_name: enum_name.clone(),
                                     variant_name,
                                     fields,
+                                    type_args: Some(Vec::new()),
                                 };
                                 continue;
                             }
@@ -3795,6 +3796,7 @@ mod tests {
                         enum_name,
                         variant_name,
                         fields,
+                        type_args,
                     } => {
                         assert_eq!(enum_name, "Shape");
                         assert_eq!(variant_name, "Circle");

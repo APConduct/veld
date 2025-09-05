@@ -271,8 +271,10 @@ impl TypeChecker {
                 _ => {} // TODO: Handle enum declarations
             }
         }
+        // Fix: type_check_statement expects &mut Statement, so we need to create mutable clones
         for stmt in statements {
-            self.type_check_statement(stmt)?;
+            let mut stmt_mut = stmt.clone();
+            self.type_check_statement(&mut stmt_mut)?;
         }
         Ok(())
     }
@@ -324,7 +326,7 @@ impl TypeChecker {
         Ok(())
     }
 
-    pub fn type_check_statement(&mut self, stmt: &Statement) -> Result<()> {
+    pub fn type_check_statement(&mut self, stmt: &mut Statement) -> Result<()> {
         match stmt {
             Statement::KindDeclaration { .. } => self.type_check_kind_declaration(stmt),
             Statement::Implementation { .. } => self.type_check_implementation(stmt),
@@ -362,7 +364,7 @@ impl TypeChecker {
                 name,
                 var_kind,
                 type_annotation.as_ref(),
-                value,
+                &mut **value,
             ),
 
             Statement::ExprStatement(expr) => {
@@ -404,7 +406,7 @@ impl TypeChecker {
             } => {
                 if !generic_params.is_empty() {
                     self.env.push_type_param_scope();
-                    for param in generic_params {
+                    for param in generic_params.clone() {
                         let param_name = match &param.name {
                             Some(name) => name.clone(),
                             None => {
@@ -480,7 +482,8 @@ impl TypeChecker {
 
         // Type check each statement in the function body
         for stmt in body {
-            self.type_check_statement(stmt)?;
+            let mut stmt_mut = stmt.clone();
+            self.type_check_statement(&mut stmt_mut)?;
         }
 
         // Restore the original environment
@@ -635,8 +638,28 @@ impl TypeChecker {
         name: &str,
         var_kind: &VarKind,
         type_annotation: Option<&TypeAnnotation>,
-        value: &Expr,
+        value: &mut Expr,
     ) -> Result<()> {
+        // Patch: Fill in missing type_args for EnumVariant from annotation
+        if let Expr::EnumVariant {
+            enum_name,
+            type_args,
+            ..
+        } = value
+        {
+            if type_args.is_none() {
+                if let Some(TypeAnnotation::Generic {
+                    base,
+                    type_args: anno_args,
+                }) = type_annotation
+                {
+                    if base == enum_name {
+                        *type_args = Some(anno_args.clone());
+                    }
+                }
+            }
+        }
+
         let value_type = self.infer_expression_type(value)?;
 
         let const_value = if matches!(var_kind, VarKind::Const) {
@@ -676,14 +699,16 @@ impl TypeChecker {
 
         self.env.push_scope();
         for stmt in then_branch {
-            self.type_check_statement(stmt)?;
+            let mut stmt_mut = stmt.clone();
+            self.type_check_statement(&mut stmt_mut)?;
         }
         self.env.pop_scope();
 
         if let Some(else_stmts) = else_branch {
             self.env.push_scope();
             for stmt in else_stmts {
-                self.type_check_statement(stmt)?;
+                let mut stmt_mut = stmt.clone();
+                self.type_check_statement(&mut stmt_mut)?;
             }
             self.env.pop_scope();
         }
@@ -696,7 +721,8 @@ impl TypeChecker {
         self.env.add_constraint(cond_type, Type::Bool);
         self.env.push_scope();
         for stmt in body {
-            self.type_check_statement(stmt)?;
+            let mut stmt_mut = stmt.clone();
+            self.type_check_statement(&mut stmt_mut)?;
         }
         self.env.pop_scope();
 
@@ -724,7 +750,8 @@ impl TypeChecker {
         self.env.define(iterator, iterator_type);
 
         for stmt in body {
-            self.type_check_statement(stmt)?;
+            let mut stmt_mut = stmt.clone();
+            self.type_check_statement(&mut stmt_mut)?;
         }
 
         self.env.pop_scope();
@@ -924,7 +951,8 @@ impl TypeChecker {
 
                 // Type check all statements
                 for stmt in statements {
-                    self.type_check_statement(stmt)?;
+                    let mut stmt_mut = stmt.clone();
+                    self.type_check_statement(&mut stmt_mut)?;
                 }
 
                 // Infer type from final expression or return unit
@@ -949,7 +977,7 @@ impl TypeChecker {
                 callee,
                 arguments
             ),
-            Expr::Record { fields } => todo!("Record type inference"),
+            Expr::Record { fields: _ } => todo!("Record type inference"),
         };
         if let Ok(ref t) = result {
             tracing::debug!("Final inferred type for expression: {:?} -> {:?}", expr, t);

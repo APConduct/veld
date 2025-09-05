@@ -1,0 +1,20 @@
+import std.result.{Result, ok}
+
+# Only use Result<i32, str>
+let foo: Result<i32, str> = Result.Err("fail")
+let bar: Result<i32, str> = Result.Ok(42)
+
+# let foofoo: Result<i32, str> = Result<i32, str>.Err("fail")
+# let barbar: Result<i32, str> = Result<i32, str>.Ok(42)
+
+
+let qux: Result<i32, str> = ok(69)
+
+# Use map and unwrap_or
+let mapped: Result<i32, str> = bar.map(x => x * 2)         # Should be Result.Ok(138)
+let mapped_err: Result<i32, str> = foo.map(x => x * 2)     # Should be Result.Err("fail")
+let unwrapped: i32 = bar.unwrap_or(0)                      # Should be 69
+let unwrapped_err: i32 = foo.unwrap_or(0)                  # Should be 0
+
+# Return all results as an array for easy verification
+let res: [Result<i32, str>] = [foo, bar, qux, mapped, mapped_err]
