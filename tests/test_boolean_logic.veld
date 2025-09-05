@@ -1,0 +1,129 @@
+# Primitive booleans
+let b_true = true
+let b_false = false
+
+let bool_eq_true = b_true == true      # should be true
+let bool_eq_false = b_false == false   # should be true
+let bool_neq = b_true != b_false       # should be true
+
+# Numeric comparisons
+let num_eq = 1 == 1                    # true
+let num_neq = 1 == 2                   # false
+let num_lt = 1 < 2                     # true
+let num_gt = 2 > 1                     # true
+
+# String comparisons
+let str_eq = "abc" == "abc"            # true
+let str_neq = "abc" == "def"           # false
+
+# Record equality
+let r1 = { x: 1, y: 2 }
+let r2 = { x: 1, y: 2 }
+let r3 = { x: 2, y: 2 }
+let rec_eq = r1 == r2                  # true
+let rec_neq = r1 == r3                 # false
+
+# Array equality
+let arr1 = [1, 2, 3]
+let arr2 = [1, 2, 3]
+let arr3 = [1, 2, 4]
+let arr_eq = arr1 == arr2              # true
+let arr_neq = arr1 == arr3             # false
+
+# Tuple equality
+let tup1 = (1, "a")
+let tup2 = (1, "a")
+let tup3 = (2, "a")
+let tup_eq = tup1 == tup2              # true
+let tup_neq = tup1 == tup3             # false
+
+# Enum equality
+enum Color
+    Red,
+    Blue,
+end
+
+let c1 = Color.Red
+let c2 = Color.Red
+let c3 = Color.Blue
+let enum_eq = c1 == c2                 # true
+let enum_neq = c1 == c3                # false
+
+# Logical operators
+let and_true = true and true           # true
+let and_false = true and false         # false
+let or_true = true or false            # true
+let or_false = false or false          # false
+let not_true = !true                   # false
+let not_false = !false                 # true
+
+# Truthiness checks
+let zero_false = 0 == true             # false
+let nonzero_true = 1 == true           # false
+let empty_str_false = "" == true       # false
+let nonempty_str_true = "x" == true    # false
+
+# ... (all your test variables from before)
+
+# ... (all your test variables from before)
+
+let results = [
+    bool_eq_true,      # 1
+    bool_eq_false,     # 2
+    bool_neq,          # 3
+    num_eq,            # 4
+    num_neq,           # 5
+    num_lt,            # 6
+    num_gt,            # 7
+    str_eq,            # 8
+    str_neq,           # 9
+    rec_eq,            # 10
+    rec_neq,           # 11
+    arr_eq,            # 12
+    arr_neq,           # 13
+    tup_eq,            # 14
+    tup_neq,           # 15
+    enum_eq,           # 16
+    enum_neq,          # 17
+    and_true,          # 18
+    and_false,         # 19
+    or_true,           # 20
+    or_false,          # 21
+    not_true,          # 22
+    not_false,         # 23
+    zero_false,        # 24
+    nonzero_true,      # 25
+    empty_str_false,   # 26
+    nonempty_str_true, # 27
+]
+
+# Expected value for array
+# let expected = [
+#     true,   # bool_eq_true
+#     true,   # bool_eq_false
+#     true,   # bool_neq
+#     true,   # num_eq
+#     false,  # num_neq
+#     true,   # num_lt
+#     true,   # num_gt
+#     true,   # str_eq
+#     false,  # str_neq
+#     true,   # rec_eq
+#     false,  # rec_neq
+#     true,   # arr_eq
+#     false,  # arr_neq
+#     true,   # tup_eq
+#     false,  # tup_neq
+#     true,   # enum_eq
+#     false,  # enum_neq
+#     true,   # and_true
+#     false,  # and_false
+#     true,   # or_true
+#     false,  # or_false
+#     false,  # not_true
+#     true,   # not_false
+#     false,  # zero_false (0 == true)
+#     false,  # nonzero_true (1 == true)
+#     false,  # empty_str_false ("" == true)
+#     false,  # nonempty_str_true ("x" == true)
+# ]

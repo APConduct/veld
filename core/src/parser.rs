@@ -2815,15 +2815,16 @@ impl Parser {
             return Ok(Expr::ArrayLiteral(elements));
         }
 
-        // Parse array elements
         loop {
             elements.push(self.expression()?);
 
             if self.match_token(&[Token::Comma]) {
+                if self.check(&Token::RBracket) {
+                    break;
+                }
                 continue;
             }
 
-            // Allow trailing comma
             if self.check(&Token::RBracket) {
                 break;
             }

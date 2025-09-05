@@ -1,0 +1,49 @@
+pub enum Either<Left, Right>
+    Left(Left),
+    Right(Right),
+end
+
+
+impl<Left, Right> Either<Left, Right>
+  pub fn is_left(self) -> bool
+    match self
+      Either::Left(_) => true,
+      Either::Right(_) => false,
+    end
+  end
+
+  pub fn is_right(self) -> bool
+    match self
+      Either::Left(_) => false,
+      Either::Right(_) => true,
+    end
+  end
+
+  pub fn map_left<F, NewLeft>(self, f: F) -> Either<NewLeft, Right>
+    match self
+      Either::Left(left) => Either::Left(f(left)),
+      Either::Right(right) => Either::Right(right),
+    end
+  end
+
+  pub fn map_right<F, NewRight>(self, f: F) -> Either<Left, NewRight>
+    match self
+      Either::Left(left) => Either::Left(left),
+      Either::Right(right) => Either::Right(f(right)),
+    end
+  end
+
+  pub fn left_or(self, default: Left) -> Left
+    match self
+      Either::Left(left) => left,
+      Either::Right(_) => default,
+    end
+  end
+
+  pub fn right_or(self, default: Right) -> Right
+    match self
+      Either::Left(_) => default,
+      Either::Right(right) => right,
+    end
+  end
+end

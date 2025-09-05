@@ -1025,7 +1025,15 @@ impl Interpreter {
                             value,
                         } => self.execute_compound_assignment(name, operator, value)?,
                         Statement::EnumDeclaration { name, variants, .. } => {
-                            self.enums.insert(name, variants);
+                            self.enums.insert(name.clone(), variants);
+                            // Register the enum type in the environment so Color.Red works
+                            self.current_scope_mut().set(
+                                name.clone(),
+                                Value::EnumType {
+                                    name: name.clone(),
+                                    methods: None,
+                                },
+                            );
                             Ok(Value::Unit)
                         }
                         Statement::Break => Ok(Value::Break),
@@ -5001,6 +5009,56 @@ impl Interpreter {
             (Value::Boolean(a), Value::Boolean(b)) => a == b,
             (Value::Char(a), Value::Char(b)) => a == b,
             (Value::Unit, Value::Unit) => true,
+            (Value::Numeric(a), Value::Numeric(b)) => a.clone().as_f64() == b.clone().as_f64(),
+            (Value::Integer(a), Value::Integer(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            (Value::Array(a), Value::Array(b)) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| self.values_equal(x, y))
+            }
+            (Value::Tuple(a), Value::Tuple(b)) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| self.values_equal(x, y))
+            }
+            (Value::Record(a), Value::Record(b)) => {
+                a.len() == b.len()
+                    && a.iter()
+                        .all(|(k, v)| b.get(k).map_or(false, |bv| self.values_equal(v, bv)))
+            }
+            (
+                Value::Struct {
+                    name: an,
+                    fields: af,
+                },
+                Value::Struct {
+                    name: bn,
+                    fields: bf,
+                },
+            ) => {
+                an == bn
+                    && af.len() == bf.len()
+                    && af
+                        .iter()
+                        .all(|(k, v)| bf.get(k).map_or(false, |bv| self.values_equal(v, bv)))
+            }
+            (
+                Value::Enum {
+                    enum_name: an,
+                    variant_name: av,
+                    fields: af,
+                },
+                Value::Enum {
+                    enum_name: bn,
+                    variant_name: bv,
+                    fields: bf,
+                },
+            ) => {
+                an == bn
+                    && av == bv
+                    && af.len() == bf.len()
+                    && af
+                        .iter()
+                        .zip(bf.iter())
+                        .all(|(x, y)| self.values_equal(x, y))
+            }
             _ => false,
         }
     }
@@ -5095,10 +5153,7 @@ impl Interpreter {
             BinaryOperator::EqualEqual | BinaryOperator::NotEqual => {
                 let is_equal = match (&left_numeric, &right_numeric) {
                     (Some(a), Some(b)) => self.numeric_values_equal(a, b),
-                    _ => self.values_equal(
-                        &self.from_numeric_option(left_numeric),
-                        &self.from_numeric_option(right_numeric),
-                    ),
+                    _ => self.values_equal(&left, &right),
                 };
 
                 let result = match operator {
@@ -5111,8 +5166,8 @@ impl Interpreter {
 
             // Logical operators
             BinaryOperator::And | BinaryOperator::Or => {
-                let left_val = self.from_numeric_option(left_numeric);
-                let right_val = self.from_numeric_option(right_numeric);
+                let left_val = left;
+                let right_val = right;
 
                 match operator {
                     BinaryOperator::And => Ok(Value::Boolean(
