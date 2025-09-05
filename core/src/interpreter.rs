@@ -5549,6 +5549,51 @@ impl Interpreter {
                                 Value::Unit, // Placeholder, could use a special EnumVariant value
                             );
                         }
+
+                        // Also import any impl blocks for this enum
+                        for (_stmt_idx, stmt) in module_statements.iter().enumerate() {
+                            if let Statement::InherentImpl {
+                                type_name, methods, ..
+                            } = stmt
+                            {
+                                if type_name == &enum_name {
+                                    // Execute the impl block to register methods
+                                    self.execute_implementation(
+                                        type_name.clone(),
+                                        methods.clone(),
+                                    )?;
+
+                                    // Also add methods to type environment for type checking
+                                    for method in methods {
+                                        let param_types: Vec<crate::types::Type> = method
+                                            .params
+                                            .iter()
+                                            .map(|(_, type_annotation)| {
+                                                crate::types::Type::from_annotation(
+                                                    type_annotation,
+                                                    None,
+                                                )
+                                                .unwrap_or(crate::types::Type::Any)
+                                            })
+                                            .collect();
+                                        let return_type = crate::types::Type::from_annotation(
+                                            &method.return_type,
+                                            None,
+                                        )
+                                        .unwrap_or(crate::types::Type::Any);
+                                        let function_type = crate::types::Type::Function {
+                                            params: param_types,
+                                            return_type: Box::new(return_type),
+                                        };
+                                        self.type_checker.env().add_enum_method(
+                                            type_name,
+                                            &method.name,
+                                            function_type,
+                                        );
+                                    }
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }

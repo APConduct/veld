@@ -1774,6 +1774,127 @@ impl TypeChecker {
                 }
             }
 
+            Type::Enum { name, .. } => {
+                let name = name.clone();
+
+                // Extract method type first to avoid borrow conflicts
+                let method_type = {
+                    if let Some(methods) = self.env.get_enum_methods(&name) {
+                        methods.get(method).cloned()
+                    } else {
+                        None
+                    }
+                };
+
+                match method_type {
+                    Some(method_type) => {
+                        match method_type {
+                            Type::Function {
+                                params,
+                                return_type,
+                            } => {
+                                // Clone params and return_type to avoid borrow issues
+                                let params = params.clone();
+                                let return_type = *return_type;
+
+                                // First param is self
+                                if params.len() - 1 != args.len() {
+                                    return Err(VeldError::TypeError(format!(
+                                        "Method {} expects {} arguments, got {}",
+                                        method,
+                                        params.len() - 1,
+                                        args.len()
+                                    )));
+                                }
+
+                                // Check argument types (skip first param which is self)
+                                for (i, arg) in args.iter().enumerate() {
+                                    let arg_expr = match arg {
+                                        Argument::Positional(expr) => expr,
+                                        Argument::Named { name: _, value } => value,
+                                    };
+
+                                    let arg_type = self.infer_expression_type(arg_expr)?;
+                                    self.env.add_constraint(arg_type, params[i + 1].clone());
+                                }
+
+                                self.env.solve_constraints()?;
+                                Ok(return_type)
+                            }
+                            _ => Err(VeldError::TypeError(format!(
+                                "{}.{} is not a method",
+                                name, method
+                            ))),
+                        }
+                    }
+                    None => Err(VeldError::TypeError(format!(
+                        "Method {} not found on {}",
+                        method, name
+                    ))),
+                }
+            }
+
+            Type::Generic { base, .. } => {
+                // Handle method calls on generic types (like Result<T, E>)
+                let base_name = base.clone();
+
+                // Extract method type first to avoid borrow conflicts
+                let method_type = {
+                    if let Some(methods) = self.env.get_enum_methods(&base_name) {
+                        methods.get(method).cloned()
+                    } else {
+                        None
+                    }
+                };
+
+                match method_type {
+                    Some(method_type) => {
+                        match method_type {
+                            Type::Function {
+                                params,
+                                return_type,
+                            } => {
+                                // Clone params and return_type to avoid borrow issues
+                                let params = params.clone();
+                                let return_type = *return_type;
+
+                                // First param is self
+                                if params.len() - 1 != args.len() {
+                                    return Err(VeldError::TypeError(format!(
+                                        "Method {} expects {} arguments, got {}",
+                                        method,
+                                        params.len() - 1,
+                                        args.len()
+                                    )));
+                                }
+
+                                // Check argument types (skip first param which is self)
+                                for (i, arg) in args.iter().enumerate() {
+                                    let arg_expr = match arg {
+                                        Argument::Positional(expr) => expr,
+                                        Argument::Named { name: _, value } => value,
+                                    };
+
+                                    let arg_type = self.infer_expression_type(arg_expr)?;
+                                    self.env.add_constraint(arg_type, params[i + 1].clone());
+                                }
+
+                                self.env.solve_constraints()?;
+                                Ok(return_type)
+                            }
+                            _ => Err(VeldError::TypeError(format!(
+                                "{}.{} is not a method",
+                                base_name, method
+                            ))),
+                        }
+                    }
+                    None => Err(VeldError::TypeError(format!(
+                        "Method {} not found on {}",
+                        method, base_name
+                    ))),
+                }
+            }
+
             _ => Err(VeldError::TypeError(format!(
                 "Type {} does not have methods",
                 obj_type

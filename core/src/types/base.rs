@@ -515,6 +515,10 @@ impl TypeEnvironment {
         methods.insert(method_name.to_string(), method_type);
     }
 
+    pub fn get_enum_methods(&self, enum_name: &str) -> Option<&HashMap<String, Type>> {
+        self.enum_methods.get(enum_name)
+    }
+
     pub fn push_type_param_scope(&mut self) {
         self.type_params.push(HashSet::new());
     }
