@@ -1,0 +1,27 @@
+import std.result.{Result, ok}
+
+# Test basic Result creation
+let success: Result<i32, str> = Result.Ok(100)
+let failure: Result<i32, str> = Result.Err("error message")
+
+# Test without explicit type annotations (should still work)
+let success2 = Result.Ok(200)
+let failure2 = Result.Err("another error")
+
+# Test method calls
+let mapped_success = success.map(x => x * 2)
+let mapped_failure = failure.map(x => x * 2)
+
+let unwrapped_success = success.unwrap_or(0)
+let unwrapped_failure = failure.unwrap_or(0)
+
+# Test array of Results
+let results = [success, failure, success2, failure2, mapped_success, mapped_failure]
+
+# Verify values
+let verification = [
+    unwrapped_success,  # Should be 100
+    unwrapped_failure   # Should be 0
+]
+
+verification
