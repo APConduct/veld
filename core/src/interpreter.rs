@@ -115,17 +115,38 @@ impl Interpreter {
         let span = tracing::info_span!("interpret", statement_count = statements.len());
         let _enter = span.enter();
 
-        // First pass: register all function declarations
+        // First pass: execute imports and register all declarations
         for stmt in &statements {
-            if let Statement::FunctionDeclaration { .. } = stmt {
-                self.execute_statement(stmt.clone())?;
+            match stmt {
+                Statement::ImportDeclaration { .. } => {
+                    self.execute_statement(stmt.clone())?;
+                }
+                Statement::FunctionDeclaration { .. } => {
+                    self.execute_statement(stmt.clone())?;
+                }
+                Statement::StructDeclaration { .. } => {
+                    self.execute_statement(stmt.clone())?;
+                }
+                Statement::EnumDeclaration { .. } => {
+                    self.execute_statement(stmt.clone())?;
+                }
+                _ => {}
             }
         }
+
+        // Now type check the program after imports and declarations are processed
+        self.type_checker.check_program(&statements)?;
 
         // Second pass: execute everything else
         let mut last_value = Value::Unit;
         for stmt in statements {
-            if !matches!(stmt, Statement::FunctionDeclaration { .. }) {
+            if !matches!(
+                stmt,
+                Statement::FunctionDeclaration { .. }
+                    | Statement::ImportDeclaration { .. }
+                    | Statement::StructDeclaration { .. }
+                    | Statement::EnumDeclaration { .. }
+            ) {
                 last_value = self.execute_statement(stmt)?;
             }
         }
@@ -1571,6 +1592,21 @@ impl Interpreter {
         if let Some(type_anno) = type_annotation {
             let expected_type = self.type_checker.env().from_annotation(&type_anno, None)?;
             self.validate_value_type(&evaluated_value, &expected_type)?;
+
+            // For arrays, perform additional strict type checking
+            if let (Value::Array(elements), Type::Array(expected_elem_type)) =
+                (&evaluated_value, &expected_type)
+            {
+                for (i, element) in elements.iter().enumerate() {
+                    let elem_type = self.get_value_type(element);
+                    if !self.types_compatible(&elem_type, expected_elem_type) {
+                        return Err(VeldError::RuntimeError(format!(
+                            "Array element {} type mismatch: expected {}, got {}",
+                            i, expected_elem_type, elem_type
+                        )));
+                    }
+                }
+            }
         }
 
         // Store variable with kind information
@@ -1605,6 +1641,19 @@ impl Interpreter {
             )));
         }
 
+        // For arrays, also validate element types
+        if let (Value::Array(elements), Type::Array(expected_elem_type)) = (value, expected_type) {
+            for element in elements {
+                let elem_type = self.get_value_type(element);
+                if !self.types_compatible(&elem_type, expected_elem_type) {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Array element type mismatch: expected {}, got {}",
+                        expected_elem_type, elem_type
+                    )));
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -1622,6 +1671,16 @@ impl Interpreter {
                     Type::Array(Box::new(Type::Any))
                 } else {
                     let elem_type = self.get_value_type(&elements[0]);
+
+                    // Verify all elements have the same type
+                    for element in elements.iter().skip(1) {
+                        let element_type = self.get_value_type(element);
+                        if !self.types_compatible(&elem_type, &element_type) {
+                            // If types aren't compatible, fall back to Any
+                            return Type::Array(Box::new(Type::Any));
+                        }
+                    }
+
                     Type::Array(Box::new(elem_type))
                 }
             }
@@ -2216,8 +2275,24 @@ impl Interpreter {
                             }
                             Expr::ArrayLiteral(elements) => {
                                 let mut values = Vec::new();
+                                let mut expected_type: Option<Type> = None;
+
                                 for element in elements {
-                                    values.push(self.evaluate_expression(element)?.unwrap_return());
+                                    let value = self.evaluate_expression(element)?.unwrap_return();
+                                    let value_type = value.type_of();
+
+                                    if let Some(ref expected) = expected_type {
+                                        if !self.types_compatible(&value_type, expected) {
+                                            return Err(VeldError::RuntimeError(format!(
+                                                "Array elements must have the same type. Expected {}, got {}",
+                                                expected, value_type
+                                            )));
+                                        }
+                                    } else {
+                                        expected_type = Some(value_type);
+                                    }
+
+                                    values.push(value);
                                 }
                                 Ok(Value::Array(values))
                             }
@@ -5384,6 +5459,23 @@ impl Interpreter {
                                 captured_vars: HashMap::new(), // No captured vars for imports
                             };
                             self.current_scope_mut().set(name.clone(), function);
+
+                            // Also add function to type environment for type checking
+                            let param_types: Vec<crate::types::Type> = params
+                                .iter()
+                                .map(|(_, type_annotation)| {
+                                    crate::types::Type::from_annotation(type_annotation, None)
+                                        .unwrap_or(crate::types::Type::Any)
+                                })
+                                .collect();
+                            let return_type =
+                                crate::types::Type::from_annotation(return_type, None)
+                                    .unwrap_or(crate::types::Type::Any);
+                            let function_type = crate::types::Type::Function {
+                                params: param_types,
+                                return_type: Box::new(return_type),
+                            };
+                            self.type_checker.env().define(&name, function_type);
                         }
                     }
                     ExportedItem::Struct(idx) => {

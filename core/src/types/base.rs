@@ -365,7 +365,7 @@ pub struct TypeEnvironment {
 
     struct_methods: HashMap<String, HashMap<String, Type>>,
 
-    enums: HashMap<String, HashMap<String, EnumVariant>>,
+    pub enums: HashMap<String, HashMap<String, EnumVariant>>,
 
     enum_methods: HashMap<String, HashMap<String, Type>>,
 

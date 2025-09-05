@@ -661,6 +661,7 @@ impl TypeChecker {
         }
 
         let value_type = self.infer_expression_type(value)?;
+        tracing::debug!("Variable '{}' value type: {:?}", name, value_type);
 
         let const_value = if matches!(var_kind, VarKind::Const) {
             Some(self.evaluate_const_expr(value)?)
@@ -670,6 +671,25 @@ impl TypeChecker {
 
         let var_type = if let Some(anno) = type_annotation {
             let specified_type = self.env.from_annotation(anno, None)?;
+            tracing::debug!("Variable '{}' specified type: {:?}", name, specified_type);
+
+            // For arrays, be extra strict about type checking
+            if let (Type::Array(expected_elem), Type::Array(actual_elem)) =
+                (&specified_type, &value_type)
+            {
+                if !self.types_compatible(actual_elem, expected_elem) {
+                    return Err(VeldError::TypeError(format!(
+                        "Type mismatch for variable '{}': expected array of {}, got array of {}",
+                        name, expected_elem, actual_elem
+                    )));
+                }
+            } else if !self.types_compatible(&value_type, &specified_type) {
+                return Err(VeldError::TypeError(format!(
+                    "Type mismatch for variable '{}': expected {}, got {}",
+                    name, specified_type, value_type
+                )));
+            }
+
             self.env
                 .add_constraint(value_type.clone(), specified_type.clone());
             specified_type
@@ -677,7 +697,9 @@ impl TypeChecker {
             value_type
         };
 
+        self.env.solve_constraints()?;
         let final_type = self.env.apply_substitutions(&var_type);
+        tracing::debug!("Variable '{}' final type: {:?}", name, final_type);
 
         self.var_info.insert(
             name.to_string(),
@@ -966,17 +988,59 @@ impl TypeChecker {
                 Ok(result_type)
             }
             Expr::UnaryOp { operator, operand } => self.infer_unary_op_type(operator, operand),
-            Expr::EnumVariant { .. } => todo!("Enum variant type inference"),
+            Expr::EnumVariant {
+                enum_name,
+                variant_name,
+                fields,
+                type_args,
+            } => self.infer_enum_variant_type(enum_name, variant_name, fields, type_args.as_ref()),
             Expr::SelfReference { .. } => todo!("Self reference in expression"),
             Expr::TupleLiteral(_) => todo!("Tuple literal type inference"),
             Expr::TupleAccess { .. } => todo!("Tuple access type inference"),
             Expr::MacroExpr { .. } => todo!("Macro expression type inference"),
             Expr::MacroVar(_) => todo!("Macro variable type inference"),
-            Expr::Call { callee, arguments } => todo!(
-                "Call expression type inference: {:?} with args: {:?}",
-                callee,
-                arguments
-            ),
+            Expr::Call { callee, arguments } => {
+                let callee_type = self.infer_expression_type(callee)?;
+
+                match callee_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        if params.len() != arguments.len() {
+                            return Err(VeldError::TypeError(format!(
+                                "Function call expects {} arguments, but {} were provided",
+                                params.len(),
+                                arguments.len()
+                            )));
+                        }
+
+                        for (i, arg) in arguments.iter().enumerate() {
+                            let arg_expr = match arg {
+                                Argument::Positional(expr) => expr,
+                                Argument::Named { name: _, value } => value,
+                            };
+
+                            let arg_type = self.infer_expression_type(arg_expr)?;
+                            self.env.add_constraint(arg_type, params[i].clone());
+                        }
+
+                        self.env.solve_constraints()?;
+                        Ok(*return_type)
+                    }
+                    _ => {
+                        // Try to treat as function call by identifier name
+                        if let Expr::Identifier(name) = &**callee {
+                            self.infer_function_call_type(name, arguments)
+                        } else {
+                            Err(VeldError::TypeError(format!(
+                                "Cannot call non-function value of type {}",
+                                callee_type
+                            )))
+                        }
+                    }
+                }
+            }
             Expr::Record { fields: _ } => todo!("Record type inference"),
         };
         if let Ok(ref t) = result {
@@ -1451,6 +1515,34 @@ impl TypeChecker {
             (Type::Any, _) | (_, Type::Any) => true,
 
             (TypeVar(_), _) | (_, TypeVar(_)) => true,
+
+            // For arrays, check element types recursively
+            (Type::Array(elem1), Type::Array(elem2)) => self.types_compatible(elem1, elem2),
+
+            // For generic types, check base and all type arguments
+            (
+                Type::Generic {
+                    base: base1,
+                    type_args: args1,
+                },
+                Type::Generic {
+                    base: base2,
+                    type_args: args2,
+                },
+            ) => {
+                base1 == base2
+                    && args1.len() == args2.len()
+                    && args1
+                        .iter()
+                        .zip(args2.iter())
+                        .all(|(a1, a2)| self.types_compatible(a1, a2))
+            }
+
+            // For structs, check names match
+            (Type::Struct { name: name1, .. }, Type::Struct { name: name2, .. }) => name1 == name2,
+
+            // For enums, check names match
+            (Type::Enum { name: name1, .. }, Type::Enum { name: name2, .. }) => name1 == name2,
 
             _ if self.is_numeric_type(&t1) && self.is_numeric_type(&t2) => true,
             _ => false,
@@ -1955,17 +2047,63 @@ impl TypeChecker {
 
         // Infer type of first element
         let first_type = self.infer_expression_type(&elements[0])?;
+        tracing::debug!("Array first element type: {:?}", first_type);
 
-        // Check all elements have the same type
-        for elem in elements.iter().skip(1) {
+        // Check all elements have the same type - be more strict
+        for (i, elem) in elements.iter().skip(1).enumerate() {
             let elem_type = self.infer_expression_type(elem)?;
+            tracing::debug!("Array element {} type: {:?}", i + 1, elem_type);
+
+            // Add strict constraint that elements must match exactly
+            if !self.types_compatible(&elem_type, &first_type) {
+                return Err(VeldError::TypeError(format!(
+                    "Array elements must have the same type. First element has type {}, but element {} has type {}",
+                    first_type,
+                    i + 1,
+                    elem_type
+                )));
+            }
+
             self.env.add_constraint(elem_type, first_type.clone());
         }
 
         self.env.solve_constraints()?;
 
         let elem_type = self.env.apply_substitutions(&first_type);
+        tracing::debug!("Final array element type: {:?}", elem_type);
         Ok(Type::Array(Box::new(elem_type)))
+    }
+
+    fn infer_enum_variant_type(
+        &mut self,
+        enum_name: &str,
+        variant_name: &str,
+        fields: &[Expr],
+        type_args: Option<&Vec<TypeAnnotation>>,
+    ) -> Result<Type> {
+        // Check if the enum exists
+        if !self.env.enums.contains_key(enum_name) {
+            return Err(VeldError::TypeError(format!("Unknown enum: {}", enum_name)));
+        }
+
+        // For now, if type arguments are provided, create a generic type
+        if let Some(args) = type_args {
+            let type_arg_types = args
+                .iter()
+                .map(|arg| self.env.from_annotation(arg, None))
+                .collect::<Result<Vec<_>>>()?;
+
+            return Ok(Type::Generic {
+                base: enum_name.to_string(),
+                type_args: type_arg_types,
+            });
+        }
+
+        // For simple enums without type arguments, return the enum type
+        Ok(Type::Enum {
+            name: enum_name.to_string(),
+            variants: self.env.enums.get(enum_name).unwrap().clone(),
+        })
     }
 
     fn check_generic_arg_compatability(

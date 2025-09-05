@@ -1,0 +1,23 @@
+# Test valid homogeneous arrays
+
+# Test with integers - should work
+let numbers = [1, 2, 3, 4, 5]
+
+# Test with strings - should work  
+let words = ["hello", "world", "test"]
+
+# Test with floats - should work
+let decimals = [1.0, 2.5, 3.14, 4.7]
+
+# Test with booleans - should work
+let flags = [true, false, true, true]
+
+# Test empty array - should work
+let empty = []
+
+# Single element arrays - should work
+let single_int = [42]
+let single_str = ["solo"]
+
+# Print some results to verify they work
+let result = numbers

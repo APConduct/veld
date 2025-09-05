@@ -1,0 +1,11 @@
+import std.result.{Result, ok}
+
+# Simple test that should work
+let test1 = ok(42)
+let test2 = Result.Ok(100)
+let test3 = Result.Err("error message")
+
+# Test that the values are created correctly
+test1
+test2
+test3

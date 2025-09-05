@@ -1,0 +1,10 @@
+# Basic array type checking test
+
+# Test with homogeneous integer arrays - should work
+let numbers = [1, 2, 3, 4, 5]
+
+# Test with homogeneous string arrays - should work  
+let words = ["hello", "world", "test"]
+
+# Test with mixed types - should fail
+let mixed = [1, "hello", 3.14]
