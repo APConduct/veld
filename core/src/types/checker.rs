@@ -18,8 +18,13 @@ pub struct TypeChecker {
 
 impl TypeChecker {
     pub fn new() -> Self {
+        let mut env = TypeEnvironment::new();
+
+        // Add std as a module identifier so property access like std.option.some works
+        env.define("std", crate::types::Type::Module("std".to_string()));
+
         Self {
-            env: TypeEnvironment::new(),
+            env,
             current_function_return_type: None,
             var_info: HashMap::new(),
         }
@@ -1914,6 +1919,104 @@ impl TypeChecker {
 
             Type::String => self.infer_string_method_call_type(method, args),
 
+            Type::Module(module_path) => {
+                // Handle module function calls like std.option.some(69)
+                // This is parsed as a method call on the module, but we treat it as a function call
+                let function_path = format!("{}.{}", module_path, method);
+
+                // For now, we'll assume it's a function and try to infer its type
+                // In a more complete implementation, we'd look up the function in the module
+                // For stdlib functions, we can hardcode some known types
+                match function_path.as_str() {
+                    "std.option.some" => {
+                        // some<T>(value: T) -> Option<T>
+                        if args.len() != 1 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function some expects 1 argument, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        let arg_expr = match &args[0] {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { name: _, value } => value,
+                        };
+
+                        let arg_type = self.infer_expression_type(arg_expr)?;
+
+                        // Return Option<T> where T is the argument type
+                        Ok(Type::Generic {
+                            base: "Option".to_string(),
+                            type_args: vec![arg_type],
+                        })
+                    }
+                    "std.option.none" => {
+                        // none<T>() -> Option<T>
+                        if !args.is_empty() {
+                            return Err(VeldError::TypeError(format!(
+                                "Function none expects 0 arguments, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        // Return Option<Any> since we can't infer the type parameter
+                        Ok(Type::Generic {
+                            base: "Option".to_string(),
+                            type_args: vec![Type::Any],
+                        })
+                    }
+                    "std.result.ok" => {
+                        // ok<T, E>(value: T) -> Result<T, E>
+                        if args.len() != 1 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function ok expects 1 argument, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        let arg_expr = match &args[0] {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { name: _, value } => value,
+                        };
+
+                        let arg_type = self.infer_expression_type(arg_expr)?;
+
+                        // Return Result<T, Any> where T is the argument type
+                        Ok(Type::Generic {
+                            base: "Result".to_string(),
+                            type_args: vec![arg_type, Type::Any],
+                        })
+                    }
+                    "std.result.err" => {
+                        // err<T, E>(error: E) -> Result<T, E>
+                        if args.len() != 1 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function err expects 1 argument, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        let arg_expr = match &args[0] {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { name: _, value } => value,
+                        };
+
+                        let arg_type = self.infer_expression_type(arg_expr)?;
+
+                        // Return Result<Any, E> where E is the argument type
+                        Ok(Type::Generic {
+                            base: "Result".to_string(),
+                            type_args: vec![Type::Any, arg_type],
+                        })
+                    }
+                    _ => {
+                        // For unknown module functions, return Any for now
+                        // In a complete implementation, we'd look up the function signature
+                        Ok(Type::Any)
+                    }
+                }
+            }
+
             _ => Err(VeldError::TypeError(format!(
                 "Type {} does not have methods",
                 obj_type
@@ -2413,6 +2516,11 @@ impl TypeChecker {
                     property
                 ))),
             },
+            Type::Module(module_name) => {
+                // For module access like std.option, return another module type
+                // This allows chaining like std.option.some
+                Ok(Type::Module(format!("{}.{}", module_name, property)))
+            }
             _ => Err(VeldError::TypeError(format!(
                 "Cannot access property {} of non-struct type {}",
                 property, object_type

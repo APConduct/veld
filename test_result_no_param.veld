@@ -1,3 +1,0 @@
-import std.result.{Result}
-
-let foo = Result.Ok
