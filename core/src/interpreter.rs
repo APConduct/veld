@@ -1728,15 +1728,104 @@ impl Interpreter {
                     return_type: Box::new(ret_type),
                 }
             }
+            Value::Enum {
+                enum_name,
+                variant_name: _,
+                fields: _,
+            } => {
+                // For enum values, we need to determine if it's a generic enum or simple enum
+                // Check if this is a generic enum like Result<T, E>
+                if enum_name == "Result" || enum_name == "Option" {
+                    // For imported generic enums, return a generic type
+                    Type::Generic {
+                        base: enum_name.clone(),
+                        type_args: vec![], // Empty for now - could be enhanced to infer from fields
+                    }
+                } else if let Some(_variants) = self.enums.get(enum_name) {
+                    // For locally defined enums, we would need to convert ast::EnumVariant to types::base::EnumVariant
+                    // For now, treat as generic to avoid type conversion issues
+                    Type::Generic {
+                        base: enum_name.clone(),
+                        type_args: vec![],
+                    }
+                } else {
+                    // Default case for unknown enums
+                    Type::Generic {
+                        base: enum_name.clone(),
+                        type_args: vec![],
+                    }
+                }
+            }
             _ => Type::Any,
         }
     }
 
     fn types_compatible(&self, actual: &Type, expected: &Type) -> bool {
         // Implement your type compatibility rules
-        actual == expected
-            || matches!(expected, Type::Any)
-            || (self.is_numeric_type_compat(actual) && self.is_numeric_type_compat(expected))
+        match (actual, expected) {
+            // Exact match
+            (a, b) if a == b => true,
+            // Any type is compatible with anything
+            (_, Type::Any) | (Type::Any, _) => true,
+            // Numeric type compatibility
+            (a, b) if self.is_numeric_type_compat(a) && self.is_numeric_type_compat(b) => true,
+            // Generic types with same base are compatible if type args are compatible
+            (
+                Type::Generic {
+                    base: base1,
+                    type_args: args1,
+                },
+                Type::Generic {
+                    base: base2,
+                    type_args: args2,
+                },
+            ) => {
+                // Same base name is required
+                if base1 != base2 {
+                    return false;
+                }
+
+                // If either has empty type args, consider them compatible (lenient mode)
+                // This handles cases like Result<> being compatible with Result<i32, str>
+                if args1.is_empty() || args2.is_empty() {
+                    return true;
+                }
+
+                // Otherwise, check type args compatibility
+                args1.len() == args2.len()
+                    && args1
+                        .iter()
+                        .zip(args2.iter())
+                        .all(|(a, b)| self.types_compatible(a, b))
+            }
+            // Enum types with same name are compatible
+            (Type::Enum { name: name1, .. }, Type::Enum { name: name2, .. }) => name1 == name2,
+            // Generic enum types are compatible with their base enum
+            (Type::Generic { base, .. }, Type::Enum { name, .. }) => base == name,
+            (Type::Enum { name, .. }, Type::Generic { base, .. }) => name == base,
+            // Array types are compatible if element types are compatible
+            (Type::Array(elem1), Type::Array(elem2)) => self.types_compatible(elem1, elem2),
+            // Function types are compatible if parameters and return types are compatible
+            (
+                Type::Function {
+                    params: params1,
+                    return_type: ret1,
+                },
+                Type::Function {
+                    params: params2,
+                    return_type: ret2,
+                },
+            ) => {
+                params1.len() == params2.len()
+                    && params1
+                        .iter()
+                        .zip(params2.iter())
+                        .all(|(a, b)| self.types_compatible(a, b))
+                    && self.types_compatible(ret1, ret2)
+            }
+            // Otherwise, not compatible
+            _ => false,
+        }
     }
 
     fn is_numeric_type_compat(&self, ty: &Type) -> bool {

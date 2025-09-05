@@ -1530,8 +1530,19 @@ impl TypeChecker {
                     type_args: args2,
                 },
             ) => {
-                base1 == base2
-                    && args1.len() == args2.len()
+                // Same base name is required
+                if base1 != base2 {
+                    return false;
+                }
+
+                // If either has empty type args, consider them compatible (lenient mode)
+                // This handles cases like Result<> being compatible with Result<i32, str>
+                if args1.is_empty() || args2.is_empty() {
+                    return true;
+                }
+
+                // Otherwise, check type args compatibility
+                args1.len() == args2.len()
                     && args1
                         .iter()
                         .zip(args2.iter())

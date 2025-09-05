@@ -787,12 +787,27 @@ impl TypeEnvironment {
                     type_args: args2,
                 },
             ) => {
-                if base1 != base2 || args1.len() != args2.len() {
+                if base1 != base2 {
                     return Err(VeldError::TypeError(format!(
                         "Cannot unify generic types {} and {}",
                         base1, base2
                     )));
                 }
+
+                // If either has empty type args, consider them unifiable (lenient mode)
+                // This handles cases like Result<> being unifiable with Result<i32, str>
+                if args1.is_empty() || args2.is_empty() {
+                    return Ok(());
+                }
+
+                // Otherwise, check type args compatibility
+                if args1.len() != args2.len() {
+                    return Err(VeldError::TypeError(format!(
+                        "Cannot unify generic types {} and {}",
+                        base1, base2
+                    )));
+                }
+
                 for (a1, a2) in args1.into_iter().zip(args2.into_iter()) {
                     self.unify(a1, a2)?;
                 }
