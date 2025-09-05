@@ -1,0 +1,23 @@
+import std.result.{Result, ok}
+
+# Test 1: Enhanced type inference for Result variants
+let success_inferred = Result.Ok(42)
+let failure_inferred = Result.Err("error")
+
+# Test 2: Explicit type annotations
+let success_explicit: Result<i32, str> = Result.Ok(100)
+let failure_explicit: Result<i32, str> = Result.Err("fail")
+
+# Test 3: Method calls on inferred types
+let mapped_success = success_explicit.map(x => x * 2)
+let unwrapped_success = success_explicit.unwrap_or(0)
+let unwrapped_failure = failure_explicit.unwrap_or(-1)
+
+# Test 4: Simple array of Results
+let results = [success_explicit, failure_explicit]
+
+# Test 5: Mixed compatible Results
+let mixed = [Result.Ok(1), Result.Ok(2), Result.Err("test")]
+
+# Return verification values
+[unwrapped_success, unwrapped_failure, mapped_success.unwrap_or(0)]

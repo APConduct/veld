@@ -1181,12 +1181,8 @@ impl TypeChecker {
     fn infer_literal_type(&mut self, lit: &Literal) -> Result<Type> {
         match lit {
             Literal::Integer(value) => {
-                // Infer the smallest type that can hold a value
-                let inferred_type = if *value >= i8::MIN as i64 && *value <= i8::MAX as i64 {
-                    Type::I8
-                } else if *value >= i16::MIN as i64 && *value <= i16::MAX as i64 {
-                    Type::I16
-                } else if *value >= i32::MIN as i64 && *value <= i32::MAX as i64 {
+                // Default to i32 for better compatibility, only use larger types when necessary
+                let inferred_type = if *value >= i32::MIN as i64 && *value <= i32::MAX as i64 {
                     Type::I32
                 } else {
                     Type::I64
@@ -1906,6 +1902,8 @@ impl TypeChecker {
                 }
             }
 
+            Type::String => self.infer_string_method_call_type(method, args),
+
             _ => Err(VeldError::TypeError(format!(
                 "Type {} does not have methods",
                 obj_type
@@ -1925,6 +1923,64 @@ impl TypeChecker {
                     return Err(VeldError::TypeError("len() takes no arguments".into()));
                 }
                 Ok(Type::I32)
+            }
+
+            "is_empty" => {
+                if !args.is_empty() {
+                    return Err(VeldError::TypeError("is_empty() takes no arguments".into()));
+                }
+                Ok(Type::Bool)
+            }
+
+            "get" => {
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "get() takes exactly one argument".into(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let arg_type = self.infer_expression_type(arg)?;
+                self.env.add_constraint(arg_type, Type::I32);
+                self.env.solve_constraints()?;
+
+                // get() returns Option<T>
+                Ok(Type::Generic {
+                    base: "Option".to_string(),
+                    type_args: vec![elem_type.clone()],
+                })
+            }
+
+            "set" => {
+                if args.len() != 2 {
+                    return Err(VeldError::TypeError(
+                        "set() takes exactly two arguments".into(),
+                    ));
+                }
+
+                let index_arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let value_arg = match &args[1] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let index_type = self.infer_expression_type(index_arg)?;
+                let value_type = self.infer_expression_type(value_arg)?;
+
+                self.env.add_constraint(index_type, Type::I32);
+                self.env.add_constraint(value_type, elem_type.clone());
+                self.env.solve_constraints()?;
+
+                // set() returns bool
+                Ok(Type::Bool)
             }
 
             "first" | "last" => {
@@ -2060,6 +2116,206 @@ impl TypeChecker {
 
             _ => Err(VeldError::TypeError(format!(
                 "Unknown method {} on array",
+                method
+            ))),
+        }
+    }
+
+    fn infer_string_method_call_type(&mut self, method: &str, args: &[Argument]) -> Result<Type> {
+        match method {
+            "to_upper" | "to_lower" | "trim" | "trim_start" | "trim_end" => {
+                if !args.is_empty() {
+                    return Err(VeldError::TypeError(format!(
+                        "{}() takes no arguments",
+                        method
+                    )));
+                }
+                Ok(Type::String)
+            }
+
+            "contains" | "starts_with" | "ends_with" => {
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(format!(
+                        "{}() takes exactly one argument",
+                        method
+                    )));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let arg_type = self.infer_expression_type(arg)?;
+                self.env.add_constraint(arg_type, Type::String);
+                self.env.solve_constraints()?;
+
+                Ok(Type::Bool)
+            }
+
+            "index_of" => {
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "index_of() takes exactly one argument".to_string(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let arg_type = self.infer_expression_type(arg)?;
+                self.env.add_constraint(arg_type, Type::String);
+                self.env.solve_constraints()?;
+
+                Ok(Type::I32)
+            }
+
+            "substring" => {
+                if args.len() != 2 {
+                    return Err(VeldError::TypeError(
+                        "substring() takes exactly two arguments".to_string(),
+                    ));
+                }
+
+                let start_arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let end_arg = match &args[1] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let start_type = self.infer_expression_type(start_arg)?;
+                let end_type = self.infer_expression_type(end_arg)?;
+
+                self.env.add_constraint(start_type, Type::I32);
+                self.env.add_constraint(end_type, Type::I32);
+                self.env.solve_constraints()?;
+
+                Ok(Type::String)
+            }
+
+            "replace" => {
+                if args.len() != 2 {
+                    return Err(VeldError::TypeError(
+                        "replace() takes exactly two arguments".to_string(),
+                    ));
+                }
+
+                let from_arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let to_arg = match &args[1] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let from_type = self.infer_expression_type(from_arg)?;
+                let to_type = self.infer_expression_type(to_arg)?;
+
+                self.env.add_constraint(from_type, Type::String);
+                self.env.add_constraint(to_type, Type::String);
+                self.env.solve_constraints()?;
+
+                Ok(Type::String)
+            }
+
+            "split" => {
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "split() takes exactly one argument".to_string(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let arg_type = self.infer_expression_type(arg)?;
+                self.env.add_constraint(arg_type, Type::String);
+                self.env.solve_constraints()?;
+
+                Ok(Type::Array(Box::new(Type::String)))
+            }
+
+            "pad_start" | "pad_end" => {
+                if args.len() != 2 {
+                    return Err(VeldError::TypeError(format!(
+                        "{}() takes exactly two arguments",
+                        method
+                    )));
+                }
+
+                let length_arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let pad_arg = match &args[1] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let length_type = self.infer_expression_type(length_arg)?;
+                let pad_type = self.infer_expression_type(pad_arg)?;
+
+                self.env.add_constraint(length_type, Type::I32);
+                self.env.add_constraint(pad_type, Type::String);
+                self.env.solve_constraints()?;
+
+                Ok(Type::String)
+            }
+
+            "repeat" => {
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "repeat() takes exactly one argument".to_string(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let arg_type = self.infer_expression_type(arg)?;
+                self.env.add_constraint(arg_type, Type::I32);
+                self.env.solve_constraints()?;
+
+                Ok(Type::String)
+            }
+
+            "to_int" | "to_float" | "to_bool" => {
+                if !args.is_empty() {
+                    return Err(VeldError::TypeError(format!(
+                        "{}() takes no arguments",
+                        method
+                    )));
+                }
+
+                // Parse methods return Option<T>
+                let inner_type = match method {
+                    "to_int" => Type::I32,
+                    "to_float" => Type::F64,
+                    "to_bool" => Type::Bool,
+                    _ => unreachable!(),
+                };
+
+                Ok(Type::Generic {
+                    base: "Option".to_string(),
+                    type_args: vec![inner_type],
+                })
+            }
+
+            _ => Err(VeldError::TypeError(format!(
+                "Unknown method {} on string",
                 method
             ))),
         }

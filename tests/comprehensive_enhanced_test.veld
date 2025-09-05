@@ -1,0 +1,51 @@
+import std.result.{Result, ok}
+
+# Test 1: Basic type inference enhancements
+let simple_ok = Result.Ok(42)
+let simple_err = Result.Err("basic error")
+
+# Test 2: Explicit type annotations with enhanced unification
+let typed_ok: Result<i32, str> = Result.Ok(100)
+let typed_err: Result<i32, str> = Result.Err("typed error")
+
+# Test 3: Context-aware type inference
+let contextual_success: Result<i32, str> = Result.Ok(200)
+let contextual_failure: Result<i32, str> = Result.Err("contextual error")
+
+# Test 4: Method calls on enhanced types
+let mapped_result = typed_ok.map(x => x * 2)
+let unwrapped_success = typed_ok.unwrap_or(0)
+let unwrapped_failure = typed_err.unwrap_or(-1)
+
+# Test 5: Arrays with sophisticated type unification
+let compatible_results = [
+    Result.Ok(1),
+    Result.Ok(2), 
+    Result.Err("error1"),
+    Result.Err("error2")
+]
+
+# Test 6: Mixed typed and untyped Results in arrays
+let mixed_array = [
+    typed_ok,
+    Result.Ok(300),
+    typed_err,
+    Result.Err("mixed error")
+]
+
+# Test 7: Complex expressions with type context
+let chained_result = Result.Ok(500).map(x => x + 50)
+
+# Test 8: Validation of enhanced type system
+let validation_results = [
+    unwrapped_success,
+    unwrapped_failure,
+    chained_result.unwrap_or(0),
+    mapped_result.unwrap_or(0)
+]
+
+# Test 9: Type coercion validation
+let coerced: Result<i32, str> = Result.Ok(999)
+
+# Return comprehensive test results
+validation_results

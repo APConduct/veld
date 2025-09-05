@@ -516,23 +516,6 @@ impl Interpreter {
         });
     }
 
-    // fn wrap_in_option_some(value: Value) -> Value {
-    //     Value::Enum {
-    //         enum_name: "Option".to_string(),
-    //         variant_name: "Some".to_string(),
-    //         fields: vec![value],
-    //     }
-    // }
-
-    // Create Option.None value
-    // fn option_none(&self) -> Value {
-    //     Value::Enum {
-    //         enum_name: "Option".to_string(),
-    //         variant_name: "None".to_string(),
-    //         fields: vec![],
-    //     }
-    // }
-
     fn collect_free_variables_expr(
         &self,
         expr: &Expr,
@@ -1083,12 +1066,6 @@ impl Interpreter {
                             kind_name: _,
                             methods,
                             generic_args: _,
-                        } => self.execute_implementation(type_name, methods),
-
-                        Statement::InherentImpl {
-                            type_name,
-                            generic_params: _,
-                            methods,
                         } => self.execute_implementation(type_name, methods),
 
                         Statement::InherentImpl {

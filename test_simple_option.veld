@@ -1,0 +1,9 @@
+# Simple Option test to isolate import issues
+
+# Test basic Option creation without imports
+let none_val = Option.None
+let some_val = Option.Some(42)
+
+# Test is_some method
+let is_some_result = some_val.is_some()
+let is_none_result = none_val.is_some()

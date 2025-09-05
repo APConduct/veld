@@ -1,0 +1,68 @@
+import std.result.{Result, ok}
+
+# Test 1: Enhanced type inference for Result variants
+let success_inferred = Result.Ok(42)       # Should infer Result<i32, Any>
+let failure_inferred = Result.Err("error") # Should infer Result<Any, str>
+
+# Test 2: Explicit type annotations with sophisticated unification
+let success_explicit: Result<i32, str> = Result.Ok(100)
+let failure_explicit: Result<i32, str> = Result.Err("fail")
+
+# Test 3: Mixed arrays with sophisticated type unification
+let mixed_results = [
+    Result.Ok(1),
+    Result.Ok(2),
+    Result.Err("error1"),
+    Result.Err("error2")
+]
+
+# Test 4: Type coercion in assignments
+let coerced_success: Result<i32, str> = Result.Ok(200)
+let coerced_failure: Result<i32, str> = Result.Err("coerced error")
+
+# Test 5: Method calls on inferred types
+let mapped_inferred = success_inferred.map(x => x * 2)
+let mapped_explicit = success_explicit.map(x => x + 10)
+
+# Test 6: Unwrapping with type context
+let unwrapped_values = [
+    success_explicit.unwrap_or(0),
+    failure_explicit.unwrap_or(-1),
+    success_inferred.unwrap_or(999),
+    failure_inferred.unwrap_or(888)
+]
+
+# Test 7: Array of mixed but compatible Result types
+let compatible_array: [Result<i32, str>] = [
+    Result.Ok(1),
+    Result.Err("error"),
+    success_explicit,
+    failure_explicit
+]
+
+# Test 8: Nested generic types (if supported)
+let nested_option = [
+    Result.Ok(42),
+    Result.Ok(43)
+]
+
+# Test 9: Complex expressions with type inference
+let complex_result = Result.Ok(1000)
+
+# Test 10: Type validation in function-like constructors
+let constructed_ok = Result.Ok(777)
+let constructed_err = Result.Err("constructed error")
+
+# Final verification - return test results
+[
+    # Basic values
+    unwrapped_values,
+
+    # Type compatibility verification
+    [
+        success_explicit.unwrap_or(0),     # Should be 100
+        failure_explicit.unwrap_or(0),     # Should be 0
+        mapped_explicit.unwrap_or(0),      # Should be 110
+        complex_result.unwrap_or(0)        # Should be 1000
+    ]
+]
