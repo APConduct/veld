@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
-use crate::ast::UnaryOperator;
+use crate::ast::{AST, UnaryOperator};
 use crate::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
     StructMethod, TypeAnnotation, VarKind,
 };
+use crate::common::source::{ParseContext, SourceMap};
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
 
@@ -64,6 +66,48 @@ impl Parser {
         Ok(statements)
     }
 
+    pub fn parse_with_source_map(
+        mut self,
+        source: &str,
+        file_path: impl Into<PathBuf>,
+    ) -> Result<AST> {
+        let mut source_map = SourceMap::new();
+        let file_id = source_map.add_file(file_path, source.to_string());
+
+        let mut context = ParseContext {
+            current_file_id: file_id,
+            source_map: &mut source_map,
+        };
+
+        let statements = self.parse_statements(&mut context)?;
+
+        Ok(AST {
+            statements,
+            source_map: Some(source_map),
+            errors: Vec::new(),
+        })
+    }
+
+    fn parse_statements(&mut self, context: &mut ParseContext) -> Result<Vec<Statement>> {
+        let mut statements = Vec::new();
+        let mut step_count = 0;
+        const MAX_STEPS: usize = 1000;
+
+        while !self.is_at_end() {
+            step_count += 1;
+            if step_count > MAX_STEPS {
+                return Err(VeldError::ParserError(format!(
+                    "Parser exceeded maximum step count at token position: {}",
+                    self.current
+                )));
+            }
+
+            let stmt = self.declaration_with_context(context)?;
+            statements.push(stmt);
+        }
+        Ok(statements)
+    }
+
     pub fn total_steps(&self) -> usize {
         self.total_steps
     }
@@ -73,6 +117,11 @@ impl Parser {
             Token::Let | Token::Var | Token::Const => true,
             _ => false,
         }
+    }
+
+    // TODO: propagate context
+    fn declaration_with_context(&mut self, context: &mut ParseContext) -> Result<Statement> {
+        self.declaration()
     }
 
     fn declaration(&mut self) -> Result<Statement> {

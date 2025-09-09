@@ -1396,16 +1396,59 @@ impl Interpreter {
         type_name: String,
         methods: Vec<MethodImpl>,
     ) -> Result<Value> {
-        // Always register methods for enum type
-        let method_map = self
-            .enum_methods
-            .entry(type_name.clone())
-            .or_insert_with(HashMap::new);
+        // Check if this is a struct or enum type
+        let is_struct = self.structs.contains_key(&type_name);
+        let is_enum = self.enums.contains_key(&type_name);
 
-        for method in methods.iter() {}
-        for method in methods {
-            method_map.insert(method.name.clone(), method);
+        if is_struct {
+            // Register methods for struct type - get or create the method map
+            if !self.struct_methods.contains_key(&type_name) {
+                self.struct_methods
+                    .insert(type_name.clone(), HashMap::new());
+            }
+            let struct_method_map = self.struct_methods.get_mut(&type_name).unwrap();
+
+            for method in methods {
+                // Convert MethodImpl to Value::Function for struct methods
+                let function = Value::Function {
+                    params: method.params.clone(),
+                    body: method.body.clone(),
+                    return_type: method.return_type.clone(),
+                    captured_vars: HashMap::new(),
+                };
+                struct_method_map.insert(method.name.clone(), function);
+            }
+        } else if is_enum {
+            // Register methods for enum type - get or create the method map
+            if !self.enum_methods.contains_key(&type_name) {
+                self.enum_methods.insert(type_name.clone(), HashMap::new());
+            }
+            let enum_method_map = self.enum_methods.get_mut(&type_name).unwrap();
+
+            for method in methods {
+                enum_method_map.insert(method.name.clone(), method);
+            }
+        } else {
+            // Type not found - this could be for a generic type or forward declaration
+            // For now, assume it's a struct and register it
+            if !self.struct_methods.contains_key(&type_name) {
+                self.struct_methods
+                    .insert(type_name.clone(), HashMap::new());
+            }
+            let struct_method_map = self.struct_methods.get_mut(&type_name).unwrap();
+
+            for method in methods {
+                // Convert MethodImpl to Value::Function for struct methods
+                let function = Value::Function {
+                    params: method.params.clone(),
+                    body: method.body.clone(),
+                    return_type: method.return_type.clone(),
+                    captured_vars: HashMap::new(),
+                };
+                struct_method_map.insert(method.name.clone(), function);
+            }
         }
+
         Ok(Value::Unit)
     }
 
@@ -4819,6 +4862,25 @@ impl Interpreter {
                     )))
                 }
             }
+            Value::StructType { name, .. } => {
+                // Property access on struct type, e.g., Vec.new
+                // Look up the struct method
+                if let Some(methods) = self.struct_methods.get(name) {
+                    if let Some(method) = methods.get(property) {
+                        Ok(method.clone())
+                    } else {
+                        Err(VeldError::RuntimeError(format!(
+                            "Struct '{}' has no method '{}'",
+                            name, property
+                        )))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(format!(
+                        "Struct '{}' not found",
+                        name
+                    )))
+                }
+            }
             Value::Module(module) => {
                 // Debug: Show module exports when looking up property
 
@@ -5303,6 +5365,62 @@ impl Interpreter {
                         for (i, arg) in args.into_iter().enumerate() {
                             // Start from index 1 to skip self
                             self.current_scope_mut().set(params[i + 1].0.clone(), arg);
+                        }
+
+                        // Execute method body
+                        let mut result = Value::Unit;
+                        for stmt in body {
+                            result = self.execute_statement(stmt)?;
+                            if matches!(result, Value::Return(_)) {
+                                break;
+                            }
+                        }
+
+                        self.pop_scope();
+
+                        Ok(result.unwrap_return())
+                    }
+                    _ => Err(VeldError::RuntimeError(
+                        "Internal error: method is not a function".to_string(),
+                    )),
+                }
+            }
+
+            // For struct type methods (static methods like Vec.new())
+            (Value::StructType { name, .. }, _) => {
+                let struct_name = name.clone();
+
+                // Get the method from struct_methods
+                let method = self
+                    .struct_methods
+                    .get(&struct_name)
+                    .and_then(|methods| methods.get(&method_name))
+                    .cloned()
+                    .ok_or_else(|| {
+                        VeldError::RuntimeError(format!(
+                            "Method '{}' not found on '{}'",
+                            method_name, struct_name
+                        ))
+                    })?;
+
+                match method {
+                    Value::Function { params, body, .. } => {
+                        self.push_scope();
+
+                        // For static methods, we don't bind 'self'
+                        // Check argument count (no self parameter for static methods)
+                        if args.len() != params.len() {
+                            return Err(VeldError::RuntimeError(format!(
+                                "Static method '{}' expects {} arguments but got {}",
+                                method_name,
+                                params.len(),
+                                args.len()
+                            )));
+                        }
+
+                        // Bind arguments directly (already evaluated)
+                        for (i, arg) in args.into_iter().enumerate() {
+                            self.current_scope_mut().set(params[i].0.clone(), arg);
                         }
 
                         // Execute method body
@@ -5982,6 +6100,210 @@ impl Interpreter {
 
                             // Register struct in type checker environment
                             self.type_checker.env().add_struct(&name, field_types);
+
+                            // Also register the struct as an identifier in the type environment
+                            // This allows struct types to be used in property access like Vec.new
+                            let struct_type = crate::types::Type::Generic {
+                                base: name.clone(),
+                                type_args: vec![],
+                            };
+                            self.type_checker.env().define(&name, struct_type);
+
+                            // Also add the struct name to the current scope as a "type value"
+                            // This allows Vec.new, etc
+                            self.current_scope_mut().set(
+                                name.clone(),
+                                Value::StructType {
+                                    name: name.clone(),
+                                    methods: None,
+                                },
+                            );
+
+                            // Also import any impl blocks for this struct
+                            for (_stmt_idx, stmt) in module_statements.iter().enumerate() {
+                                match stmt {
+                                    Statement::InherentImpl {
+                                        type_name,
+                                        methods,
+                                        generic_params,
+                                        ..
+                                    } => {
+                                        if type_name == &name {
+                                            // Execute the impl block to register methods
+                                            self.execute_implementation(
+                                                type_name.clone(),
+                                                methods.clone(),
+                                            )?;
+
+                                            // Also add methods to type environment for type checking
+
+                                            // Set up type parameter scope for generic impl blocks
+                                            self.type_checker.env().push_type_param_scope();
+                                            for generic_arg in generic_params {
+                                                let param_name = match &generic_arg.name {
+                                                    Some(name) => name.clone(),
+                                                    None => {
+                                                        if let crate::ast::TypeAnnotation::Basic(
+                                                            base_name,
+                                                        ) = &generic_arg.type_annotation
+                                                        {
+                                                            base_name.clone()
+                                                        } else {
+                                                            "T".to_string()
+                                                        }
+                                                    }
+                                                };
+                                                self.type_checker.env().add_type_param(&param_name);
+                                            }
+
+                                            for method in methods {
+                                                // Set up method-level type parameters
+                                                self.type_checker.env().push_type_param_scope();
+                                                for generic_arg in &method.generic_params {
+                                                    let param_name = match &generic_arg.name {
+                                                        Some(name) => name.clone(),
+                                                        None => {
+                                                            if let crate::ast::TypeAnnotation::Basic(
+                                                                base_name,
+                                                            ) = &generic_arg.type_annotation
+                                                            {
+                                                                base_name.clone()
+                                                            } else {
+                                                                "U".to_string()
+                                                            }
+                                                        }
+                                                    };
+                                                    self.type_checker
+                                                        .env()
+                                                        .add_type_param(&param_name);
+                                                }
+
+                                                let param_types: Vec<crate::types::Type> = method
+                                                    .params
+                                                    .iter()
+                                                    .map(|(_, type_annotation)| {
+                                                        self.type_checker
+                                                            .env()
+                                                            .from_annotation(type_annotation, None)
+                                                            .unwrap_or(crate::types::Type::Any)
+                                                    })
+                                                    .collect();
+                                                let return_type = self
+                                                    .type_checker
+                                                    .env()
+                                                    .from_annotation(&method.return_type, None)
+                                                    .unwrap_or(crate::types::Type::Any);
+                                                let function_type = crate::types::Type::Function {
+                                                    params: param_types,
+                                                    return_type: Box::new(return_type),
+                                                };
+                                                self.type_checker.env().add_struct_method(
+                                                    type_name,
+                                                    &method.name,
+                                                    function_type,
+                                                );
+
+                                                // Clean up method-level type parameter scope
+                                                self.type_checker.env().pop_type_param_scope();
+                                            }
+
+                                            // Clean up type parameter scope
+                                            self.type_checker.env().pop_type_param_scope();
+                                        }
+                                    }
+                                    Statement::Implementation {
+                                        type_name,
+                                        kind_name: _,
+                                        methods,
+                                        generic_args,
+                                        ..
+                                    } => {
+                                        if type_name == &name {
+                                            // Execute the impl block to register methods
+                                            self.execute_implementation(
+                                                type_name.clone(),
+                                                methods.clone(),
+                                            )?;
+
+                                            // Also add methods to type environment for type checking
+
+                                            // Set up type parameter scope for generic impl blocks
+                                            self.type_checker.env().push_type_param_scope();
+                                            for generic_arg in generic_args {
+                                                let param_name = match &generic_arg.name {
+                                                    Some(name) => name.clone(),
+                                                    None => {
+                                                        if let crate::ast::TypeAnnotation::Basic(
+                                                            base_name,
+                                                        ) = &generic_arg.type_annotation
+                                                        {
+                                                            base_name.clone()
+                                                        } else {
+                                                            "T".to_string()
+                                                        }
+                                                    }
+                                                };
+                                                self.type_checker.env().add_type_param(&param_name);
+                                            }
+
+                                            for method in methods {
+                                                // Set up method-level type parameters
+                                                self.type_checker.env().push_type_param_scope();
+                                                for generic_arg in &method.generic_params {
+                                                    let param_name = match &generic_arg.name {
+                                                        Some(name) => name.clone(),
+                                                        None => {
+                                                            if let crate::ast::TypeAnnotation::Basic(
+                                                                base_name,
+                                                            ) = &generic_arg.type_annotation
+                                                            {
+                                                                base_name.clone()
+                                                            } else {
+                                                                "U".to_string()
+                                                            }
+                                                        }
+                                                    };
+                                                    self.type_checker
+                                                        .env()
+                                                        .add_type_param(&param_name);
+                                                }
+
+                                                let param_types: Vec<crate::types::Type> = method
+                                                    .params
+                                                    .iter()
+                                                    .map(|(_, type_annotation)| {
+                                                        self.type_checker
+                                                            .env()
+                                                            .from_annotation(type_annotation, None)
+                                                            .unwrap_or(crate::types::Type::Any)
+                                                    })
+                                                    .collect();
+                                                let return_type = self
+                                                    .type_checker
+                                                    .env()
+                                                    .from_annotation(&method.return_type, None)
+                                                    .unwrap_or(crate::types::Type::Any);
+                                                let function_type = crate::types::Type::Function {
+                                                    params: param_types,
+                                                    return_type: Box::new(return_type),
+                                                };
+                                                self.type_checker.env().add_struct_method(
+                                                    type_name,
+                                                    &method.name,
+                                                    function_type,
+                                                );
+
+                                                // Clean up method-level type parameter scope
+                                                self.type_checker.env().pop_type_param_scope();
+                                            }
+
+                                            // Clean up type parameter scope
+                                            self.type_checker.env().pop_type_param_scope();
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                     }
                     ExportedItem::Enum(idx) => {

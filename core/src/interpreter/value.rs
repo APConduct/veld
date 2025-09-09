@@ -39,6 +39,10 @@ pub enum Value {
         name: String,
         methods: Option<HashMap<String, Value>>, // Methods are only stored on the EnumType
     },
+    StructType {
+        name: String,
+        methods: Option<HashMap<String, Value>>, // Methods are only stored on the StructType
+    },
     Tuple(Vec<Value>),
 
     Break,
@@ -96,6 +100,10 @@ impl Value {
             Value::EnumType { name, .. } => Type::Enum {
                 name: name.clone(),
                 variants: HashMap::new(),
+            },
+            Value::StructType { name, .. } => Type::Generic {
+                base: name.clone(),
+                type_args: vec![],
             },
             Value::Tuple(values) => Type::Tuple(values.iter().map(|v| v.type_of()).collect()),
             Value::Record(fields) => Type::Record {

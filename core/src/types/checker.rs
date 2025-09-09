@@ -2072,13 +2072,15 @@ impl TypeChecker {
             }
 
             Type::Generic { base, type_args } => {
-                // Handle method calls on generic types (like Result<T, E>)
+                // Handle method calls on generic types (like Vec<T>, Result<T, E>)
                 let base_name = base.clone();
                 let concrete_type_args = type_args.clone();
 
-                // Extract method type first to avoid borrow conflicts
+                // First try struct methods, then enum methods
                 let method_type = {
-                    if let Some(methods) = self.env.get_enum_methods(&base_name) {
+                    if let Some(methods) = self.env.struct_methods().get(&base_name) {
+                        methods.get(method).cloned()
+                    } else if let Some(methods) = self.env.get_enum_methods(&base_name) {
                         methods.get(method).cloned()
                     } else {
                         None

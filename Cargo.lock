@@ -714,6 +714,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "veld-expander"
+version = "0.1.4"
+
+[[package]]
 name = "veld-repl"
 version = "0.1.4"
 dependencies = [

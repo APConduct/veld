@@ -1,0 +1,5 @@
+import std.vec.{Vec}
+
+# Just try to create a Vec and call one instance method
+let vec = Vec.new()
+vec.push(1)
