@@ -1,0 +1,1 @@
+plex SimpleResult<T, E> = { ok: T, err: E, valid: bool }
