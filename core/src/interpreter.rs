@@ -5496,7 +5496,6 @@ impl Interpreter {
                 module.statements.clone()
             };
 
-            // --- FIX: Execute all statements from the imported module ---
             // To avoid double execution, track executed modules by name
             if !self.imported_modules.contains_key(&module_path_str) {
                 self.imported_modules
@@ -5505,7 +5504,6 @@ impl Interpreter {
                     self.execute_statement(statement.clone())?;
                 }
             }
-            // --- END FIX ---
 
             // Process each export and add to current scope
             for (name, export_item) in exports {
@@ -5627,7 +5625,10 @@ impl Interpreter {
                         // Also import any impl blocks for this enum
                         for (_stmt_idx, stmt) in module_statements.iter().enumerate() {
                             if let Statement::InherentImpl {
-                                type_name, methods, ..
+                                type_name,
+                                methods,
+                                generic_params,
+                                ..
                             } = stmt
                             {
                                 if type_name == &enum_name {
@@ -5638,23 +5639,42 @@ impl Interpreter {
                                     )?;
 
                                     // Also add methods to type environment for type checking
+
+                                    // Set up type parameter scope for generic impl blocks
+                                    self.type_checker.env().push_type_param_scope();
+                                    for generic_arg in generic_params {
+                                        let param_name = match &generic_arg.name {
+                                            Some(name) => name.clone(),
+                                            None => {
+                                                if let crate::ast::TypeAnnotation::Basic(
+                                                    base_name,
+                                                ) = &generic_arg.type_annotation
+                                                {
+                                                    base_name.clone()
+                                                } else {
+                                                    "T".to_string()
+                                                }
+                                            }
+                                        };
+                                        self.type_checker.env().add_type_param(&param_name);
+                                    }
+
                                     for method in methods {
                                         let param_types: Vec<crate::types::Type> = method
                                             .params
                                             .iter()
                                             .map(|(_, type_annotation)| {
-                                                crate::types::Type::from_annotation(
-                                                    type_annotation,
-                                                    None,
-                                                )
-                                                .unwrap_or(crate::types::Type::Any)
+                                                self.type_checker
+                                                    .env()
+                                                    .from_annotation(type_annotation, None)
+                                                    .unwrap_or(crate::types::Type::Any)
                                             })
                                             .collect();
-                                        let return_type = crate::types::Type::from_annotation(
-                                            &method.return_type,
-                                            None,
-                                        )
-                                        .unwrap_or(crate::types::Type::Any);
+                                        let return_type = self
+                                            .type_checker
+                                            .env()
+                                            .from_annotation(&method.return_type, None)
+                                            .unwrap_or(crate::types::Type::Any);
                                         let function_type = crate::types::Type::Function {
                                             params: param_types,
                                             return_type: Box::new(return_type),
@@ -5665,6 +5685,9 @@ impl Interpreter {
                                             function_type,
                                         );
                                     }
+
+                                    // Clean up type parameter scope
+                                    self.type_checker.env().pop_type_param_scope();
                                 }
                             }
                         }

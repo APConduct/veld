@@ -20,4 +20,4 @@ let results = [success_explicit, failure_explicit]
 let mixed = [Result.Ok(1), Result.Ok(2), Result.Err("test")]
 
 # Return verification values
-[unwrapped_success, unwrapped_failure, mapped_success.unwrap_or(0)]
+let final_result = [unwrapped_success, unwrapped_failure, mapped_success.unwrap_or(0)]
