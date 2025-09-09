@@ -1853,7 +1853,10 @@ impl Parser {
         if self.match_token(&[Token::LBrace]) {
             // Parse record fields
             let fields = self.record_fields()?;
-            return Ok(Expr::Record { fields });
+            let record_expr = Expr::Record { fields };
+            self.recursive_depth -= 1;
+            // Allow postfix operations on record expressions
+            return self.postfix_with_expr(record_expr);
         };
 
         if self.check_lambda_start() {
@@ -2021,7 +2024,10 @@ impl Parser {
 
     fn postfix(&mut self) -> Result<Expr> {
         let mut expr = self.primary()?;
+        self.postfix_with_expr(expr)
+    }
 
+    fn postfix_with_expr(&mut self, mut expr: Expr) -> Result<Expr> {
         loop {
             if self.is_at_end() {
                 break;
@@ -2097,6 +2103,7 @@ impl Parser {
 
             if self.match_token(&[Token::As]) {
                 let target_type = self.parse_type()?;
+
                 expr = Expr::TypeCast {
                     expr: Box::new(expr),
                     target_type: target_type.clone(),

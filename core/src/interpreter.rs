@@ -3607,6 +3607,30 @@ impl Interpreter {
             (Value::Integer(i), Type::String) => Ok(Value::String(i.to_string())),
             (Value::Float(f), Type::String) => Ok(Value::String(f.to_string())),
 
+            // Record type casting - allow if structurally compatible
+            (
+                Value::Record(source_fields),
+                Type::Record { fields: target_fields },
+            ) => {
+                let mut result_fields = std::collections::HashMap::new();
+
+                // Check if all target fields exist in source and cast them
+                for (field_name, target_field_type) in target_fields {
+                    if let Some(source_value) = source_fields.get(field_name) {
+                        // Recursively cast the field value to the target type
+                        let casted_field = self.cast_value(source_value.clone(), target_field_type)?;
+                        result_fields.insert(field_name.clone(), casted_field);
+                    } else {
+                        return Err(VeldError::RuntimeError(format!(
+                            "Field '{}' not found in source record",
+                            field_name
+                        )));
+                    }
+                }
+
+                Ok(Value::Record(result_fields))
+            }
+
             // Same type conversion (no-op)
             (v, t) if v.type_of() == *t => Ok(v),
 

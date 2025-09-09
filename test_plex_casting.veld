@@ -1,0 +1,67 @@
+#| Test for record-level casting with 'as'
+
+# Test basic plex declaration
+plex Point = { x: f32, y: f32 }
+plex Coordinate = { x: f32, y: f32 }
+
+# Test record-level casting between compatible plex types
+let point_record = { x: 10.0, y: 20.0 }
+let point: Point = point_record as Point
+let coord: Coordinate = point_record as Coordinate
+
+# Test that cast works with property access
+let x_val = point.x
+let y_val = point.y
+
+# Test casting with type coercion
+let int_record = { x: 10, y: 20 }  # i32 values
+let coerced_point: Point = int_record as Point  # Should coerce i32 -> f32
+
+# Test casting from anonymous record to plex type
+let anonymous = { x: 5.5, y: 6.6 }
+let typed_point: Point = anonymous as Point
+
+# Test casting between structurally compatible plex types
+plex Position = { x: f32, y: f32 }
+let position: Position = point as Position
+
+# Test explicit casting for clarity
+let explicit_point: Point = { x: 1.0 as f32, y: 2.0 as f32 } as Point
+
+# Test nested record casting
+plex Location = { x: f32, y: f32 }
+plex Entity = { name: str, pos: Location }
+
+let entity_record = {
+    name: "Player",
+    pos: { x: 100, y: 200 }
+}
+let typed_entity: Entity = entity_record as Entity
+
+# Test function parameter casting
+fn distance(p1: Point, p2: Point) -> f32
+    let dx = p2.x - p1.x
+    let dy = p2.y - p1.y
+    dx * dx + dy * dy
+end
+
+# Use casting in function calls
+let dist = distance(
+    { x: 0, y: 0 } as Point,
+    { x: 3, y: 4 } as Point
+)
+
+# Test return value casting
+fn create_point_cast(x_val: i32, y_val: i32) -> Point
+    { x: x_val, y: y_val } as Point
+end
+
+let new_point = create_point_cast(42, 13)
+
+# Test complex casting scenario
+plex Config = { width: f64, height: f64 }
+
+let config_data = { width: 1920, height: 1080 }  # i32 values
+let typed_config: Config = config_data as Config  # Should coerce i32 -> f64
+
+let area = typed_config.width * typed_config.height

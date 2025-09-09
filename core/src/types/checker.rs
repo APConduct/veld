@@ -335,6 +335,41 @@ impl TypeChecker {
         match stmt {
             Statement::KindDeclaration { .. } => self.type_check_kind_declaration(stmt),
             Statement::Implementation { .. } => self.type_check_implementation(stmt),
+            Statement::PlexDeclaration {
+                name,
+                type_annotation,
+                generic_params,
+                ..
+            } => {
+                // Handle generic plex types
+                if !generic_params.is_empty() {
+                    self.env.push_type_param_scope();
+                    for param in generic_params.clone() {
+                        let param_name = match &param.name {
+                            Some(name) => name.clone(),
+                            None => {
+                                if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                                    base_name.clone()
+                                } else {
+                                    "T".to_string()
+                                }
+                            }
+                        };
+                        self.env.add_type_param(&param_name);
+                    }
+
+                    // Convert the type annotation to a Type and add as alias
+                    let aliased_type = self.env.from_annotation(type_annotation, None)?;
+                    self.env.add_type_alias(name, aliased_type);
+
+                    self.env.pop_type_param_scope();
+                } else {
+                    // Regular plex type alias
+                    let aliased_type = self.env.from_annotation(type_annotation, None)?;
+                    self.env.add_type_alias(name, aliased_type);
+                }
+                Ok(())
+            }
             Statement::FunctionDeclaration {
                 name,
                 params,
@@ -1173,6 +1208,26 @@ impl TypeChecker {
             // Structs and enums can be cast to their base type
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
             (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
+
+            // Record type casts - allow if structurally compatible
+            (
+                Type::Record {
+                    fields: from_fields,
+                },
+                Type::Record { fields: to_fields },
+            ) => {
+                // Check if all fields in target type exist in source type with compatible types
+                to_fields.iter().all(|(field_name, to_type)| {
+                    if let Some(from_type) = from_fields.get(field_name) {
+                        // Recursively check if the field types are compatible (same type, safe widening, or valid cast)
+                        from_type == to_type
+                            || self.is_safe_widening(from_type, to_type)
+                            || self.is_valid_cast(from_type, to_type)
+                    } else {
+                        false
+                    }
+                })
+            }
 
             // Same type is valid
             _ if from == to => true,

@@ -1,0 +1,15 @@
+#| Simple test to debug 'as' parsing issues
+
+# Test 1: Basic record casting (this worked)
+let record1 = { x: 10, y: 20 }
+let point1 = record1 as { x: i32, y: i32 }
+
+# Test 2: Plex declaration
+plex Point = { x: i32, y: i32 }
+
+# Test 3: Simple plex casting (this should work)
+let record2 = { x: 10, y: 20 }
+let point2 = record2 as Point
+
+# Test 4: Check access
+let x_val = point2.x
