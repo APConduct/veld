@@ -1513,7 +1513,7 @@ impl TypeChecker {
                 | Type::I8
                 | Type::I16
                 | TypeVar(_)
-        )
+        ) || self.env.is_type_var_numeric(ty)
     }
 
     fn types_compatible(&self, t1: &Type, t2: &Type) -> bool {
@@ -1636,7 +1636,6 @@ impl TypeChecker {
             .env
             .get(name)
             .ok_or_else(|| VeldError::TypeError(format!("Undefined function: {}", name)))?;
-
         match func_type {
             Type::Function {
                 params,
@@ -1856,9 +1855,10 @@ impl TypeChecker {
                 }
             }
 
-            Type::Generic { base, .. } => {
+            Type::Generic { base, type_args } => {
                 // Handle method calls on generic types (like Result<T, E>)
                 let base_name = base.clone();
+                let concrete_type_args = type_args.clone();
 
                 // Extract method type first to avoid borrow conflicts
                 let method_type = {
@@ -1876,9 +1876,18 @@ impl TypeChecker {
                                 params,
                                 return_type,
                             } => {
-                                // Clone params and return_type to avoid borrow issues
-                                let params = params.clone();
-                                let return_type = *return_type;
+                                // Create type parameter substitution map
+                                // For Result<T, E>, map T to concrete_type_args[0], E to concrete_type_args[1]
+                                let mut substitutions = std::collections::HashMap::new();
+                                if base_name == "Result" && concrete_type_args.len() >= 2 {
+                                    substitutions
+                                        .insert("T".to_string(), concrete_type_args[0].clone());
+                                    substitutions
+                                        .insert("E".to_string(), concrete_type_args[1].clone());
+                                } else if base_name == "Option" && concrete_type_args.len() >= 1 {
+                                    substitutions
+                                        .insert("T".to_string(), concrete_type_args[0].clone());
+                                }
 
                                 // First param is self
                                 if params.len() - 1 != args.len() {
@@ -1890,19 +1899,105 @@ impl TypeChecker {
                                     )));
                                 }
 
-                                // Check argument types (skip first param which is self)
+                                // Infer method-specific type parameters by analyzing arguments
                                 for (i, arg) in args.iter().enumerate() {
                                     let arg_expr = match arg {
                                         Argument::Positional(expr) => expr,
                                         Argument::Named { name: _, value } => value,
                                     };
 
-                                    let arg_type = self.infer_expression_type(arg_expr)?;
-                                    self.env.add_constraint(arg_type, params[i + 1].clone());
+                                    let expected_param = &params[i + 1];
+
+                                    // For lambda expressions, provide type context to improve inference
+                                    let arg_type = if let Expr::Lambda {
+                                        params: lambda_params,
+                                        body,
+                                        ..
+                                    } = arg_expr
+                                    {
+                                        // If we expect a function type, use it to provide parameter types for the lambda
+                                        if let Type::Function {
+                                            params: expected_fn_params,
+                                            return_type: expected_fn_return,
+                                        } = expected_param
+                                        {
+                                            // Substitute known type parameters in the expected function type
+                                            let substituted_expected_params: Vec<Type> =
+                                                expected_fn_params
+                                                    .iter()
+                                                    .map(|p| {
+                                                        self.env.substitute_type_params(
+                                                            p,
+                                                            &substitutions,
+                                                        )
+                                                    })
+                                                    .collect();
+                                            let substituted_expected_return =
+                                                self.env.substitute_type_params(
+                                                    expected_fn_return,
+                                                    &substitutions,
+                                                );
+
+                                            // Push a new scope for lambda type checking with known parameter types
+                                            self.env.push_scope();
+                                            let mut lambda_param_types = Vec::new();
+
+                                            for (j, (param_name, _)) in
+                                                lambda_params.iter().enumerate()
+                                            {
+                                                let param_type =
+                                                    if j < substituted_expected_params.len() {
+                                                        substituted_expected_params[j].clone()
+                                                    } else {
+                                                        self.env.fresh_type_var()
+                                                    };
+                                                lambda_param_types.push(param_type.clone());
+                                                self.env.define(param_name, param_type);
+                                            }
+
+                                            // Infer the body type with proper parameter types
+                                            let body_type = self.infer_expression_type(body)?;
+
+                                            // If we expect a specific return type, try to unify
+                                            if let Type::TypeParam(param_name) =
+                                                &substituted_expected_return
+                                            {
+                                                // This is a method-level generic like U in map<U>
+                                                substitutions
+                                                    .insert(param_name.clone(), body_type.clone());
+                                            }
+
+                                            self.env.pop_scope();
+
+                                            Type::Function {
+                                                params: lambda_param_types,
+                                                return_type: Box::new(body_type),
+                                            }
+                                        } else {
+                                            // Fall back to regular lambda inference
+                                            self.infer_expression_type(arg_expr)?
+                                        }
+                                    } else {
+                                        self.infer_expression_type(arg_expr)?
+                                    };
+
+                                    // Substitute known type parameters in expected type and unify
+                                    let substituted_expected = self
+                                        .env
+                                        .substitute_type_params(expected_param, &substitutions);
+
+                                    // For function types, we already handled the unification above
+                                    if !matches!(arg_expr, Expr::Lambda { .. }) {
+                                        self.env.unify(arg_type, substituted_expected)?;
+                                    }
                                 }
 
-                                self.env.solve_constraints()?;
-                                Ok(return_type)
+                                // Substitute type parameters in return type
+                                let substituted_return_type = self
+                                    .env
+                                    .substitute_type_params(&return_type, &substitutions);
+
+                                Ok(substituted_return_type)
                             }
                             _ => Err(VeldError::TypeError(format!(
                                 "{}.{} is not a method",
@@ -2636,11 +2731,128 @@ impl TypeChecker {
             });
         }
 
-        // For simple enums without type arguments, return the enum type
-        Ok(Type::Enum {
-            name: enum_name.to_string(),
-            variants: self.env.enums.get(enum_name).unwrap().clone(),
-        })
+        // Try to infer type arguments from field values for generic enums
+        // Clone the variant data to avoid borrow checker issues
+        let variant_data = if let Some(enum_variants) = self.env.enums.get(enum_name) {
+            enum_variants.get(variant_name).cloned()
+        } else {
+            None
+        };
+
+        if let Some(variant) = variant_data {
+            match variant {
+                EnumVariant::Tuple(expected_types) => {
+                    if fields.len() != expected_types.len() {
+                        return Err(VeldError::TypeError(format!(
+                            "Variant {} expects {} fields, got {}",
+                            variant_name,
+                            expected_types.len(),
+                            fields.len()
+                        )));
+                    }
+
+                    // Infer field types and create substitution map for type parameters
+                    let mut type_args = Vec::new();
+                    let mut substitutions = std::collections::HashMap::new();
+
+                    for (i, field) in fields.iter().enumerate() {
+                        let field_type = self.infer_expression_type(field)?;
+                        let expected_type = &expected_types[i];
+
+                        // If expected type is a type parameter, map it to the inferred type
+                        if let Type::TypeParam(param_name) = expected_type {
+                            substitutions.insert(param_name.clone(), field_type.clone());
+                        }
+                    }
+
+                    // For common generic enums like Result<T, E> and Option<T>,
+                    // create appropriate type arguments
+                    match enum_name {
+                        "Result" => {
+                            // Result<T, E> where Ok(T) and Err(E)
+                            match variant_name {
+                                "Ok" => {
+                                    // Ok variant contains T, so T = field type, E = fresh type var
+                                    if !fields.is_empty() {
+                                        type_args.push(self.infer_expression_type(&fields[0])?);
+                                    } else {
+                                        type_args.push(self.env.fresh_type_var());
+                                    }
+                                    type_args.push(self.env.fresh_type_var()); // E is unbound
+                                }
+                                "Err" => {
+                                    // Err variant contains E, so T = fresh type var, E = field type
+                                    type_args.push(self.env.fresh_type_var()); // T is unbound
+                                    if !fields.is_empty() {
+                                        type_args.push(self.infer_expression_type(&fields[0])?);
+                                    } else {
+                                        type_args.push(self.env.fresh_type_var());
+                                    }
+                                }
+                                _ => {
+                                    // Unknown variant, use fresh type vars for both
+                                    type_args.push(self.env.fresh_type_var());
+                                    type_args.push(self.env.fresh_type_var());
+                                }
+                            }
+                        }
+                        "Option" => {
+                            // Option<T> - type arg is from the field
+                            if let Some(t_type) = substitutions.get("T") {
+                                type_args.push(t_type.clone());
+                            } else if !fields.is_empty() {
+                                type_args.push(self.infer_expression_type(&fields[0])?);
+                            } else {
+                                type_args.push(self.env.fresh_type_var());
+                            }
+                        }
+                        _ => {
+                            // For other generic enums, just use the inferred field types
+                            for field in fields {
+                                type_args.push(self.infer_expression_type(field)?);
+                            }
+                        }
+                    }
+
+                    return Ok(Type::Generic {
+                        base: enum_name.to_string(),
+                        type_args,
+                    });
+                }
+                EnumVariant::Simple => {
+                    // Simple variant with no fields - return generic type with fresh type vars
+                    match enum_name {
+                        "Result" => Ok(Type::Generic {
+                            base: enum_name.to_string(),
+                            type_args: vec![self.env.fresh_type_var(), self.env.fresh_type_var()],
+                        }),
+                        "Option" => Ok(Type::Generic {
+                            base: enum_name.to_string(),
+                            type_args: vec![self.env.fresh_type_var()],
+                        }),
+                        _ => {
+                            let enum_variants = self.env.enums.get(enum_name).unwrap().clone();
+                            Ok(Type::Enum {
+                                name: enum_name.to_string(),
+                                variants: enum_variants,
+                            })
+                        }
+                    }
+                }
+                EnumVariant::Struct(_) => {
+                    // Struct variant - for now return generic type
+                    Ok(Type::Generic {
+                        base: enum_name.to_string(),
+                        type_args: vec![],
+                    })
+                }
+            }
+        } else {
+            Err(VeldError::TypeError(format!(
+                "Variant {} not found in enum {}",
+                variant_name, enum_name
+            )))
+        }
     }
 
     fn check_generic_arg_compatability(

@@ -1,0 +1,7 @@
+import std.result.{Result}
+
+# Test very basic Result creation with explicit types
+let ok_result: Result<i32, str> = Result.Ok(42)
+
+# Test one method call at a time
+let test1: i32 = ok_result.unwrap_or(0)

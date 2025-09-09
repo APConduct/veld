@@ -4,12 +4,12 @@ import std.result.{Result}
 let ok_result: Result<i32, str> = Result.Ok(42)
 let err_result: Result<i32, str> = Result.Err("error")
 
-# Test method calls that are failing - these should work but return Type::Any
-let unwrapped = ok_result.unwrap_or(0)
-let mapped = ok_result.map(x => x * 2)
-let is_ok_check = ok_result.is_ok()
+# Test method calls with explicit type annotations
+let unwrapped: i32 = ok_result.unwrap_or(0)
+let mapped: Result<i32, str> = ok_result.map(x => x * 2)
+let is_ok_check: bool = ok_result.is_ok()
 
-# Test each method call individually to avoid type mixing errors
-let unwrapped_test = unwrapped
-let mapped_test = mapped.unwrap_or(999)
-let boolean_test = is_ok_check
+# Test each method call individually
+let unwrapped_test: i32 = unwrapped
+let mapped_test: i32 = mapped.unwrap_or(999)
+let boolean_test: bool = is_ok_check

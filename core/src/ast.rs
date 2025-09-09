@@ -517,6 +517,7 @@ pub struct KindMethod {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MethodImpl {
     pub name: String,
+    pub generic_params: Vec<GenericArgument>,
     pub params: Vec<(String, TypeAnnotation)>,
     pub return_type: TypeAnnotation,
     pub body: Vec<Statement>,

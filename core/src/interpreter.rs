@@ -5660,6 +5660,25 @@ impl Interpreter {
                                     }
 
                                     for method in methods {
+                                        // Set up method-level type parameters
+                                        self.type_checker.env().push_type_param_scope();
+                                        for generic_arg in &method.generic_params {
+                                            let param_name = match &generic_arg.name {
+                                                Some(name) => name.clone(),
+                                                None => {
+                                                    if let crate::ast::TypeAnnotation::Basic(
+                                                        base_name,
+                                                    ) = &generic_arg.type_annotation
+                                                    {
+                                                        base_name.clone()
+                                                    } else {
+                                                        "U".to_string()
+                                                    }
+                                                }
+                                            };
+                                            self.type_checker.env().add_type_param(&param_name);
+                                        }
+
                                         let param_types: Vec<crate::types::Type> = method
                                             .params
                                             .iter()
@@ -5684,6 +5703,9 @@ impl Interpreter {
                                             &method.name,
                                             function_type,
                                         );
+
+                                        // Clean up method-level type parameter scope
+                                        self.type_checker.env().pop_type_param_scope();
                                     }
 
                                     // Clean up type parameter scope

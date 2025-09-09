@@ -1,0 +1,20 @@
+import std.result.{Result}
+
+# Test type inference without explicit annotations
+let ok_result: Result<i32, str> = Result.Ok(42)
+let err_result: Result<i32, str> = Result.Err("error")
+
+# These should work with type inference
+let mapped = ok_result.map(x => x * 2)
+let unwrapped = ok_result.unwrap_or(0)
+let is_ok_check = ok_result.is_ok()
+
+# Test chaining without annotations
+let chained = ok_result.map(x => x + 1).unwrap_or(999)
+
+# Test with error case
+let mapped_err = err_result.map(x => x * 3)
+let unwrapped_err = err_result.unwrap_or(100)
+
+# Final result for verification
+let results = [unwrapped, chained, unwrapped_err]

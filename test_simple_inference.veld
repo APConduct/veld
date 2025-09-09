@@ -1,0 +1,10 @@
+import std.result.{Result}
+
+# Test very simple type inference case
+let ok_result: Result<i32, str> = Result.Ok(42)
+
+# Test map method specifically - this is where the issue is
+let test2 = ok_result.map(x => x * 2)
+
+# Check just the map result
+test2

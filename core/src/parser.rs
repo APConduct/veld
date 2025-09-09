@@ -1114,7 +1114,7 @@ impl Parser {
         let method_name = self.consume_identifier("Expected method name")?;
 
         // Parse optional generic parameters for the method (e.g., <U>)
-        let _method_generic_params = self.parse_generic_args_if_present()?;
+        let method_generic_params = self.parse_generic_args_if_present()?;
 
         self.consume(&Token::LParen, "Expected '(' after method name")?;
 
@@ -1158,6 +1158,7 @@ impl Parser {
 
                 Ok(MethodImpl {
                     name: method_name,
+                    generic_params: method_generic_params.clone(),
                     params,
                     return_type,
                     body: statements,
@@ -1171,6 +1172,7 @@ impl Parser {
 
                 Ok(MethodImpl {
                     name: method_name,
+                    generic_params: method_generic_params.clone(),
                     params,
                     return_type,
                     body: vec![Statement::ExprStatement(expr)],
@@ -1187,6 +1189,7 @@ impl Parser {
             self.consume(&Token::End, "Expected 'end' after method body")?;
             Ok(MethodImpl {
                 name: method_name,
+                generic_params: method_generic_params,
                 params,
                 return_type,
                 body: statements,
@@ -1984,7 +1987,7 @@ impl Parser {
                                     enum_name: enum_name.clone(),
                                     variant_name,
                                     fields,
-                                    type_args: Some(Vec::new()),
+                                    type_args: None,
                                 };
                                 continue;
                             }

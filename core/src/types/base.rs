@@ -672,6 +672,7 @@ impl TypeEnvironment {
                     ty.clone()
                 }
             }
+
             Type::Function {
                 params,
                 return_type,
@@ -739,6 +740,12 @@ impl TypeEnvironment {
             | (Type::I16, Type::I16) => Ok(()),
 
             (Type::Any, _) | (_, Type::Any) => Ok(()),
+
+            (Type::TypeParam(_), _) | (_, Type::TypeParam(_)) => {
+                // Type parameters should be handled through substitution during method resolution
+                // For now, consider them compatible with any type
+                Ok(())
+            }
 
             (Type::TypeVar(id), t) | (t, Type::TypeVar(id)) => {
                 if self.occurs_check(id, &t) {
@@ -1010,6 +1017,79 @@ impl TypeEnvironment {
     pub fn get_struct_implementations(&self, struct_name: &str) -> Option<Vec<ImplementationInfo>> {
         let _ = struct_name; // Placeholder for future use
         todo!()
+    }
+
+    /// Substitute type parameters in a type with concrete types
+    pub fn substitute_type_params(&self, ty: &Type, substitutions: &HashMap<String, Type>) -> Type {
+        match ty {
+            Type::TypeParam(param_name) => substitutions
+                .get(param_name)
+                .cloned()
+                .unwrap_or_else(|| ty.clone()),
+            Type::Generic { base, type_args } => {
+                let substituted_args = type_args
+                    .iter()
+                    .map(|arg| self.substitute_type_params(arg, substitutions))
+                    .collect();
+                Type::Generic {
+                    base: base.clone(),
+                    type_args: substituted_args,
+                }
+            }
+            Type::Function {
+                params,
+                return_type,
+            } => {
+                let substituted_params = params
+                    .iter()
+                    .map(|param| self.substitute_type_params(param, substitutions))
+                    .collect();
+                let substituted_return =
+                    Box::new(self.substitute_type_params(return_type, substitutions));
+                Type::Function {
+                    params: substituted_params,
+                    return_type: substituted_return,
+                }
+            }
+            Type::Array(elem_type) => Type::Array(Box::new(
+                self.substitute_type_params(elem_type, substitutions),
+            )),
+            Type::Tuple(types) => {
+                let substituted_types = types
+                    .iter()
+                    .map(|t| self.substitute_type_params(t, substitutions))
+                    .collect();
+                Type::Tuple(substituted_types)
+            }
+            _ => ty.clone(),
+        }
+    }
+
+    /// Check if a type variable has been constrained to be numeric
+    pub fn is_type_var_numeric(&self, ty: &Type) -> bool {
+        match ty {
+            Type::TypeVar(id) => {
+                // Check if this type variable has been unified with a numeric type
+                if let Some(unified_type) = self.substitutions.get(id) {
+                    matches!(
+                        unified_type,
+                        Type::I32
+                            | Type::F64
+                            | Type::I64
+                            | Type::F32
+                            | Type::U32
+                            | Type::U64
+                            | Type::U8
+                            | Type::U16
+                            | Type::I8
+                            | Type::I16
+                    )
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
     }
 }
 

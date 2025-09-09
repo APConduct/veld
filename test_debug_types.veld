@@ -1,0 +1,16 @@
+import std.result.{Result}
+
+# Test type inference step by step
+let ok_result: Result<i32, str> = Result.Ok(42)
+
+# Test 1: Simple method that should work
+let test_unwrap = ok_result.unwrap_or(0)
+
+# Test 2: Map method that's failing
+let test_map = ok_result.map(x => x * 2)
+
+# Test 3: Try to use the mapped result
+let final_result = test_map.unwrap_or(999)
+
+# Return the final result
+final_result
