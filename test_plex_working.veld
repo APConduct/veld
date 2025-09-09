@@ -1,0 +1,64 @@
+#| Focused test for working plex type features
+#| Tests basic plex functionality that should work
+
+# Test basic plex declaration
+plex Point = { x: f32, y: f32 }
+
+# Test automatic coercion from i32 to f32 (safe widening)
+let point1: Point = { x: 10, y: 20 }
+
+# Test that the coercion actually happened by accessing fields
+let x_coord = point1.x
+let y_coord = point1.y
+
+# Test plex with mixed types that should auto-coerce
+plex MixedPoint = { x: f64, y: f64, z: i64 }
+let mixed: MixedPoint = { x: 10, y: 20.0, z: 42 }  # i32->f64, f32->f64, i32->i64
+
+# Test accessing coerced values
+let mixed_x = mixed.x
+let mixed_y = mixed.y
+let mixed_z = mixed.z
+
+# Test more complex coercion scenarios
+plex Config = {
+    width: f64,
+    height: f64,
+    depth: f32,
+    count: i64
+}
+
+let config: Config = {
+    width: 1920,      # i32 -> f64
+    height: 1080.0,   # f32 -> f64
+    depth: 10.5,      # f32 -> f32 (no coercion needed)
+    count: 100        # i32 -> i64
+}
+
+# Test accessing coerced values
+let config_width = config.width
+let config_height = config.height
+let config_depth = config.depth
+let config_count = config.count
+
+# Test that type aliases work in variable declarations
+let another_point: Point = { x: 5.5, y: 6.6 }
+let yet_another: Point = { x: 7, y: 8 }  # i32 -> f32 coercion
+
+# Test accessing final values
+let final_x = yet_another.x
+let final_y = yet_another.y
+
+# Test empty record
+plex Empty = {}
+let empty_record: Empty = {}
+
+# Test single field record
+plex Wrapper = { value: f64 }
+let wrapped: Wrapper = { value: 42 }  # i32 -> f64 coercion
+
+# Test accessing single field
+let wrapped_value = wrapped.value
+
+# Final result - should be a coerced value demonstrating the feature works
+wrapped_value

@@ -1,0 +1,51 @@
+#| Debug test for plex function issue
+#| Isolate the function definition problem
+
+# Test basic plex declaration
+plex Point = { x: f32, y: f32 }
+
+# Test basic coercion works outside function
+let point1: Point = { x: 10, y: 20 }
+let point2: Point = { x: 3, y: 4 }
+
+# Test arithmetic outside function works
+let test_dx = point2.x - point1.x
+let test_dy = point2.y - point1.y
+
+# Simple function without plex parameters first
+fn simple_add(a: f32, b: f32) -> f32
+    a + b
+end
+
+# Test simple function call
+let simple_result = simple_add(1.0, 2.0)
+
+# Now try function with plex parameters but no arithmetic
+fn get_x_coordinate(p: Point) -> f32
+    p.x
+end
+
+# Test getting coordinate
+let coord_result = get_x_coordinate(point1)
+
+# Now try function with simple variable assignment
+fn test_variables(p1: Point, p2: Point) -> f32
+    let local_x1 = p1.x
+    let local_x2 = p2.x
+    local_x1
+end
+
+# Test variable assignment in function
+let var_result = test_variables(point1, point2)
+
+# Finally, try the problematic arithmetic in function
+fn calculate_difference(p1: Point, p2: Point) -> f32
+    let dx = p2.x - p1.x
+    dx
+end
+
+# Test the arithmetic function
+let diff_result = calculate_difference(point1, point2)
+
+# Return final result
+diff_result

@@ -56,6 +56,9 @@ pub enum TypeAnnotation {
     },
     Array(Box<TypeAnnotation>), // Array type, e.g., [i32]
     Tuple(Vec<TypeAnnotation>), // (e.g., (i32, f64, str))
+    Record {
+        fields: Vec<(String, TypeAnnotation)>, // Record type, e.g., { name: str, age: i32 }
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -466,6 +469,12 @@ pub enum Statement {
     MacroInvocation {
         name: String,
         arguments: Vec<Expr>,
+    },
+    PlexDeclaration {
+        name: String,
+        type_annotation: TypeAnnotation,
+        is_public: bool,
+        generic_params: Vec<GenericArgument>,
     },
 }
 

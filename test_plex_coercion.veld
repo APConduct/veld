@@ -1,0 +1,83 @@
+#| Comprehensive test for plex type aliases and automatic type coercion
+#| Tests safe widening conversions and type compatibility
+
+# Test basic plex declaration
+plex Point = { x: f32, y: f32 }
+
+# Test automatic coercion from i32 to f32 (safe widening)
+let point1: Point = { x: 10, y: 20 }
+
+# Test that the coercion actually happened by accessing fields
+let x_coord = point1.x
+let y_coord = point1.y
+
+# Test plex with mixed types that should auto-coerce
+plex MixedPoint = { x: f64, y: f64, z: i64 }
+let mixed: MixedPoint = { x: 10, y: 20.0, z: 42 }  # i32->f64, f32->f64, i32->i64
+
+# Test nested record coercion
+plex Person = {
+    name: str,
+    age: i32,
+    location: Point
+}
+
+let person: Person = {
+    name: "Alice",
+    age: 25,
+    location: { x: 100, y: 200 }  # Should coerce i32 to f32 in nested record
+}
+
+# Test function parameters with plex types
+fn calculate_distance(p1: Point, p2: Point) -> f32
+    let dx = p2.x - p1.x
+    let dy = p2.y - p1.y
+    dx * dx + dy * dy
+end
+
+# Test that function calls work with coerced values
+let distance = calculate_distance(
+    { x: 0, y: 0 },     # Should coerce i32 to f32
+    { x: 3, y: 4 }      # Should coerce i32 to f32
+)
+
+# Test function that returns plex type
+fn create_point(x_val: i32, y_val: i32) -> Point
+    { x: x_val, y: y_val }  # Should coerce i32 to f32 in return
+end
+
+let created_point = create_point(42, 13)
+
+# Test more complex coercion scenarios
+plex Config = {
+    width: f64,
+    height: f64,
+    depth: f32,
+    count: i64
+}
+
+let config: Config = {
+    width: 1920,      # i32 -> f64
+    height: 1080.0,   # f32 -> f64
+    depth: 10.5,      # f32 -> f32 (no coercion needed)
+    count: 100        # i32 -> i64
+}
+
+# Test accessing coerced values
+let total_pixels = config.width * config.height
+
+# Test that type aliases work in variable declarations
+let another_point: Point = { x: 5.5, y: 6.6 }
+let yet_another: Point = { x: 7, y: 8 }  # i32 -> f32 coercion
+
+# Test empty record
+plex Empty = {}
+let empty_record: Empty = {}
+
+# Test single field record
+plex Wrapper = { value: f64 }
+let wrapped: Wrapper = { value: 42 }  # i32 -> f64 coercion
+
+# Verify all values are accessible and have correct types
+let test_access = person.location.x  # Should be f32 after coercion
+let test_nested = mixed.z            # Should be i64 after coercion

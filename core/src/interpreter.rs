@@ -130,6 +130,9 @@ impl Interpreter {
                 Statement::EnumDeclaration { .. } => {
                     self.execute_statement(stmt.clone())?;
                 }
+                Statement::PlexDeclaration { .. } => {
+                    self.execute_statement(stmt.clone())?;
+                }
                 _ => {}
             }
         }
@@ -146,6 +149,7 @@ impl Interpreter {
                     | Statement::ImportDeclaration { .. }
                     | Statement::StructDeclaration { .. }
                     | Statement::EnumDeclaration { .. }
+                    | Statement::PlexDeclaration { .. }
             ) {
                 last_value = self.execute_statement(stmt)?;
             }
@@ -1087,6 +1091,12 @@ impl Interpreter {
                             methods,
                         } => self.execute_implementation(type_name, methods),
 
+                        Statement::PlexDeclaration {
+                            name,
+                            type_annotation,
+                            is_public: _,
+                            generic_params: _,
+                        } => self.execute_plex_declaration(name, type_annotation),
                         Statement::ExprStatement(expr) => {
                             let value = self.evaluate_expression(expr)?;
                             Ok(value.unwrap_return())
@@ -1560,7 +1570,7 @@ impl Interpreter {
         type_annotation: Option<TypeAnnotation>,
         value: Box<Expr>,
     ) -> Result<Value> {
-        let evaluated_value = self.evaluate_expression(*value)?.unwrap_return();
+        let mut evaluated_value = self.evaluate_expression(*value)?.unwrap_return();
 
         // For const declarations, ensure the value is compile-time evaluable
         if matches!(var_kind, VarKind::Const) {
@@ -1581,7 +1591,19 @@ impl Interpreter {
         // Type checking with annotations
         if let Some(type_anno) = type_annotation {
             let expected_type = self.type_checker.env().from_annotation(&type_anno, None)?;
-            self.validate_value_type(&evaluated_value, &expected_type)?;
+
+            // Try to coerce the value to match the expected type through safe widening
+            if let Ok(coerced_value) = self.try_safe_coerce_value(&evaluated_value, &expected_type)
+            {
+                evaluated_value = coerced_value;
+            } else if !self.types_compatible(&self.get_value_type(&evaluated_value), &expected_type)
+            {
+                return Err(VeldError::RuntimeError(format!(
+                    "Type mismatch: expected {}, got {}",
+                    expected_type,
+                    self.get_value_type(&evaluated_value)
+                )));
+            }
 
             // For arrays, perform additional strict type checking
             if let (Value::Array(elements), Type::Array(expected_elem_type)) =
@@ -1812,6 +1834,15 @@ impl Interpreter {
                         .zip(params2.iter())
                         .all(|(a, b)| self.types_compatible(a, b))
                     && self.types_compatible(ret1, ret2)
+            }
+            // Record types are compatible if they have the same fields with compatible types
+            (Type::Record { fields: fields1 }, Type::Record { fields: fields2 }) => {
+                fields1.len() == fields2.len()
+                    && fields1.iter().all(|(name, type1)| {
+                        fields2
+                            .get(name)
+                            .map_or(false, |type2| self.types_compatible(type1, type2))
+                    })
             }
             // Otherwise, not compatible
             _ => false,
@@ -4568,6 +4599,16 @@ impl Interpreter {
                     )))
                 }
             }
+            Value::Record(fields) => {
+                if let Some(value) = fields.get(property) {
+                    Ok(value.clone())
+                } else {
+                    Err(VeldError::RuntimeError(format!(
+                        "Property '{}' not found in record",
+                        property
+                    )))
+                }
+            }
             Value::Array(elements) => {
                 // Handle array properties
                 match property {
@@ -5508,7 +5549,7 @@ impl Interpreter {
 
     fn get_variable(&self, name: &str) -> Option<Value> {
         // 1. Check local scopes (from innermost to outermost)
-        for scope in self.scopes.iter().rev() {
+        for (i, scope) in self.scopes.iter().rev().enumerate() {
             if let Some(val) = scope.get(name) {
                 return Some(val);
             }
@@ -5523,7 +5564,114 @@ impl Interpreter {
         }
 
         // 3. Not found
+
         None
+    }
+
+    fn execute_plex_declaration(
+        &mut self,
+        name: String,
+        type_annotation: TypeAnnotation,
+    ) -> Result<Value> {
+        let ty = self
+            .type_checker
+            .env()
+            .from_annotation(&type_annotation, None)?;
+        self.type_checker.env().add_type_alias(&name, ty);
+        Ok(Value::Unit)
+    }
+
+    /// Check if a type conversion is a safe widening conversion (no data loss)
+    fn is_safe_widening(&self, from_type: &Type, to_type: &Type) -> bool {
+        match (from_type, to_type) {
+            // Same type is always safe
+            (a, b) if a == b => true,
+
+            // Integer to larger integer is safe
+            (Type::I8, Type::I16 | Type::I32 | Type::I64) => true,
+            (Type::I16, Type::I32 | Type::I64) => true,
+            (Type::I32, Type::I64) => true,
+
+            // Unsigned to larger unsigned is safe
+            (Type::U8, Type::U16 | Type::U32 | Type::U64) => true,
+            (Type::U16, Type::U32 | Type::U64) => true,
+            (Type::U32, Type::U64) => true,
+
+            // Small integers to floats is safe (within precision limits)
+            (Type::I8 | Type::I16 | Type::I32, Type::F32 | Type::F64) => true,
+            (Type::U8 | Type::U16 | Type::U32, Type::F32 | Type::F64) => true,
+
+            // I64/U64 to F64 is safe (F64 has 53 bits of precision)
+            (Type::I64 | Type::U64, Type::F64) => true,
+
+            // F32 to F64 is safe
+            (Type::F32, Type::F64) => true,
+
+            _ => false,
+        }
+    }
+
+    /// Attempt to safely coerce a value to match the target type through safe widening
+    fn try_safe_coerce_value(&self, value: &Value, target_type: &Type) -> Result<Value> {
+        match (value, target_type) {
+            // Record coercion - coerce each field if possible
+            (
+                Value::Record(actual_fields),
+                Type::Record {
+                    fields: target_fields,
+                },
+            ) => {
+                if actual_fields.len() != target_fields.len() {
+                    return Err(VeldError::RuntimeError(
+                        "Record field count mismatch".to_string(),
+                    ));
+                }
+
+                let mut coerced_fields = std::collections::HashMap::new();
+
+                for (field_name, target_field_type) in target_fields {
+                    if let Some(actual_field_value) = actual_fields.get(field_name) {
+                        let actual_field_type = actual_field_value.type_of();
+
+                        if self.is_safe_widening(&actual_field_type, target_field_type) {
+                            // Use existing cast_value for safe conversions
+                            let coerced_field =
+                                self.cast_value(actual_field_value.clone(), target_field_type)?;
+                            coerced_fields.insert(field_name.clone(), coerced_field);
+                        } else if actual_field_type == *target_field_type {
+                            // Types already match
+                            coerced_fields.insert(field_name.clone(), actual_field_value.clone());
+                        } else {
+                            return Err(VeldError::RuntimeError(format!(
+                                "Cannot safely coerce field '{}' from {} to {}",
+                                field_name, actual_field_type, target_field_type
+                            )));
+                        }
+                    } else {
+                        return Err(VeldError::RuntimeError(format!(
+                            "Missing field '{}' in record",
+                            field_name
+                        )));
+                    }
+                }
+
+                Ok(Value::Record(coerced_fields))
+            }
+            // Direct value coercion for safe widening
+            _ => {
+                let value_type = value.type_of();
+                if self.is_safe_widening(&value_type, target_type) {
+                    self.cast_value(value.clone(), target_type)
+                } else if value_type == *target_type {
+                    Ok(value.clone())
+                } else {
+                    Err(VeldError::RuntimeError(format!(
+                        "Cannot safely coerce {} to {}",
+                        value_type, target_type
+                    )))
+                }
+            }
+        }
     }
 
     fn execute_module_declaration(

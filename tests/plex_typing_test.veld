@@ -1,0 +1,202 @@
+#| Test file for plex type aliases and record type annotations
+#| This file tests the new plex keyword for creating type aliases
+#| and the ability to annotate variables with record types
+
+# Test basic record type annotation
+let point: { x: f64, y: f64 } = { x: 10.0, y: 20.0 }
+
+# Test nested record type annotation
+let person: {
+    name: str,
+    age: i32,
+    address: { street: str, city: str, zip: str }
+} = {
+    name: "John Doe",
+    age: 30,
+    address: { street: "123 Main St", city: "Anytown", zip: "12345" }
+}
+
+# Test plex type alias for simple record
+plex Point = { x: f64, y: f64 }
+
+let origin: Point = { x: 0.0, y: 0.0 }
+let destination: Point = { x: 100.0, y: 50.0 }
+
+# Test plex type alias for complex nested record
+plex Address = { street: str, city: str, state: str, zip: str }
+plex Person = { name: str, age: i32, email: str, address: Address }
+
+let employee: Person = {
+    name: "Jane Smith",
+    age: 28,
+    email: "jane@example.com",
+    address: {
+        street: "456 Oak Ave",
+        city: "Springfield",
+        state: "IL",
+        zip: "62701"
+    }
+}
+
+# Test plex with generic types
+plex Result<T, E> = { ok: Option<T>, err: Option<E> }
+
+let success_result: Result<str, str> = {
+    ok: Option.Some("success"),
+    err: Option.None
+}
+
+let error_result: Result<i32, str> = {
+    ok: Option.None,
+    err: Option.Some("error occurred")
+}
+
+# Test plex with array fields
+plex Config = {
+    name: str,
+    values: [i32],
+    flags: [bool]
+}
+
+let app_config: Config = {
+    name: "MyApp",
+    values: [1, 2, 3, 4, 5],
+    flags: [true, false, true]
+}
+
+# Test function that accepts plex-typed parameters
+fn calculate_distance(p1: Point, p2: Point) -> f32
+    let dx = p2.x - p1.x
+    let dy = p2.y - p1.y
+    dx * dx + dy * dy
+end
+
+# Test function that returns plex-typed value
+fn create_person(name: str, age: i32) -> Person
+    {
+        name: name,
+        age: age,
+        email: "",
+        address: {
+            street: "",
+            city: "",
+            state: "",
+            zip: ""
+        }
+    }
+end
+
+# Test with optional fields using Option types
+plex UserProfile = {
+    username: str,
+    email: str,
+    bio: Option<str>,
+    avatar_url: Option<str>
+}
+
+let user: UserProfile = {
+    username: "john_doe",
+    email: "john@example.com",
+    bio: Option.Some("Software developer"),
+    avatar_url: Option.None
+}
+
+# Test plex with function types
+plex EventHandler = {
+    name: str,
+    handler: (str) -> bool,
+    priority: i32
+}
+
+let click_handler: EventHandler = {
+    name: "click",
+    handler: (event_name) => event_name == "click",
+    priority: 1
+}
+
+# Test plex aliases referring to other plex types
+plex Coordinate = Point
+plex Location = Coordinate
+
+let current_location: Location = { x: 42.0, y: 13.7 }
+
+# Test record type annotation in function parameters
+fn process_user_data(data: { id: i32, active: bool }) -> str
+    if data.active then
+        "User is active"
+    else
+        "User is inactive"
+    end
+end
+
+let user_data = { id: 123, active: true }
+let status = process_user_data(user_data)
+
+# Test empty record type
+plex Empty = {}
+let empty_record: Empty = {}
+
+# Test record with single field
+plex Wrapper<T> = { value: T }
+let wrapped_string: Wrapper<str> = { value: "hello" }
+let wrapped_number: Wrapper<i32> = { value: 42 }
+
+# Test deeply nested record types
+plex NestedData = {
+    level1: {
+        level2: {
+            level3: {
+                data: str
+            }
+        }
+    }
+}
+
+let nested: NestedData = {
+    level1: {
+        level2: {
+            level3: {
+                data: "deep value"
+            }
+        }
+    }
+}
+
+# Test record type annotation with tuple fields
+let complex_record: {
+    tuple_field: (i32, str, bool),
+    array_field: [f64],
+    optional_field: Option<str>
+} = {
+    tuple_field: (1, "test", true),
+    array_field: [1.0, 2.0, 3.0],
+    optional_field: Option.Some("value")
+}
+
+# Test that plex types can be used in generic contexts
+plex Container<T> = { items: [T], count: i32 }
+
+let string_container: Container<str> = {
+    items: ["apple", "banana", "cherry"],
+    count: 3
+}
+
+let point_container: Container<Point> = {
+    items: [
+        { x: 0.0, y: 0.0 },
+        { x: 1.0, y: 1.0 },
+        { x: 2.0, y: 2.0 }
+    ],
+    count: 3
+}
+
+# Test plex type used in match expressions
+fn describe_point(p: Point) -> str
+    if p.x == 0.0 and p.y == 0.0 then
+        "origin"
+    else
+        "some point"
+    end
+end
+
+let description = describe_point(origin)

@@ -1,0 +1,28 @@
+#| Test arithmetic operations on coerced plex values
+
+# Test basic plex declaration
+plex Point = { x: f32, y: f32 }
+
+# Test automatic coercion from i32 to f32
+let point1: Point = { x: 10, y: 20 }
+let point2: Point = { x: 3, y: 4 }
+
+# Test arithmetic operations on coerced values
+let dx = point2.x - point1.x
+let dy = point2.y - point1.y
+
+# Test more arithmetic
+let sum_x = point1.x + point2.x
+let product = dx * dy
+
+# Test with different numeric types
+plex MixedPoint = { x: f64, y: i64 }
+let mixed1: MixedPoint = { x: 10, y: 20 }
+let mixed2: MixedPoint = { x: 5, y: 15 }
+
+# Test arithmetic on mixed types (should work after coercion)
+let mixed_dx = mixed2.x - mixed1.x
+let mixed_dy = mixed2.y - mixed1.y
+
+# Final result should be a computed value
+product

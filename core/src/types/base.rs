@@ -182,6 +182,16 @@ impl Type {
                     .collect::<Result<Vec<_>>>()?;
                 Ok(Type::Tuple(types))
             }
+            TypeAnnotation::Record { fields } => {
+                let mut field_types = std::collections::HashMap::new();
+                for (field_name, field_type) in fields {
+                    let ty = Type::from_annotation(field_type, None)?;
+                    field_types.insert(field_name.clone(), ty);
+                }
+                Ok(Type::Record {
+                    fields: field_types,
+                })
+            }
             TypeAnnotation::Constrained {
                 base_type: _,
                 constraints: _,
@@ -382,6 +392,7 @@ pub struct TypeEnvironment {
     implementations: HashMap<String, Vec<ImplementationInfo>>,
     generic_structs: HashMap<String, (HashMap<String, Type>, Vec<GenericArgument>)>,
     pub generic_struct_names: HashSet<String>,
+    type_aliases: HashMap<String, Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -407,6 +418,7 @@ impl TypeEnvironment {
             implementations: HashMap::new(),
             generic_structs: HashMap::new(),
             generic_struct_names: HashSet::new(),
+            type_aliases: HashMap::new(),
         }
     }
 
@@ -486,6 +498,22 @@ impl TypeEnvironment {
         methods.insert(method_name.to_string(), method_type);
     }
 
+    pub fn add_type_alias(&mut self, name: &str, ty: Type) {
+        self.type_aliases.insert(name.to_string(), ty);
+    }
+
+    pub fn get_type_alias(&self, name: &str) -> Option<&Type> {
+        self.type_aliases.get(name)
+    }
+
+    pub fn resolve_type_alias(&self, name: &str) -> Option<Type> {
+        if let Some(ty) = self.type_aliases.get(name) {
+            Some(ty.clone())
+        } else {
+            None
+        }
+    }
+
     pub fn add_kind(
         &mut self,
         name: &str,
@@ -544,6 +572,36 @@ impl TypeEnvironment {
         false
     }
 
+    /// Check if a type conversion is a safe widening conversion (no data loss)
+    pub fn is_safe_widening(&self, from_type: &Type, to_type: &Type) -> bool {
+        match (from_type, to_type) {
+            // Same type is always safe
+            (a, b) if a == b => true,
+
+            // Integer to larger integer is safe
+            (Type::I8, Type::I16 | Type::I32 | Type::I64) => true,
+            (Type::I16, Type::I32 | Type::I64) => true,
+            (Type::I32, Type::I64) => true,
+
+            // Unsigned to larger unsigned is safe
+            (Type::U8, Type::U16 | Type::U32 | Type::U64) => true,
+            (Type::U16, Type::U32 | Type::U64) => true,
+            (Type::U32, Type::U64) => true,
+
+            // Small integers to floats is safe (within precision limits)
+            (Type::I8 | Type::I16 | Type::I32, Type::F32 | Type::F64) => true,
+            (Type::U8 | Type::U16 | Type::U32, Type::F32 | Type::F64) => true,
+
+            // I64/U64 to F64 is safe (F64 has 53 bits of precision)
+            (Type::I64 | Type::U64, Type::F64) => true,
+
+            // F32 to F64 is safe
+            (Type::F32, Type::F64) => true,
+
+            _ => false,
+        }
+    }
+
     pub fn from_annotation(
         &mut self,
         annotation: &TypeAnnotation,
@@ -560,6 +618,12 @@ impl TypeEnvironment {
                         return Ok(Type::KindSelf(name.clone()));
                     }
                 }
+
+                // Check for type aliases first
+                if let Some(alias_type) = self.resolve_type_alias(name) {
+                    return Ok(alias_type);
+                }
+
                 match name.as_str() {
                     "i32" => Ok(Type::I32),
                     "f64" => Ok(Type::F64),
@@ -654,6 +718,16 @@ impl TypeEnvironment {
                     .collect::<Result<Vec<_>>>()?;
                 Ok(Type::Tuple(types))
             }
+            TypeAnnotation::Record { fields } => {
+                let mut field_types = std::collections::HashMap::new();
+                for (field_name, field_type) in fields {
+                    let ty = self.from_annotation(field_type, None)?;
+                    field_types.insert(field_name.clone(), ty);
+                }
+                Ok(Type::Record {
+                    fields: field_types,
+                })
+            }
             TypeAnnotation::Constrained {
                 base_type: _,
                 constraints: _,
@@ -723,7 +797,7 @@ impl TypeEnvironment {
         let t1 = self.apply_substitutions(&t1);
         let t2 = self.apply_substitutions(&t2);
 
-        match (t1, t2) {
+        match (t1.clone(), t2.clone()) {
             (Type::Unit, Type::Unit)
             | (Type::I32, Type::I32)
             | (Type::F64, Type::F64)
@@ -754,6 +828,9 @@ impl TypeEnvironment {
                 self.substitutions.insert(id, t);
                 Ok(())
             }
+
+            // Allow safe widening conversions in unification
+            (actual, target) if self.is_safe_widening(&actual, &target) => Ok(()),
             (
                 Type::Function {
                     params: p1,
@@ -832,6 +909,29 @@ impl TypeEnvironment {
 
                 for (t1, t2) in types1.into_iter().zip(types2.into_iter()) {
                     self.unify(t1, t2)?;
+                }
+                Ok(())
+            }
+            (Type::Record { fields: fields1 }, Type::Record { fields: fields2 }) => {
+                // Records are structurally typed - they unify if they have the same fields with unifiable types
+                if fields1.len() != fields2.len() {
+                    return Err(VeldError::TypeError(format!(
+                        "Cannot unify record types with different number of fields: {} vs {}",
+                        fields1.len(),
+                        fields2.len()
+                    )));
+                }
+
+                // Check that every field in fields1 has a corresponding field in fields2 with unifiable type
+                for (field_name, field_type1) in fields1 {
+                    if let Some(field_type2) = fields2.get(&field_name) {
+                        self.unify(field_type1, field_type2.clone())?;
+                    } else {
+                        return Err(VeldError::TypeError(format!(
+                            "Cannot unify record types: field '{}' missing in target type",
+                            field_name
+                        )));
+                    }
                 }
                 Ok(())
             }

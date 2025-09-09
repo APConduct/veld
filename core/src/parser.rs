@@ -80,6 +80,8 @@ impl Parser {
             self.variable_declaration()
         } else if self.match_token(&[Token::Enum]) {
             self.enum_declaration()
+        } else if self.match_token(&[Token::Plex]) {
+            self.plex_declaration_with_visibility(false)
         } else if self.match_token(&[Token::Mod]) {
             self.module_declaration()
         } else if self.match_token(&[Token::Import]) {
@@ -98,6 +100,8 @@ impl Parser {
                 self.kind_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Enum]) {
                 self.enum_declaration_with_visibility(true)
+            } else if self.match_token(&[Token::Plex]) {
+                self.plex_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Mod]) {
                 self.module_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Import]) {
@@ -700,6 +704,7 @@ impl Parser {
             || self.check(&Token::Impl)
             || self.check(&Token::Let)
             || self.check(&Token::Enum)
+            || self.check(&Token::Plex)
             || self.check(&Token::Mod)
             || self.check(&Token::Const)
             || self.check(&Token::Var)
@@ -1249,6 +1254,37 @@ impl Parser {
             } else {
                 Ok(TypeAnnotation::Tuple(types))
             }
+        } else if self.match_token(&[Token::LBrace]) {
+            // Record type annotation: { field1: Type1, field2: Type2 }
+            let mut fields = Vec::new();
+
+            // Empty record: {}
+            if self.match_token(&[Token::RBrace]) {
+                return Ok(TypeAnnotation::Record { fields });
+            }
+
+            // Parse fields
+            loop {
+                let field_name = self.consume_identifier("Expected field name in record type")?;
+                self.consume(
+                    &Token::Colon,
+                    "Expected ':' after field name in record type",
+                )?;
+                let field_type = self.parse_type()?;
+                fields.push((field_name, field_type));
+
+                if !self.match_token(&[Token::Comma]) {
+                    break;
+                }
+
+                // Allow trailing comma
+                if self.check(&Token::RBrace) {
+                    break;
+                }
+            }
+
+            self.consume(&Token::RBrace, "Expected '}' after record type fields")?;
+            Ok(TypeAnnotation::Record { fields })
         } else {
             // Handle array type notation
             if self.match_token(&[Token::LBracket]) {
@@ -3103,6 +3139,52 @@ impl Parser {
         Ok(Statement::KindDeclaration {
             name,
             methods,
+            is_public,
+            generic_params,
+        })
+    }
+
+    fn plex_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let name = self.consume_identifier("Expected plex name")?;
+
+        // Parse generic parameters if present
+        let mut generic_params = Vec::new();
+        if self.match_token(&[Token::Less]) {
+            if !self.check(&Token::Greater) {
+                loop {
+                    let param_name = self.consume_identifier("Expected generic parameter name")?;
+                    let mut constraints = Vec::new();
+
+                    // Parse constraints if present (e.g., T: Add + Mul)
+                    if self.match_token(&[Token::Colon]) {
+                        loop {
+                            constraints.push(self.parse_type()?);
+                            if !self.match_token(&[Token::Plus]) {
+                                break;
+                            }
+                        }
+                    }
+
+                    generic_params.push(GenericArgument {
+                        name: None,
+                        type_annotation: TypeAnnotation::Basic(param_name),
+                        constraints,
+                    });
+
+                    if !self.match_token(&[Token::Comma]) {
+                        break;
+                    }
+                }
+            }
+            self.consume(&Token::Greater, "Expected '>' after generic parameters")?;
+        }
+
+        self.consume(&Token::Equals, "Expected '=' after plex name")?;
+        let type_annotation = self.parse_type()?;
+
+        Ok(Statement::PlexDeclaration {
+            name,
+            type_annotation,
             is_public,
             generic_params,
         })

@@ -524,15 +524,28 @@ impl TypeChecker {
             .map(|(_, type_anno)| self.env.from_annotation(type_anno, None))
             .collect::<Result<Vec<_>>>()?;
 
+        // Set up function context for return type checking
+        let old_return_type = self.current_function_return_type.clone();
+        let function_return_type = self.env.from_annotation(return_type, None)?;
+        self.current_function_return_type = Some(function_return_type.clone());
+
         self.env.push_scope();
 
         for (i, (param_name, _)) in params.iter().enumerate() {
             self.env.define(param_name, param_types[i].clone());
         }
 
+        // Type check all statements in the function body
         let inferred_return_type = if !body.is_empty() {
             let mut found_type = None;
             for stmt in body {
+                // Type check every statement
+
+                // Type check each statement by cloning it to make it mutable
+                let mut stmt_clone = stmt.clone();
+                self.type_check_statement(&mut stmt_clone)?;
+
+                // Also check for return type inference
                 match stmt {
                     Statement::Return(Some(expr)) => {
                         let expr_type = self.infer_expression_type(expr)?;
@@ -564,13 +577,17 @@ impl TypeChecker {
         };
 
         self.env.solve_constraints()?;
+        self.env.pop_scope();
+
+        // Restore the original return type context
+        self.current_function_return_type = old_return_type;
 
         let function_type = Type::Function {
             params: param_types.clone(),
             return_type: Box::new(actual_return_type),
         };
+
         self.env.define(name, function_type);
-        self.env.pop_scope();
         Ok(())
     }
 
@@ -688,6 +705,10 @@ impl TypeChecker {
                         name, expected_elem, actual_elem
                     )));
                 }
+            } else if let Some(coerced_type) = self.try_coerce_type(&value_type, &specified_type) {
+                // Use the coerced type for safe widening conversions
+                self.env
+                    .add_constraint(coerced_type.clone(), specified_type.clone());
             } else if !self.types_compatible(&value_type, &specified_type) {
                 return Err(VeldError::TypeError(format!(
                     "Type mismatch for variable '{}': expected {}, got {}",
@@ -1575,8 +1596,98 @@ impl TypeChecker {
             // For enums, check names match
             (Type::Enum { name: name1, .. }, Type::Enum { name: name2, .. }) => name1 == name2,
 
+            // For records, check that all fields match with compatible types (including safe coercions)
+            (Type::Record { fields: fields1 }, Type::Record { fields: fields2 }) => {
+                fields1.len() == fields2.len()
+                    && fields1.iter().all(|(name, type1)| {
+                        fields2.get(name).map_or(false, |type2| {
+                            self.types_compatible(type1, type2)
+                                || self.is_safe_widening(type1, type2)
+                        })
+                    })
+            }
+
+            // Allow safe widening conversions
+            (actual, target) if self.is_safe_widening(actual, target) => true,
+
             _ if self.is_numeric_type(&t1) && self.is_numeric_type(&t2) => true,
             _ => false,
+        }
+    }
+
+    /// Check if a type conversion is a safe widening conversion (no data loss)
+    fn is_safe_widening(&self, from_type: &Type, to_type: &Type) -> bool {
+        match (from_type, to_type) {
+            // Same type is always safe
+            (a, b) if a == b => true,
+
+            // Integer to larger integer is safe
+            (Type::I8, Type::I16 | Type::I32 | Type::I64) => true,
+            (Type::I16, Type::I32 | Type::I64) => true,
+            (Type::I32, Type::I64) => true,
+
+            // Unsigned to larger unsigned is safe
+            (Type::U8, Type::U16 | Type::U32 | Type::U64) => true,
+            (Type::U16, Type::U32 | Type::U64) => true,
+            (Type::U32, Type::U64) => true,
+
+            // Small integers to floats is safe (within precision limits)
+            (Type::I8 | Type::I16 | Type::I32, Type::F32 | Type::F64) => true,
+            (Type::U8 | Type::U16 | Type::U32, Type::F32 | Type::F64) => true,
+
+            // I64/U64 to F64 is safe (F64 has 53 bits of precision)
+            (Type::I64 | Type::U64, Type::F64) => true,
+
+            // F32 to F64 is safe
+            (Type::F32, Type::F64) => true,
+
+            _ => false,
+        }
+    }
+
+    /// Attempt to coerce any type to match target type through safe widening
+    fn try_coerce_type(&self, actual_type: &Type, target_type: &Type) -> Option<Type> {
+        match (actual_type, target_type) {
+            // Direct safe widening for primitive types
+            (actual, target) if self.is_safe_widening(actual, target) => Some(target.clone()),
+
+            // Record type coercion
+            (
+                Type::Record {
+                    fields: actual_fields,
+                },
+                Type::Record {
+                    fields: target_fields,
+                },
+            ) => {
+                // Check if we can coerce all fields
+                if actual_fields.len() != target_fields.len() {
+                    return None;
+                }
+
+                let mut coerced_fields = std::collections::HashMap::new();
+
+                for (field_name, target_field_type) in target_fields {
+                    if let Some(actual_field_type) = actual_fields.get(field_name) {
+                        if self.is_safe_widening(actual_field_type, target_field_type) {
+                            coerced_fields.insert(field_name.clone(), target_field_type.clone());
+                        } else if actual_field_type == target_field_type {
+                            coerced_fields.insert(field_name.clone(), target_field_type.clone());
+                        } else {
+                            // If any field can't be safely coerced, fail
+                            return None;
+                        }
+                    } else {
+                        // Missing field
+                        return None;
+                    }
+                }
+
+                Some(Type::Record {
+                    fields: coerced_fields,
+                })
+            }
+            _ => None,
         }
     }
 
@@ -2548,6 +2659,16 @@ impl TypeChecker {
                     Err(VeldError::TypeError(format!(
                         "Struct {} has no field {}",
                         name, property
+                    )))
+                }
+            }
+            Type::Record { fields } => {
+                if let Some(field_type) = fields.get(property) {
+                    Ok(field_type.clone())
+                } else {
+                    Err(VeldError::TypeError(format!(
+                        "Record has no field {}",
+                        property
                     )))
                 }
             }

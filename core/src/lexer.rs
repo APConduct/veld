@@ -50,6 +50,8 @@ pub enum Token {
     Continue,
     #[token("enum")]
     Enum,
+    #[token("plex")]
+    Plex,
 
     // Operators
     #[token("=")]
@@ -272,6 +274,7 @@ impl Display for Token {
             Token::With => write!(f, "with"),
             Token::Macro => write!(f, "macro"),
             Token::Const => write!(f, "const"),
+            Token::Plex => write!(f, "plex"),
             Token::SelfToken => write!(f, "self"),
             Token::Pipe => write!(f, "|>"),
             Token::LDoubleBracket => write!(f, "[["),

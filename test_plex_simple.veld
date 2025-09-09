@@ -1,0 +1,10 @@
+#| Simple test for plex type aliases and record type annotations
+
+# Test just the plex declaration first
+plex Point = { x: f32, y: f32 }
+
+# Test simple record literal without type annotation first
+let simple_record = { x: 10.0, y: 20.0 }
+
+# Test plex-typed variable
+let origin: Point = { x: 0.0, y: 0.0 }

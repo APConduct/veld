@@ -1,0 +1,11 @@
+#| Minimal test for plex type property access
+
+# Test basic plex declaration
+plex Point = { x: f32, y: f32 }
+
+# Test basic record creation and access
+let point1: Point = { x: 10, y: 20 }
+let x_coord = point1.x
+let y_coord = point1.y
+
+# Values are accessible and should work
