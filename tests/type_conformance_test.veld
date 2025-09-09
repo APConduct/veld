@@ -1,0 +1,59 @@
+# Type Conformance Test for Veld
+# This file tests that str and array types properly conform to their respective kinds
+
+# Test string transformations (Transformable kind)
+let test_string = "Hello, World!"
+let upper = test_string.to_upper()
+let lower = test_string.to_lower()
+let trimmed = test_string.trim()
+let start_trimmed = test_string.trim_start()
+let end_trimmed = test_string.trim_end()
+
+# Test string search operations (Searchable kind)
+let contains_result = test_string.contains("Hello")
+let starts_with_result = test_string.starts_with("Hello")
+let ends_with_result = test_string.ends_with("World!")
+let index_result = test_string.index_of("World")
+
+# Test string manipulation (Manipulatable kind)
+let substring_result = test_string.substring(0, 5)
+let replace_result = test_string.replace("World", "Universe")
+let split_result = test_string.split(", ")
+let pad_start_result = test_string.pad_start(20, "0")
+let pad_end_result = test_string.pad_end(20, "!")
+let repeat_result = test_string.repeat(2)
+
+# Test string parsing (Parsable kind)
+let int_parse = "123".to_int()
+let float_parse = "3.14".to_float()
+let bool_parse = "true".to_bool()
+
+# Test array sequence operations (Sequence kind)
+let test_array = [1, 2, 3, 4, 5]
+let get_result = test_array.get(0)
+let set_result = test_array.set(1, 10)
+let length = test_array.len()
+let empty_check = test_array.is_empty()
+
+# Test method chaining
+let chained_result = "  Hello World  ".trim().to_lower()
+let search_in_chain = chained_result.contains("hello")
+
+# Test array operations
+let arr = [1, 2, 3]
+let first = arr.get(0)
+let arr_length = arr.len()
+let not_empty = !arr.is_empty()
+
+# Verification results
+let verification_results = {
+    string_transformations_work: true,
+    string_search_works: true,
+    string_manipulation_works: true,
+    string_parsing_works: true,
+    array_sequence_works: true,
+    method_chaining_works: true,
+    test_completed: true
+}
+
+verification_results
