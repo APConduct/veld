@@ -977,6 +977,9 @@ impl TypeEnvironment {
             (Type::String, "std.string.Manipulatable") => return true,
             (Type::String, "std.string.Parsable") => return true,
 
+            // Sequence capabilities
+            (Type::Array(_), "std.collections.sequence.Sequence") => return true,
+
             // Numeric capabilities
             (Type::I32, "std.numeric.Numeric") => return true,
             (Type::F64, "std.numeric.Numeric") => return true,
