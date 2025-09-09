@@ -116,6 +116,8 @@ pub enum Token {
     At,
     #[token(".")]
     Dot,
+    #[token("..=")]
+    DotDotEq,
     #[token("..")]
     DotDot,
     #[token("...")]
@@ -248,6 +250,7 @@ impl Display for Token {
             Token::Semicolon => write!(f, ";"),
             Token::At => write!(f, "@"),
             Token::Dot => write!(f, "."),
+            Token::DotDotEq => write!(f, "..="),
             Token::DotDot => write!(f, ".."),
             Token::DotDotDot => write!(f, "..."),
             Token::Tilde => write!(f, "~"),

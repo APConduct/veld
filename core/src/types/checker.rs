@@ -1046,6 +1046,15 @@ impl TypeChecker {
                     }
                 }
             }
+            Expr::Range {
+                start,
+                end,
+                inclusive,
+            } => self.infer_range_type(
+                start.as_ref().map(|v| &**v),
+                end.as_ref().map(|v| &**v),
+                *inclusive,
+            ),
             Expr::Record { fields: f } => {
                 // Fix: convert Vec<(String, Expr)> to HashMap<String, Type>
                 let mut field_types = std::collections::HashMap::new();
@@ -3118,5 +3127,74 @@ impl TypeChecker {
             }
         }
         Ok(())
+    }
+
+    fn infer_range_type(
+        &mut self,
+        start: Option<&Expr>,
+        end: Option<&Expr>,
+        inclusive: bool,
+    ) -> Result<Type> {
+        // Infer the element type from start or end expression
+        let element_type = if let Some(start_expr) = start {
+            self.infer_expression_type(start_expr)?
+        } else if let Some(end_expr) = end {
+            self.infer_expression_type(end_expr)?
+        } else {
+            // Full range (..) has no type constraints
+            return Ok(Type::Struct {
+                name: "RangeFull".to_string(),
+                fields: std::collections::HashMap::new(),
+            });
+        };
+
+        // If both start and end are present, ensure they have the same type
+        if let (Some(start_expr), Some(end_expr)) = (start, end) {
+            let start_type = self.infer_expression_type(start_expr)?;
+            let end_type = self.infer_expression_type(end_expr)?;
+            self.env.add_constraint(start_type, end_type);
+        }
+
+        // Return the appropriate range type based on the pattern
+        match (start.is_some(), end.is_some(), inclusive) {
+            // start..end
+            (true, true, false) => Ok(Type::Generic {
+                base: "Range".to_string(),
+                type_args: vec![element_type],
+            }),
+            // start..=end
+            (true, true, true) => Ok(Type::Generic {
+                base: "RangeInclusive".to_string(),
+                type_args: vec![element_type],
+            }),
+            // start..
+            (true, false, false) => Ok(Type::Generic {
+                base: "RangeFrom".to_string(),
+                type_args: vec![element_type],
+            }),
+            // ..end
+            (false, true, false) => Ok(Type::Generic {
+                base: "RangeTo".to_string(),
+                type_args: vec![element_type],
+            }),
+            // ..=end
+            (false, true, true) => Ok(Type::Generic {
+                base: "RangeToInclusive".to_string(),
+                type_args: vec![element_type],
+            }),
+            // .. (full range)
+            (false, false, false) => Ok(Type::Struct {
+                name: "RangeFull".to_string(),
+                fields: std::collections::HashMap::new(),
+            }),
+            // start..= (invalid)
+            (true, false, true) => Err(VeldError::TypeError(
+                "Invalid range: start..= requires an end value".to_string(),
+            )),
+            // ..= (invalid)
+            (false, false, true) => Err(VeldError::TypeError(
+                "Invalid range: ..= requires an end value".to_string(),
+            )),
+        }
     }
 }

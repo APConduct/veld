@@ -699,6 +699,19 @@ impl Interpreter {
                     }
                 }
             }
+            Expr::Range {
+                start,
+                end,
+                inclusive: _,
+            } => {
+                // Collect free variables from start and end expressions
+                if let Some(start_expr) = start {
+                    self.collect_free_variables_expr(start_expr, bound_vars, free_vars);
+                }
+                if let Some(end_expr) = end {
+                    self.collect_free_variables_expr(end_expr, bound_vars, free_vars);
+                }
+            }
         }
     }
 
@@ -2601,6 +2614,11 @@ impl Interpreter {
                                     },
                                 }
                             }
+                            Expr::Range {
+                                start,
+                                end,
+                                inclusive,
+                            } => self.evaluate_range(start, end, inclusive),
                             Expr::Record { fields } => self.eval_record_fields(fields),
                         }
                     }
@@ -2618,6 +2636,89 @@ impl Interpreter {
         }
         // Create a Record value (anonymous struct)
         Ok(Value::Record(field_values))
+    }
+
+    fn evaluate_range(
+        &mut self,
+        start: Option<Box<Expr>>,
+        end: Option<Box<Expr>>,
+        inclusive: bool,
+    ) -> Result<Value> {
+        let start_val = if let Some(start_expr) = start {
+            Some(self.evaluate_expression(*start_expr)?.unwrap_return())
+        } else {
+            None
+        };
+
+        let end_val = if let Some(end_expr) = end {
+            Some(self.evaluate_expression(*end_expr)?.unwrap_return())
+        } else {
+            None
+        };
+
+        // Create appropriate range struct based on start/end presence and inclusivity
+        match (start_val, end_val, inclusive) {
+            // start..stop
+            (Some(start), Some(stop), false) => Ok(Value::Struct {
+                name: "Range".to_string(),
+                fields: {
+                    let mut fields = HashMap::new();
+                    fields.insert("start".to_string(), start);
+                    fields.insert("stop".to_string(), stop);
+                    fields
+                },
+            }),
+            // start..=stop
+            (Some(start), Some(stop), true) => Ok(Value::Struct {
+                name: "RangeInclusive".to_string(),
+                fields: {
+                    let mut fields = HashMap::new();
+                    fields.insert("start".to_string(), start);
+                    fields.insert("stop".to_string(), stop);
+                    fields
+                },
+            }),
+            // start..
+            (Some(start), None, false) => Ok(Value::Struct {
+                name: "RangeFrom".to_string(),
+                fields: {
+                    let mut fields = HashMap::new();
+                    fields.insert("start".to_string(), start);
+                    fields
+                },
+            }),
+            // start..= (invalid)
+            (Some(_start), None, true) => Err(VeldError::RuntimeError(
+                "Invalid range: start..= requires an end value".to_string(),
+            )),
+            // ..stop
+            (None, Some(stop), false) => Ok(Value::Struct {
+                name: "RangeTo".to_string(),
+                fields: {
+                    let mut fields = HashMap::new();
+                    fields.insert("stop".to_string(), stop);
+                    fields
+                },
+            }),
+            // ..=stop
+            (None, Some(stop), true) => Ok(Value::Struct {
+                name: "RangeToInclusive".to_string(),
+                fields: {
+                    let mut fields = HashMap::new();
+                    fields.insert("stop".to_string(), stop);
+                    fields
+                },
+            }),
+            // ..
+            (None, None, false) => Ok(Value::Struct {
+                name: "RangeFull".to_string(),
+                fields: HashMap::new(),
+            }),
+            // ..= (invalid)
+            (None, None, true) => Err(VeldError::RuntimeError(
+                "Invalid range: ..= requires a stop value".to_string(),
+            )),
+        }
     }
 
     fn find_generic_function(&mut self, name: &str) -> Option<FunctionDeclaration> {

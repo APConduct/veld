@@ -1,0 +1,4 @@
+fn main()
+    let range3 = 10..
+    let range4 = ..20
+end

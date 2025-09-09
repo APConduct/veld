@@ -1,0 +1,8 @@
+fn main()
+    let range1 = 1..5
+    let range2 = 1..=5
+    let range3 = 10..
+    let range4 = ..20
+    let range5 = ..=100
+    let range6 = ..
+end

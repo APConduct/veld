@@ -162,6 +162,11 @@ pub enum Expr {
         expr: Box<Expr>,
         target_type: TypeAnnotation,
     },
+    Range {
+        start: Option<Box<Expr>>,
+        end: Option<Box<Expr>>,
+        inclusive: bool,
+    },
 }
 
 impl Expr {
@@ -191,6 +196,10 @@ impl Expr {
 
     pub fn is_enum_variant(&self) -> bool {
         matches!(self, Expr::EnumVariant { .. })
+    }
+
+    pub fn is_range(&self) -> bool {
+        matches!(self, Expr::Range { .. })
     }
 }
 

@@ -1750,16 +1750,57 @@ impl Parser {
     }
 
     fn pipeline(&mut self) -> Result<Expr> {
-        let mut expr = self.logical()?;
+        let mut expr = self.range()?;
 
         while self.match_token(&[Token::Pipe]) {
-            let right = self.logical()?;
+            let right = self.range()?;
             expr = Expr::BinaryOp {
                 left: Box::new(expr),
                 operator: BinaryOperator::Pipe,
                 right: Box::new(right),
             };
         }
+        Ok(expr)
+    }
+
+    fn range(&mut self) -> Result<Expr> {
+        let expr = self.logical()?;
+
+        // Check for range operators: expr.. or expr..=
+        if self.match_token(&[Token::DotDot, Token::DotDotEq]) {
+            let inclusive = self.previous() == Token::DotDotEq;
+            let start = Some(Box::new(expr));
+
+            // Check if there's an end expression
+            let end = if self.check(&Token::Comma)
+                || self.check(&Token::RParen)
+                || self.check(&Token::RBracket)
+                || self.check(&Token::RBrace)
+                || self.check(&Token::Semicolon)
+                || self.check(&Token::End)
+                || self.check(&Token::Let)
+                || self.check(&Token::Var)
+                || self.check(&Token::Const)
+                || self.check(&Token::Fn)
+                || self.check(&Token::Proc)
+                || self.check(&Token::If)
+                || self.check(&Token::While)
+                || self.check(&Token::For)
+                || self.check(&Token::Return)
+                || self.is_at_end()
+            {
+                None
+            } else {
+                Some(Box::new(self.logical()?))
+            };
+
+            return Ok(Expr::Range {
+                start,
+                end,
+                inclusive,
+            });
+        }
+
         Ok(expr)
     }
 
@@ -2321,6 +2362,30 @@ impl Parser {
             Token::LBracket => {
                 self.advance(); // consume '['
                 self.parse_array_literal()?
+            }
+            Token::DotDot | Token::DotDotEq => {
+                // Handle prefix ranges: ..expr or ..=expr
+                let inclusive = self.peek() == &Token::DotDotEq;
+                self.advance(); // consume .. or ..=
+
+                let end = if self.check(&Token::Comma)
+                    || self.check(&Token::RParen)
+                    || self.check(&Token::RBracket)
+                    || self.check(&Token::RBrace)
+                    || self.check(&Token::Semicolon)
+                    || self.check(&Token::End)
+                    || self.is_at_end()
+                {
+                    None
+                } else {
+                    Some(Box::new(self.logical()?))
+                };
+
+                Expr::Range {
+                    start: None,
+                    end,
+                    inclusive,
+                }
             }
             Token::SelfToken => {
                 self.advance();

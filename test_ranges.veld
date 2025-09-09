@@ -1,0 +1,61 @@
+#| Test file for Rust-style range notation in Veld
+
+fn test_basic_ranges()
+    # Test exclusive range: 1..5
+    let range1 = 1..5
+
+    # Test inclusive range: 1..=5
+    let range2 = 1..=5
+
+    # Test range from: 10..
+    let range3 = 10..
+
+    # Test range to: ..20
+    let range4 = ..20
+
+    # Test range to inclusive: ..=100
+    let range5 = ..=100
+
+    # Test full range: ..
+    let range6 = ..
+end
+
+fn test_range_with_variables()
+    let start = 5
+    let stop = 15
+
+    # Test with variables
+    let range1 = start..stop
+    let range2 = start..=stop
+
+    # Mixed variable and literal
+    let range3 = start..20
+    let range4 = 0..stop
+end
+
+fn test_range_with_expressions()
+    # Test with arithmetic expressions
+    let range1 = (5 + 3)..(10 * 2)
+    let range2 = 1..=(5 + 5)
+end
+
+fn test_float_ranges()
+    # Test with floating point numbers
+    let range1 = 1.0..5.5
+    let range2 = 0.0..=1.0
+    let range3 = 3.14..
+end
+
+fn test_range_assignment()
+    # Test assigning ranges to variables
+    let range1 = 1..10
+    let range2 = 1..=10
+end
+
+fn main()
+    test_basic_ranges()
+    test_range_with_variables()
+    test_range_with_expressions()
+    test_float_ranges()
+    test_range_assignment()
+end

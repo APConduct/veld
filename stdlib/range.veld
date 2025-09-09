@@ -1,0 +1,215 @@
+#| Range types for Veld language
+#| Provides Rust-style range notation support
+
+# Import necessary traits
+import ops.{Add, Sub, Ord, Eq}
+
+# Inclusive range: start..=stop
+pub struct RangeInclusive<T>(start: T, stop: T)
+
+impl RangeInclusive<T>
+    pub fn new(start: T, stop: T) -> RangeInclusive<T>
+        RangeInclusive(start: start, stop: stop)
+    end
+
+    pub fn start(self) -> T
+        self.start
+    end
+
+    pub fn stop(self) -> T
+        self.stop
+    end
+
+    pub fn contains<U>(self, item: U) -> bool where T: Ord<U>
+        self.start.le(item) and item.le(self.stop)
+    end
+
+    pub fn is_empty(self) -> bool where T: Ord<T>
+        self.start.gt(self.stop)
+    end
+end
+
+# Exclusive range: start..stop
+pub struct Range<T>(start: T, stop: T)
+
+impl Range<T>
+    pub fn new(start: T, stop: T) -> Range<T>
+        Range(start: start, stop: stop)
+    end
+
+    pub fn start(self) -> T
+        self.start
+    end
+
+    pub fn stop(self) -> T
+        self.stop
+    end
+
+    pub fn contains<U>(self, item: U) -> bool where T: Ord<U>
+        self.start.le(item) and item.lt(self.stop)
+    end
+
+    pub fn is_empty(self) -> bool where T: Ord<T>
+        self.start.ge(self.stop)
+    end
+end
+
+# Range from start to infinity: start..
+pub struct RangeFrom<T>(start: T)
+
+impl RangeFrom<T>
+    pub fn new(start: T) -> RangeFrom<T>
+        RangeFrom(start: start)
+    end
+
+    pub fn start(self) -> T
+        self.start
+    end
+
+    pub fn contains<U>(self, item: U) -> bool where T: Ord<U>
+        self.start.le(item)
+    end
+end
+
+# Range to stop (exclusive): ..stop
+pub struct RangeTo<T>(stop: T)
+
+impl RangeTo<T>
+    pub fn new(stop: T) -> RangeTo<T>
+        RangeTo(stop: stop)
+    end
+
+    pub fn stop(self) -> T
+        self.stop
+    end
+
+    pub fn contains<U>(self, item: U) -> bool where T: Ord<U>
+        item.lt(self.stop)
+    end
+end
+
+# Range to stop (inclusive): ..=stop
+pub struct RangeToInclusive<T>(stop: T)
+
+impl RangeToInclusive<T>
+    pub fn new(stop: T) -> RangeToInclusive<T>
+        RangeToInclusive(stop: stop)
+    end
+
+    pub fn stop(self) -> T
+        self.stop
+    end
+
+    pub fn contains<U>(self, item: U) -> bool where T: Ord<U>
+        item.le(self.stop)
+    end
+end
+
+# Full range: ..
+pub struct RangeFull
+
+impl RangeFull
+    pub fn new() -> RangeFull
+        RangeFull
+    end
+
+    pub fn contains<T>(self, item: T) -> bool
+        true
+    end
+end
+
+# Iteration support for integer ranges
+impl Range<i32>
+    pub fn iter(self) -> RangeIterator<i32>
+        RangeIterator.new(self.start, self.stop, false)
+    end
+
+    pub fn collect(self) -> [i32]
+        let mut result = []
+        let mut current = self.start
+        while current < self.stop do
+            result.push(current)
+            current = current + 1
+        end
+        result
+    end
+end
+
+impl RangeInclusive<i32>
+    pub fn iter(self) -> RangeIterator<i32>
+        RangeIterator.new(self.start, self.stop + 1, false)
+    end
+
+    pub fn collect(self) -> [i32]
+        let mut result = []
+        let mut current = self.start
+        while current <= self.stop do
+            result.push(current)
+            current = current + 1
+        end
+        result
+    end
+end
+
+# Iterator for ranges
+pub struct RangeIterator<T>(current: T, stop: T, done: bool)
+
+impl RangeIterator<T>
+    pub fn new(start: T, stop: T, done: bool) -> RangeIterator<T>
+        RangeIterator(current: start, stop: stop, done: done)
+    end
+end
+
+impl RangeIterator<i32>
+    pub fn next(mut self) -> Option<i32>
+        if self.current >= self.stop then
+            Option.None
+        else
+            let value = self.current
+            self.current = self.current + 1
+            Option.Some(value)
+        end
+    end
+end
+
+# Support for floating point ranges
+impl Range<f64>
+    pub fn step_by(self, step: f64) -> StepByRange<f64>
+        StepByRange.new(self.start, self.stop, step, false)
+    end
+end
+
+impl RangeInclusive<f64>
+    pub fn step_by(self, step: f64) -> StepByRange<f64>
+        StepByRange.new(self.start, self.stop, step, true)
+    end
+end
+
+pub struct StepByRange<T>(start: T, stop: T, step: T, inclusive: bool)
+
+impl StepByRange<T>
+    pub fn new(start: T, stop: T, step: T, inclusive: bool) -> StepByRange<T>
+        StepByRange(start: start, stop: stop, step: step, inclusive: inclusive)
+    end
+end
+
+impl StepByRange<f64>
+    pub fn collect(self) -> [f64]
+        let mut result = []
+        let mut current = self.start
+
+        if self.inclusive then
+            while current <= self.stop do
+                result.push(current)
+                current = current + self.step
+            end
+        else
+            while current < self.stop do
+                result.push(current)
+                current = current + self.step
+            end
+        end
+
+        result
+    end
+end

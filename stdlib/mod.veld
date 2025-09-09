@@ -8,6 +8,9 @@ pub import std.core
 pub import std.option
 pub import std.result
 
+# Range types for iteration and slicing
+pub import std.range
+
 # Collections
 pub import std.collections
 
