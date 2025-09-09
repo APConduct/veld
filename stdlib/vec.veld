@@ -1,0 +1,187 @@
+#| Vec type for Veld
+#| Provides a dynamic array implementation that conforms to GrowableSequence
+
+import std.option.{Option}
+import std.collections.sequence.{Sequence, GrowableSequence}
+
+# Dynamic array type - simplified implementation using native arrays
+pub struct Vec<T>
+    data: [T],
+    size: i32,
+end
+
+impl<T> Vec<T>
+    # Constructor - creates a new empty vector
+    pub fn new() -> Vec<T>
+        Vec(
+            data: [],
+            size: 0
+        )
+    end
+
+    # Create a vector with initial capacity
+    pub fn with_capacity(capacity: i32) -> Vec<T>
+        Vec(
+            data: [],
+            size: 0
+        )
+    end
+
+    # Get the current capacity of the vector
+    pub fn capacity(self) -> i32
+        self.data.len()
+    end
+
+    # Ensure the vector has at least the specified capacity
+    fn ensure_capacity(mut self, min_capacity: i32) -> ()
+        if self.capacity() < min_capacity then
+            let new_capacity = if self.capacity() == 0 then 4 else self.capacity() * 2 end
+            let actual_capacity = if new_capacity < min_capacity then min_capacity else new_capacity end
+
+            # Create new array with larger capacity
+            let mut new_data = []
+            let mut i = 0
+            while i < self.size do
+                new_data.push(self.data[i])
+                i = i + 1
+            end
+
+            # Extend to actual capacity
+            while new_data.len() < actual_capacity do
+                # This is a placeholder - in a real implementation we'd need uninitialized slots
+                # For now we'll just ensure we have the minimum needed capacity
+                if new_data.len() >= self.size then
+                    break
+                end
+            end
+
+            self.data = new_data
+        end
+    end
+end
+
+# Implement Sequence<T> for Vec<T>
+impl<T> Vec<T> <- Sequence<T>
+    # Get element at index, returning Some(value) if valid, None if out of bounds
+    fn get(self, index: i32) -> Option<T>
+        if index >= 0 and index < self.size then
+            Option.Some(self.data[index])
+        else
+            Option.None
+        end
+    end
+
+    # Set element at index, returning true if successful, false if out of bounds
+    fn set(mut self, index: i32, value: T) -> bool
+        if index >= 0 and index < self.size then
+            self.data[index] = value
+            true
+        else
+            false
+        end
+    end
+
+    # Get the number of elements in the vector
+    fn len(self) -> i32
+        self.size
+    end
+
+    # Check if the vector is empty (inherits default implementation from Sequence)
+    fn is_empty(self) -> bool
+        self.size == 0
+    end
+end
+
+# Implement GrowableSequence<T> for Vec<T>
+impl<T> Vec<T> <- GrowableSequence<T>
+    # Add an element to the end of the vector
+    fn push(mut self, item: T) -> ()
+        self.ensure_capacity(self.size + 1)
+
+        # If we don't have enough space in the array, we need to extend it
+        while self.data.len() <= self.size do
+            # In a real implementation, this would be handled by ensure_capacity
+            # For now, we'll use the array's push method
+            self.data.push(item)
+            self.size = self.size + 1
+            return
+        end
+
+        # If we have space, just set the element
+        self.data[self.size] = item
+        self.size = self.size + 1
+    end
+
+    # Remove and return the last element, or None if empty
+    fn pop(mut self) -> Option<T>
+        if self.size == 0 then
+            Option.None
+        else
+            self.size = self.size - 1
+            let value = self.data[self.size]
+            Option.Some(value)
+        end
+    end
+
+    # Insert an element at the specified index
+    # Returns true if successful, false if index is out of bounds
+    fn insert(mut self, index: i32, value: T) -> bool
+        if index < 0 or index > self.size then
+            false
+        else
+            self.ensure_capacity(self.size + 1)
+
+            # Shift elements to the right
+            let mut i = self.size
+            while i > index do
+                if i < self.data.len() and (i - 1) >= 0 and (i - 1) < self.data.len() then
+                    self.data[i] = self.data[i - 1]
+                end
+                i = i - 1
+            end
+
+            # Handle the case where we need to extend the array
+            if self.size >= self.data.len() then
+                # Create new array with the inserted element
+                let mut new_data = []
+                let mut j = 0
+                while j < index do
+                    new_data.push(self.data[j])
+                    j = j + 1
+                end
+                new_data.push(value)
+                while j < self.size do
+                    new_data.push(self.data[j])
+                    j = j + 1
+                end
+                self.data = new_data
+            else
+                # Insert the new element
+                self.data[index] = value
+            end
+
+            self.size = self.size + 1
+            true
+        end
+    end
+
+    # Remove and return the element at the specified index
+    # Returns Some(value) if successful, None if index is out of bounds
+    fn remove(mut self, index: i32) -> Option<T>
+        if index < 0 or index >= self.size then
+            Option.None
+        else
+            let value = self.data[index]
+
+            # Shift elements to the left
+            let mut i = index
+            while i < self.size - 1 do
+                self.data[i] = self.data[i + 1]
+                i = i + 1
+            end
+
+            self.size = self.size - 1
+            Option.Some(value)
+        end
+    end
+end

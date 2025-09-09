@@ -22,8 +22,8 @@ end
 
 # String manipulation
 pub kind Manipulatable
-    fn substring(self, start: i32, end: i32) -> str
-    fn replace(self, from: str, to: str) -> str
+    fn substring(self, start: i32, end_index: i32) -> str
+    fn replace(self, from_str: str, to: str) -> str
     fn split(self, delimiter: str) -> [str]
     fn pad_start(self, length: i32, pad_char: str) -> str
     fn pad_end(self, length: i32, pad_char: str) -> str

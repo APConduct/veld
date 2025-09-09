@@ -466,6 +466,11 @@ pub enum Statement {
         name: String,
         value: Box<Expr>,
     },
+    PropertyAssignment {
+        target: Box<Expr>,
+        operator: Option<BinaryOperator>, // None for regular assignment, Some for compound assignment
+        value: Box<Expr>,
+    },
     Break,
     Continue,
     EnumDeclaration {

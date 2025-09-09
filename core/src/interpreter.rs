@@ -746,6 +746,10 @@ impl Interpreter {
             Statement::Assignment { name: _, value } => {
                 self.collect_free_variables_expr(value, bound_vars, free_vars);
             }
+            Statement::PropertyAssignment { target, value, .. } => {
+                self.collect_free_variables_expr(target, bound_vars, free_vars);
+                self.collect_free_variables_expr(value, bound_vars, free_vars);
+            }
             Statement::CompoundAssignment {
                 name: _,
                 operator: _,
@@ -1064,6 +1068,11 @@ impl Interpreter {
                         Statement::Assignment { name, value } => {
                             self.execute_assignment(name, value)
                         }
+                        Statement::PropertyAssignment {
+                            target,
+                            operator,
+                            value,
+                        } => self.execute_property_assignment(target, &operator, value),
                         Statement::MacroInvocation { name, arguments } => {
                             self.execute_macro_invocation(&name, arguments)?
                         }
@@ -1561,6 +1570,116 @@ impl Interpreter {
             "Cannot assign to undefined variable '{}'",
             name
         )))
+    }
+
+    fn execute_property_assignment(
+        &mut self,
+        target: Box<Expr>,
+        operator: &Option<BinaryOperator>,
+        value: Box<Expr>,
+    ) -> Result<Value> {
+        let new_value = self.evaluate_expression(*value)?.unwrap_return();
+
+        // Handle compound assignment by first getting the current value
+        let final_value = if let Some(op) = operator {
+            let current_value = self.evaluate_expression(*target.clone())?.unwrap_return();
+            self.evaluate_binary_op(current_value, op.clone(), new_value)?
+        } else {
+            new_value
+        };
+
+        // Now perform the assignment based on the target expression
+        match *target {
+            Expr::Identifier(name) => {
+                // Simple variable assignment - reuse existing logic
+                for scope in self.scopes.iter_mut().rev() {
+                    if scope.vals().contains_key(&name) {
+                        return match scope.assign(&name, final_value) {
+                            Ok(_) => Ok(Value::Unit),
+                            Err(e) => Err(e),
+                        };
+                    }
+                }
+                Err(VeldError::RuntimeError(format!(
+                    "Cannot assign to undefined variable '{}'",
+                    name
+                )))
+            }
+            Expr::PropertyAccess { object, property } => {
+                // Property assignment like obj.field = value or self.field = value
+                let object_value = self.evaluate_expression(*object)?.unwrap_return();
+                self.assign_property(object_value, &property, final_value)
+            }
+            Expr::IndexAccess { object, index } => {
+                // Array indexing assignment like array[index] = value
+                let object_value = self.evaluate_expression(*object)?.unwrap_return();
+                let index_value = self.evaluate_expression(*index)?.unwrap_return();
+                self.assign_index(object_value, index_value, final_value)
+            }
+            _ => Err(VeldError::RuntimeError(
+                "Invalid assignment target".to_string(),
+            )),
+        }
+    }
+
+    fn assign_property(
+        &mut self,
+        mut object: Value,
+        property: &str,
+        value: Value,
+    ) -> Result<Value> {
+        match &mut object {
+            Value::Struct { fields, .. } => {
+                if fields.contains_key(property) {
+                    fields.insert(property.to_string(), value);
+                    Ok(Value::Unit)
+                } else {
+                    Err(VeldError::RuntimeError(format!(
+                        "Property '{}' not found on struct",
+                        property
+                    )))
+                }
+            }
+            _ => Err(VeldError::RuntimeError(format!(
+                "Cannot assign property '{}' to non-struct value",
+                property
+            ))),
+        }
+    }
+
+    fn assign_index(&mut self, mut object: Value, index: Value, value: Value) -> Result<Value> {
+        match (&mut object, &index) {
+            (Value::Array(elements), Value::Numeric(index_num)) => {
+                let idx_num = index_num.to_i32().map_err(|_| {
+                    VeldError::RuntimeError("Array index must be an integer".to_string())
+                })?;
+                let idx = match idx_num {
+                    NumericValue::Integer(int_val) => int_val.as_i64().unwrap_or(0) as usize,
+                    _ => {
+                        return Err(VeldError::RuntimeError(
+                            "Array index must be an integer".to_string(),
+                        ));
+                    }
+                };
+
+                if idx < elements.len() {
+                    elements[idx] = value;
+                    Ok(Value::Unit)
+                } else {
+                    Err(VeldError::RuntimeError(format!(
+                        "Array index {} out of bounds (length: {})",
+                        idx,
+                        elements.len()
+                    )))
+                }
+            }
+            (Value::Array(_), _) => Err(VeldError::RuntimeError(
+                "Array index must be a number".to_string(),
+            )),
+            _ => Err(VeldError::RuntimeError(
+                "Cannot index into non-array value".to_string(),
+            )),
+        }
     }
 
     fn execute_variable_declaration(

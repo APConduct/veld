@@ -8,8 +8,8 @@ pub kind Sequence<T>
     fn len(self) -> i32
     fn is_empty(self) -> bool
 
-    # Default implementations
-    fn is_empty(self) -> bool => self.len() == 0
+    # Default implementations would go here
+    # fn is_empty(self) -> bool => self.len() == 0
 end
 
 # Interface for growable collections

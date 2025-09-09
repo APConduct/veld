@@ -1027,7 +1027,7 @@ impl Parser {
             let is_public = self.match_token(&[Token::Pub]);
             if !self.match_token(&[Token::Fn]) {
                 return Err(VeldError::ParserError(
-                    "Expected 'fn' to start method defenition".to_string(),
+                    "Expected 'fn' to start method definition".to_string(),
                 ));
             }
             let mut method = self.parse_impl_method(type_name.clone())?;
@@ -1398,10 +1398,26 @@ impl Parser {
     }
 
     fn consume_parameter_name(&mut self, message: &str) -> Result<String> {
-        match self.advance() {
-            Token::Identifier(s) => Ok(s),
-            Token::SelfToken => Ok("self".to_string()),
-            _ => Err(VeldError::ParserError(message.to_string())),
+        // Handle 'mut' keyword before parameter names
+        if self.match_token(&[Token::Mut]) {
+            // After 'mut', expect a parameter name
+            match self.advance() {
+                Token::Identifier(s) => Ok(format!("mut {}", s)),
+                Token::SelfToken => Ok("mut self".to_string()),
+                token => Err(VeldError::ParserError(format!(
+                    "Expected parameter name after 'mut', got: {:?}",
+                    token
+                ))),
+            }
+        } else {
+            match self.advance() {
+                Token::Identifier(s) => Ok(s),
+                Token::SelfToken => Ok("self".to_string()),
+                token => Err(VeldError::ParserError(format!(
+                    "{}, got: {:?}",
+                    message, token
+                ))),
+            }
         }
     }
 
@@ -1516,16 +1532,73 @@ impl Parser {
     }
 
     fn check_assignment(&self) -> bool {
-        if self.current + 1 >= self.tokens.len() {
+        if self.current >= self.tokens.len() {
             return false;
         }
 
-        // Check if current token is identifier and next token is an assignment operator
-        match &self.tokens[self.current] {
-            Token::Identifier(_) => matches!(
-                self.tokens[self.current + 1],
-                Token::Equals | Token::PlusEq | Token::MinusEq | Token::StarEq | Token::SlashEq
-            ),
+        // Look ahead to find an assignment operator
+        let mut i = self.current;
+
+        // Handle property access like self.data = value or obj.field = value
+        // and array indexing like array[index] = value
+        match &self.tokens[i] {
+            Token::Identifier(_) | Token::SelfToken => {
+                i += 1;
+
+                // Handle array indexing first (e.g., array[index])
+                while i < self.tokens.len() && matches!(self.tokens[i], Token::LBracket) {
+                    i += 1; // Skip [
+                    // Skip through the index expression until we find ]
+                    let mut bracket_depth = 1;
+                    while i < self.tokens.len() && bracket_depth > 0 {
+                        match self.tokens[i] {
+                            Token::LBracket => bracket_depth += 1,
+                            Token::RBracket => bracket_depth -= 1,
+                            _ => {}
+                        }
+                        i += 1;
+                    }
+                }
+
+                // Then handle property access chain (e.g., obj.field.subfield)
+                while i + 1 < self.tokens.len() && matches!(self.tokens[i], Token::Dot) {
+                    i += 1; // Skip dot
+                    if i < self.tokens.len() && matches!(self.tokens[i], Token::Identifier(_)) {
+                        i += 1; // Skip identifier
+
+                        // Handle array indexing after property access
+                        while i < self.tokens.len() && matches!(self.tokens[i], Token::LBracket) {
+                            i += 1; // Skip [
+                            // Skip through the index expression until we find ]
+                            let mut bracket_depth = 1;
+                            while i < self.tokens.len() && bracket_depth > 0 {
+                                match self.tokens[i] {
+                                    Token::LBracket => bracket_depth += 1,
+                                    Token::RBracket => bracket_depth -= 1,
+                                    _ => {}
+                                }
+                                i += 1;
+                            }
+                        }
+                    } else {
+                        return false; // Invalid property access
+                    }
+                }
+
+                // Check if next token is an assignment operator
+                if i < self.tokens.len() {
+                    matches!(
+                        self.tokens[i],
+                        Token::Equals
+                            | Token::PlusEq
+                            | Token::MinusEq
+                            | Token::StarEq
+                            | Token::SlashEq
+                    )
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     }
@@ -2744,45 +2817,81 @@ impl Parser {
     }
 
     fn assignment_statement(&mut self) -> Result<Statement> {
-        let name = self.consume_identifier("Expected variable name")?;
+        // Parse the left-hand side as an expression to handle property access
+        let lhs = self.parse_assignment_target()?;
 
         if self.match_token(&[Token::PlusEq]) {
             let value = self.expression()?;
-            return Ok(Statement::CompoundAssignment {
-                name,
-                operator: BinaryOperator::Add,
+            return Ok(Statement::PropertyAssignment {
+                target: Box::new(lhs),
+                operator: Some(BinaryOperator::Add),
                 value: Box::new(value),
             });
         } else if self.match_token(&[Token::MinusEq]) {
             let value = self.expression()?;
-            return Ok(Statement::CompoundAssignment {
-                name,
-                operator: BinaryOperator::Subtract,
+            return Ok(Statement::PropertyAssignment {
+                target: Box::new(lhs),
+                operator: Some(BinaryOperator::Subtract),
                 value: Box::new(value),
             });
         } else if self.match_token(&[Token::StarEq]) {
             let value = self.expression()?;
-            return Ok(Statement::CompoundAssignment {
-                name,
-                operator: BinaryOperator::Multiply,
+            return Ok(Statement::PropertyAssignment {
+                target: Box::new(lhs),
+                operator: Some(BinaryOperator::Multiply),
                 value: Box::new(value),
             });
         } else if self.match_token(&[Token::SlashEq]) {
             let value = self.expression()?;
-            return Ok(Statement::CompoundAssignment {
-                name,
-                operator: BinaryOperator::Divide,
+            return Ok(Statement::PropertyAssignment {
+                target: Box::new(lhs),
+                operator: Some(BinaryOperator::Divide),
                 value: Box::new(value),
             });
         } else {
             // Regular assignment
-            self.consume(&Token::Equals, "Expected '=' after variable name")?;
+            self.consume(&Token::Equals, "Expected '=' after assignment target")?;
             let value = self.expression()?;
-            return Ok(Statement::Assignment {
-                name,
+            return Ok(Statement::PropertyAssignment {
+                target: Box::new(lhs),
+                operator: None,
                 value: Box::new(value),
             });
         }
+    }
+
+    fn parse_assignment_target(&mut self) -> Result<Expr> {
+        // Parse self or identifier
+        let mut expr = if self.match_token(&[Token::SelfToken]) {
+            Expr::SelfReference
+        } else {
+            let name = self.consume_identifier("Expected identifier or 'self'")?;
+            Expr::Identifier(name)
+        };
+
+        // Handle array indexing and property access chain
+        loop {
+            if self.match_token(&[Token::LBracket]) {
+                // Array indexing like obj[index]
+                let index = self.expression()?;
+                self.consume(&Token::RBracket, "Expected ']' after array index")?;
+                expr = Expr::IndexAccess {
+                    object: Box::new(expr),
+                    index: Box::new(index),
+                };
+            } else if self.match_token(&[Token::Dot]) {
+                // Property access like obj.field
+                let property = self.consume_identifier("Expected property name after '.'")?;
+                expr = Expr::PropertyAccess {
+                    object: Box::new(expr),
+                    property,
+                };
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
     }
 
     fn check_named_argument(&self) -> bool {
@@ -3023,6 +3132,18 @@ impl Parser {
         let name = self.consume_identifier("Expected kind name")?;
 
         let generic_params = self.parse_generic_args_if_present()?;
+
+        // Check for kind inheritance (e.g., GrowableSequence<T>: Sequence<T>)
+        let _parent_kind =
+            if self.match_token(&[Token::Colon]) || self.match_token(&[Token::LeftArrow]) {
+                // Parse the parent kind name
+                let parent_name = self.consume_identifier("Expected parent kind name")?;
+                // Parse optional generic parameters for parent kind
+                let _parent_generics = self.parse_generic_args_if_present()?;
+                Some(parent_name)
+            } else {
+                None
+            };
 
         let mut methods = Vec::new();
         if self.match_token(&[Token::Equals]) {
