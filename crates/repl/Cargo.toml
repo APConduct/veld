@@ -1,0 +1,15 @@
+[package]
+name = "veld-repl"
+version = "0.1.4"
+edition = "2021"
+
+[dependencies]
+logos = "0.13"             # For lexing
+chumsky = "0.9"            # For parsing (optional, you can use other parsing libraries)
+thiserror = "1.0"          # For error handling
+tracing = "0.1"            # For tracing support
+tracing-subscriber = "0.3" # For tracing subscriber
+reedline = "0.27"          # For REPL functionality
+anyhow = "1.0"             # For error handling
+
+"veld-core" = { path = "../../core" } # Path to your core library

@@ -1,5 +1,27 @@
 use std::{collections::HashMap, fmt::Display};
 
+use crate::{common::source::SourceMap, error::VeldError};
+
+pub struct AST {
+    pub statements: Vec<Statement>,
+    pub source_map: Option<SourceMap>,
+    pub errors: Vec<VeldError>,
+}
+
+impl AST {
+    pub fn new(statements: Vec<Statement>) -> Self {
+        AST {
+            statements,
+            source_map: Some(SourceMap::new()),
+            errors: Vec::new(),
+        }
+    }
+
+    pub fn find_at_pos(&self, line: u32, col: u32) -> Option<&Statement> {
+        todo!("Implement find_at_pos")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MacroPattern(pub String);
 

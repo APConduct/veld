@@ -1109,6 +1109,18 @@ impl TypeEnvironment {
             // Sequence capabilities
             (Type::Array(_), "std.collections.sequence.Sequence") => return true,
 
+            // Vec capabilities
+            (Type::Generic { base, .. }, "std.collections.sequence.Sequence")
+                if base.to_string() == "Vec" =>
+            {
+                return true;
+            }
+            (Type::Generic { base, .. }, "std.collections.sequence.GrowableSequence")
+                if base.to_string() == "Vec" =>
+            {
+                return true;
+            }
+
             // Numeric capabilities
             (Type::I32, "std.numeric.Numeric") => return true,
             (Type::F64, "std.numeric.Numeric") => return true,

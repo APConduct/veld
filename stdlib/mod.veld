@@ -25,3 +25,6 @@ pub import std.ops
 
 # Math functions and constants
 pub import std.math
+
+# Dynamic arrays
+pub import std.vec
