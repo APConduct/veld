@@ -1,8 +1,0 @@
-#| Minimal test for 'as' casting with plex
-
-# Test basic plex declaration
-plex Point = { x: i32, y: i32 }
-
-# Test record casting to plex type
-let record = { x: 10, y: 20 }
-let point = record as Point
