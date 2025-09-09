@@ -358,9 +358,23 @@ impl TypeChecker {
                         self.env.add_type_param(&param_name);
                     }
 
-                    // Convert the type annotation to a Type and add as alias
+                    // Convert the type annotation to a Type and add as generic alias
                     let aliased_type = self.env.from_annotation(type_annotation, None)?;
-                    self.env.add_type_alias(name, aliased_type);
+                    let type_param_names: Vec<String> = generic_params
+                        .iter()
+                        .map(|param| match &param.name {
+                            Some(name) => name.clone(),
+                            None => {
+                                if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                                    base_name.clone()
+                                } else {
+                                    "T".to_string()
+                                }
+                            }
+                        })
+                        .collect();
+                    self.env
+                        .add_generic_type_alias(name, aliased_type, type_param_names);
 
                     self.env.pop_type_param_scope();
                 } else {
@@ -496,8 +510,8 @@ impl TypeChecker {
 
     fn type_check_generic_function(
         &mut self,
-        _name: &str,
-        _params: &[(String, TypeAnnotation)],
+        name: &str,
+        params: &[(String, TypeAnnotation)],
         return_type: &TypeAnnotation,
         body: &[Statement],
         generic_params: &[GenericArgument],
@@ -509,11 +523,20 @@ impl TypeChecker {
         self.env.push_type_param_scope();
         for param in generic_params {
             match &param.type_annotation {
-                TypeAnnotation::Basic(name) => {
-                    self.env.add_type_param(name.as_str());
+                TypeAnnotation::Basic(param_name) => {
+                    self.env.add_type_param(param_name.as_str());
                 }
                 _ => return Err(VeldError::TypeError("Invalid type parameter".into())),
             }
+        }
+
+        // Push a new scope for function parameters
+        self.env.push_scope();
+
+        // Add function parameters to the environment
+        for (param_name, param_type) in params {
+            let param_type_resolved = self.env.from_annotation(param_type, None)?;
+            self.env.define(param_name, param_type_resolved);
         }
 
         // Type check the function body with generic parameters
@@ -526,10 +549,28 @@ impl TypeChecker {
             self.type_check_statement(&mut stmt_mut)?;
         }
 
+        // Resolve function types BEFORE restoring the environment (while type parameters are still in scope)
+        let param_types = params
+            .iter()
+            .map(|(_, type_anno)| self.env.from_annotation(type_anno, None))
+            .collect::<Result<Vec<_>>>()?;
+        let return_type_resolved = self.env.from_annotation(return_type, None)?;
+
         // Restore the original environment
         self.current_function_return_type = old_return_type;
+        self.env.pop_scope();
         self.env.pop_type_param_scope();
         self.env = saved_env;
+
+        // Register the generic function in the environment
+        // For now, we'll create a simplified function type
+        // In the future, this could be enhanced to handle proper generic function types
+        let function_type = Type::Function {
+            params: param_types,
+            return_type: Box::new(return_type_resolved),
+        };
+
+        self.env.define(name, function_type);
 
         Ok(())
     }

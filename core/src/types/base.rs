@@ -393,6 +393,7 @@ pub struct TypeEnvironment {
     generic_structs: HashMap<String, (HashMap<String, Type>, Vec<GenericArgument>)>,
     pub generic_struct_names: HashSet<String>,
     type_aliases: HashMap<String, Type>,
+    generic_type_aliases: HashMap<String, (Type, Vec<String>)>, // name -> (definition, type_params)
 }
 
 #[derive(Debug, Clone)]
@@ -419,6 +420,7 @@ impl TypeEnvironment {
             generic_structs: HashMap::new(),
             generic_struct_names: HashSet::new(),
             type_aliases: HashMap::new(),
+            generic_type_aliases: HashMap::new(),
         }
     }
 
@@ -500,6 +502,11 @@ impl TypeEnvironment {
 
     pub fn add_type_alias(&mut self, name: &str, ty: Type) {
         self.type_aliases.insert(name.to_string(), ty);
+    }
+
+    pub fn add_generic_type_alias(&mut self, name: &str, ty: Type, type_params: Vec<String>) {
+        self.generic_type_aliases
+            .insert(name.to_string(), (ty, type_params));
     }
 
     pub fn get_type_alias(&self, name: &str) -> Option<&Type> {
@@ -700,6 +707,28 @@ impl TypeEnvironment {
                         base: base.clone(),
                         type_args,
                     })
+                } else if let Some((definition, type_params)) =
+                    self.generic_type_aliases.get(base).cloned()
+                {
+                    // Handle generic type aliases (plex types)
+                    if type_args.len() != type_params.len() {
+                        return Err(VeldError::TypeError(format!(
+                            "Generic type '{}' expects {} type arguments, got {}",
+                            base,
+                            type_params.len(),
+                            type_args.len()
+                        )));
+                    }
+
+                    // Create substitution map
+                    let mut substitutions = HashMap::new();
+                    for (param, arg) in type_params.iter().zip(type_args.iter()) {
+                        substitutions.insert(param.clone(), arg.clone());
+                    }
+
+                    // Substitute type parameters with concrete types
+                    let substituted_type = self.substitute_type_params(&definition, &substitutions);
+                    Ok(substituted_type)
                 } else {
                     Err(VeldError::TypeError(format!(
                         "Unknown generic type: {}",
@@ -1163,6 +1192,20 @@ impl TypeEnvironment {
                     .map(|t| self.substitute_type_params(t, substitutions))
                     .collect();
                 Type::Tuple(substituted_types)
+            }
+            Type::Record { fields } => {
+                let substituted_fields = fields
+                    .iter()
+                    .map(|(name, field_type)| {
+                        (
+                            name.clone(),
+                            self.substitute_type_params(field_type, substitutions),
+                        )
+                    })
+                    .collect();
+                Type::Record {
+                    fields: substituted_fields,
+                }
             }
             _ => ty.clone(),
         }

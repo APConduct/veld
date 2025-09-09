@@ -1095,8 +1095,8 @@ impl Interpreter {
                             name,
                             type_annotation,
                             is_public: _,
-                            generic_params: _,
-                        } => self.execute_plex_declaration(name, type_annotation),
+                            generic_params,
+                        } => self.execute_plex_declaration(name, type_annotation, generic_params),
                         Statement::ExprStatement(expr) => {
                             let value = self.evaluate_expression(expr)?;
                             Ok(value.unwrap_return())
@@ -5596,7 +5596,15 @@ impl Interpreter {
         &mut self,
         name: String,
         type_annotation: TypeAnnotation,
+        generic_params: Vec<GenericArgument>,
     ) -> Result<Value> {
+        // If it's a generic plex type, defer processing to type checker
+        if !generic_params.is_empty() {
+            // Just store the name for now, the type checker will handle the generic processing
+            return Ok(Value::Unit);
+        }
+
+        // For non-generic plex types, process immediately
         let ty = self
             .type_checker
             .env()
