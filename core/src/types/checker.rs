@@ -2941,6 +2941,17 @@ impl TypeChecker {
     ) -> Result<Type> {
         // Check if the enum exists
         if !self.env.enums.contains_key(enum_name) {
+            // Fallback: Check if this is actually a struct method call
+            if self.env.structs().contains_key(enum_name) {
+                // This is a struct method call, not an enum variant
+                // The variant_name is actually the method name
+                // For struct method calls like Vec.new(), we need to infer the return type
+                // For now, assume it returns an instance of the struct type
+                return Ok(Type::Generic {
+                    base: enum_name.to_string(),
+                    type_args: vec![], // TODO: Handle generic type args properly
+                });
+            }
             return Err(VeldError::TypeError(format!("Unknown enum: {}", enum_name)));
         }
 

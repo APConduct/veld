@@ -2577,6 +2577,22 @@ impl Interpreter {
                             } => {
                                 // Check if enum exists
                                 if !self.enums.contains_key(&enum_name) {
+                                    // Fallback: Check if this is actually a struct method call
+                                    if self.structs.contains_key(&enum_name) {
+                                        // This is a struct method call like Vec.new()
+                                        // Convert it to a proper method call
+                                        let struct_expr = Expr::Identifier(enum_name.clone());
+                                        let method_call = Expr::MethodCall {
+                                            object: Box::new(struct_expr),
+                                            method: variant_name.clone(),
+                                            arguments: fields
+                                                .iter()
+                                                .map(|f| Argument::Positional(f.clone()))
+                                                .collect(),
+                                        };
+                                        return self.evaluate_expression(method_call);
+                                    }
+
                                     return Err(VeldError::RuntimeError(format!(
                                         "Undefined enum '{}'",
                                         enum_name
@@ -5951,7 +5967,21 @@ impl Interpreter {
                         } = &module_statements[idx]
                         {
                             // Register the struct type in this scope
-                            self.structs.insert(name, fields.clone());
+                            self.structs.insert(name.clone(), fields.clone());
+
+                            // Convert StructField to HashMap<String, Type> for type checker
+                            let mut field_types = HashMap::new();
+                            for field in fields {
+                                let field_type = self
+                                    .type_checker
+                                    .env()
+                                    .from_annotation(&field.type_annotation, None)
+                                    .unwrap_or(crate::types::Type::Any); // Fallback to Any type if conversion fails
+                                field_types.insert(field.name.clone(), field_type);
+                            }
+
+                            // Register struct in type checker environment
+                            self.type_checker.env().add_struct(&name, field_types);
                         }
                     }
                     ExportedItem::Enum(idx) => {
