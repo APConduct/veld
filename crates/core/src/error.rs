@@ -1,3 +1,4 @@
+use colored::Colorize;
 use std::fmt;
 use std::fmt::Formatter;
 use thiserror::Error;
@@ -51,8 +52,14 @@ impl fmt::Display for VeldErrorWithContext {
                 let ptr = " ".repeat(ctx.column) + "^";
                 write!(
                     f,
-                    "{}\nLine {}, column {}:\n{}\n{}",
-                    error_msg, ctx.line, ctx.column, ctx.source_line, ptr
+                    "{}\n{} {}, {} {}:\n{}\n{}",
+                    error_msg.red(),
+                    "Line".red(),
+                    format!("{}", ctx.line).red(),
+                    "column".red(),
+                    format!("{}", ctx.column).red(),
+                    ctx.source_line.red(),
+                    ptr.red()
                 )
             }
             None => write!(f, "{}", self.error),
