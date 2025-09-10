@@ -4,3 +4,4 @@ version = "0.1.4"
 edition = "2021"
 
 [dependencies]
+"veld-core" = { path = "../../core" } # Path to your core library

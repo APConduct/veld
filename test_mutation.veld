@@ -1,0 +1,27 @@
+import std.vec.{Vec}
+
+# Test Vec mutation with mutable variable declarations
+
+# Test 1: Immutable variable (should not be able to mutate)
+let vec_immutable = Vec.new()
+let initial_len = vec_immutable.len()
+
+# Test 2: Mutable variable with 'var'
+var vec_var = Vec.new()
+vec_var.push(42)
+vec_var.push(100)
+let len_after_var_push = vec_var.len()
+
+# Test 3: Mutable variable with 'let mut'
+let mut vec_mut = Vec.new()
+vec_mut.push(1)
+vec_mut.push(2)
+vec_mut.push(3)
+let len_after_mut_push = vec_mut.len()
+
+# Test 4: Check if elements are actually stored
+let first_element = vec_mut.get(0)
+let second_element = vec_mut.get(1)
+
+# Return the final length to see if mutation worked
+len_after_mut_push

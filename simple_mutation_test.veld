@@ -1,0 +1,10 @@
+import std.vec.{Vec}
+
+# Simple test with just one mutable vector and one push operation
+var my_vec = Vec.new()
+let initial_len = my_vec.len()
+my_vec.push(42)
+let final_len = my_vec.len()
+
+# Return the final length - should be 1 if mutation works
+final_len

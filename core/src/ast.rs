@@ -26,6 +26,12 @@ impl AST {
 pub struct MacroPattern(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct MacroTemplate {
+    pub pattern: MacroPattern,
+    pub expansion: MacroExpansion,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct MacroExpansion(pub Vec<Statement>);
 
 #[derive(Debug, Clone, PartialEq)]

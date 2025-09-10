@@ -1,14 +1,31 @@
 use std::fmt::Display;
 
-use logos::Logos;
+use logos::{Lexer as LLexer, Logos, Skip};
 
-#[derive(Logos, Debug, PartialEq, Clone)]
-#[logos(skip r"[ \t\n\f]+")] // Skip whitespace
+/// Update the line count and the char index.
+fn newline_callback(lex: &mut LLexer<Token>) -> Skip {
+    lex.extras.0 += 1;
+    lex.extras.1 = lex.span().end;
+    Skip
+}
+
+/// Compute the line and column position for the current word.
+fn word_callback(lex: &mut LLexer<Token>) -> (usize, usize) {
+    let line = lex.extras.0;
+    let column = lex.span().start - lex.extras.1;
+
+    (line, column)
+}
+
+#[derive(Debug, Logos, PartialEq, Clone)]
+#[logos(extras = (usize, usize))]
+#[logos(skip(r"[ \t\n\f]+"))] // Skip whitespace
 #[logos(skip r"#.*")] // Skip single-line comments
 #[logos(skip r"#\|")] // Skip multi-line comments
 pub enum Token {
     // Keywords
     #[token("fn")]
+    #[extras]
     Fn,
     #[token("proc")]
     Proc,

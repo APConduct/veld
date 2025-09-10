@@ -7,7 +7,7 @@ use crate::ast::{
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
     StructMethod, TypeAnnotation, VarKind,
 };
-use crate::common::source::{ParseContext, SourceMap};
+use crate::common::source::{ParseContext, Position, SourceMap};
 use crate::error::{Result, VeldError};
 use crate::lexer::Token;
 
@@ -28,6 +28,11 @@ pub struct Parser {
 
 impl Parser {
     pub fn get_current_position(&self) -> Option<usize> {
+        if let Some(token) = self.tokens.get(self.current) {
+            // Position{
+            //     line: token.
+            // }
+        }
         if self.current < self.tokens.len() {
             Some(self.current)
         } else {
@@ -1446,6 +1451,14 @@ impl Parser {
         }
     }
 
+    fn consume_method_name(&mut self, message: &str) -> Result<String> {
+        match self.advance() {
+            Token::Identifier(s) => Ok(s),
+            Token::With => Ok("with".to_string()),
+            _ => Err(VeldError::ParserError(message.to_string())),
+        }
+    }
+
     fn consume_parameter_name(&mut self, message: &str) -> Result<String> {
         // Handle 'mut' keyword before parameter names
         if self.match_token(&[Token::Mut]) {
@@ -2241,7 +2254,7 @@ impl Parser {
                 } else {
                     // Check if this is a method call (property followed by parentheses)
                     let property =
-                        self.consume_identifier("Expected property or method name after '.'")?;
+                        self.consume_method_name("Expected property or method name after '.'")?;
 
                     // Check if the next token is an opening parenthesis for a method call
                     if self.check(&Token::LParen) {

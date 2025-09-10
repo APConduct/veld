@@ -1,0 +1,30 @@
+import std.vec.{Vec}
+
+# Simple debug test to isolate the mutation issue
+
+# Test 1: Check if Vec.new() works
+let vec1 = Vec.new()
+let initial_len = vec1.len()
+
+# Test 2: Create a mutable vector and try to push
+var vec2 = Vec.new()
+let len_before = vec2.len()
+vec2.push(42)
+let len_after = vec2.len()
+
+# Test 3: Try with let mut
+let mut vec3 = Vec.new()
+let len_before_mut = vec3.len()
+vec3.push(100)
+let len_after_mut = vec3.len()
+
+# Print values to debug
+# We expect:
+# initial_len = 0
+# len_before = 0
+# len_after = 1 (if mutation works)
+# len_before_mut = 0
+# len_after_mut = 1 (if mutation works)
+
+# Return the final length after mutations to see if they worked
+len_after_mut

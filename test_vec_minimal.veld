@@ -1,5 +1,8 @@
 import std.vec.{Vec}
 
-# Just try to create a Vec and call one instance method
+# Test the fixed Vec implementation with push operations
 let vec = Vec.new()
 vec.push(1)
+vec.push(2)
+vec.push(3)
+let length = vec.len()
