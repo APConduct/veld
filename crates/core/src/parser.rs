@@ -791,19 +791,19 @@ impl Parser {
         })
     }
 
-    fn block_scope_statement(&mut self) -> Result<Statement> {
-        let _span = tracing::span!(tracing::Level::TRACE, "block_scope_statement");
-        let _span = _span.enter();
+    // fn block_scope_statement(&mut self) -> Result<Statement> {
+    //     let _span = tracing::span!(tracing::Level::TRACE, "block_scope_statement");
+    //     let _span = _span.enter();
 
-        let mut body = Vec::new();
-        while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-            body.push(self.statement()?);
-        }
+    //     let mut body = Vec::new();
+    //     while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+    //         body.push(self.statement()?);
+    //     }
 
-        self.consume(&Token::End(ZTUP), "Expected 'end' after block scope")?;
+    //     self.consume(&Token::End(ZTUP), "Expected 'end' after block scope")?;
 
-        Ok(Statement::BlockScope { body })
-    }
+    //     Ok(Statement::BlockScope { body })
+    // }
 
     fn check_statement_start(&self) -> bool {
         self.check(&Token::If(ZTUP))
@@ -1157,16 +1157,16 @@ impl Parser {
         }
     }
 
-    fn peek_next_is_identifier(&self) -> bool {
-        if self.current + 1 >= self.tokens.len() {
-            return false;
-        }
+    // fn peek_next_is_identifier(&self) -> bool {
+    //     if self.current + 1 >= self.tokens.len() {
+    //         return false;
+    //     }
 
-        match &self.tokens[self.current + 1] {
-            Token::Identifier(_) => true,
-            _ => false,
-        }
-    }
+    //     match &self.tokens[self.current + 1] {
+    //         Token::Identifier(_) => true,
+    //         _ => false,
+    //     }
+    // }
 
     fn parse_implementation_methods(&mut self, type_name: String) -> Result<Vec<MethodImpl>> {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_implementation_methods");
@@ -2990,34 +2990,34 @@ impl Parser {
         }
     }
 
-    fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
-        let _span = tracing::span!(tracing::Level::TRACE, "parse_struct_fields");
-        let _enter = _span.enter();
+    // fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
+    //     let _span = tracing::span!(tracing::Level::TRACE, "parse_struct_fields");
+    //     let _enter = _span.enter();
 
-        let mut fields = Vec::new();
+    //     let mut fields = Vec::new();
 
-        while !self.check(&Token::End(ZTUP))
-            && !self.check(&Token::RBrace(ZTUP))
-            && !self.is_at_end()
-        {
-            let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
-            let field_name = self.consume_identifier("Expected field name")?;
-            self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
-            let field_type = self.parse_type()?;
+    //     while !self.check(&Token::End(ZTUP))
+    //         && !self.check(&Token::RBrace(ZTUP))
+    //         && !self.is_at_end()
+    //     {
+    //         let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
+    //         let field_name = self.consume_identifier("Expected field name")?;
+    //         self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
+    //         let field_type = self.parse_type()?;
 
-            fields.push(StructField {
-                name: field_name,
-                type_annotation: field_type,
-                is_public: field_visibility,
-            });
+    //         fields.push(StructField {
+    //             name: field_name,
+    //             type_annotation: field_type,
+    //             is_public: field_visibility,
+    //         });
 
-            if !self.match_token(&[Token::Comma(ZTUP)]) {
-                break;
-            }
-        }
+    //         if !self.match_token(&[Token::Comma(ZTUP)]) {
+    //             break;
+    //         }
+    //     }
 
-        Ok(fields)
-    }
+    //     Ok(fields)
+    // }
 
     fn comparison(&mut self) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "comparison");
