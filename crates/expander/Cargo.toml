@@ -2,6 +2,18 @@
 name = "veld-expander"
 version = "0.1.4"
 edition = "2021"
+description = "Macro expansion system for the Veld programming language"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/your-username/veld"
+keywords = ["macro", "metaprogramming", "compiler", "ast", "expansion"]
+categories = ["compilers", "development-tools"]
 
 [dependencies]
-"veld-core" = { path = "../../core" } # Path to your core library
+veld-core = { path = "../../core" }
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "macro_expansion"
+harness = false

@@ -2643,11 +2643,6 @@ impl Interpreter {
                                 let obj_value = self.evaluate_expression(*object)?.unwrap_return();
                                 let idx_value = self.evaluate_expression(*index)?.unwrap_return();
 
-                                println!(
-                                    "DEBUG: Array indexing - object: {:?}, index: {:?}",
-                                    obj_value, idx_value
-                                );
-
                                 match obj_value {
                                     Value::Array(elements) => match idx_value {
                                         Value::Integer(i) => {
@@ -2660,10 +2655,6 @@ impl Interpreter {
                                             Ok(elements[i as usize].clone())
                                         }
                                         Value::Numeric(ref num_val) => {
-                                            println!(
-                                                "DEBUG: Trying to convert numeric value to integer: {:?}",
-                                                num_val
-                                            );
                                             if let Ok(i) = num_val.to_i32() {
                                                 let idx = match i {
                                                     crate::types::NumericValue::Integer(
@@ -2689,15 +2680,9 @@ impl Interpreter {
                                                 ))
                                             }
                                         }
-                                        _ => {
-                                            println!(
-                                                "DEBUG: Index value type not supported: {:?}",
-                                                idx_value
-                                            );
-                                            Err(VeldError::RuntimeError(
-                                                "Array index must be an integer".to_string(),
-                                            ))
-                                        }
+                                        _ => Err(VeldError::RuntimeError(
+                                            "Array index must be an integer".to_string(),
+                                        )),
                                     },
                                     Value::String(s) => {
                                         // Allow indexing into strings

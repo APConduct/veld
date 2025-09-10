@@ -1,0 +1,270 @@
+#| Examples of using Veld's macro system
+#| This file demonstrates various macro patterns and usage
+
+# 1. Simple declarative macro - vec! style
+macro~ vec
+    () => Vec::new(),
+    ($elem:expr) => do
+        let mut temp = Vec::new()
+        temp.push($elem)
+        temp
+    end,
+    ($($elem:expr),+ $(,)?) => do
+        let mut temp = Vec::new()
+        $(
+            temp.push($elem)
+        )+
+        temp
+    end
+end
+
+# 2. Format macro for string formatting
+macro~ format
+    ($fmt:expr) => format_string($fmt),
+    ($fmt:expr, $($arg:expr),+) => format_string($fmt, $($arg),+)
+end
+
+# 3. Debug printing macro
+macro~ debug
+    ($expr:expr) => do
+        let value = $expr
+        println~("DEBUG: {} = {}", stringify!($expr), value)
+        value
+    end
+end
+
+# 4. Assert macro for runtime checks
+macro~ assert
+    ($condition:expr) => do
+        if !($condition) then
+            panic~("Assertion failed: {}", stringify!($condition))
+        end
+    end,
+    ($condition:expr, $message:expr) => do
+        if !($condition) then
+            panic~($message)
+        end
+    end
+end
+
+# 5. HTML-like DSL macro
+macro~ html
+    (<$tag:ident>$($content:tt)*</$end_tag:ident>) => do
+        let element = HtmlElement::new(stringify!($tag))
+        $(element.add_content($content))*
+        element
+    end,
+    (<$tag:ident $($attr:ident=$value:expr)* />) => do
+        let element = HtmlElement::new(stringify!($tag))
+        $(element.set_attribute(stringify!($attr), $value))*
+        element
+    end
+end
+
+# 6. SQL query macro
+macro~ sql
+    (SELECT $($field:ident),+ FROM $table:ident) => do
+        SqlQuery::new()
+            .select(vec![$(stringify!($field)),+])
+            .from(stringify!($table))
+    end,
+    (SELECT $($field:ident),+ FROM $table:ident WHERE $condition:expr) => do
+        SqlQuery::new()
+            .select(vec![$(stringify!($field)),+])
+            .from(stringify!($table))
+            .where_clause($condition)
+    end
+end
+
+# 7. Property getter/setter macro
+macro~ property
+    ($type:ty, $name:ident) => do
+        fn $name(self) -> $type
+            self._$name
+        end
+
+        fn set_$name(mut self, value: $type) -> ()
+            self._$name = value
+        end
+    end
+end
+
+# 8. Enum with automatic From implementations
+macro~ enum_with_from
+    ($name:ident { $($variant:ident($type:ty)),+ }) => do
+        enum $name
+            $($variant($type)),+
+        end
+
+        $(
+            impl From<$type> for $name
+                fn from(value: $type) -> $name
+                    $name::$variant(value)
+                end
+            end
+        )+
+    end
+end
+
+# 9. Test macro for unit tests
+macro~ test
+    ($name:ident => $body:block) => do
+        fn test_$name() -> ()
+            $body
+        end
+
+        # Register test function
+        register_test(stringify!(test_$name), test_$name)
+    end
+end
+
+# 10. Timing macro
+macro~ time
+    ($expr:expr) => do
+        let start = Time::now()
+        let result = $expr
+        let end = Time::now()
+        let duration = end - start
+        println~("Expression took: {} ms", duration.milliseconds())
+        result
+    end
+end
+
+# Usage examples:
+
+fn demo_macros() -> ()
+    # Using vec! macro
+    let numbers = vec~(1, 2, 3, 4, 5)
+    let empty_vec = vec~()
+
+    # Using format! macro
+    let message = format~("Hello, {}!", "World")
+
+    # Using debug! macro
+    let x = 42
+    debug~(x * 2)  # Prints: DEBUG: x * 2 = 84
+
+    # Using assert! macro
+    assert~(x == 42)
+    assert~(x > 0, "x must be positive")
+
+    # Using HTML DSL
+    let content = html~(
+        <div class="container">
+            <h1>"Welcome"</h1>
+            <p>"This is a paragraph"</p>
+            <br />
+        </div>
+    )
+
+    # Using SQL macro
+    let query = sql~(
+        SELECT name, email FROM users WHERE active = true
+    )
+
+    # Using property macro in a struct
+    struct Person
+        _name: str,
+        _age: i32,
+
+        property~(str, name)
+        property~(i32, age)
+    end
+
+    # Using enum_with_from macro
+    enum_with_from~(Value {
+        Text(str),
+        Number(i32),
+        Flag(bool)
+    })
+
+    # Using test macro
+    test~(addition => do
+        let result = 2 + 2
+        assert~(result == 4)
+    end)
+
+    # Using timing macro
+    let slow_result = time~(do
+        # Simulate some work
+        let mut sum = 0
+        for i in 0..1000000 do
+            sum = sum + i
+        end
+        sum
+    end)
+
+    println~("Demo completed successfully!")
+end
+
+# Advanced example: Custom control flow macro
+macro~ unless
+    ($condition:expr => $body:block) => do
+        if !($condition) then
+            $body
+        end
+    end
+end
+
+# Advanced example: Lazy evaluation macro
+macro~ lazy
+    ($expr:expr) => do
+        fn() -> auto
+            $expr
+        end
+    end
+end
+
+# Advanced example: Memoization macro
+macro~ memoize
+    (fn $name:ident($($param:ident: $param_type:ty),*) -> $return_type:ty $body:block) => do
+        let mut _cache_$name: Map<($(param_type),*), $return_type> = Map::new()
+
+        fn $name($($param: $param_type),*) -> $return_type
+            let key = ($($param),*)
+            if _cache_$name.has(key) then
+                _cache_$name.get(key).unwrap()
+            else
+                let result = $body
+                _cache_$name.set(key, result)
+                result
+            end
+        end
+    end
+end
+
+# Usage of advanced macros:
+fn advanced_demo() -> ()
+    # Using unless macro
+    let x = 5
+    unless~(x > 10 => do
+        println~("x is not greater than 10")
+    end)
+
+    # Using lazy macro
+    let lazy_computation = lazy~(do
+        println~("This will only execute when called")
+        expensive_calculation()
+    end)
+
+    # Call the lazy computation when needed
+    let result = lazy_computation()
+
+    # Using memoization macro
+    memoize~(fn fibonacci(n: i32) -> i32 do
+        if n <= 1 then
+            n
+        else
+            fibonacci(n - 1) + fibonacci(n - 2)
+        end
+    end)
+
+    # Fibonacci will be memoized automatically
+    let fib_10 = fibonacci(10)
+    let fib_10_again = fibonacci(10)  # This will use cached result
+end
+
+fn main() -> ()
+    demo_macros()
+    advanced_demo()
+end
