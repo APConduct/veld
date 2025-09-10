@@ -143,8 +143,8 @@ pub enum Token {
     DotDotDot((usize, usize)),
     #[token("~", word_callback)]
     Tilde((usize, usize)),
-    #[token("!")]
-    Bang,
+    #[token("!", word_callback)]
+    Bang((usize, usize)),
 
     // Literals and Identifiers
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
@@ -164,55 +164,55 @@ pub enum Token {
     #[regex(r#"[0-9]+\.[0-9]+"#, |lex| lex.slice().parse().ok())]
     FloatLiteral(f64),
 
-    #[token("if")]
-    If,
-    #[token("else")]
-    Else,
-    #[token("while")]
-    While,
-    #[token("return")]
-    Return,
-    #[token("true")]
-    True,
-    #[token("false")]
-    False,
-    #[token("and")]
-    And,
-    #[token("match")]
-    Match,
-    #[token("do")]
-    Do,
-    #[token("then")]
-    Then,
-    #[token("with")]
-    With,
-    #[token("macro")]
-    Macro,
-    #[token("const")]
-    Const,
-    #[token("self")]
-    SelfToken,
-    #[token("|>")]
-    Pipe,
-    #[token("[[")]
-    LDoubleBracket,
-    #[token("]]")]
-    RDoubleBracket,
-    #[token("<-")]
-    LeftArrow,
-    #[token("$")]
-    Dollar,
-    #[token(":expr")]
-    ExprFragment,
+    #[token("if", word_callback)]
+    If((usize, usize)),
+    #[token("else", word_callback)]
+    Else((usize, usize)),
+    #[token("while", word_callback)]
+    While((usize, usize)),
+    #[token("return", word_callback)]
+    Return((usize, usize)),
+    #[token("true", word_callback)]
+    True((usize, usize)),
+    #[token("false", word_callback)]
+    False((usize, usize)),
+    #[token("and", word_callback)]
+    And((usize, usize)),
+    #[token("match", word_callback)]
+    Match((usize, usize)),
+    #[token("do", word_callback)]
+    Do((usize, usize)),
+    #[token("then", word_callback)]
+    Then((usize, usize)),
+    #[token("with", word_callback)]
+    With((usize, usize)),
+    #[token("macro", word_callback)]
+    Macro((usize, usize)),
+    #[token("const", word_callback)]
+    Const((usize, usize)),
+    #[token("self", word_callback)]
+    SelfToken((usize, usize)),
+    #[token("|>", word_callback)]
+    Pipe((usize, usize)),
+    #[token("[[", word_callback)]
+    LDoubleBracket((usize, usize)),
+    #[token("]]", word_callback)]
+    RDoubleBracket((usize, usize)),
+    #[token("<-", word_callback)]
+    LeftArrow((usize, usize)),
+    #[token("$", word_callback)]
+    Dollar((usize, usize)),
+    #[token(":expr", word_callback)]
+    ExprFragment((usize, usize)),
 
-    #[token("static")]
-    Static,
-    #[token("async")]
-    Async,
-    #[token("await")]
-    Await,
-    #[token("spawn")]
-    Spawn,
+    #[token("static", word_callback)]
+    Static((usize, usize)),
+    #[token("async", word_callback)]
+    Async((usize, usize)),
+    #[token("await", word_callback)]
+    Await((usize, usize)),
+    #[token("spawn", word_callback)]
+    Spawn((usize, usize)),
 }
 
 impl Display for Token {
@@ -274,36 +274,36 @@ impl Display for Token {
             Token::DotDot((x, y)) => write!(f, ".. at {},{}", x, y),
             Token::DotDotDot((x, y)) => write!(f, "... at {},{}", x, y),
             Token::Tilde((x, y)) => write!(f, "~ at {},{}", x, y),
-            Token::Bang => write!(f, "!"),
+            Token::Bang((x, y)) => write!(f, "! at {},{}", x, y),
             Token::Identifier(s) => write!(f, "{}", s),
             Token::StringLiteral(s) => write!(f, "\"{}\"", s),
             Token::IntegerLiteral(n) => write!(f, "{}", n),
             Token::FloatLiteral(n) => write!(f, "{}", n),
-            Token::If => write!(f, "if"),
-            Token::Else => write!(f, "else"),
-            Token::While => write!(f, "while"),
-            Token::Return => write!(f, "return"),
-            Token::True => write!(f, "true"),
-            Token::False => write!(f, "false"),
-            Token::And => write!(f, "and"),
-            Token::Match => write!(f, "match"),
-            Token::Do => write!(f, "do"),
-            Token::Then => write!(f, "then"),
-            Token::With => write!(f, "with"),
-            Token::Macro => write!(f, "macro"),
-            Token::Const => write!(f, "const"),
-            Token::Plex(_) => write!(f, "plex"),
-            Token::SelfToken => write!(f, "self"),
-            Token::Pipe => write!(f, "|>"),
-            Token::LDoubleBracket => write!(f, "[["),
-            Token::RDoubleBracket => write!(f, "]]"),
-            Token::LeftArrow => write!(f, "<-"),
-            Token::Dollar => write!(f, "$"),
-            Token::ExprFragment => write!(f, ":expr"),
-            Token::Static => write!(f, "static"),
-            Token::Async => write!(f, "async"),
-            Token::Await => write!(f, "await"),
-            Token::Spawn => write!(f, "spawn"),
+            Token::If((x, y)) => write!(f, "if at {},{}", x, y),
+            Token::Else((x, y)) => write!(f, "else at {},{}", x, y),
+            Token::While((x, y)) => write!(f, "while at {},{}", x, y),
+            Token::Return((x, y)) => write!(f, "return at {},{}", x, y),
+            Token::True((x, y)) => write!(f, "true at {},{}", x, y),
+            Token::False((x, y)) => write!(f, "false at {},{}", x, y),
+            Token::And((x, y)) => write!(f, "and at {},{}", x, y),
+            Token::Match((x, y)) => write!(f, "match at {},{}", x, y),
+            Token::Do((x, y)) => write!(f, "do at {},{}", x, y),
+            Token::Then((x, y)) => write!(f, "then at {},{}", x, y),
+            Token::With((x, y)) => write!(f, "with at {},{}", x, y),
+            Token::Macro((x, y)) => write!(f, "macro at {},{}", x, y),
+            Token::Const((x, y)) => write!(f, "const at {},{}", x, y),
+            Token::Plex((x, y)) => write!(f, "plex at {},{}", x, y),
+            Token::SelfToken((x, y)) => write!(f, "self at {},{}", x, y),
+            Token::Pipe((x, y)) => write!(f, "|> at {},{}", x, y),
+            Token::LDoubleBracket((x, y)) => write!(f, "[["),
+            Token::RDoubleBracket((x, y)) => write!(f, "]]"),
+            Token::LeftArrow((x, y)) => write!(f, "<- at {},{}", x, y),
+            Token::Dollar((x, y)) => write!(f, "$ at {},{}", x, y),
+            Token::ExprFragment((x, y)) => write!(f, ":expr at {},{}", x, y),
+            Token::Static((x, y)) => write!(f, "static at {},{}", x, y),
+            Token::Async((x, y)) => write!(f, "async at {},{}", x, y),
+            Token::Await((x, y)) => write!(f, "await at {},{}", x, y),
+            Token::Spawn((x, y)) => write!(f, "spawn at {},{}", x, y),
         }
     }
 }
@@ -431,35 +431,35 @@ impl PartialEq for Token {
             (Token::DotDot(_), Token::DotDot(_)) => true,
             (Token::DotDotDot(_), Token::DotDotDot(_)) => true,
             (Token::Tilde(_), Token::Tilde(_)) => true,
-            (Token::Bang, Token::Bang) => true,
+            (Token::Bang(_), Token::Bang(_)) => true,
             (Token::Identifier(a), Token::Identifier(b)) => a == b,
             (Token::StringLiteral(a), Token::StringLiteral(b)) => a == b,
             (Token::IntegerLiteral(a), Token::IntegerLiteral(b)) => a == b,
             (Token::FloatLiteral(a), Token::FloatLiteral(b)) => a == b,
-            (Token::If, Token::If) => true,
-            (Token::Else, Token::Else) => true,
-            (Token::While, Token::While) => true,
-            (Token::Return, Token::Return) => true,
-            (Token::True, Token::True) => true,
-            (Token::False, Token::False) => true,
-            (Token::And, Token::And) => true,
-            (Token::Match, Token::Match) => true,
-            (Token::Do, Token::Do) => true,
-            (Token::Then, Token::Then) => true,
-            (Token::With, Token::With) => true,
-            (Token::Macro, Token::Macro) => true,
-            (Token::Const, Token::Const) => true,
-            (Token::SelfToken, Token::SelfToken) => true,
-            (Token::Pipe, Token::Pipe) => true,
-            (Token::LDoubleBracket, Token::LDoubleBracket) => true,
-            (Token::RDoubleBracket, Token::RDoubleBracket) => true,
-            (Token::LeftArrow, Token::LeftArrow) => true,
-            (Token::Dollar, Token::Dollar) => true,
-            (Token::ExprFragment, Token::ExprFragment) => true,
-            (Token::Static, Token::Static) => true,
-            (Token::Async, Token::Async) => true,
-            (Token::Await, Token::Await) => true,
-            (Token::Spawn, Token::Spawn) => true,
+            (Token::If(_), Token::If(_)) => true,
+            (Token::Else(_), Token::Else(_)) => true,
+            (Token::While(_), Token::While(_)) => true,
+            (Token::Return(_), Token::Return(_)) => true,
+            (Token::True(_), Token::True(_)) => true,
+            (Token::False(_), Token::False(_)) => true,
+            (Token::And(_), Token::And(_)) => true,
+            (Token::Match(_), Token::Match(_)) => true,
+            (Token::Do(_), Token::Do(_)) => true,
+            (Token::Then(_), Token::Then(_)) => true,
+            (Token::With(_), Token::With(_)) => true,
+            (Token::Macro(_), Token::Macro(_)) => true,
+            (Token::Const(_), Token::Const(_)) => true,
+            (Token::SelfToken(_), Token::SelfToken(_)) => true,
+            (Token::Pipe(_), Token::Pipe(_)) => true,
+            (Token::LDoubleBracket(_), Token::LDoubleBracket(_)) => true,
+            (Token::RDoubleBracket(_), Token::RDoubleBracket(_)) => true,
+            (Token::LeftArrow(_), Token::LeftArrow(_)) => true,
+            (Token::Dollar(_), Token::Dollar(_)) => true,
+            (Token::ExprFragment(_), Token::ExprFragment(_)) => true,
+            (Token::Static(_), Token::Static(_)) => true,
+            (Token::Async(_), Token::Async(_)) => true,
+            (Token::Await(_), Token::Await(_)) => true,
+            (Token::Spawn(_), Token::Spawn(_)) => true,
             _ => false,
         }
     }
@@ -544,7 +544,12 @@ end
             tokens[11],
             Token::StringLiteral("Hello, world!".to_string())
         );
-        assert_eq!(tokens[12], Token::If);
+        assert!(
+            matches!(tokens[12], Token::If((0, 0))),
+            "Expected {}, got {}",
+            tokens[12],
+            Token::If((0, 0))
+        );
         assert_eq!(tokens[13], Token::Identifier("x".to_string()));
         assert!(
             matches!(tokens[14], Token::Greater((4, 9))),
@@ -553,7 +558,13 @@ end
             Token::Greater((0, 0))
         );
         assert_eq!(tokens[15], Token::IntegerLiteral(0));
-        assert_eq!(tokens[16], Token::Then);
+        assert_eq!(
+            tokens[16],
+            Token::Then((0, 0)),
+            "Expected {}, got {}",
+            tokens[16],
+            Token::Then((0, 0))
+        );
         assert_eq!(tokens[17], Token::Identifier("println".to_string()));
         assert!(
             matches!(tokens[18], Token::Tilde((5, 15))),
