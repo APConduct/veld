@@ -13,7 +13,7 @@ fn main() {
     let mut macro_system = MacroSystem::new();
 
     // Example 1: Basic macro expansion
-    println!("1. Basic vec! macro expansion:");
+    println!("1. Basic vec~ macro expansion:");
     demonstrate_vec_macro(&mut macro_system);
 
     // Example 2: Format macro
@@ -52,7 +52,7 @@ fn demonstrate_vec_macro(macro_system: &mut MacroSystem) {
     let result = macro_system
         .expand_macro_call("vec", &[], NodeId::new())
         .unwrap();
-    println!("  vec!() expands to: {:?}", result);
+    println!("  vec~() expands to: {:?}", result);
 
     // Vec with elements
     let args = vec![
@@ -63,7 +63,7 @@ fn demonstrate_vec_macro(macro_system: &mut MacroSystem) {
     let result = macro_system
         .expand_macro_call("vec", &args, NodeId::new())
         .unwrap();
-    println!("  vec!(1, 2, 3) expands to: {:?}", result);
+    println!("  vec~(1, 2, 3) expands to: {:?}", result);
 }
 
 fn demonstrate_format_macro(macro_system: &mut MacroSystem) {
@@ -89,7 +89,7 @@ fn demonstrate_debug_macro(macro_system: &mut MacroSystem) {
     let result = macro_system
         .expand_macro_call("debug", &args, NodeId::new())
         .unwrap();
-    println!("  debug!(x + 42) expands to: {:?}", result);
+    println!("  debug~(x + 42) expands to: {:?}", result);
 }
 
 fn demonstrate_nested_macros(macro_system: &mut MacroSystem) {
@@ -109,7 +109,7 @@ fn demonstrate_nested_macros(macro_system: &mut MacroSystem) {
     };
 
     let result = macro_system.preprocess_expr(outer_expr).unwrap();
-    println!("  debug!(vec!(1, 2, 3)) expands to: {:?}", result);
+    println!("  debug~(vec~(1, 2, 3)) expands to: {:?}", result);
 }
 
 fn demonstrate_statement_preprocessing(macro_system: &mut MacroSystem) {

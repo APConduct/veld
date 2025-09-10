@@ -3,14 +3,14 @@
 
 # 1. Simple declarative macro - vec! style
 macro~ vec
-    () => Vec::new(),
+    () => Vec.new(),
     ($elem:expr) => do
-        let mut temp = Vec::new()
+        let mut temp = Vec.new()
         temp.push($elem)
         temp
     end,
     ($($elem:expr),+ $(,)?) => do
-        let mut temp = Vec::new()
+        let mut temp = Vec.new()
         $(
             temp.push($elem)
         )+
@@ -138,7 +138,7 @@ fn demo_macros() -> ()
     let empty_vec = vec~()
 
     # Using format! macro
-    let message = format~("Hello, {}!", "World")
+    let message = format~("Hello, {}~", "World")
 
     # Using debug! macro
     let x = 42

@@ -21,7 +21,7 @@ pub struct MacroDefinition {
     pub parameters: Vec<String>,
     pub body: Vec<Statement>,
     pub node_id: NodeId,
-    
+
     // NEW: Optional extensions (backward compatible)
     pub kind: Option<MacroKind>,
     pub metadata: MacroMetadata,
@@ -80,7 +80,7 @@ impl MacroDefinition {
 ```rust
 let enhanced_macro = MacroDefinition::simple(name, params, body, node_id)
     .with_description("Description".to_string())
-    .with_example("example!()".to_string())
+    .with_example("example~()".to_string())
     .with_stability(MacroStability::Stable)
     .with_attribute("category".to_string(), "utility".to_string());
 ```
@@ -161,7 +161,7 @@ let declarative_macro = MacroDefinition::declarative(
 ```rust
 pub fn expand_macro(&mut self, name: &str, arguments: &[Expr], call_site: NodeId) -> Result<Vec<Statement>, ExpansionError> {
     let macro_def = self.lookup_macro(name)?.clone();
-    
+
     match &macro_def.kind {
         None => self.expand_simple_macro(name, &macro_def.parameters, &macro_def.body, arguments, call_site),
         Some(MacroKind::Declarative { patterns, templates }) => self.expand_declarative_macro(name, patterns, templates, arguments, call_site),

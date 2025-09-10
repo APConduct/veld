@@ -303,7 +303,7 @@ fn expand_vec_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>,
     if args.is_empty() {
         // vec!() -> Vec::new()
         Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
-            name: "Vec::new".to_string(),
+            name: "Vec.new".to_string(),
             arguments: vec![],
         })])
     } else {
@@ -475,7 +475,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         match &result[0] {
             Statement::ExprStatement(Expr::FunctionCall { name, .. }) => {
-                assert_eq!(name, "Vec::new");
+                assert_eq!(name, "Vec.new");
             }
             _ => panic!("Expected function call"),
         }

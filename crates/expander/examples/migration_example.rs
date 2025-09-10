@@ -111,7 +111,7 @@ fn demonstrate_advanced_features() {
                 pattern: veld_core::ast::MacroPattern("()".to_string()),
                 expansion: veld_core::ast::MacroExpansion(vec![Statement::ExprStatement(
                     Expr::FunctionCall {
-                        name: "Vec::new".to_string(),
+                        name: "Vec.new".to_string(),
                         arguments: vec![],
                     },
                 )]),
@@ -132,7 +132,7 @@ fn demonstrate_advanced_features() {
         NodeId::new(),
     )
     .with_description("Advanced vector creation with pattern matching".to_string())
-    .with_example("advanced_vec!(1, 2, 3)".to_string())
+    .with_example("advanced_vec~(1, 2, 3)".to_string())
     .with_stability(MacroStability::Stable);
 
     println!("  ✓ Declarative macro created");
@@ -167,7 +167,7 @@ fn demonstrate_advanced_features() {
         false, // not typed
     )
     .with_description("Debug template for printing expressions".to_string())
-    .with_example("debug_template!(my_var + 1)".to_string())
+    .with_example("debug_template~(my_var + 1)".to_string())
     .with_stability(MacroStability::Experimental);
 
     println!("  ✓ Template macro created");
@@ -187,7 +187,7 @@ fn demonstrate_advanced_features() {
         ))),
     )
     .with_description("Generate getter methods at compile time".to_string())
-    .with_example("generate_getters!(Person, [name, age])".to_string())
+    .with_example("generate_getters~(Person, [name, age])".to_string())
     .with_stability(MacroStability::Unstable);
 
     println!("  ✓ Compile-time procedure created");
@@ -290,7 +290,7 @@ fn real_world_migration_example() {
         NodeId::new(),
     )
     .with_description("Logging macro with level and message".to_string())
-    .with_example("log!(\"INFO\", \"Application started\")".to_string())
+    .with_example("log~(\"INFO\", \"Application started\")".to_string())
     .with_stability(MacroStability::Stable)
     .with_attribute("category".to_string(), "logging".to_string());
 
@@ -328,7 +328,7 @@ fn real_world_migration_example() {
         NodeId::new(),
     )
     .with_description("Advanced logging macro with pattern matching".to_string())
-    .with_example("log!(\"INFO\", format!(\"User {} logged in\", username))".to_string())
+    .with_example("log~(\"INFO\", format~(\"User {} logged in\", username))".to_string())
     .with_stability(MacroStability::Stable);
 
     println!("\n  Evolution: Declarative log macro");

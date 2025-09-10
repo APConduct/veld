@@ -6,11 +6,11 @@ The Veld Macro Expander is a comprehensive macro system for the Veld programming
 
 - **Backward Compatibility**: Existing simple macros continue to work unchanged
 - **Evolutionary Design**: Gradual migration path from simple to advanced macros
-- **Declarative Macros**: Pattern-matching macros similar to Rust's `macro_rules!`
+- **Declarative Macros**: Pattern-matching macros similar to Rust's `macro_rules~`
 - **Template Macros**: Nim-style template system for direct AST manipulation
 - **Compile-time Procedures**: Execute code during compilation
 - **Hygienic Expansion**: Automatic variable renaming to prevent name conflicts
-- **Built-in Macros**: Common macros like `vec!`, `format!`, `println!`, etc.
+- **Built-in Macros**: Common macros like `vec~`, `format~`, `println!`, etc.
 - **Custom DSLs**: Support for domain-specific languages like HTML and SQL
 - **Rich Metadata**: Description, examples, stability markers, and custom attributes
 
@@ -58,7 +58,7 @@ let enhanced_macro = MacroDefinition::simple(
     node_id,
 )
 .with_description("My enhanced macro".to_string())
-.with_example("my_macro!(42)".to_string())
+.with_example("my_macro~(42)".to_string())
 .with_stability(MacroStability::Stable);
 ```
 
@@ -148,12 +148,12 @@ let proc_macro = MacroDefinition::compile_time_proc(
 
 The system includes several built-in macros:
 
-- **`vec!()`** - Create vectors: `vec!(1, 2, 3)`
-- **`format!()`** - String formatting: `format!("Hello {}", name)`
-- **`println!()`** - Print to stdout: `println!("Hello, World!")`
-- **`debug!()`** - Debug printing: `debug!(expression)`
-- **`assert!()`** - Runtime assertions: `assert!(condition)`
-- **`todo!()`** - Placeholder for unimplemented code
+- **`vec~()`** - Create vectors: `vec~(1, 2, 3)`
+- **`format~()`** - String formatting: `format~("Hello {}", name)`
+- **`println~()`** - Print to stdout: `println~("Hello, World!")`
+- **`debug~()`** - Debug printing: `debug~(expression)`
+- **`assert~()`** - Runtime assertions: `assert~(condition)`
+- **`todo~()`** - Placeholder for unimplemented code
 
 ## Usage
 

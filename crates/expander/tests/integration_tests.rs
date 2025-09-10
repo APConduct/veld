@@ -14,7 +14,7 @@ fn test_vec_macro_basic() {
 
     match &result[0] {
         Statement::ExprStatement(Expr::FunctionCall { name, arguments }) => {
-            assert_eq!(name, "Vec::new");
+            assert_eq!(name, "Vec.new");
             assert_eq!(arguments.len(), 0);
         }
         _ => panic!("Expected Vec::new function call"),
