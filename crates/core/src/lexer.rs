@@ -99,50 +99,50 @@ pub enum Token {
     SlashEq((usize, usize)),
 
     // Comparison operators
-    #[token("<=")]
-    LessEq,
-    #[token(">=")]
-    GreaterEq,
-    #[token("<")]
-    Less,
-    #[token(">")]
-    Greater,
-    #[token("==")]
-    EqualEqual,
-    #[token("!=")]
-    NotEqual,
+    #[token("<=", word_callback)]
+    LessEq((usize, usize)),
+    #[token(">=", word_callback)]
+    GreaterEq((usize, usize)),
+    #[token("<", word_callback)]
+    Less((usize, usize)),
+    #[token(">", word_callback)]
+    Greater((usize, usize)),
+    #[token("==", word_callback)]
+    EqualEqual((usize, usize)),
+    #[token("!=", word_callback)]
+    NotEqual((usize, usize)),
 
     // Delimiters
-    #[token("(")]
-    LParen,
-    #[token(")")]
-    RParen,
-    #[token("{")]
-    LBrace,
-    #[token("}")]
-    RBrace,
-    #[token("[")]
-    LBracket,
-    #[token("]")]
-    RBracket,
-    #[token(",")]
-    Comma,
-    #[token(":")]
-    Colon,
-    #[token(";")]
-    Semicolon,
-    #[token("@")]
-    At,
-    #[token(".")]
-    Dot,
-    #[token("..=")]
-    DotDotEq,
-    #[token("..")]
-    DotDot,
-    #[token("...")]
-    DotDotDot,
-    #[token("~")]
-    Tilde,
+    #[token("(", word_callback)]
+    LParen((usize, usize)),
+    #[token(")", word_callback)]
+    RParen((usize, usize)),
+    #[token("{", word_callback)]
+    LBrace((usize, usize)),
+    #[token("}", word_callback)]
+    RBrace((usize, usize)),
+    #[token("[", word_callback)]
+    LBracket((usize, usize)),
+    #[token("]", word_callback)]
+    RBracket((usize, usize)),
+    #[token(",", word_callback)]
+    Comma((usize, usize)),
+    #[token(":", word_callback)]
+    Colon((usize, usize)),
+    #[token(";", word_callback)]
+    Semicolon((usize, usize)),
+    #[token("@", word_callback)]
+    At((usize, usize)),
+    #[token(".", word_callback)]
+    Dot((usize, usize)),
+    #[token("..=", word_callback)]
+    DotDotEq((usize, usize)),
+    #[token("..", word_callback)]
+    DotDot((usize, usize)),
+    #[token("...", word_callback)]
+    DotDotDot((usize, usize)),
+    #[token("~", word_callback)]
+    Tilde((usize, usize)),
     #[token("!")]
     Bang,
 
@@ -218,61 +218,62 @@ pub enum Token {
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::Fn(_) => write!(f, "fn"),
-            Token::Proc(_) => write!(f, "proc"),
-            Token::Let(_) => write!(f, "let"),
-            Token::Struct(_) => write!(f, "struct"),
-            Token::Kind(_) => write!(f, "kind"),
-            Token::Impl(_) => write!(f, "impl"),
-            Token::End(_) => write!(f, "end"),
-            Token::For(_) => write!(f, "for"),
-            Token::In(_) => write!(f, "in"),
-            Token::Where(_) => write!(f, "where"),
-            Token::As(_) => write!(f, "as"),
-            Token::Or(_) => write!(f, "or"),
-            Token::Mod(_) => write!(f, "mod"),
-            Token::Import(_) => write!(f, "import"),
-            Token::Pub(_) => write!(f, "pub"),
-            Token::From(_) => write!(f, "from"),
-            Token::Var(_) => write!(f, "var"),
-            Token::Mut(_) => write!(f, "mut"),
-            Token::Break(_) => write!(f, "break"),
-            Token::Continue(_) => write!(f, "continue"),
-            Token::Enum(_) => write!(f, "enum"),
+            Token::Fn((x, y)) => write!(f, "fn at {}, {}", x, y),
+            Token::Proc((x, y)) => write!(f, "proc at {}, {}", x, y),
+            Token::Let((x, y)) => write!(f, "let at {}, {}", x, y),
+            Token::Struct((x, y)) => write!(f, "struct at {}, {}", x, y),
+            Token::Kind((x, y)) => write!(f, "kind at {}, {}", x, y),
+            Token::Impl((x, y)) => write!(f, "impl at {}, {}", x, y),
+            Token::End((x, y)) => write!(f, "end at {}, {}", x, y),
+            Token::For((x, y)) => write!(f, "for at {}, {}", x, y),
+            Token::In((x, y)) => write!(f, "in at {}, {}", x, y),
+            Token::Where((x, y)) => write!(f, "where at {}, {}", x, y),
+            Token::As((x, y)) => write!(f, "as at {}, {}", x, y),
+            Token::Or((x, y)) => write!(f, "or at {}, {}", x, y),
+            Token::Mod((x, y)) => write!(f, "mod at {}, {}", x, y),
+            Token::Import((x, y)) => write!(f, "import at {}, {}", x, y),
+            Token::Pub((x, y)) => write!(f, "pub at {}, {}", x, y),
+            Token::From((x, y)) => write!(f, "from at {}, {}", x, y),
+            Token::Var((x, y)) => write!(f, "var at {}, {}", x, y),
+            Token::Mut((x, y)) => write!(f, "mut at {}, {}", x, y),
+            Token::Break((x, y)) => write!(f, "break at {}, {}", x, y),
+            Token::Continue((x, y)) => write!(f, "continue at {}, {}", x, y),
+            Token::Enum((x, y)) => write!(f, "enum at {}, {}", x, y),
             Token::Equals((x, y)) => write!(f, "= at {},{}", x, y),
-            Token::Plus(_) => write!(f, "+"),
-            Token::Minus(_) => write!(f, "-"),
-            Token::Star(_) => write!(f, "*"),
-            Token::Slash(_) => write!(f, "/"),
-            Token::Arrow(_) => write!(f, "->"),
-            Token::FatArrow(_) => write!(f, "=>"),
-            Token::ExpOp(_) => write!(f, "*^"),
-            Token::Modulo(_) => write!(f, "%"),
-            Token::PlusEq(_) => write!(f, "+="),
-            Token::MinusEq(_) => write!(f, "-="),
-            Token::StarEq(_) => write!(f, "*="),
-            Token::SlashEq(_) => write!(f, "/="),
-            Token::LessEq => write!(f, "<="),
-            Token::GreaterEq => write!(f, ">="),
-            Token::Less => write!(f, "<"),
-            Token::Greater => write!(f, ">"),
-            Token::EqualEqual => write!(f, "=="),
-            Token::NotEqual => write!(f, "!="),
-            Token::LParen => write!(f, "("),
-            Token::RParen => write!(f, ")"),
-            Token::LBrace => write!(f, "{{"),
-            Token::RBrace => write!(f, "}}"),
-            Token::LBracket => write!(f, "["),
-            Token::RBracket => write!(f, "]"),
-            Token::Comma => write!(f, ","),
-            Token::Colon => write!(f, ":"),
-            Token::Semicolon => write!(f, ";"),
-            Token::At => write!(f, "@"),
-            Token::Dot => write!(f, "."),
-            Token::DotDotEq => write!(f, "..="),
-            Token::DotDot => write!(f, ".."),
-            Token::DotDotDot => write!(f, "..."),
-            Token::Tilde => write!(f, "~"),
+            Token::Plus((x, y)) => write!(f, "+ at {},{}", x, y),
+            Token::Minus((x, y)) => write!(f, "- at {},{}", x, y),
+            Token::Star((x, y)) => write!(f, "* at {},{}", x, y),
+            Token::Slash((x, y)) => write!(f, "/ at {},{}", x, y),
+            Token::Slash((x, y)) => write!(f, "/ at {},{}", x, y),
+            Token::Arrow((x, y)) => write!(f, "-> at {},{}", x, y),
+            Token::FatArrow((x, y)) => write!(f, "=> at {},{}", x, y),
+            Token::ExpOp((x, y)) => write!(f, "*^ at {},{}", x, y),
+            Token::Modulo((x, y)) => write!(f, "% at {},{}", x, y),
+            Token::PlusEq((x, y)) => write!(f, "+= at {},{}", x, y),
+            Token::MinusEq((x, y)) => write!(f, "-= at {},{}", x, y),
+            Token::StarEq((x, y)) => write!(f, "*= at {},{}", x, y),
+            Token::SlashEq((x, y)) => write!(f, "/= at {},{}", x, y),
+            Token::LessEq((x, y)) => write!(f, "<= at {},{}", x, y),
+            Token::GreaterEq((x, y)) => write!(f, ">= at {},{}", x, y),
+            Token::Less((x, y)) => write!(f, "< at {},{}", x, y),
+            Token::Greater((x, y)) => write!(f, "> at {},{}", x, y),
+            Token::EqualEqual((x, y)) => write!(f, "== at {},{}", x, y),
+            Token::NotEqual((x, y)) => write!(f, "!= at {},{}", x, y),
+            Token::LParen((x, y)) => write!(f, "( at {},{}", x, y),
+            Token::RParen((x, y)) => write!(f, ") at {},{}", x, y),
+            Token::LBrace((x, y)) => write!(f, "{{ at {},{}", x, y),
+            Token::RBrace((x, y)) => write!(f, "}} at {},{}", x, y),
+            Token::LBracket((x, y)) => write!(f, "[ at {},{}", x, y),
+            Token::RBracket((x, y)) => write!(f, "] at {},{}", x, y),
+            Token::Comma((x, y)) => write!(f, ", at {},{}", x, y),
+            Token::Colon((x, y)) => write!(f, ": at {},{}", x, y),
+            Token::Semicolon((x, y)) => write!(f, "; at {},{}", x, y),
+            Token::At((x, y)) => write!(f, "@ at {},{}", x, y),
+            Token::Dot((x, y)) => write!(f, ". at {},{}", x, y),
+            Token::DotDotEq((x, y)) => write!(f, "..= at {},{}", x, y),
+            Token::DotDot((x, y)) => write!(f, ".. at {},{}", x, y),
+            Token::DotDotDot((x, y)) => write!(f, "... at {},{}", x, y),
+            Token::Tilde((x, y)) => write!(f, "~ at {},{}", x, y),
             Token::Bang => write!(f, "!"),
             Token::Identifier(s) => write!(f, "{}", s),
             Token::StringLiteral(s) => write!(f, "\"{}\"", s),
@@ -409,27 +410,27 @@ impl PartialEq for Token {
             (Token::MinusEq(_), Token::MinusEq(_)) => true,
             (Token::StarEq(_), Token::StarEq(_)) => true,
             (Token::SlashEq(_), Token::SlashEq(_)) => true,
-            (Token::LessEq, Token::LessEq) => true,
-            (Token::GreaterEq, Token::GreaterEq) => true,
-            (Token::Less, Token::Less) => true,
-            (Token::Greater, Token::Greater) => true,
-            (Token::EqualEqual, Token::EqualEqual) => true,
-            (Token::NotEqual, Token::NotEqual) => true,
-            (Token::LParen, Token::LParen) => true,
-            (Token::RParen, Token::RParen) => true,
-            (Token::LBrace, Token::LBrace) => true,
-            (Token::RBrace, Token::RBrace) => true,
-            (Token::LBracket, Token::LBracket) => true,
-            (Token::RBracket, Token::RBracket) => true,
-            (Token::Comma, Token::Comma) => true,
-            (Token::Colon, Token::Colon) => true,
-            (Token::Semicolon, Token::Semicolon) => true,
-            (Token::At, Token::At) => true,
-            (Token::Dot, Token::Dot) => true,
-            (Token::DotDotEq, Token::DotDotEq) => true,
-            (Token::DotDot, Token::DotDot) => true,
-            (Token::DotDotDot, Token::DotDotDot) => true,
-            (Token::Tilde, Token::Tilde) => true,
+            (Token::LessEq(_), Token::LessEq(_)) => true,
+            (Token::GreaterEq(_), Token::GreaterEq(_)) => true,
+            (Token::Less(_), Token::Less(_)) => true,
+            (Token::Greater(_), Token::Greater(_)) => true,
+            (Token::EqualEqual(_), Token::EqualEqual(_)) => true,
+            (Token::NotEqual(_), Token::NotEqual(_)) => true,
+            (Token::LParen(_), Token::LParen(_)) => true,
+            (Token::RParen(_), Token::RParen(_)) => true,
+            (Token::LBrace(_), Token::LBrace(_)) => true,
+            (Token::RBrace(_), Token::RBrace(_)) => true,
+            (Token::LBracket(_), Token::LBracket(_)) => true,
+            (Token::RBracket(_), Token::RBracket(_)) => true,
+            (Token::Comma(_), Token::Comma(_)) => true,
+            (Token::Colon(_), Token::Colon(_)) => true,
+            (Token::Semicolon(_), Token::Semicolon(_)) => true,
+            (Token::At(_), Token::At(_)) => true,
+            (Token::Dot(_), Token::Dot(_)) => true,
+            (Token::DotDotEq(_), Token::DotDotEq(_)) => true,
+            (Token::DotDot(_), Token::DotDot(_)) => true,
+            (Token::DotDotDot(_), Token::DotDotDot(_)) => true,
+            (Token::Tilde(_), Token::Tilde(_)) => true,
             (Token::Bang, Token::Bang) => true,
             (Token::Identifier(a), Token::Identifier(b)) => a == b,
             (Token::StringLiteral(a), Token::StringLiteral(b)) => a == b,
@@ -506,8 +507,13 @@ end
             tokens[0],
         );
         assert_eq!(tokens[1], Token::Identifier("main".to_string()));
-        assert_eq!(tokens[2], Token::LParen);
-        assert_eq!(tokens[3], Token::RParen);
+        assert!(matches!(tokens[2], Token::LParen((1, 7))));
+        assert!(
+            matches!(tokens[3], Token::RParen((1, 8))),
+            "Expected {}, got {}",
+            tokens[3],
+            Token::RParen((1, 8))
+        );
         assert!(
             matches!(tokens[4], Token::Let((2, 4))),
             "Expected {}, got {}",
@@ -540,14 +546,34 @@ end
         );
         assert_eq!(tokens[12], Token::If);
         assert_eq!(tokens[13], Token::Identifier("x".to_string()));
-        assert_eq!(tokens[14], Token::Greater);
+        assert!(
+            matches!(tokens[14], Token::Greater((4, 9))),
+            "Expected {}, got {}",
+            tokens[14],
+            Token::Greater((0, 0))
+        );
         assert_eq!(tokens[15], Token::IntegerLiteral(0));
         assert_eq!(tokens[16], Token::Then);
         assert_eq!(tokens[17], Token::Identifier("println".to_string()));
-        assert_eq!(tokens[18], Token::Tilde);
-        assert_eq!(tokens[19], Token::LParen);
+        assert!(
+            matches!(tokens[18], Token::Tilde((5, 15))),
+            "Expected {}, got {}",
+            tokens[18],
+            Token::Tilde((5, 15))
+        );
+        assert!(
+            matches!(tokens[19], Token::LParen((5, 16))),
+            "Expected {}, got {}",
+            tokens[19],
+            Token::LParen((5, 16))
+        );
         assert_eq!(tokens[20], Token::Identifier("y".to_string()));
-        assert_eq!(tokens[21], Token::RParen);
+        assert!(
+            matches!(tokens[21], Token::RParen((5, 18))),
+            "Expected {}, got {}",
+            tokens[21],
+            Token::RParen((5, 18))
+        );
         // assert_eq!(tokens[22], Token::End((6, 4)));
         assert!(
             matches!(tokens[22], Token::End((6, 4))),
