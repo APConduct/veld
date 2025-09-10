@@ -31,72 +31,72 @@ pub enum Token {
     Proc((usize, usize)),
     #[token("let", word_callback)]
     Let((usize, usize)),
-    #[token("struct")]
-    Struct,
-    #[token("kind")]
-    Kind,
-    #[token("impl")]
-    Impl,
-    #[token("end")]
-    End,
-    #[token("for")]
-    For,
-    #[token("in")]
-    In,
-    #[token("where")]
-    Where,
-    #[token("as")]
-    As,
-    #[token("or")]
-    Or,
-    #[token("mod")]
-    Mod,
+    #[token("struct", word_callback)]
+    Struct((usize, usize)),
+    #[token("kind", word_callback)]
+    Kind((usize, usize)),
+    #[token("impl", word_callback)]
+    Impl((usize, usize)),
+    #[token("end", word_callback)]
+    End((usize, usize)),
+    #[token("for", word_callback)]
+    For((usize, usize)),
+    #[token("in", word_callback)]
+    In((usize, usize)),
+    #[token("where", word_callback)]
+    Where((usize, usize)),
+    #[token("as", word_callback)]
+    As((usize, usize)),
+    #[token("or", word_callback)]
+    Or((usize, usize)),
+    #[token("mod", word_callback)]
+    Mod((usize, usize)),
     #[token("import", word_callback)]
     Import((usize, usize)),
-    #[token("pub")]
-    Pub,
-    #[token("from")]
-    From,
-    #[token("var")]
-    Var,
-    #[token("mut")]
-    Mut,
-    #[token("break")]
-    Break,
-    #[token("continue")]
-    Continue,
-    #[token("enum")]
-    Enum,
-    #[token("plex")]
-    Plex,
+    #[token("pub", word_callback)]
+    Pub((usize, usize)),
+    #[token("from", word_callback)]
+    From((usize, usize)),
+    #[token("var", word_callback)]
+    Var((usize, usize)),
+    #[token("mut", word_callback)]
+    Mut((usize, usize)),
+    #[token("break", word_callback)]
+    Break((usize, usize)),
+    #[token("continue", word_callback)]
+    Continue((usize, usize)),
+    #[token("enum", word_callback)]
+    Enum((usize, usize)),
+    #[token("plex", word_callback)]
+    Plex((usize, usize)),
 
     // Operators
-    #[token("=")]
-    Equals,
-    #[token("+")]
-    Plus,
-    #[token("-")]
-    Minus,
-    #[token("*")]
-    Star,
-    #[token("/")]
-    Slash,
-    #[token("->")]
-    Arrow,
-    #[token("=>")]
-    FatArrow,
-    #[token("*^")]
-    ExpOp,
-    #[token("%")]
-    Modulo,
-    #[token("+=")]
-    PlusEq,
-    #[token("-=")]
-    MinusEq,
-    #[token("*=")]
-    StarEq,
-    #[token("/=")]
-    SlashEq,
+    #[token("=", word_callback)]
+    Equals((usize, usize)),
+    #[token("+", word_callback)]
+    Plus((usize, usize)),
+    #[token("-", word_callback)]
+    Minus((usize, usize)),
+    #[token("*", word_callback)]
+    Star((usize, usize)),
+    #[token("/", word_callback)]
+    Slash((usize, usize)),
+    #[token("->", word_callback)]
+    Arrow((usize, usize)),
+    #[token("=>", word_callback)]
+    FatArrow((usize, usize)),
+    #[token("*^", word_callback)]
+    ExpOp((usize, usize)),
+    #[token("%", word_callback)]
+    Modulo((usize, usize)),
+    #[token("+=", word_callback)]
+    PlusEq((usize, usize)),
+    #[token("-=", word_callback)]
+    MinusEq((usize, usize)),
+    #[token("*=", word_callback)]
+    StarEq((usize, usize)),
+    #[token("/=", word_callback)]
+    SlashEq((usize, usize)),
 
     // Comparison operators
     #[token("<=")]
@@ -221,37 +221,37 @@ impl Display for Token {
             Token::Fn(_) => write!(f, "fn"),
             Token::Proc(_) => write!(f, "proc"),
             Token::Let(_) => write!(f, "let"),
-            Token::Struct => write!(f, "struct"),
-            Token::Kind => write!(f, "kind"),
-            Token::Impl => write!(f, "impl"),
-            Token::End => write!(f, "end"),
-            Token::For => write!(f, "for"),
-            Token::In => write!(f, "in"),
-            Token::Where => write!(f, "where"),
-            Token::As => write!(f, "as"),
-            Token::Or => write!(f, "or"),
-            Token::Mod => write!(f, "mod"),
+            Token::Struct(_) => write!(f, "struct"),
+            Token::Kind(_) => write!(f, "kind"),
+            Token::Impl(_) => write!(f, "impl"),
+            Token::End(_) => write!(f, "end"),
+            Token::For(_) => write!(f, "for"),
+            Token::In(_) => write!(f, "in"),
+            Token::Where(_) => write!(f, "where"),
+            Token::As(_) => write!(f, "as"),
+            Token::Or(_) => write!(f, "or"),
+            Token::Mod(_) => write!(f, "mod"),
             Token::Import(_) => write!(f, "import"),
-            Token::Pub => write!(f, "pub"),
-            Token::From => write!(f, "from"),
-            Token::Var => write!(f, "var"),
-            Token::Mut => write!(f, "mut"),
-            Token::Break => write!(f, "break"),
-            Token::Continue => write!(f, "continue"),
-            Token::Enum => write!(f, "enum"),
-            Token::Equals => write!(f, "="),
-            Token::Plus => write!(f, "+"),
-            Token::Minus => write!(f, "-"),
-            Token::Star => write!(f, "*"),
-            Token::Slash => write!(f, "/"),
-            Token::Arrow => write!(f, "->"),
-            Token::FatArrow => write!(f, "=>"),
-            Token::ExpOp => write!(f, "*^"),
-            Token::Modulo => write!(f, "%"),
-            Token::PlusEq => write!(f, "+="),
-            Token::MinusEq => write!(f, "-="),
-            Token::StarEq => write!(f, "*="),
-            Token::SlashEq => write!(f, "/="),
+            Token::Pub(_) => write!(f, "pub"),
+            Token::From(_) => write!(f, "from"),
+            Token::Var(_) => write!(f, "var"),
+            Token::Mut(_) => write!(f, "mut"),
+            Token::Break(_) => write!(f, "break"),
+            Token::Continue(_) => write!(f, "continue"),
+            Token::Enum(_) => write!(f, "enum"),
+            Token::Equals((x, y)) => write!(f, "= at {},{}", x, y),
+            Token::Plus(_) => write!(f, "+"),
+            Token::Minus(_) => write!(f, "-"),
+            Token::Star(_) => write!(f, "*"),
+            Token::Slash(_) => write!(f, "/"),
+            Token::Arrow(_) => write!(f, "->"),
+            Token::FatArrow(_) => write!(f, "=>"),
+            Token::ExpOp(_) => write!(f, "*^"),
+            Token::Modulo(_) => write!(f, "%"),
+            Token::PlusEq(_) => write!(f, "+="),
+            Token::MinusEq(_) => write!(f, "-="),
+            Token::StarEq(_) => write!(f, "*="),
+            Token::SlashEq(_) => write!(f, "/="),
             Token::LessEq => write!(f, "<="),
             Token::GreaterEq => write!(f, ">="),
             Token::Less => write!(f, "<"),
@@ -291,7 +291,7 @@ impl Display for Token {
             Token::With => write!(f, "with"),
             Token::Macro => write!(f, "macro"),
             Token::Const => write!(f, "const"),
-            Token::Plex => write!(f, "plex"),
+            Token::Plex(_) => write!(f, "plex"),
             Token::SelfToken => write!(f, "self"),
             Token::Pipe => write!(f, "|>"),
             Token::LDoubleBracket => write!(f, "[["),
@@ -377,38 +377,38 @@ impl PartialEq for Token {
             (Token::Fn(_), Token::Fn(_)) => true,
             (Token::Proc(_), Token::Proc(_)) => true,
             (Token::Let(_), Token::Let(_)) => true,
-            (Token::Struct, Token::Struct) => true,
-            (Token::Kind, Token::Kind) => true,
-            (Token::Impl, Token::Impl) => true,
-            (Token::End, Token::End) => true,
-            (Token::For, Token::For) => true,
-            (Token::In, Token::In) => true,
-            (Token::Where, Token::Where) => true,
-            (Token::As, Token::As) => true,
-            (Token::Or, Token::Or) => true,
-            (Token::Mod, Token::Mod) => true,
+            (Token::Struct(_), Token::Struct(_)) => true,
+            (Token::Kind(_), Token::Kind(_)) => true,
+            (Token::Impl(_), Token::Impl(_)) => true,
+            (Token::End(_), Token::End(_)) => true,
+            (Token::For(_), Token::For(_)) => true,
+            (Token::In(_), Token::In(_)) => true,
+            (Token::Where(_), Token::Where(_)) => true,
+            (Token::As(_), Token::As(_)) => true,
+            (Token::Or(_), Token::Or(_)) => true,
+            (Token::Mod(_), Token::Mod(_)) => true,
             (Token::Import(_), Token::Import(_)) => true,
-            (Token::Pub, Token::Pub) => true,
-            (Token::From, Token::From) => true,
-            (Token::Var, Token::Var) => true,
-            (Token::Mut, Token::Mut) => true,
-            (Token::Break, Token::Break) => true,
-            (Token::Continue, Token::Continue) => true,
-            (Token::Enum, Token::Enum) => true,
-            (Token::Plex, Token::Plex) => true,
-            (Token::Equals, Token::Equals) => true,
-            (Token::Plus, Token::Plus) => true,
-            (Token::Minus, Token::Minus) => true,
-            (Token::Star, Token::Star) => true,
-            (Token::Slash, Token::Slash) => true,
-            (Token::Arrow, Token::Arrow) => true,
-            (Token::FatArrow, Token::FatArrow) => true,
-            (Token::ExpOp, Token::ExpOp) => true,
-            (Token::Modulo, Token::Modulo) => true,
-            (Token::PlusEq, Token::PlusEq) => true,
-            (Token::MinusEq, Token::MinusEq) => true,
-            (Token::StarEq, Token::StarEq) => true,
-            (Token::SlashEq, Token::SlashEq) => true,
+            (Token::Pub(_), Token::Pub(_)) => true,
+            (Token::From(_), Token::From(_)) => true,
+            (Token::Var(_), Token::Var(_)) => true,
+            (Token::Mut(_), Token::Mut(_)) => true,
+            (Token::Break(_), Token::Break(_)) => true,
+            (Token::Continue(_), Token::Continue(_)) => true,
+            (Token::Enum(_), Token::Enum(_)) => true,
+            (Token::Plex(_), Token::Plex(_)) => true,
+            (Token::Equals(_), Token::Equals(_)) => true,
+            (Token::Plus(_), Token::Plus(_)) => true,
+            (Token::Minus(_), Token::Minus(_)) => true,
+            (Token::Star(_), Token::Star(_)) => true,
+            (Token::Slash(_), Token::Slash(_)) => true,
+            (Token::Arrow(_), Token::Arrow(_)) => true,
+            (Token::FatArrow(_), Token::FatArrow(_)) => true,
+            (Token::ExpOp(_), Token::ExpOp(_)) => true,
+            (Token::Modulo(_), Token::Modulo(_)) => true,
+            (Token::PlusEq(_), Token::PlusEq(_)) => true,
+            (Token::MinusEq(_), Token::MinusEq(_)) => true,
+            (Token::StarEq(_), Token::StarEq(_)) => true,
+            (Token::SlashEq(_), Token::SlashEq(_)) => true,
             (Token::LessEq, Token::LessEq) => true,
             (Token::GreaterEq, Token::GreaterEq) => true,
             (Token::Less, Token::Less) => true,
@@ -494,23 +494,46 @@ fn main()
         println~(y)
     end
 end
-        "#;
+            "#;
 
         let mut lexer = Lexer::new(input);
         let tokens = lexer.collect_tokens().unwrap();
 
         assert_eq!(tokens.len(), 24);
-        assert_eq!(tokens[0], Token::Fn((0, 0)));
+        assert!(
+            matches!(tokens[0], Token::Fn((1, 0))),
+            "Expected {} ",
+            tokens[0],
+        );
         assert_eq!(tokens[1], Token::Identifier("main".to_string()));
         assert_eq!(tokens[2], Token::LParen);
         assert_eq!(tokens[3], Token::RParen);
-        assert_eq!(tokens[4], Token::Let((2, 4)));
+        assert!(
+            matches!(tokens[4], Token::Let((2, 4))),
+            "Expected {}, got {}",
+            tokens[4],
+            Token::Let((2, 4)),
+        );
         assert_eq!(tokens[5], Token::Identifier("x".to_string()));
-        assert_eq!(tokens[6], Token::Equals);
+        assert!(
+            matches!(tokens[6], Token::Equals((2, 10))),
+            "Expected {}, got {}",
+            tokens[6],
+            Token::Equals((0, 0)),
+        );
         assert_eq!(tokens[7], Token::IntegerLiteral(42));
-        assert_eq!(tokens[8], Token::Let((3, 4)));
+        assert!(
+            matches!(tokens[8], Token::Let((3, 4))),
+            "Expected {} ",
+            tokens[0],
+        );
         assert_eq!(tokens[9], Token::Identifier("y".to_string()));
-        assert_eq!(tokens[10], Token::Equals);
+        assert!(
+            matches!(tokens[10], Token::Equals((3, 10))),
+            "Expected {}, got {}",
+            tokens[10],
+            Token::Equals((3, 10)),
+        );
         assert_eq!(
             tokens[11],
             Token::StringLiteral("Hello, world!".to_string())
@@ -526,6 +549,10 @@ end
         assert_eq!(tokens[20], Token::Identifier("y".to_string()));
         assert_eq!(tokens[21], Token::RParen);
         // assert_eq!(tokens[22], Token::End((6, 4)));
-        assert_eq!(tokens[22], Token::End);
+        assert!(
+            matches!(tokens[22], Token::End((6, 4))),
+            "Expected {} ",
+            tokens[0],
+        );
     }
 }
