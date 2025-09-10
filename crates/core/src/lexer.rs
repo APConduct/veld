@@ -3,6 +3,8 @@ use tracing::{self, Level, span};
 
 use logos::{Lexer as LLexer, Logos, Skip};
 
+use crate::common::{self, source::Position};
+
 /// Update the line count and the char index.
 fn newline_callback(lex: &mut LLexer<Token>) -> Skip {
     lex.extras.0 += 1;
@@ -308,6 +310,431 @@ impl Display for Token {
     }
 }
 
+impl Token {
+    pub fn locate(&self) -> Option<(usize, usize)> {
+        match self {
+            Token::Fn((x, y)) => Some((*x, *y)),
+            Token::Proc((x, y)) => Some((*x, *y)),
+            Token::Let((x, y)) => Some((*x, *y)),
+            Token::Struct((x, y)) => Some((*x, *y)),
+            Token::Kind((x, y)) => Some((*x, *y)),
+            Token::Impl((x, y)) => Some((*x, *y)),
+            Token::End((x, y)) => Some((*x, *y)),
+            Token::For((x, y)) => Some((*x, *y)),
+            Token::In((x, y)) => Some((*x, *y)),
+            Token::Where((x, y)) => Some((*x, *y)),
+            Token::As((x, y)) => Some((*x, *y)),
+            Token::Or((x, y)) => Some((*x, *y)),
+            Token::Mod((x, y)) => Some((*x, *y)),
+            Token::Import((x, y)) => Some((*x, *y)),
+            Token::Pub((x, y)) => Some((*x, *y)),
+            Token::From((x, y)) => Some((*x, *y)),
+            Token::Var((x, y)) => Some((*x, *y)),
+            Token::Mut((x, y)) => Some((*x, *y)),
+            Token::Break((x, y)) => Some((*x, *y)),
+            Token::Continue((x, y)) => Some((*x, *y)),
+            Token::Enum((x, y)) => Some((*x, *y)),
+            Token::Plex((x, y)) => Some((*x, *y)),
+            Token::Equals((x, y)) => Some((*x, *y)),
+            Token::Plus((x, y)) => Some((*x, *y)),
+            Token::Minus((x, y)) => Some((*x, *y)),
+            Token::Star((x, y)) => Some((*x, *y)),
+            Token::Slash((x, y)) => Some((*x, *y)),
+            Token::Arrow((x, y)) => Some((*x, *y)),
+            Token::FatArrow((x, y)) => Some((*x, *y)),
+            Token::ExpOp((x, y)) => Some((*x, *y)),
+            Token::Modulo((x, y)) => Some((*x, *y)),
+            Token::PlusEq((x, y)) => Some((*x, *y)),
+            Token::MinusEq((x, y)) => Some((*x, *y)),
+            Token::StarEq((x, y)) => Some((*x, *y)),
+            Token::SlashEq((x, y)) => Some((*x, *y)),
+            Token::LessEq((x, y)) => Some((*x, *y)),
+            Token::GreaterEq((x, y)) => Some((*x, *y)),
+            Token::Less((x, y)) => Some((*x, *y)),
+            Token::Greater((x, y)) => Some((*x, *y)),
+            Token::EqualEqual((x, y)) => Some((*x, *y)),
+            Token::NotEqual((x, y)) => Some((*x, *y)),
+            Token::LParen((x, y)) => Some((*x, *y)),
+            Token::RParen((x, y)) => Some((*x, *y)),
+            Token::LBrace((x, y)) => Some((*x, *y)),
+            Token::RBrace((x, y)) => Some((*x, *y)),
+            Token::LBracket((x, y)) => Some((*x, *y)),
+            Token::RBracket((x, y)) => Some((*x, *y)),
+            Token::Comma((x, y)) => Some((*x, *y)),
+            Token::Colon((x, y)) => Some((*x, *y)),
+            Token::Semicolon((x, y)) => Some((*x, *y)),
+            Token::At((x, y)) => Some((*x, *y)),
+            Token::Dot((x, y)) => Some((*x, *y)),
+            Token::DotDotEq((x, y)) => Some((*x, *y)),
+            Token::DotDot((x, y)) => Some((*x, *y)),
+            Token::DotDotDot((x, y)) => Some((*x, *y)),
+            Token::Tilde((x, y)) => Some((*x, *y)),
+            Token::Bang((x, y)) => Some((*x, *y)),
+            Token::If((x, y)) => Some((*x, *y)),
+            Token::Else((x, y)) => Some((*x, *y)),
+            Token::While((x, y)) => Some((*x, *y)),
+            Token::Return((x, y)) => Some((*x, *y)),
+            Token::True((x, y)) => Some((*x, *y)),
+            Token::False((x, y)) => Some((*x, *y)),
+            Token::And((x, y)) => Some((*x, *y)),
+            Token::Match((x, y)) => Some((*x, *y)),
+            Token::Do((x, y)) => Some((*x, *y)),
+            Token::Then((x, y)) => Some((*x, *y)),
+            Token::With((x, y)) => Some((*x, *y)),
+            Token::Macro((x, y)) => Some((*x, *y)),
+            Token::Const((x, y)) => Some((*x, *y)),
+            Token::SelfToken((x, y)) => Some((*x, *y)),
+            Token::Pipe((x, y)) => Some((*x, *y)),
+            Token::LDoubleBracket((x, y)) => Some((*x, *y)),
+            Token::RDoubleBracket((x, y)) => Some((*x, *y)),
+            Token::LeftArrow((x, y)) => Some((*x, *y)),
+            Token::Dollar((x, y)) => Some((*x, *y)),
+            Token::ExprFragment((x, y)) => Some((*x, *y)),
+            Token::Static((x, y)) => Some((*x, *y)),
+            Token::Async((x, y)) => Some((*x, *y)),
+            Token::Await((x, y)) => Some((*x, *y)),
+            Token::Spawn((x, y)) => Some((*x, *y)),
+            Token::Identifier(_) => None,
+            Token::StringLiteral(_) => None,
+            Token::IntegerLiteral(_) => None,
+            Token::FloatLiteral(_) => None,
+        }
+    }
+
+    pub fn source_pos(&self) -> Option<common::source::Position> {
+        match self {
+            Token::Fn((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Proc((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Let((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Struct((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Kind((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Impl((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::End((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::For((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::In((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Where((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::As((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Or((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Mod((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Import((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Pub((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::From((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Var((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Mut((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Break((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Continue((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Enum((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Plex((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Equals((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Plus((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Minus((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Star((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Slash((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Arrow((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::FatArrow((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::ExpOp((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Modulo((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::PlusEq((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::MinusEq((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::StarEq((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::SlashEq((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::LessEq((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::GreaterEq((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Less((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Greater((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::EqualEqual((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::NotEqual((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::LParen((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::RParen((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::LBrace((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::RBrace((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::LBracket((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::RBracket((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Comma((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Colon((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Semicolon((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::At((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Dot((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::DotDotEq((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::DotDot((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::DotDotDot((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Tilde((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Bang((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::If((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Else((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::While((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Return((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::True((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::False((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::And((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Match((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Do((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Then((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::With((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Macro((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Const((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::SelfToken((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Pipe((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::LDoubleBracket((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::RDoubleBracket((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::LeftArrow((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Dollar((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::ExprFragment((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Static((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Async((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Await((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Spawn((x, y)) => Some(Position {
+                line: *x as u32,
+                column: *y as u32,
+            }),
+            Token::Identifier(_) => None,
+            Token::StringLiteral(_) => None,
+            Token::IntegerLiteral(_) => None,
+            Token::FloatLiteral(_) => None,
+        }
+    }
+}
+
 pub struct Lexer<'a> {
     inner: logos::Lexer<'a, Token>,
 }
@@ -316,7 +743,7 @@ impl<'a> Lexer<'a> {
     /// Preprocess the input string to remove comments and handle multiline comments.
     pub fn preprocess(input: &'a str) -> String {
         let _span = span!(
-            Level::INFO,
+            Level::TRACE,
             "preprocess",
             purpose = "Handle complex comments"
         );
@@ -483,6 +910,13 @@ impl<'a> Iterator for Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn collect_tokens(&mut self) -> Result<Vec<Token>, String> {
+        let _span = span!(
+            Level::TRACE,
+            "collect_tokens",
+            purpose = "Collect tokens from the input string"
+        );
+        let _enter = _span.enter();
+
         self.collect()
     }
 }

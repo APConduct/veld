@@ -1,3 +1,4 @@
+use colored::Colorize;
 use reedline::{DefaultPrompt, DefaultPromptSegment, Reedline, Signal};
 use std::collections::HashMap;
 use veld_core::error::{ContextResult, ErrorContext, VeldError};
@@ -43,10 +44,14 @@ impl Repl {
     }
 
     pub fn run(&mut self) -> anyhow::Result<()> {
+        tracing::span!(tracing::Level::TRACE, "repl run");
         let mut editor = Reedline::create();
 
-        println!("Veld Language REPL v0.2.0");
-        println!("Type ':help' for commands, ':exit' to quit.");
+        tracing::info!("{}", "Veld Language REPL v0.2.0".bright_blue());
+        tracing::info!(
+            "{}",
+            "Type ':help' for commands, ':exit' to quit.".bright_yellow()
+        );
 
         loop {
             let prompt_str = self.make_prompt();

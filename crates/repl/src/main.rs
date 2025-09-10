@@ -1,8 +1,10 @@
 mod repl;
 
 use crate::repl::Repl;
+use colored::Colorize;
 use std::env;
 use std::fs;
+use tracing::Level;
 use veld_core::error::{Result, VeldError};
 use veld_core::interpreter::Interpreter;
 use veld_core::lexer::Lexer;
@@ -39,8 +41,17 @@ fn main() -> Result<()> {
 }
 
 fn run_file(filename: &str) -> Result<()> {
-    println!("Veld Language Interpreter v0.1.4");
-    println!("Running file: {}", filename);
+    tracing::span!(tracing::Level::TRACE, "run_file", filename = filename);
+    tracing::event!(tracing::Level::TRACE, "Running file: {}", filename);
+    tracing::info!(
+        "{}",
+        "Veld Language Interpreter v0.1.4".bold().bright_blue()
+    );
+    tracing::info!(
+        "{} {}",
+        "Running file: ".bright_green(),
+        format!("{}", filename.italic().yellow())
+    );
 
     // Read the file
     let source = match fs::read_to_string(filename) {
@@ -59,20 +70,24 @@ fn run_file(filename: &str) -> Result<()> {
 
     // Parsing
     let mut parser = Parser::new(tokens.clone());
-    println!("Starting parsing...");
+    tracing::event!(Level::TRACE, "Starting parsing...");
 
     match parser.parse() {
         Ok(stmts) => {
             // Run the interpreter if parsing succeeds
             let mut interpreter = Interpreter::new("../..");
             match interpreter.interpret(stmts) {
-                Ok(result) => println!("Program result: {:?}", result),
-                Err(e) => println!("Runtime error: {:?}", e),
+                Ok(result) => tracing::info!(
+                    "{} {}",
+                    "Program result:".bright_green(),
+                    format!("{:?}", result).italic().bright_yellow()
+                ),
+                Err(e) => tracing::error!("Runtime error: {:?}", e),
             }
         }
-        Err(e) => println!("Parse error: {:?}", e),
+        Err(e) => tracing::error!("Parse error: {:?}", e),
     }
 
-    println!("Execution complete");
+    tracing::event!(Level::INFO, "{}", "Execution complete".bright_blue());
     Ok(())
 }
