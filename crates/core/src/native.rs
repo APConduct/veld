@@ -27,6 +27,9 @@ impl NativeFunctionRegistry {
     where
         F: Fn(Vec<Value>) -> Result<Value> + 'static + Send + Sync,
     {
+        let _span = tracing::span!(tracing::Level::INFO, "Registering native function");
+        let _guard = _span.enter();
+
         self.functions.insert(name.to_string(), Arc::new(f));
     }
 
@@ -35,6 +38,9 @@ impl NativeFunctionRegistry {
     where
         F: Fn(&Interpreter, Vec<Value>) -> Result<Value> + 'static + Send + Sync,
     {
+        let _span = tracing::span!(tracing::Level::INFO, "Registering static method");
+        let _guard = _span.enter();
+
         let func =
             Arc::new(move |interpreter: &Interpreter, args: Vec<Value>| f(interpreter, args));
         self.static_functions.insert(name.to_string(), func);
@@ -68,6 +74,9 @@ impl NativeMethodRegistry {
     where
         F: Fn(Vec<Value>) -> Result<Value> + 'static + Send + Sync,
     {
+        let _span = tracing::span!(tracing::Level::INFO, "Registering static method");
+        let _guard = _span.enter();
+
         let key = format!("{}:{}", type_name, method_name);
         self.methods.insert(key, Arc::new(f));
     }
@@ -89,6 +98,9 @@ impl NativeMethodRegistry {
     where
         F: Fn(&str) -> String + 'static + Send + Sync,
     {
+        let _span = tracing::span!(tracing::Level::INFO, "Registering string method");
+        let _guard = _span.enter();
+
         let method_name_owned = method_name.to_string();
         self.register("str", method_name, move |args| {
             if let Some(Value::String(s)) = args.get(0) {
@@ -107,6 +119,12 @@ impl NativeMethodRegistry {
     where
         F: Fn(&str, &str) -> String + 'static + Send + Sync,
     {
+        let _span = tracing::span!(
+            tracing::Level::INFO,
+            "Registering string method with string parameter"
+        );
+        let _guard = _span.enter();
+
         let method_name_owned = method_name.to_string();
         self.register("str", method_name, move |args| {
             if let (Some(Value::String(s)), Some(Value::String(param))) = (args.get(0), args.get(1))
@@ -126,6 +144,9 @@ impl NativeMethodRegistry {
     where
         F: Fn(&str) -> bool + 'static + Send + Sync,
     {
+        let _span = tracing::span!(tracing::Level::INFO, "Registering string method");
+        let _guard = _span.enter();
+
         let method_name_owned = method_name.to_string();
         self.register("str", method_name, move |args| {
             if let Some(Value::String(s)) = args.get(0) {
@@ -147,6 +168,9 @@ impl NativeMethodRegistry {
     ) where
         F: Fn(&str, &str) -> bool + 'static + Send + Sync,
     {
+        let _span = tracing::span!(tracing::Level::INFO, "Registering string method");
+        let _guard = _span.enter();
+
         let method_name_owned = method_name.to_string();
         self.register("str", method_name, move |args| {
             if let (Some(Value::String(s)), Some(Value::String(param))) = (args.get(0), args.get(1))

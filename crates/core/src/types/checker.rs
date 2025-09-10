@@ -1,3 +1,5 @@
+use tracing::Level;
+
 use super::super::ast::{
     Argument, BinaryOperator, Expr, GenericArgument, Literal, MethodImpl, Statement, StructMethod,
     TypeAnnotation, UnaryOperator, VarKind,
@@ -18,6 +20,9 @@ pub struct TypeChecker {
 
 impl TypeChecker {
     pub fn new() -> Self {
+        let _span = tracing::span!(tracing::Level::INFO, "Initializing TypeChecker");
+        let _guard = _span.enter();
+
         let mut env = TypeEnvironment::new();
 
         // Add std as a module identifier so property access like std.option.some works
@@ -47,6 +52,9 @@ impl TypeChecker {
         left: &Type,
         right: &Type,
     ) -> Result<Option<Type>> {
+        let _span = tracing::span!(tracing::Level::INFO, "Finding operator implementation");
+        let _guard = _span.enter();
+
         // Check if the operator is defined for the given types
         if let Some(impls) = self.env.get_implementations_for_type(&left.to_string()) {
             for impl_info in impls {
@@ -62,6 +70,9 @@ impl TypeChecker {
 
     // In TypeChecker implementation
     fn type_satisfies_constraint(&mut self, type_: &Type, constraint: &Type) -> bool {
+        let _span = tracing::span!(tracing::Level::INFO, "Checking type satisfaction");
+        let _guard = _span.enter();
+
         match constraint {
             Type::Generic { base, type_args } => {
                 // For constraints like Neg<Output = T>
@@ -132,6 +143,9 @@ impl TypeChecker {
         type_params: &[GenericArgument],
         type_args: &[Type],
     ) -> bool {
+        let _span = tracing::span!(tracing::Level::INFO, "Checking generic constraints");
+        let _guard = _span.enter();
+
         if type_params.len() != type_args.len() {
             return false;
         }
@@ -162,6 +176,9 @@ impl TypeChecker {
         left: &Type,
         right: &Type,
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "Checking numeric operation");
+        let _guard = _span.enter();
+
         // First check for kind implementations
         if let Some(impl_type) = self.find_operator_implementation(op, left, right)? {
             return Ok(impl_type);
@@ -201,6 +218,9 @@ impl TypeChecker {
     }
 
     fn method_to_type(&mut self, method: &MethodImpl) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "Checking method type");
+        let _guard = _span.enter();
+
         let mut param_types = Vec::new();
 
         for (_, type_annotation) in &method.params {
@@ -217,6 +237,9 @@ impl TypeChecker {
     }
 
     pub fn struct_method_to_type(&mut self, method: &StructMethod) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "Checking struct method type");
+        let _guard = _span.enter();
+
         let mut param_types = Vec::new();
 
         for (_, type_annotation) in &method.params {
@@ -237,6 +260,9 @@ impl TypeChecker {
         methods: &[MethodImpl],
         generic_args: &[GenericArgument],
     ) -> Result<()> {
+        let _span = tracing::span!(tracing::Level::INFO, "Processing implementation");
+        let _guard = _span.enter();
+
         if kind_name.is_none() {
             return Ok(());
         }
@@ -253,6 +279,9 @@ impl TypeChecker {
     }
 
     pub fn check_program(&mut self, statements: &[Statement]) -> Result<()> {
+        let _span = tracing::span!(tracing::Level::INFO, "Checking program");
+        let _guard = _span.enter();
+
         for stmt in statements {
             match stmt {
                 Statement::StructDeclaration {
@@ -290,6 +319,9 @@ impl TypeChecker {
         target_module: &str,
         is_public: bool,
     ) -> std::result::Result<(), String> {
+        let _span = tracing::span!(tracing::Level::TRACE, "Checking visibility access");
+        let _guard = _span.enter();
+
         if !is_public && accessing_module != target_module {
             return Err(format!(
                 "Cannot access private item from module '{}' in module '{}'",
@@ -306,6 +338,9 @@ impl TypeChecker {
         _accessing_module: &str,
         is_public: bool,
     ) -> std::result::Result<(), String> {
+        let _span = tracing::span!(tracing::Level::TRACE, "Checking field access");
+        let _guard = _span.enter();
+
         if !is_public {
             return Err(format!(
                 "Field '{}' of struct '{}' is private",
@@ -322,6 +357,9 @@ impl TypeChecker {
         _accessing_module: &str,
         is_public: bool,
     ) -> std::result::Result<(), String> {
+        let _span = tracing::span!(tracing::Level::TRACE, "Checking method access");
+        let _guard = _span.enter();
+
         if !is_public {
             return Err(format!(
                 "Method '{}' of type '{}' is private",
@@ -332,6 +370,9 @@ impl TypeChecker {
     }
 
     pub fn type_check_statement(&mut self, stmt: &mut Statement) -> Result<()> {
+        let _span = tracing::span!(tracing::Level::INFO, "Type checking statement");
+        let _guard = _span.enter();
+
         match stmt {
             Statement::KindDeclaration { .. } => self.type_check_kind_declaration(stmt),
             Statement::Implementation { .. } => self.type_check_implementation(stmt),
@@ -516,6 +557,13 @@ impl TypeChecker {
         body: &[Statement],
         generic_params: &[GenericArgument],
     ) -> Result<()> {
+        let _span = tracing::span!(
+            tracing::Level::DEBUG,
+            "Type checking generic function: {}",
+            name
+        )
+        .entered();
+
         // Save the current type environment
         let saved_env = self.env.clone();
 
@@ -580,6 +628,9 @@ impl TypeChecker {
         expr: &Expr,
         env: &mut TypeEnvironment,
     ) -> Result<Type> {
+        let _span = tracing::span!(Level::TRACE, "Infer expression type");
+        let _enter = _span.enter();
+
         let mut type_checker = TypeChecker {
             env: env.clone(),
             current_function_return_type: self.current_function_return_type.clone(),
@@ -595,6 +646,9 @@ impl TypeChecker {
         return_type: &TypeAnnotation,
         body: &[Statement],
     ) -> Result<()> {
+        let _span = tracing::span!(Level::INFO, "Type check function");
+        let _enter = _span.enter();
+
         let param_types = params
             .iter()
             .map(|(_, type_anno)| self.env.from_annotation(type_anno, None))
@@ -668,6 +722,9 @@ impl TypeChecker {
     }
 
     pub fn check_assignment(&self, name: &str, _value: &Expr) -> Result<()> {
+        let _span = tracing::span!(Level::INFO, "Type check assignment");
+        let _enter = _span.enter();
+
         if let Some(var_info) = self.var_info.get(name) {
             match var_info.var_kind() {
                 VarKind::Const => {
@@ -689,6 +746,9 @@ impl TypeChecker {
     }
 
     fn evaluate_const_expr(&self, expr: &Expr) -> Result<Value> {
+        let _span = tracing::span!(Level::INFO, "Evaluate constant expression");
+        let _enter = _span.enter();
+
         match expr {
             Expr::Literal(lit) => Ok(match lit {
                 Literal::Integer(n) => Value::Integer(*n),
@@ -738,6 +798,9 @@ impl TypeChecker {
         type_annotation: Option<&TypeAnnotation>,
         value: &mut Expr,
     ) -> Result<()> {
+        let _span = tracing::span!(Level::INFO, "Type check variable declaration");
+        let _enter = _span.enter();
+
         // Patch: Fill in missing type_args for EnumVariant from annotation
         if let Expr::EnumVariant {
             enum_name,
@@ -818,6 +881,9 @@ impl TypeChecker {
         then_branch: &[Statement],
         else_branch: &Option<Vec<Statement>>,
     ) -> Result<()> {
+        let _span = tracing::span!(Level::INFO, "Type check if statement");
+        let _enter = _span.enter();
+
         let cond_type = self.infer_expression_type(condition)?;
         self.env.add_constraint(cond_type, Type::Bool);
 
@@ -841,6 +907,9 @@ impl TypeChecker {
     }
 
     fn type_check_while(&mut self, condition: &Expr, body: &[Statement]) -> Result<()> {
+        let _span = tracing::span!(Level::DEBUG, "Type check while statement");
+        let _enter = _span.enter();
+
         let cond_type = self.infer_expression_type(condition)?;
         self.env.add_constraint(cond_type, Type::Bool);
         self.env.push_scope();
@@ -860,6 +929,9 @@ impl TypeChecker {
         iterable: &Expr,
         body: &[Statement],
     ) -> Result<()> {
+        let _span = tracing::span!(Level::DEBUG, "Type check for statement");
+        let _enter = _span.enter();
+
         let iterable_type = self.infer_expression_type(iterable)?;
 
         let iterator_type = match &iterable_type {
@@ -884,6 +956,9 @@ impl TypeChecker {
     }
 
     pub fn type_check_struct_declaration(&mut self, stmt: &Statement) -> Result<()> {
+        let _span = tracing::span!(Level::INFO, "Type check struct declaration");
+        let _enter = _span.enter();
+
         if let Statement::StructDeclaration {
             name,
             fields,
@@ -920,6 +995,9 @@ impl TypeChecker {
     }
 
     fn infer_block_return_type(&mut self, body: &[Statement]) -> Result<Type> {
+        let _span = tracing::span!(Level::DEBUG, "Infer block return type");
+        let _enter = _span.enter();
+
         if body.is_empty() {
             return Ok(Type::Unit);
         }
@@ -949,6 +1027,9 @@ impl TypeChecker {
         body: &[Statement],
         return_type_anno: Option<&TypeAnnotation>,
     ) -> Result<Type> {
+        let _span = tracing::span!(Level::DEBUG, "Infer block lambda type");
+        let _enter = _span.enter();
+
         self.env.push_scope();
 
         let mut param_types = Vec::new();
@@ -993,6 +1074,9 @@ impl TypeChecker {
     }
 
     pub fn infer_expression_type(&mut self, expr: &Expr) -> Result<Type> {
+        let _span = tracing::span!(Level::INFO, "Infer expression type");
+        let _enter = _span.enter();
+
         let result = match expr {
             Expr::IfExpression {
                 condition,
@@ -1171,6 +1255,9 @@ impl TypeChecker {
     }
 
     fn is_valid_cast(&self, from: &Type, to: &Type) -> bool {
+        let _span = tracing::span!(Level::TRACE, "Check valid cast");
+        let _enter = _span.enter();
+
         // Numeric casts
         match (from, to) {
             // Numeric casts between integers
@@ -1279,6 +1366,9 @@ impl TypeChecker {
     }
 
     fn type_check_cast(&mut self, expr: &Expr, target_type: &TypeAnnotation) -> Result<Type> {
+        let _span = tracing::span!(Level::TRACE, "Type check cast");
+        let _enter = _span.enter();
+
         let expr_type = self.infer_expression_type(expr)?;
         let target = self.env.from_annotation(target_type, None)?;
 
@@ -1293,6 +1383,9 @@ impl TypeChecker {
     }
 
     fn infer_unary_op_type(&mut self, operator: &UnaryOperator, operand: &Expr) -> Result<Type> {
+        let _span = tracing::span!(Level::DEBUG, "Infer unary op type");
+        let _enter = _span.enter();
+
         let operand_type = self.infer_expression_type(operand)?;
 
         match operator {
@@ -1320,6 +1413,9 @@ impl TypeChecker {
     }
 
     fn infer_literal_type(&mut self, lit: &Literal) -> Result<Type> {
+        let _span = tracing::span!(Level::DEBUG, "Infer literal type");
+        let _enter = _span.enter();
+
         match lit {
             Literal::Integer(value) => {
                 // Default to i32 for better compatibility, only use larger types when necessary
@@ -1363,10 +1459,14 @@ impl TypeChecker {
     }
 
     fn is_64bit_type(&self, ty: &Type) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "is_64bit_type", ty = ?ty);
+        let _enter = _span.enter();
         matches!(ty, Type::I64 | Type::U64 | Type::F64)
     }
 
     fn is_integer_type(&self, ty: &Type) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "is_integer_type", ty = ?ty);
+        let _enter = _span.enter();
         matches!(
             ty,
             Type::I8
@@ -1381,6 +1481,9 @@ impl TypeChecker {
     }
 
     fn promote_numeric_types(&self, left: &Type, right: &Type) -> Type {
+        let _span = tracing::span!(tracing::Level::DEBUG, "promote_numeric_types", left = ?left, right = ?right);
+        let _enter = _span.enter();
+
         match (left, right) {
             // Float promotion rules
             (Type::F64, _) | (_, Type::F64) => Type::F64,
@@ -1414,6 +1517,9 @@ impl TypeChecker {
         op: &BinaryOperator,
         right: &Expr,
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "infer_binary_op_type", left = ?left, op = ?op, right = ?right);
+        let _enter = _span.enter();
+
         let left_type = self.infer_expression_type(left)?;
         let right_type = self.infer_expression_type(right)?;
 
@@ -1626,6 +1732,9 @@ impl TypeChecker {
     }
 
     fn is_numeric_type(&self, ty: &Type) -> bool {
+        let _span = tracing::span!(tracing::Level::DEBUG, "is_numeric_type", ty = ?ty);
+        let _enter = _span.enter();
+
         matches!(
             ty,
             Type::I32
@@ -1643,6 +1752,9 @@ impl TypeChecker {
     }
 
     fn types_compatible(&self, t1: &Type, t2: &Type) -> bool {
+        let _span = tracing::span!(tracing::Level::INFO, "types_compatible", t1 = ?t1, t2 = ?t2);
+        let _enter = _span.enter();
+
         let t1 = self.env.apply_substitutions(t1);
         let t2 = self.env.apply_substitutions(t2);
 
@@ -1713,6 +1825,9 @@ impl TypeChecker {
 
     /// Check if a type conversion is a safe widening conversion (no data loss)
     fn is_safe_widening(&self, from_type: &Type, to_type: &Type) -> bool {
+        let _span = tracing::span!(tracing::Level::INFO, "is_safe_widening", from_type = ?from_type, to_type = ?to_type);
+        let _enter = _span.enter();
+
         match (from_type, to_type) {
             // Same type is always safe
             (a, b) if a == b => true,
@@ -1743,6 +1858,9 @@ impl TypeChecker {
 
     /// Attempt to coerce any type to match target type through safe widening
     fn try_coerce_type(&self, actual_type: &Type, target_type: &Type) -> Option<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "try_coerce_type", actual_type = ?actual_type, target_type = ?target_type);
+        let _enter = _span.enter();
+
         match (actual_type, target_type) {
             // Direct safe widening for primitive types
             (actual, target) if self.is_safe_widening(actual, target) => Some(target.clone()),
@@ -1788,6 +1906,9 @@ impl TypeChecker {
     }
 
     pub fn validate_value(&self, value: &Value, expected_type: &Type) -> Result<()> {
+        let _span = tracing::span!(tracing::Level::INFO, "validate_value", value = ?value, expected_type = ?expected_type);
+        let _enter = _span.enter();
+
         match (value, expected_type) {
             (Value::Integer(_), Type::I32) | (Value::Integer(_), Type::I64) => Ok(()),
 
@@ -1848,6 +1969,9 @@ impl TypeChecker {
     }
 
     fn infer_function_call_type(&mut self, name: &str, args: &[Argument]) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::DEBUG, "infer_function_call_type", name = name, args = ?args);
+        let _enter = _span.enter();
+
         let func_type = self
             .env
             .get(name)
@@ -1888,6 +2012,9 @@ impl TypeChecker {
         body: &Expr,
         return_type_anno: Option<&TypeAnnotation>,
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::DEBUG, "infer_lambda_type", params = ?params, body = ?body, return_type_anno = ?return_type_anno);
+        let _enter = _span.enter();
+
         self.env.push_scope();
         let mut param_types = Vec::new();
 
@@ -1945,6 +2072,9 @@ impl TypeChecker {
         method: &str,
         args: &[Argument],
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "infer_method_call_type", object = ?object, method = ?method, args = ?args);
+        let _enter = _span.enter();
+
         let obj_type = self.infer_expression_type(object)?;
 
         // Special handling for built-in types
@@ -2343,6 +2473,9 @@ impl TypeChecker {
         method: &str,
         args: &[Argument],
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "infer_array_method_call_type", elem_type = ?elem_type, method = ?method, args = ?args);
+        let _enter = _span.enter();
+
         match method {
             "len" => {
                 if !args.is_empty() {
@@ -2548,6 +2681,9 @@ impl TypeChecker {
     }
 
     fn infer_string_method_call_type(&mut self, method: &str, args: &[Argument]) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "infer_string_method_call_type", method = ?method, args = ?args);
+        let _enter = _span.enter();
+
         match method {
             "to_upper" | "to_lower" | "trim" | "trim_start" | "trim_end" => {
                 if !args.is_empty() {
@@ -2748,6 +2884,9 @@ impl TypeChecker {
     }
 
     fn infer_property_access_type(&mut self, object: &Expr, property: &str) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "infer_property_access_type", object = ?object, property = ?property);
+        let _enter = _span.enter();
+
         let object_type = self.infer_expression_type(object)?;
         match &object_type {
             Type::Struct { name, fields } => {
@@ -2856,6 +2995,9 @@ impl TypeChecker {
         struct_name: &str,
         fields: &[(String, Expr)],
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::DEBUG, "infer_struct_create_type", struct_name = ?struct_name, fields = ?fields);
+        let _enter = _span.enter();
+
         // First collect struct fields information to avoid borrow checker issues
         let struct_fields_data = if let Some(struct_fields) = self.env.structs().get(struct_name) {
             // Clone the fields map to avoid keeping the borrow
@@ -2899,6 +3041,10 @@ impl TypeChecker {
     }
 
     fn infer_array_literal_type(&mut self, elements: &[Expr]) -> Result<Type> {
+        let _span =
+            tracing::span!(tracing::Level::DEBUG, "infer_array_literal_type", elements = ?elements);
+        let _enter = _span.enter();
+
         if elements.is_empty() {
             // Empty array - element type is a type variable to be inferred later
             let elem_type = self.env.fresh_type_var();
@@ -2941,6 +3087,9 @@ impl TypeChecker {
         fields: &[Expr],
         type_args: Option<&Vec<TypeAnnotation>>,
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::INFO, "infer_enum_variant_type", enum_name = enum_name, variant_name = variant_name, fields = ?fields);
+        let _enter = _span.enter();
+
         // Check if the enum exists
         if !self.env.enums.contains_key(enum_name) {
             // Fallback: Check if this is actually a struct method call
@@ -3100,6 +3249,9 @@ impl TypeChecker {
         param_name: &str,
         actual_type: &Type,
     ) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "check_generic_arg_compatability", param_name = param_name, actual_type = ?actual_type);
+        let _enter = _span.enter();
+
         for arg in generic_args {
             if let Some(name) = &arg.name {
                 if name == param_name {
@@ -3128,6 +3280,9 @@ impl TypeChecker {
         op: &BinaryOperator,
         right: &Type,
     ) -> Result<Option<Type>> {
+        let _span = tracing::span!(tracing::Level::TRACE, "try_resolve_operator", left = ?left, op = ?op, right = ?right);
+        let _enter = _span.enter();
+
         let trait_name = match op {
             BinaryOperator::Add => "Add",
             BinaryOperator::Subtract => "Sub",
@@ -3163,6 +3318,9 @@ impl TypeChecker {
     }
 
     fn infer_index_access_type(&mut self, object: &Expr, index: &Expr) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::TRACE, "infer_index_access_type", object = ?object, index = ?index);
+        let _enter = _span.enter();
+
         let obj_type = self.infer_expression_type(object)?;
         let idx_type = self.infer_expression_type(index)?;
 
@@ -3214,6 +3372,9 @@ impl TypeChecker {
         impl_type: &Type,
         generic_args: &[GenericArgument],
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::TRACE, "resolve_output_type", impl_type = ?impl_type, generic_args = ?generic_args);
+        let _enter = _span.enter();
+
         for arg in generic_args {
             if let Some(name) = &arg.name {
                 if name == "Output" {
@@ -3232,6 +3393,10 @@ impl TypeChecker {
     }
 
     fn type_check_kind_declaration(&mut self, stmt: &Statement) -> Result<()> {
+        let _span =
+            tracing::span!(tracing::Level::DEBUG, "type_check_kind_declaration", stmt = ?stmt);
+        let _enter = _span.enter();
+
         if let Statement::KindDeclaration {
             name,
             methods,
@@ -3292,6 +3457,10 @@ impl TypeChecker {
     }
 
     fn type_check_implementation(&mut self, stmt: &Statement) -> Result<()> {
+        let _span =
+            tracing::span!(tracing::Level::DEBUG, "type_check_implementation", stmt = ?stmt);
+        let _enter = _span.enter();
+
         if let Statement::Implementation {
             type_name,
             kind_name,
@@ -3365,6 +3534,9 @@ impl TypeChecker {
         end: Option<&Expr>,
         inclusive: bool,
     ) -> Result<Type> {
+        let _span = tracing::span!(tracing::Level::DEBUG, "infer_range_type", start = ?start, end = ?end, inclusive = ?inclusive);
+        let _enter = _span.enter();
+
         // Infer the element type from start or end expression
         let element_type = if let Some(start_expr) = start {
             self.infer_expression_type(start_expr)?
