@@ -30,12 +30,18 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn get_current_position(&self) -> Option<usize> {
-        // if let Some(token) = self.tokens.get(self.current) {
-        //     // Position{
-        //     //     line: token.
-        //     // }
-        // }
+    pub fn get_current_position(&self) -> Option<Position> {
+        if let Some(token) = self.tokens.get(self.current) {
+            Some(Position {
+                line: token.source_pos().unwrap().line,
+                column: token.source_pos().unwrap().column,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub fn get_current_position_1d(&self) -> Option<usize> {
         if self.current < self.tokens.len() {
             Some(self.current)
         } else {

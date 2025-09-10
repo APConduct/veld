@@ -331,7 +331,7 @@ impl Repl {
             Ok(statements) => statements,
             Err(e) => {
                 // Add context to parser errors
-                let _line_offset = if let Some(pos) = parser.get_current_position() {
+                let _line_offset = if let Some(pos) = parser.get_current_position_1d() {
                     let mut line_count = 0;
                     let mut char_count = 0;
                     for line in input.lines() {
