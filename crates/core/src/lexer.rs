@@ -26,7 +26,6 @@ fn word_callback(lex: &mut LLexer<Token>) -> (usize, usize) {
 pub enum Token {
     // Keywords
     #[token("fn")]
-    #[extras]
     Fn,
     #[token("proc")]
     Proc,
