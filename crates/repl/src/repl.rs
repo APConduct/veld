@@ -1,6 +1,7 @@
 use colored::Colorize;
 use reedline::{DefaultPrompt, DefaultPromptSegment, Reedline, Signal};
 use std::collections::HashMap;
+use tracing_indicatif::*;
 use veld_core::error::{ContextResult, ErrorContext, VeldError};
 use veld_core::interpreter::Interpreter;
 use veld_core::lexer::Lexer;

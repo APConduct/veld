@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use tracing_indicatif::*;
 
 use crate::ast::{AST, UnaryOperator};
 use crate::ast::{
