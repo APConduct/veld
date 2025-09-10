@@ -27,6 +27,7 @@ pub struct Parser {
     current: usize,
     recursive_depth: usize,
     total_steps: usize,
+    // context: ParseContext<'static>,
 }
 
 impl Parser {

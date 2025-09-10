@@ -104,9 +104,13 @@ impl SourceMap {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FileInfo {
+    /// File path for the file, useful for error reporting and other purposes.
     pub path: PathBuf,
+    /// Source text content of the file.
     pub content: String,
+    /// Last modified time of the file, useful for caching and file watching.
     pub last_modified: SystemTime,
+    /// The encoding of the file, useful for parsing.
     pub encoding: String,
 }
 
