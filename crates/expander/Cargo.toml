@@ -3,8 +3,8 @@ name = "veld-expander"
 version = "0.1.4"
 edition = "2021"
 description = "Macro expansion system for the Veld programming language"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/your-username/veld"
+license = "Apache-2.0"
+repository = "https://github.com/APConduct/veld"
 keywords = ["macro", "metaprogramming", "compiler", "ast", "expansion"]
 categories = ["compilers", "development-tools"]
 
