@@ -940,7 +940,7 @@ impl ExpansionContext {
                     pattern: MacroPattern("()".to_string()),
                     expansion: veld_core::ast::MacroExpansion(vec![Statement::ExprStatement(
                         Expr::FunctionCall {
-                            name: "Vec::new".to_string(),
+                            name: "Vec.new".to_string(),
                             arguments: vec![],
                         },
                     )]),

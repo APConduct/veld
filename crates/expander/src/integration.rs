@@ -301,7 +301,7 @@ impl MacroSystem {
 
 fn expand_vec_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>, ExpansionError> {
     if args.is_empty() {
-        // vec!() -> Vec::new()
+        // vec~() -> Vec.new()
         Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
             name: "Vec.new".to_string(),
             arguments: vec![],

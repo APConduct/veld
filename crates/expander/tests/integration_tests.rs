@@ -17,7 +17,7 @@ fn test_vec_macro_basic() {
             assert_eq!(name, "Vec.new");
             assert_eq!(arguments.len(), 0);
         }
-        _ => panic!("Expected Vec::new function call"),
+        _ => panic!("Expected Vec.new function call"),
     }
 
     // Test vec with elements
