@@ -1486,7 +1486,7 @@ impl Parser {
     fn consume_method_name(&mut self, message: &str) -> Result<String> {
         match self.advance() {
             Token::Identifier(s) => Ok(s),
-            Token::With(ZTUP) => Ok("with".to_string()),
+            Token::With(_) => Ok("with".to_string()),
             _ => Err(VeldError::ParserError(message.to_string())),
         }
     }
@@ -1659,14 +1659,13 @@ impl Parser {
                 }
 
                 // Then handle property access chain (e.g., obj.field.subfield)
-                while i + 1 < self.tokens.len() && matches!(self.tokens[i], Token::Dot(ZTUP)) {
+                while i + 1 < self.tokens.len() && matches!(self.tokens[i], Token::Dot(_)) {
                     i += 1; // Skip dot
                     if i < self.tokens.len() && matches!(self.tokens[i], Token::Identifier(_)) {
                         i += 1; // Skip identifier
 
                         // Handle array indexing after property access
-                        while i < self.tokens.len()
-                            && matches!(self.tokens[i], Token::LBracket(ZTUP))
+                        while i < self.tokens.len() && matches!(self.tokens[i], Token::LBracket(_))
                         {
                             i += 1; // Skip [
                             // Skip through the index expression until we find ]

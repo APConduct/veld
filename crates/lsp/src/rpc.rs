@@ -23,7 +23,7 @@ pub struct BaseMessage {
     pub method: String,
 }
 
-pub fn decode_message(msg: &[u8]) -> Result<(String, usize), RPCError> {
+pub fn decode_message(msg: &[u8]) -> Result<(String, &[u8]), RPCError> {
     let pattern = b"\r\n\r\n";
     let (header, content, found) = if let Some(pos) = msg
         .windows(pattern.len())
@@ -59,7 +59,7 @@ pub fn decode_message(msg: &[u8]) -> Result<(String, usize), RPCError> {
             }
         })?;
 
-    Ok((base_message.method, content_length))
+    Ok((base_message.method, &content[..content_length]))
 }
 
 #[cfg(test)]
@@ -88,12 +88,13 @@ mod tests {
     fn test_decode() {
         let incoming_message = "Content-Length: 15\r\n\r\n{\"method\":\"hi\"}";
 
-        let (method, content_length) = decode_message(incoming_message.as_bytes()).unwrap();
+        let (method, content) = decode_message(incoming_message.as_bytes()).unwrap();
+        let content_length = content.len();
 
         if method != "hi" {
             panic!("Expected method 'hi', got {:?}", method);
         }
 
-        assert_eq!(content_length, 15, "Expected 16, got {}", content_length);
+        assert_eq!(content_length, 15, "Expected 15, got {}", content_length);
     }
 }

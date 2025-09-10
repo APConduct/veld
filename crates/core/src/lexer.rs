@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use tracing::{self, Level, span};
 
 use logos::{Lexer as LLexer, Logos, Skip};
 
@@ -244,7 +245,6 @@ impl Display for Token {
             Token::Minus((x, y)) => write!(f, "- at {},{}", x, y),
             Token::Star((x, y)) => write!(f, "* at {},{}", x, y),
             Token::Slash((x, y)) => write!(f, "/ at {},{}", x, y),
-            Token::Slash((x, y)) => write!(f, "/ at {},{}", x, y),
             Token::Arrow((x, y)) => write!(f, "-> at {},{}", x, y),
             Token::FatArrow((x, y)) => write!(f, "=> at {},{}", x, y),
             Token::ExpOp((x, y)) => write!(f, "*^ at {},{}", x, y),
@@ -315,6 +315,12 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     /// Preprocess the input string to remove comments and handle multiline comments.
     pub fn preprocess(input: &'a str) -> String {
+        let _span = span!(
+            Level::INFO,
+            "preprocess",
+            purpose = "Handle complex comments"
+        );
+        let _enter = _span.enter();
         let mut result = String::new();
         let mut in_multiline_comment = false;
         let mut nesting_level = 0;
