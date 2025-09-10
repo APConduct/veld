@@ -25,10 +25,10 @@ fn word_callback(lex: &mut LLexer<Token>) -> (usize, usize) {
 #[logos(skip(r"\n", newline_callback))]
 pub enum Token {
     // Keywords
-    #[token("fn")]
-    Fn,
-    #[token("proc")]
-    Proc,
+    #[token("fn", word_callback)]
+    Fn((usize, usize)),
+    #[token("proc", word_callback)]
+    Proc((usize, usize)),
     #[token("let", word_callback)]
     Let((usize, usize)),
     #[token("struct")]
@@ -218,8 +218,8 @@ pub enum Token {
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::Fn => write!(f, "fn"),
-            Token::Proc => write!(f, "proc"),
+            Token::Fn(_) => write!(f, "fn"),
+            Token::Proc(_) => write!(f, "proc"),
             Token::Let(_) => write!(f, "let"),
             Token::Struct => write!(f, "struct"),
             Token::Kind => write!(f, "kind"),
@@ -374,8 +374,8 @@ impl<'a> Lexer<'a> {
 impl PartialEq for Token {
     fn eq(&self, other: &Token) -> bool {
         match (self, other) {
-            (Token::Fn, Token::Fn) => true,
-            (Token::Proc, Token::Proc) => true,
+            (Token::Fn(_), Token::Fn(_)) => true,
+            (Token::Proc(_), Token::Proc(_)) => true,
             (Token::Let(_), Token::Let(_)) => true,
             (Token::Struct, Token::Struct) => true,
             (Token::Kind, Token::Kind) => true,
@@ -500,7 +500,7 @@ end
         let tokens = lexer.collect_tokens().unwrap();
 
         assert_eq!(tokens.len(), 24);
-        assert_eq!(tokens[0], Token::Fn);
+        assert_eq!(tokens[0], Token::Fn((0, 0)));
         assert_eq!(tokens[1], Token::Identifier("main".to_string()));
         assert_eq!(tokens[2], Token::LParen);
         assert_eq!(tokens[3], Token::RParen);

@@ -144,9 +144,9 @@ impl Parser {
             self.macro_declaration()
         } else if self.match_token(&[Token::Pub]) {
             // Handle public declarations
-            if self.match_token(&[Token::Fn]) {
+            if self.match_token(&[Token::Fn((0, 0))]) {
                 self.function_declaration_with_visibility(true)
-            } else if self.match_token(&[Token::Proc]) {
+            } else if self.match_token(&[Token::Proc((0, 0))]) {
                 self.proc_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Struct]) {
                 self.struct_declaration_with_visibility(true)
@@ -172,9 +172,9 @@ impl Parser {
                         .to_string(),
                 ))
             }
-        } else if self.match_token(&[Token::Fn]) {
+        } else if self.match_token(&[Token::Fn((0, 0))]) {
             self.function_declaration()
-        } else if self.match_token(&[Token::Proc]) {
+        } else if self.match_token(&[Token::Proc((0, 0))]) {
             self.proc_declaration()
         } else if self.match_token(&[Token::Struct]) {
             self.struct_declaration()
@@ -431,7 +431,7 @@ impl Parser {
         let mut is_block_demi = false;
 
         // Handle 'fn' keyword if present
-        if self.match_token(&[Token::Fn]) {
+        if self.match_token(&[Token::Fn((0, 0))]) {
             self.consume(&Token::LParen, "Expected '(' after 'fn'")?;
 
             if !self.check(&Token::RParen) {
@@ -627,11 +627,11 @@ impl Parser {
         } else {
             // Block style struct declaration
             while !self.check(&Token::End) && !self.is_at_end() {
-                if self.match_token(&[Token::Fn]) {
+                if self.match_token(&[Token::Fn((0, 0))]) {
                     methods.push(self.parse_struct_method(name.clone())?);
                 } else if self.match_token(&[Token::Impl]) {
                     while !self.check(&Token::End) && !self.is_at_end() {
-                        if self.match_token(&[Token::Fn]) {
+                        if self.match_token(&[Token::Fn((0, 0))]) {
                             methods.push(self.parse_struct_method(name.clone())?);
                         } else {
                             return Err(VeldError::ParserError(
@@ -752,8 +752,8 @@ impl Parser {
     }
 
     pub fn check_declaration_start(&self) -> bool {
-        self.check(&Token::Fn)
-            || self.check(&Token::Proc)
+        self.check(&Token::Fn((0, 0)))
+            || self.check(&Token::Proc((0, 0)))
             || self.check(&Token::Struct)
             || self.check(&Token::Kind)
             || self.check(&Token::Impl)
@@ -800,11 +800,11 @@ impl Parser {
         } else {
             // Block style struct declaration
             while !self.check(&Token::End) && !self.is_at_end() {
-                if self.match_token(&[Token::Fn]) {
+                if self.match_token(&[Token::Fn((0, 0))]) {
                     methods.push(self.parse_struct_method(name.clone())?);
                 } else if self.match_token(&[Token::Impl]) {
                     while !self.check(&Token::End) && !self.is_at_end() {
-                        if self.match_token(&[Token::Fn]) {
+                        if self.match_token(&[Token::Fn((0, 0))]) {
                             methods.push(self.parse_struct_method(name.clone())?);
                         } else {
                             return Err(VeldError::ParserError(
@@ -905,11 +905,11 @@ impl Parser {
 
         // Block-bodied method: parse statements until 'end'
         let mut body = Vec::new();
-        while !self.check(&Token::End) && !self.is_at_end() && !self.check(&Token::Fn) {
+        while !self.check(&Token::End) && !self.is_at_end() && !self.check(&Token::Fn((0, 0))) {
             body.push(self.statement()?);
         }
 
-        if !self.check(&Token::Fn) {
+        if !self.check(&Token::Fn((0, 0))) {
             self.consume(&Token::End, "Expected 'end' after method body")?;
         }
 
@@ -1080,7 +1080,7 @@ impl Parser {
 
         while !self.check(&Token::End) && !self.is_at_end() {
             let is_public = self.match_token(&[Token::Pub]);
-            if !self.match_token(&[Token::Fn]) {
+            if !self.match_token(&[Token::Fn((0, 0))]) {
                 return Err(VeldError::ParserError(
                     "Expected 'fn' to start method definition".to_string(),
                 ));
@@ -1348,7 +1348,7 @@ impl Parser {
                 return Ok(TypeAnnotation::Array(Box::new(element_type)));
             }
 
-            if self.match_token(&[Token::Fn]) {
+            if self.match_token(&[Token::Fn((0, 0))]) {
                 // Function type
                 self.consume(&Token::LParen, "Expected '(' in function type")?;
 
@@ -1954,8 +1954,8 @@ impl Parser {
                 || matches!(self.peek(), Token::Let(_))
                 || self.check(&Token::Var)
                 || self.check(&Token::Const)
-                || self.check(&Token::Fn)
-                || self.check(&Token::Proc)
+                || self.check(&Token::Fn((0, 0)))
+                || self.check(&Token::Proc((0, 0)))
                 || self.check(&Token::If)
                 || self.check(&Token::While)
                 || self.check(&Token::For)
@@ -2044,7 +2044,7 @@ impl Parser {
             return false;
         }
 
-        if self.check(&Token::Fn) {
+        if self.check(&Token::Fn((0, 0))) {
             // Look ahead to see if this is fn(...) => or fn(...) -> ... => pattern
             let mut i = self.current + 1;
 
@@ -2534,7 +2534,7 @@ impl Parser {
                 self.advance();
                 Expr::Identifier(name)
             }
-            Token::Fn => {
+            Token::Fn(_) => {
                 // Handle function expressions: fn(x, y) -> type x + y end
                 self.advance(); // consume 'fn'
                 self.parse_function_expression()?
@@ -2629,8 +2629,8 @@ impl Parser {
             | Token::Break
             | Token::Continue
             | Token::Do
-            | Token::Fn
-            | Token::Proc => false,
+            | Token::Fn(_)
+            | Token::Proc(_) => false,
             _ => {
                 // Look ahead to see if 'end' comes after this expression
                 let result = self.expression_followed_by_end();
@@ -2660,8 +2660,8 @@ impl Parser {
                 | Token::Break
                 | Token::Continue
                 | Token::Do
-                | Token::Fn
-                | Token::Proc
+                | Token::Fn(_)
+                | Token::Proc(_)
                     if depth == 0 =>
                 {
                     return false;
@@ -3211,7 +3211,10 @@ impl Parser {
 
         let mut methods = Vec::new();
         if self.match_token(&[Token::Equals]) {
-            self.consume(&Token::Fn, "Expected 'fn' after in method declaration")?;
+            self.consume(
+                &Token::Fn((0, 0)),
+                "Expected 'fn' after in method declaration",
+            )?;
             let method_name = self.consume_identifier("Expected method name")?;
 
             // Parse parameters
@@ -3269,7 +3272,7 @@ impl Parser {
             // Multi-line kind definition
             while !self.check(&Token::End) && !self.is_at_end() {
                 let method_visibility = self.match_token(&[Token::Pub]);
-                self.consume(&Token::Fn, "Expected 'fn' in method declaration")?;
+                self.consume(&Token::Fn((0, 0)), "Expected 'fn' in method declaration")?;
                 let method_name = self.consume_identifier("Expected method name")?;
 
                 // Parse parameters
@@ -4361,7 +4364,7 @@ impl Parser {
             | Token::True
             | Token::False
             | Token::LParen
-            | Token::Fn
+            | Token::Fn(_)
             | Token::Do
             | Token::If
             | Token::SelfToken => true,
