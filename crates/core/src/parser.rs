@@ -119,7 +119,7 @@ impl Parser {
 
     fn is_declaration_keyword(&self) -> bool {
         match self.peek() {
-            Token::Let | Token::Var | Token::Const => true,
+            Token::Let(_) | Token::Var | Token::Const => true,
             _ => false,
         }
     }
@@ -160,7 +160,7 @@ impl Parser {
                 self.module_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Import]) {
                 self.import_declaration_with_visibility(true)
-            } else if self.peek() == &Token::Let
+            } else if matches!(self.peek(), Token::Let(_))
                 || self.peek() == &Token::Var
                 || self.peek() == &Token::Const
             {
@@ -746,7 +746,8 @@ impl Parser {
             || self.check(&Token::While)
             || self.check(&Token::For)
             || self.check(&Token::Return)
-            || self.check(&Token::Let)
+            // matches any let
+            || matches!(self.peek(), Token::Let(_))
             || self.check(&Token::Do)
     }
 
@@ -756,7 +757,7 @@ impl Parser {
             || self.check(&Token::Struct)
             || self.check(&Token::Kind)
             || self.check(&Token::Impl)
-            || self.check(&Token::Let)
+            || matches!(self.peek(), Token::Let(_))
             || self.check(&Token::Enum)
             || self.check(&Token::Plex)
             || self.check(&Token::Mod)
@@ -1485,7 +1486,8 @@ impl Parser {
 
     fn variable_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
         // Determine the variable kind
-        let var_kind = if self.match_token(&[Token::Let]) {
+        let var_kind = if matches!(self.peek(), Token::Let(_)) {
+            self.advance(); // consume the let token
             if self.match_token(&[Token::Mut]) {
                 VarKind::LetMut
             } else {
@@ -1949,7 +1951,7 @@ impl Parser {
                 || self.check(&Token::RBrace)
                 || self.check(&Token::Semicolon)
                 || self.check(&Token::End)
-                || self.check(&Token::Let)
+                || matches!(self.peek(), Token::Let(_))
                 || self.check(&Token::Var)
                 || self.check(&Token::Const)
                 || self.check(&Token::Fn)
@@ -2617,7 +2619,7 @@ impl Parser {
         // Simple check: if current token starts an expression and we're not seeing
         // obvious statement keywords, treat it as final expression
         match self.peek() {
-            Token::Let
+            Token::Let(_)
             | Token::Var
             | Token::Const
             | Token::If
@@ -2648,7 +2650,7 @@ impl Parser {
                 Token::LParen | Token::LBracket | Token::LBrace => depth += 1,
                 Token::RParen | Token::RBracket | Token::RBrace => depth -= 1,
                 Token::End if depth == 0 => return true,
-                Token::Let
+                Token::Let(_)
                 | Token::Var
                 | Token::Const
                 | Token::If

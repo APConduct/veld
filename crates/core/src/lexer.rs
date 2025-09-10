@@ -19,9 +19,10 @@ fn word_callback(lex: &mut LLexer<Token>) -> (usize, usize) {
 
 #[derive(Debug, Logos, PartialEq, Clone)]
 #[logos(extras = (usize, usize))]
-#[logos(skip(r"[ \t\n\f]+"))] // Skip whitespace
+#[logos(skip(r"[ \t\f]+"))] // Skip whitespace
 #[logos(skip r"#.*")] // Skip single-line comments
 #[logos(skip r"#\|")] // Skip multi-line comments
+#[logos(skip(r"\n", newline_callback))]
 pub enum Token {
     // Keywords
     #[token("fn")]
@@ -29,8 +30,8 @@ pub enum Token {
     Fn,
     #[token("proc")]
     Proc,
-    #[token("let")]
-    Let,
+    #[token("let", word_callback)]
+    Let((usize, usize)),
     #[token("struct")]
     Struct,
     #[token("kind")]
@@ -220,7 +221,7 @@ impl Display for Token {
         match self {
             Token::Fn => write!(f, "fn"),
             Token::Proc => write!(f, "proc"),
-            Token::Let => write!(f, "let"),
+            Token::Let(_) => write!(f, "let"),
             Token::Struct => write!(f, "struct"),
             Token::Kind => write!(f, "kind"),
             Token::Impl => write!(f, "impl"),
@@ -394,13 +395,13 @@ mod tests {
     #[test]
     fn test_lexer() {
         let input = r#"
-            fn main()
-                let x = 42
-                let y = "Hello, world!"
-                if x > 0 then
-                    println~(y)
-                end
-            end
+fn main()
+    let x = 42
+    let y = "Hello, world!"
+    if x > 0 then
+        println~(y)
+    end
+end
         "#;
 
         let mut lexer = Lexer::new(input);
@@ -411,11 +412,11 @@ mod tests {
         assert_eq!(tokens[1], Token::Identifier("main".to_string()));
         assert_eq!(tokens[2], Token::LParen);
         assert_eq!(tokens[3], Token::RParen);
-        assert_eq!(tokens[4], Token::Let);
+        assert_eq!(tokens[4], Token::Let((2, 4)));
         assert_eq!(tokens[5], Token::Identifier("x".to_string()));
         assert_eq!(tokens[6], Token::Equals);
         assert_eq!(tokens[7], Token::IntegerLiteral(42));
-        assert_eq!(tokens[8], Token::Let);
+        assert_eq!(tokens[8], Token::Let((3, 4)));
         assert_eq!(tokens[9], Token::Identifier("y".to_string()));
         assert_eq!(tokens[10], Token::Equals);
         assert_eq!(
@@ -432,6 +433,7 @@ mod tests {
         assert_eq!(tokens[19], Token::LParen);
         assert_eq!(tokens[20], Token::Identifier("y".to_string()));
         assert_eq!(tokens[21], Token::RParen);
+        // assert_eq!(tokens[22], Token::End((6, 4)));
         assert_eq!(tokens[22], Token::End);
     }
 }
