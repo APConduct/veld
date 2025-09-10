@@ -138,7 +138,7 @@ impl Parser {
             self.plex_declaration_with_visibility(false)
         } else if self.match_token(&[Token::Mod]) {
             self.module_declaration()
-        } else if self.match_token(&[Token::Import]) {
+        } else if self.match_token(&[Token::Import((0, 0))]) {
             self.import_declaration()
         } else if self.match_token(&[Token::Macro]) {
             self.macro_declaration()
@@ -158,7 +158,7 @@ impl Parser {
                 self.plex_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Mod]) {
                 self.module_declaration_with_visibility(true)
-            } else if self.match_token(&[Token::Import]) {
+            } else if self.match_token(&[Token::Import((0, 0))]) {
                 self.import_declaration_with_visibility(true)
             } else if matches!(self.peek(), Token::Let(_))
                 || self.peek() == &Token::Var

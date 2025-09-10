@@ -17,7 +17,7 @@ fn word_callback(lex: &mut LLexer<Token>) -> (usize, usize) {
     (line, column)
 }
 
-#[derive(Debug, Logos, PartialEq, Clone)]
+#[derive(Debug, Logos, Clone)]
 #[logos(extras = (usize, usize))]
 #[logos(skip(r"[ \t\f]+"))] // Skip whitespace
 #[logos(skip r"#.*")] // Skip single-line comments
@@ -51,8 +51,8 @@ pub enum Token {
     Or,
     #[token("mod")]
     Mod,
-    #[token("import")]
-    Import,
+    #[token("import", word_callback)]
+    Import((usize, usize)),
     #[token("pub")]
     Pub,
     #[token("from")]
@@ -231,7 +231,7 @@ impl Display for Token {
             Token::As => write!(f, "as"),
             Token::Or => write!(f, "or"),
             Token::Mod => write!(f, "mod"),
-            Token::Import => write!(f, "import"),
+            Token::Import(_) => write!(f, "import"),
             Token::Pub => write!(f, "pub"),
             Token::From => write!(f, "from"),
             Token::Var => write!(f, "var"),
@@ -367,6 +367,99 @@ impl<'a> Lexer<'a> {
         let preprocessed_input = Self::preprocess(input);
         Self {
             inner: Token::lexer(Box::leak(preprocessed_input.into_boxed_str())),
+        }
+    }
+}
+
+impl PartialEq for Token {
+    fn eq(&self, other: &Token) -> bool {
+        match (self, other) {
+            (Token::Fn, Token::Fn) => true,
+            (Token::Proc, Token::Proc) => true,
+            (Token::Let(_), Token::Let(_)) => true,
+            (Token::Struct, Token::Struct) => true,
+            (Token::Kind, Token::Kind) => true,
+            (Token::Impl, Token::Impl) => true,
+            (Token::End, Token::End) => true,
+            (Token::For, Token::For) => true,
+            (Token::In, Token::In) => true,
+            (Token::Where, Token::Where) => true,
+            (Token::As, Token::As) => true,
+            (Token::Or, Token::Or) => true,
+            (Token::Mod, Token::Mod) => true,
+            (Token::Import(_), Token::Import(_)) => true,
+            (Token::Pub, Token::Pub) => true,
+            (Token::From, Token::From) => true,
+            (Token::Var, Token::Var) => true,
+            (Token::Mut, Token::Mut) => true,
+            (Token::Break, Token::Break) => true,
+            (Token::Continue, Token::Continue) => true,
+            (Token::Enum, Token::Enum) => true,
+            (Token::Plex, Token::Plex) => true,
+            (Token::Equals, Token::Equals) => true,
+            (Token::Plus, Token::Plus) => true,
+            (Token::Minus, Token::Minus) => true,
+            (Token::Star, Token::Star) => true,
+            (Token::Slash, Token::Slash) => true,
+            (Token::Arrow, Token::Arrow) => true,
+            (Token::FatArrow, Token::FatArrow) => true,
+            (Token::ExpOp, Token::ExpOp) => true,
+            (Token::Modulo, Token::Modulo) => true,
+            (Token::PlusEq, Token::PlusEq) => true,
+            (Token::MinusEq, Token::MinusEq) => true,
+            (Token::StarEq, Token::StarEq) => true,
+            (Token::SlashEq, Token::SlashEq) => true,
+            (Token::LessEq, Token::LessEq) => true,
+            (Token::GreaterEq, Token::GreaterEq) => true,
+            (Token::Less, Token::Less) => true,
+            (Token::Greater, Token::Greater) => true,
+            (Token::EqualEqual, Token::EqualEqual) => true,
+            (Token::NotEqual, Token::NotEqual) => true,
+            (Token::LParen, Token::LParen) => true,
+            (Token::RParen, Token::RParen) => true,
+            (Token::LBrace, Token::LBrace) => true,
+            (Token::RBrace, Token::RBrace) => true,
+            (Token::LBracket, Token::LBracket) => true,
+            (Token::RBracket, Token::RBracket) => true,
+            (Token::Comma, Token::Comma) => true,
+            (Token::Colon, Token::Colon) => true,
+            (Token::Semicolon, Token::Semicolon) => true,
+            (Token::At, Token::At) => true,
+            (Token::Dot, Token::Dot) => true,
+            (Token::DotDotEq, Token::DotDotEq) => true,
+            (Token::DotDot, Token::DotDot) => true,
+            (Token::DotDotDot, Token::DotDotDot) => true,
+            (Token::Tilde, Token::Tilde) => true,
+            (Token::Bang, Token::Bang) => true,
+            (Token::Identifier(a), Token::Identifier(b)) => a == b,
+            (Token::StringLiteral(a), Token::StringLiteral(b)) => a == b,
+            (Token::IntegerLiteral(a), Token::IntegerLiteral(b)) => a == b,
+            (Token::FloatLiteral(a), Token::FloatLiteral(b)) => a == b,
+            (Token::If, Token::If) => true,
+            (Token::Else, Token::Else) => true,
+            (Token::While, Token::While) => true,
+            (Token::Return, Token::Return) => true,
+            (Token::True, Token::True) => true,
+            (Token::False, Token::False) => true,
+            (Token::And, Token::And) => true,
+            (Token::Match, Token::Match) => true,
+            (Token::Do, Token::Do) => true,
+            (Token::Then, Token::Then) => true,
+            (Token::With, Token::With) => true,
+            (Token::Macro, Token::Macro) => true,
+            (Token::Const, Token::Const) => true,
+            (Token::SelfToken, Token::SelfToken) => true,
+            (Token::Pipe, Token::Pipe) => true,
+            (Token::LDoubleBracket, Token::LDoubleBracket) => true,
+            (Token::RDoubleBracket, Token::RDoubleBracket) => true,
+            (Token::LeftArrow, Token::LeftArrow) => true,
+            (Token::Dollar, Token::Dollar) => true,
+            (Token::ExprFragment, Token::ExprFragment) => true,
+            (Token::Static, Token::Static) => true,
+            (Token::Async, Token::Async) => true,
+            (Token::Await, Token::Await) => true,
+            (Token::Spawn, Token::Spawn) => true,
+            _ => false,
         }
     }
 }
