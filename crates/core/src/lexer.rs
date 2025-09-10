@@ -545,10 +545,10 @@ end
             Token::StringLiteral("Hello, world!".to_string())
         );
         assert!(
-            matches!(tokens[12], Token::If((0, 0))),
+            matches!(tokens[12], Token::If((4, 4))),
             "Expected {}, got {}",
             tokens[12],
-            Token::If((0, 0))
+            Token::If((4, 4))
         );
         assert_eq!(tokens[13], Token::Identifier("x".to_string()));
         assert!(
