@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 pub use serde_json::json;
 
 pub fn encode_message<T: Serialize>(msg: T) -> Vec<u8> {
@@ -18,7 +18,12 @@ pub struct RPCError {
     pub message: String,
 }
 
-pub fn decode_message(msg: &[u8]) -> Result<usize, RPCError> {
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BaseMessage {
+    pub method: String,
+}
+
+pub fn decode_message(msg: &[u8]) -> Result<(String, usize), RPCError> {
     let pattern = b"\r\n\r\n";
     let (header, content, found) = if let Some(pos) = msg
         .windows(pattern.len())
@@ -45,7 +50,16 @@ pub fn decode_message(msg: &[u8]) -> Result<usize, RPCError> {
             message: "Failed to parse content length".to_string(),
         })?;
 
-    Ok(content_length)
+    let _ = content;
+
+    let base_message =
+        serde_json::from_slice::<BaseMessage>(&content[..content_length]).map_err(|err| {
+            RPCError {
+                message: format!("Failed to unmarshal base message: {}", err),
+            }
+        })?;
+
+    Ok((base_message.method, content_length))
 }
 
 #[cfg(test)]
@@ -72,10 +86,14 @@ mod tests {
 
     #[test]
     fn test_decode() {
-        let incoming_message = "Content-Length: 16\r\n\r\n{\"testing\":true}";
+        let incoming_message = "Content-Length: 15\r\n\r\n{\"method\":\"hi\"}";
 
-        let content_length = decode_message(incoming_message.as_bytes()).unwrap();
+        let (method, content_length) = decode_message(incoming_message.as_bytes()).unwrap();
 
-        assert_eq!(content_length, 16, "Expected 16, got {}", content_length);
+        if method != "hi" {
+            panic!("Expected method 'hi', got {:?}", method);
+        }
+
+        assert_eq!(content_length, 15, "Expected 16, got {}", content_length);
     }
 }
