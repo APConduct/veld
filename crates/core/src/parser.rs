@@ -139,6 +139,9 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "declaration");
+        let _span = _span.enter();
+
         if self.is_declaration_keyword() {
             self.variable_declaration()
         } else if self.match_token(&[Token::Enum(ZTUP)]) {
@@ -197,6 +200,9 @@ impl Parser {
     }
 
     fn parse_macro_pattern(&mut self) -> Result<MacroPattern> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_macro_pattern");
+        let _span = _span.enter();
+
         self.consume(
             &Token::LParen(ZTUP),
             "Expected '(' after macro pattern start",
@@ -217,7 +223,11 @@ impl Parser {
 
         Ok(MacroPattern(pattern_str))
     }
+
     fn parse_macro_expansion(&mut self) -> Result<MacroExpansion> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_macro_expansion");
+        let _span = _span.enter();
+
         let mut statements = Vec::new();
 
         if self.match_token(&[Token::Do(ZTUP)]) {
@@ -244,6 +254,9 @@ impl Parser {
     }
 
     fn macro_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "macro_declaration");
+        let _span = _span.enter();
+
         // Consume the tilde after 'macro'
         self.consume(&Token::Tilde(ZTUP), "Expected '~' after 'macro'")?;
 
@@ -322,6 +335,12 @@ impl Parser {
     }
 
     fn function_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(
+            tracing::Level::TRACE,
+            "function_declaration_with_visibility"
+        );
+        let _span = _span.enter();
+
         let name = self.consume_identifier("Expected function name")?;
 
         // Parse generic type parameters if present
@@ -438,6 +457,9 @@ impl Parser {
     }
 
     fn lambda_expression(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "lambda_expression");
+        let _span = _span.enter();
+
         let mut params = Vec::new();
         let mut return_type_anno: Option<TypeAnnotation> = None;
         let mut is_block_demi = false;
@@ -540,6 +562,9 @@ impl Parser {
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
     ) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_block_demi_lambda");
+        let _span = _span.enter();
+
         let mut body = Vec::new();
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
             body.push(self.statement()?);
@@ -572,6 +597,9 @@ impl Parser {
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
     ) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_block_lambda");
+        let _span = _span.enter();
+
         let mut body = Vec::new();
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
             body.push(self.statement()?);
@@ -596,6 +624,9 @@ impl Parser {
     }
 
     fn infer_block_return_type(&self, stmt: &Statement) -> Option<TypeAnnotation> {
+        let _span = tracing::span!(tracing::Level::TRACE, "infer_block_return_type");
+        let _span = _span.enter();
+
         match stmt {
             Statement::ExprStatement(expr) => self.infer_lambda_return_type(expr),
             Statement::Return(Some(expr)) => self.infer_lambda_return_type(expr),
@@ -617,6 +648,9 @@ impl Parser {
     }
 
     fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "struct_declaration_with_visibility");
+        let _span = _span.enter();
+
         let name = self.consume_identifier("Expected struct name")?;
 
         let generic_params = self.parse_generic_args_if_present()?;
@@ -694,10 +728,16 @@ impl Parser {
     }
 
     fn function_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "function_declaration");
+        let _span = _span.enter();
+
         self.function_declaration_with_visibility(false)
     }
 
     fn proc_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "proc_declaration_with_visibility");
+        let _span = _span.enter();
+
         let name = self.consume_identifier("Expected procedure name")?;
 
         self.consume(&Token::LParen(ZTUP), "Expected '(' after procedure name")?;
@@ -752,6 +792,9 @@ impl Parser {
     }
 
     fn block_scope_statement(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "block_scope_statement");
+        let _span = _span.enter();
+
         let mut body = Vec::new();
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
             body.push(self.statement()?);
@@ -787,10 +830,16 @@ impl Parser {
     }
 
     fn proc_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "proc_declaration");
+        let _span = _span.enter();
+
         self.proc_declaration_with_visibility(false)
     }
 
     fn struct_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "struct_declaration");
+        let _span = _span.enter();
+
         let name = self.consume_identifier("Expected struct name")?;
 
         let generic_params = self.parse_generic_args_if_present()?;
@@ -870,6 +919,9 @@ impl Parser {
     }
 
     fn parse_struct_method(&mut self, struct_name: String) -> Result<StructMethod> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_struct_method");
+        let _span = _span.enter();
+
         let method_name = self.consume_identifier("Expected method name")?;
 
         self.consume(&Token::LParen(ZTUP), "Expected '(' after method name")?;
@@ -947,10 +999,16 @@ impl Parser {
     }
 
     fn kind_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "kind_declaration");
+        let _span = _span.enter();
+
         self.kind_declaration_with_visibility(false)
     }
 
     fn module_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "module_declaration_with_visibility");
+        let _span = _span.enter();
+
         let name = self.consume_identifier("Expected module name after 'mod'")?;
 
         if self.match_token(&[Token::Semicolon(ZTUP)]) {
@@ -987,6 +1045,9 @@ impl Parser {
     }
 
     fn parse_generic_args_if_present(&mut self) -> Result<Vec<GenericArgument>> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_generic_args_if_present");
+        let _span = _span.enter();
+
         let mut generic_args = Vec::new();
 
         if !self.match_token(&[Token::Less(ZTUP)]) {
@@ -1043,6 +1104,9 @@ impl Parser {
 
     // Helper method to parse complex constraints like Neg<Output = T>
     fn parse_complex_constraint(&mut self) -> Result<TypeAnnotation> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_complex_constraint");
+        let _span = _span.enter();
+
         // Get the base constraint name (e.g., "Neg")
         let base_name = self.consume_identifier("Expected constraint name")?;
 
@@ -1105,6 +1169,9 @@ impl Parser {
     }
 
     fn parse_implementation_methods(&mut self, type_name: String) -> Result<Vec<MethodImpl>> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_implementation_methods");
+        let _span = _span.enter();
+
         let mut methods = Vec::new();
 
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
@@ -1128,6 +1195,9 @@ impl Parser {
     }
 
     fn implementation_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "implementation_declaration");
+        let _span = _span.enter();
+
         // Assume 'impl' has already been consumed
 
         // Parse optional generic parameters after 'impl'
@@ -1203,6 +1273,9 @@ impl Parser {
     }
 
     fn parse_impl_method(&mut self, type_name: String) -> Result<MethodImpl> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_impl_method");
+        let _span = _span.enter();
+
         let method_name = self.consume_identifier("Expected method name")?;
 
         // Parse optional generic parameters for the method (e.g., <U>)
@@ -1291,6 +1364,9 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<TypeAnnotation> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_type");
+        let _span = _span.enter();
+
         if self.match_token(&[Token::LParen(ZTUP)]) {
             let mut types = Vec::new();
             let mut saw_comma = false;
@@ -1523,6 +1599,12 @@ impl Parser {
     }
 
     fn variable_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(
+            tracing::Level::TRACE,
+            "variable_declaration_with_visibility"
+        );
+        let _span = _span.enter();
+
         // Determine the variable kind
         let var_kind = if matches!(self.peek(), Token::Let(_)) {
             self.advance(); // consume the let token
@@ -1571,11 +1653,17 @@ impl Parser {
     }
 
     fn variable_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "variable_declaration");
+        let _span = _span.enter();
+
         let is_public = self.match_token(&[Token::Pub(ZTUP)]);
         self.variable_declaration_with_visibility(is_public)
     }
 
     fn parse_macro_invocation(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_macro_invocation");
+        let _span = _span.enter();
+
         // Consume the tilde
         self.advance();
 
@@ -1607,6 +1695,9 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "statement");
+        let _span = _span.enter();
+
         if self.check(&Token::Tilde(ZTUP)) {
             return self.parse_macro_invocation();
         } else if self.match_token(&[Token::Match(ZTUP)]) {
@@ -1637,6 +1728,9 @@ impl Parser {
     }
 
     fn check_assignment(&self) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "check_assignment");
+        let _span = _span.enter();
+
         if self.current >= self.tokens.len() {
             return false;
         }
@@ -1710,6 +1804,9 @@ impl Parser {
     }
 
     fn parse_match_pattern(&mut self) -> Result<MatchPattern> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_match_pattern");
+        let _span = _span.enter();
+
         // Check for wildcard pattern (_)
         if self.match_token(&[Token::Identifier("_".to_string())]) {
             return Ok(MatchPattern::Wildcard);
@@ -1776,6 +1873,9 @@ impl Parser {
     }
 
     fn match_statement(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "match_statement");
+        let _span = _span.enter();
+
         let value = self.expression()?;
         let mut arms = Vec::new();
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
@@ -1835,6 +1935,9 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "if_statement");
+        let _span = _span.enter();
+
         let condition = self.expression()?;
         self.consume(&Token::Then(ZTUP), "Expected 'then' after if condition")?;
 
@@ -1922,6 +2025,9 @@ impl Parser {
     }
 
     fn while_statement(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "while_statement");
+        let _span = _span.enter();
+
         let condition = self.expression()?;
 
         // Require 'do' after the condition
@@ -1938,6 +2044,9 @@ impl Parser {
     }
 
     fn for_statement(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "for_statement");
+        let _span = _span.enter();
+
         let iterator = self.consume_identifier("Expected iterator variable name")?;
 
         self.consume(&Token::In(ZTUP), "Expected 'in' after iterator variable")?;
@@ -1962,6 +2071,9 @@ impl Parser {
     }
 
     fn return_statement(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "return_statement");
+        let _span = _span.enter();
+
         let value = if self.check(&Token::End(ZTUP))
             || self.check(&Token::Else(ZTUP))
             || self.is_at_end()
@@ -1975,6 +2087,9 @@ impl Parser {
     }
 
     fn pipeline(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "pipeline");
+        let _span = _span.enter();
+
         let mut expr = self.range()?;
 
         while self.match_token(&[Token::Pipe(ZTUP)]) {
@@ -1989,6 +2104,9 @@ impl Parser {
     }
 
     fn range(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "range");
+        let _span = _span.enter();
+
         let expr = self.logical()?;
 
         // Check for range operators: expr.. or expr..=
@@ -2030,6 +2148,9 @@ impl Parser {
     }
 
     pub fn expression(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "expression");
+        let _span = _span.enter();
+
         self.recursive_depth += 1;
         if self.recursive_depth > 100 {
             self.recursive_depth -= 1;
@@ -2062,6 +2183,9 @@ impl Parser {
     }
 
     fn record_fields(&mut self) -> Result<Vec<(String, Expr)>> {
+        let _span = tracing::span!(tracing::Level::TRACE, "record_fields");
+        let _span = _span.enter();
+
         let mut fields = Vec::new();
 
         while !self.check(&Token::RBrace(ZTUP)) {
@@ -2092,6 +2216,9 @@ impl Parser {
     }
 
     fn check_lambda_start(&self) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "check_lambda_start");
+        let _span = _span.enter();
+
         if self.is_at_end() {
             return false;
         }
@@ -2174,6 +2301,9 @@ impl Parser {
     }
 
     fn logical(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "logical");
+        let _span = _span.enter();
+
         let mut expr = self.comparison()?;
 
         while self.match_token(&[Token::And(ZTUP), Token::Or(ZTUP)]) {
@@ -2194,6 +2324,9 @@ impl Parser {
     }
 
     fn unary(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "unary");
+        let _span = _span.enter();
+
         // Check for unary operators
         if self.match_token(&[Token::Minus(ZTUP), Token::Bang(ZTUP)]) {
             let operator = match self.previous() {
@@ -2217,11 +2350,14 @@ impl Parser {
     }
 
     fn postfix(&mut self) -> Result<Expr> {
-        let mut expr = self.primary()?;
+        let expr = self.primary()?;
         self.postfix_with_expr(expr)
     }
 
     fn postfix_with_expr(&mut self, mut expr: Expr) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "postfix_with_expr", expr = ?expr);
+        let _enter = _span.enter();
+
         loop {
             if self.is_at_end() {
                 break;
@@ -2461,7 +2597,11 @@ impl Parser {
 
         Ok(expr)
     }
+
     fn check_named_arguments(&self) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "check_named_arguments");
+        let _enter = _span.enter();
+
         // We need at least 3 tokens: identifier, colon, and value
         if self.current + 2 >= self.tokens.len() {
             return false;
@@ -2476,6 +2616,9 @@ impl Parser {
     }
 
     fn parse_named_arguments(&mut self) -> Result<Vec<Argument>> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_named_arguments");
+        let _enter = _span.enter();
+
         let mut args = Vec::new();
 
         while !self.check(&Token::RParen(ZTUP)) {
@@ -2504,6 +2647,9 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "primary");
+        let _enter = _span.enter();
+
         if self.match_token(&[Token::Do(ZTUP)]) {
             // Parse block expression: do statements... [expr] end
             return self.parse_block_expression();
@@ -2643,6 +2789,9 @@ impl Parser {
     }
 
     fn parse_block_expression(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_block_expression");
+        let _enter = _span.enter();
+
         let mut statements = Vec::new();
         let mut final_expr = None;
 
@@ -2669,6 +2818,9 @@ impl Parser {
     }
 
     fn is_likely_final_expression(&self) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "is_likely_final_expression");
+        let _enter = _span.enter();
+
         // Heuristic: if the next token after this line would be 'end',
         // then this is likely the final expression
 
@@ -2701,6 +2853,9 @@ impl Parser {
     }
 
     fn expression_followed_by_end(&self) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "expression_followed_by_end");
+        let _enter = _span.enter();
+
         // For now, just check if we have relatively few tokens left before 'end'
         let mut i = self.current;
         let mut depth = 0;
@@ -2741,6 +2896,9 @@ impl Parser {
 
     // Parse if expression: if condition then expr else expr end
     fn parse_if_expression(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_if_expression");
+        let _enter = _span.enter();
+
         // Parse condition (we already consumed 'if')
         let condition = self.expression()?;
 
@@ -2776,6 +2934,9 @@ impl Parser {
     }
 
     fn parse_function_expression(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_function_expression");
+        let _enter = _span.enter();
+
         // Parse parameters
         self.consume(&Token::LParen(ZTUP), "Expected '(' after 'fn'")?;
 
@@ -2830,6 +2991,9 @@ impl Parser {
     }
 
     fn parse_struct_fields(&mut self) -> Result<Vec<StructField>> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_struct_fields");
+        let _enter = _span.enter();
+
         let mut fields = Vec::new();
 
         while !self.check(&Token::End(ZTUP))
@@ -2856,6 +3020,9 @@ impl Parser {
     }
 
     fn comparison(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "comparison");
+        let _enter = _span.enter();
+
         let mut expr = self.term()?;
 
         while self.match_token(&[
@@ -2887,6 +3054,9 @@ impl Parser {
     }
 
     fn term(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "term");
+        let _enter = _span.enter();
+
         let mut expr = self.factor()?;
 
         while self.match_token(&[Token::Plus(ZTUP), Token::Minus(ZTUP)]) {
@@ -2907,6 +3077,9 @@ impl Parser {
     }
 
     fn factor(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "factor");
+        let _enter = _span.enter();
+
         let mut expr = self.exponent()?;
 
         while self.match_token(&[Token::Star(ZTUP), Token::Slash(ZTUP), Token::Modulo(ZTUP)]) {
@@ -2928,6 +3101,9 @@ impl Parser {
     }
 
     fn exponent(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "exponent");
+        let _enter = _span.enter();
+
         let mut expr = self.unary()?;
 
         if self.match_token(&[Token::ExpOp(ZTUP)]) {
@@ -2944,6 +3120,9 @@ impl Parser {
     }
 
     fn assignment_statement(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "assignment_statement");
+        let _enter = _span.enter();
+
         // Parse the left-hand side as an expression to handle property access
         let lhs = self.parse_assignment_target()?;
 
@@ -2988,6 +3167,9 @@ impl Parser {
     }
 
     fn parse_assignment_target(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_assignment_target");
+        let _enter = _span.enter();
+
         // Parse self or identifier
         let mut expr = if self.match_token(&[Token::SelfToken(ZTUP)]) {
             Expr::SelfReference
@@ -3022,6 +3204,9 @@ impl Parser {
     }
 
     fn check_named_argument(&self) -> bool {
+        let _span = tracing::span!(tracing::Level::TRACE, "check_named_argument");
+        let _enter = _span.enter();
+
         // Look ahead for "identifier: value" pattern
         if self.current + 1 < self.tokens.len() {
             if let Token::Identifier(_) = &self.tokens[self.current] {
@@ -3032,6 +3217,9 @@ impl Parser {
     }
 
     fn arguments(&mut self) -> Result<Vec<Expr>> {
+        let _span = tracing::span!(tracing::Level::TRACE, "arguments");
+        let _enter = _span.enter();
+
         let mut args = Vec::new();
 
         // Check if the argument list is empty
@@ -3051,6 +3239,9 @@ impl Parser {
     }
 
     fn debug_token_context(&self) -> String {
+        let _span = tracing::span!(tracing::Level::TRACE, "debug_token_context");
+        let _enter = _span.enter();
+
         let start = if self.current > 3 {
             self.current - 3
         } else {
@@ -3074,10 +3265,16 @@ impl Parser {
     }
 
     fn module_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "module_declaration");
+        let _enter = _span.enter();
+
         self.module_declaration_with_visibility(false)
     }
 
     fn import_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "import_declaration_with_visibility");
+        let _enter = _span.enter();
+
         // parse import path
         let mut path = vec![self.consume_identifier("Expected module name")?];
 
@@ -3151,10 +3348,16 @@ impl Parser {
     }
 
     fn import_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "import_declaration");
+        let _enter = _span.enter();
+
         self.import_declaration_with_visibility(false)
     }
 
     fn parse_array_literal(&mut self) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_array_literal");
+        let _enter = _span.enter();
+
         let mut elements = Vec::new();
 
         // Empty array case
@@ -3184,10 +3387,16 @@ impl Parser {
     }
 
     fn enum_declaration(&mut self) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "enum_declaration");
+        let _enter = _span.enter();
+
         self.enum_declaration_with_visibility(false)
     }
 
     fn enum_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "enum_declaration_with_visibility");
+        let _enter = _span.enter();
+
         let name = self.consume_identifier("Expected enum name after 'enum'")?;
 
         // Parse optional generic parameters
@@ -3259,6 +3468,9 @@ impl Parser {
     }
 
     fn kind_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "kind_declaration_with_visibility");
+        let _enter = _span.enter();
+
         let name = self.consume_identifier("Expected kind name")?;
 
         let generic_params = self.parse_generic_args_if_present()?;
@@ -3408,6 +3620,9 @@ impl Parser {
     }
 
     fn plex_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::TRACE, "plex_declaration_with_visibility");
+        let _enter = _span.enter();
+
         let name = self.consume_identifier("Expected plex name")?;
 
         // Parse generic parameters if present
@@ -3464,10 +3679,22 @@ mod tests {
     use crate::lexer::Lexer;
 
     fn parse_code(input: &str) -> Vec<Statement> {
+        let _span = tracing::span!(tracing::Level::INFO, "Parsing code", input = input);
+        let _enter = _span.enter();
+
         let mut lexer = Lexer::new(input);
+        tracing::event!(tracing::Level::INFO, "Lexer created");
+
         let tokens = lexer.collect_tokens().unwrap();
+        tracing::event!(tracing::Level::INFO, "Tokens collected");
+
         let mut parser = Parser::new(tokens);
-        parser.parse().unwrap()
+        tracing::event!(tracing::Level::INFO, "Parser created");
+
+        tracing::event!(tracing::Level::INFO, "Parsing started");
+        let res = parser.parse().unwrap();
+        tracing::event!(tracing::Level::INFO, "Parsing finished");
+        res
     }
 
     #[test]
