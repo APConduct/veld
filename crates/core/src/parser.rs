@@ -10,7 +10,7 @@ use crate::ast::{
 };
 use crate::common::source::{ParseContext, Position, SourceMap};
 use crate::error::{Result, VeldError};
-use crate::lexer::Token;
+use crate::lexer::{Lexer, Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InitializerType {
@@ -76,6 +76,48 @@ impl Parser {
             }
 
             let stmt = self.declaration()?;
+            statements.push(stmt);
+        }
+        Ok(statements)
+    }
+
+    pub fn from_source(source: &str, file_path: impl Into<PathBuf>) -> Result<AST> {
+        let tokens = Lexer::new(source).collect_tokens();
+
+        let mut parser = Parser::new(tokens.unwrap());
+
+        let mut source_map = SourceMap::new();
+        let file_id = source_map.add_file(file_path, source.to_string());
+
+        let mut context = ParseContext {
+            current_file_id: file_id,
+            source_map: &mut source_map,
+        };
+
+        let statements = parser.parse_with_context(&mut context)?;
+
+        Ok(AST {
+            statements,
+            source_map: source_map.into(),
+            errors: Vec::new(),
+        })
+    }
+
+    pub fn parse_with_context(&mut self, context: &mut ParseContext) -> Result<Vec<Statement>> {
+        let mut statements = Vec::new();
+        let mut step_count = 0;
+        const MAX_STEPS: usize = 1000;
+
+        while !self.is_at_end() {
+            step_count += 1;
+            if step_count > MAX_STEPS {
+                return Err(VeldError::ParserError(format!(
+                    "Parser exceeded maximum step count at token position: {}",
+                    self.current
+                )));
+            }
+
+            let stmt = self.declaration_with_context(context)?;
             statements.push(stmt);
         }
         Ok(statements)
@@ -3204,66 +3246,66 @@ impl Parser {
         Ok(expr)
     }
 
-    fn check_named_argument(&self) -> bool {
-        let _span = tracing::span!(tracing::Level::TRACE, "check_named_argument");
-        let _enter = _span.enter();
+    // fn check_named_argument(&self) -> bool {
+    //     let _span = tracing::span!(tracing::Level::TRACE, "check_named_argument");
+    //     let _enter = _span.enter();
 
-        // Look ahead for "identifier: value" pattern
-        if self.current + 1 < self.tokens.len() {
-            if let Token::Identifier(_) = &self.tokens[self.current] {
-                return self.tokens.get(self.current + 1) == Some(&Token::Colon(ZTUP));
-            }
-        }
-        false
-    }
+    //     // Look ahead for "identifier: value" pattern
+    //     if self.current + 1 < self.tokens.len() {
+    //         if let Token::Identifier(_) = &self.tokens[self.current] {
+    //             return self.tokens.get(self.current + 1) == Some(&Token::Colon(ZTUP));
+    //         }
+    //     }
+    //     false
+    // }
 
-    fn arguments(&mut self) -> Result<Vec<Expr>> {
-        let _span = tracing::span!(tracing::Level::TRACE, "arguments");
-        let _enter = _span.enter();
+    // fn arguments(&mut self) -> Result<Vec<Expr>> {
+    //     let _span = tracing::span!(tracing::Level::TRACE, "arguments");
+    //     let _enter = _span.enter();
 
-        let mut args = Vec::new();
+    //     let mut args = Vec::new();
 
-        // Check if the argument list is empty
-        if self.check(&Token::RParen(ZTUP)) {
-            return Ok(args); // Return empty vector for empty argument list
-        }
+    //     // Check if the argument list is empty
+    //     if self.check(&Token::RParen(ZTUP)) {
+    //         return Ok(args); // Return empty vector for empty argument list
+    //     }
 
-        // If we get here, there's at least one argument
-        args.push(self.expression()?);
+    //     // If we get here, there's at least one argument
+    //     args.push(self.expression()?);
 
-        // Parse additional arguments
-        while self.match_token(&[Token::Comma(ZTUP)]) {
-            args.push(self.expression()?);
-        }
+    //     // Parse additional arguments
+    //     while self.match_token(&[Token::Comma(ZTUP)]) {
+    //         args.push(self.expression()?);
+    //     }
 
-        Ok(args)
-    }
+    //     Ok(args)
+    // }
 
-    fn debug_token_context(&self) -> String {
-        let _span = tracing::span!(tracing::Level::TRACE, "debug_token_context");
-        let _enter = _span.enter();
+    // fn debug_token_context(&self) -> String {
+    //     let _span = tracing::span!(tracing::Level::TRACE, "debug_token_context");
+    //     let _enter = _span.enter();
 
-        let start = if self.current > 3 {
-            self.current - 3
-        } else {
-            0
-        };
-        let end = if self.current + 3 < self.tokens.len() {
-            self.current + 3
-        } else {
-            self.tokens.len()
-        };
+    //     let start = if self.current > 3 {
+    //         self.current - 3
+    //     } else {
+    //         0
+    //     };
+    //     let end = if self.current + 3 < self.tokens.len() {
+    //         self.current + 3
+    //     } else {
+    //         self.tokens.len()
+    //     };
 
-        let mut context = String::new();
-        for i in start..end {
-            if i == self.current {
-                context.push_str(&format!("[→{:?}] ", self.tokens[i]));
-            } else {
-                context.push_str(&format!("{:?} ", self.tokens[i]));
-            }
-        }
-        context
-    }
+    //     let mut context = String::new();
+    //     for i in start..end {
+    //         if i == self.current {
+    //             context.push_str(&format!("[→{:?}] ", self.tokens[i]));
+    //         } else {
+    //             context.push_str(&format!("{:?} ", self.tokens[i]));
+    //         }
+    //     }
+    //     context
+    // }
 
     fn module_declaration(&mut self) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "module_declaration");
