@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use tracing::Level;
 use tracing_indicatif::*;
 
 use crate::ast::{AST, UnaryOperator};
@@ -82,7 +83,15 @@ impl Parser {
     }
 
     pub fn from_source(source: &str, file_path: impl Into<PathBuf>) -> Result<AST> {
+        let _span = tracing::span!(Level::INFO, "from_source");
+        let _guard = _span.enter();
+
         let tokens = Lexer::new(source).collect_tokens();
+        tracing::event!(
+            tracing::Level::DEBUG,
+            "tokens collected, length = {}",
+            tokens.as_ref().unwrap().len()
+        );
 
         let mut parser = Parser::new(tokens.unwrap());
 
@@ -104,6 +113,9 @@ impl Parser {
     }
 
     pub fn parse_with_context(&mut self, context: &mut ParseContext) -> Result<Vec<Statement>> {
+        let _span = tracing::span!(tracing::Level::INFO, "parse_with_context");
+        let _guard = _span.enter();
+
         let mut statements = Vec::new();
         let mut step_count = 0;
         const MAX_STEPS: usize = 1000;
