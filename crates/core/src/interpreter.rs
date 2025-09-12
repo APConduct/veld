@@ -1779,7 +1779,31 @@ impl Interpreter {
         type_annotation: Option<TypeAnnotation>,
         value: Box<Expr>,
     ) -> Result<Value> {
-        let mut evaluated_value = self.evaluate_expression(*value)?.unwrap_return();
+        // Check if this is a potentially recursive lambda assignment
+        let is_recursive_lambda = matches!(value.as_ref(), Expr::Lambda { .. });
+
+        let mut evaluated_value =
+            if is_recursive_lambda && self.lambda_references_name(value.as_ref(), &name) {
+                tracing::debug!("Detected recursive lambda for variable: {}", name);
+                // For recursive lambdas, pre-bind the variable with a placeholder
+                let placeholder = Value::Unit; // Temporary placeholder
+                self.current_scope_mut()
+                    .declare(name.clone(), placeholder, var_kind.clone())?;
+                tracing::debug!("Pre-bound {} with placeholder", name);
+
+                let lambda_value = self.evaluate_expression(*value)?.unwrap_return();
+                tracing::debug!("Evaluated recursive lambda, got: {:?}", lambda_value);
+
+                // Replace the placeholder with the actual lambda
+                self.current_scope_mut()
+                    .set(name.clone(), lambda_value.clone());
+                tracing::debug!("Updated {} with actual lambda value", name);
+
+                lambda_value
+            } else {
+                tracing::debug!("Non-recursive variable declaration for: {}", name);
+                self.evaluate_expression(*value)?.unwrap_return()
+            };
 
         // For const declarations, ensure the value is compile-time evaluable
         if matches!(var_kind, VarKind::Const) {
@@ -1830,9 +1854,12 @@ impl Interpreter {
             }
         }
 
-        // Store variable with kind information
-        self.current_scope_mut()
-            .declare(name.clone(), evaluated_value.clone(), var_kind)?;
+        // Store variable with kind information (unless already stored for recursive lambdas)
+        let variable_exists = self.current_scope_mut().get(&name).is_some();
+        if !variable_exists {
+            self.current_scope_mut()
+                .declare(name.clone(), evaluated_value.clone(), var_kind)?;
+        }
 
         Ok(evaluated_value)
     }
@@ -4610,8 +4637,11 @@ impl Interpreter {
                 self.push_scope();
 
                 // First, set up captured variables in the new scope
+                // Skip Unit placeholders to allow recursive lambdas to find their actual values in parent scopes
                 for (var_name, var_value) in captured_vars {
-                    self.current_scope_mut().set(var_name, var_value);
+                    if !matches!(var_value, Value::Unit) {
+                        self.current_scope_mut().set(var_name, var_value);
+                    }
                 }
 
                 // Bind arguments
@@ -5655,8 +5685,11 @@ impl Interpreter {
                 self.push_scope();
 
                 // Set up captured variables in the new scope
+                // Skip Unit placeholders to allow recursive lambdas to find their actual values in parent scopes
                 for (var_name, var_value) in captured_vars {
-                    self.current_scope_mut().set(var_name, var_value);
+                    if !matches!(var_value, Value::Unit) {
+                        self.current_scope_mut().set(var_name, var_value);
+                    }
                 }
 
                 // Bind arguments
@@ -5710,6 +5743,60 @@ impl Interpreter {
             self.scopes.push(Scope::new(new_level));
         }
         self.scopes.last_mut().unwrap()
+    }
+
+    // Helper function to check if a lambda expression references a given variable name
+    fn lambda_references_name(&self, expr: &Expr, name: &str) -> bool {
+        match expr {
+            Expr::Lambda { body, .. } => self.expr_references_name(body, name),
+            _ => false,
+        }
+    }
+
+    // Helper function to check if an expression references a given variable name
+    fn expr_references_name(&self, expr: &Expr, name: &str) -> bool {
+        match expr {
+            Expr::Identifier(id) => id == name,
+            Expr::Call { callee, arguments } => {
+                self.expr_references_name(callee, name)
+                    || arguments.iter().any(|arg| match arg {
+                        Argument::Positional(e) => self.expr_references_name(e, name),
+                        Argument::Named { name: _, value: e } => self.expr_references_name(e, name),
+                    })
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.expr_references_name(left, name) || self.expr_references_name(right, name)
+            }
+            Expr::UnaryOp { operand, .. } => self.expr_references_name(operand, name),
+            Expr::IfExpression {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                self.expr_references_name(condition, name)
+                    || self.expr_references_name(then_expr, name)
+                    || else_expr
+                        .as_ref()
+                        .map_or(false, |e| self.expr_references_name(e, name))
+            }
+            Expr::Lambda { body, .. } => self.expr_references_name(body, name),
+            Expr::BlockExpression { statements, .. } => statements
+                .iter()
+                .any(|stmt| self.stmt_references_name(stmt, name)),
+            // Add other expression types as needed
+            _ => false,
+        }
+    }
+
+    // Helper function to check if a statement references a given variable name
+    fn stmt_references_name(&self, stmt: &Statement, name: &str) -> bool {
+        match stmt {
+            Statement::ExprStatement(expr) => self.expr_references_name(expr, name),
+            Statement::VariableDeclaration { value, .. } => self.expr_references_name(value, name),
+            Statement::Assignment { value, .. } => self.expr_references_name(value, name),
+            // Add other statement types as needed
+            _ => false,
+        }
     }
 
     fn push_scope(&mut self) {

@@ -488,6 +488,30 @@ impl TypeEnvironment {
         None
     }
 
+    pub fn is_defined(&self, name: &str) -> bool {
+        for scope in self.scopes.iter().rev() {
+            if scope.contains_key(name) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn update_definition(&mut self, name: &str, new_type: Type) {
+        for scope in self.scopes.iter_mut().rev() {
+            if scope.contains_key(name) {
+                scope.insert(name.to_string(), new_type);
+                return;
+            }
+        }
+        // If not found, define it in the current scope
+        self.define(name, new_type);
+    }
+
+    pub fn scope_depth(&self) -> usize {
+        self.scopes.len()
+    }
+
     pub fn add_struct(&mut self, name: &str, fields: HashMap<String, Type>) {
         self.structs.insert(name.to_string(), fields);
     }

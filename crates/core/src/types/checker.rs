@@ -853,7 +853,60 @@ impl TypeChecker {
             }
         }
 
-        let value_type = self.infer_expression_type(value)?;
+        // Check if this is a potentially recursive lambda assignment
+        let is_recursive_lambda = matches!(value, Expr::Lambda { .. });
+        tracing::debug!(
+            "Variable '{}' is_recursive_lambda: {}",
+            name,
+            is_recursive_lambda
+        );
+
+        let value_type = if is_recursive_lambda && self.lambda_references_name(value, name) {
+            tracing::debug!(
+                "Detected recursive lambda for type checking variable: {}",
+                name
+            );
+            tracing::debug!(
+                "Current scope depth before pre-binding: {}",
+                self.env.scope_depth()
+            );
+
+            // For recursive lambdas, pre-bind the variable with a temporary function type
+            let temp_type = self.env.fresh_type_var();
+            self.env.define(name, temp_type.clone());
+            tracing::debug!(
+                "Pre-bound '{}' with temp type: {:?} at scope depth {}",
+                name,
+                temp_type,
+                self.env.scope_depth()
+            );
+
+            // Verify the variable is accessible
+            if let Some(found_type) = self.env.get(name) {
+                tracing::debug!(
+                    "Verified '{}' is accessible with type: {:?}",
+                    name,
+                    found_type
+                );
+            } else {
+                tracing::error!("Failed to find '{}' after pre-binding!", name);
+            }
+
+            let lambda_type = self.infer_expression_type(value)?;
+            tracing::debug!("Inferred lambda type: {:?}", lambda_type);
+
+            // Unify the temporary type with the actual lambda type
+            self.env.add_constraint(temp_type, lambda_type.clone());
+            tracing::debug!("Added constraint for recursive lambda '{}'", name);
+
+            lambda_type
+        } else {
+            tracing::debug!(
+                "Non-recursive variable declaration for type checking: {}",
+                name
+            );
+            self.infer_expression_type(value)?
+        };
         tracing::debug!("Variable '{}' value type: {:?}", name, value_type);
 
         let const_value = if matches!(var_kind, VarKind::Const) {
@@ -903,8 +956,68 @@ impl TypeChecker {
             VarInfo::new(final_type.clone(), var_kind.clone(), const_value),
         );
 
-        self.env.define(name, final_type);
+        // Only define if not already defined (for recursive lambdas)
+        if !self.env.is_defined(name) {
+            self.env.define(name, final_type);
+        } else {
+            // Update the existing definition for recursive lambdas
+            self.env.update_definition(name, final_type);
+        }
         Ok(())
+    }
+
+    // Helper function to check if a lambda expression references a given variable name
+    fn lambda_references_name(&self, expr: &Expr, name: &str) -> bool {
+        match expr {
+            Expr::Lambda { body, .. } => self.expr_references_name(body, name),
+            _ => false,
+        }
+    }
+
+    // Helper function to check if an expression references a given variable name
+    fn expr_references_name(&self, expr: &Expr, name: &str) -> bool {
+        match expr {
+            Expr::Identifier(id) => id == name,
+            Expr::Call { callee, arguments } => {
+                self.expr_references_name(callee, name)
+                    || arguments.iter().any(|arg| match arg {
+                        Argument::Positional(e) => self.expr_references_name(e, name),
+                        Argument::Named { name: _, value: e } => self.expr_references_name(e, name),
+                    })
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.expr_references_name(left, name) || self.expr_references_name(right, name)
+            }
+            Expr::UnaryOp { operand, .. } => self.expr_references_name(operand, name),
+            Expr::IfExpression {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                self.expr_references_name(condition, name)
+                    || self.expr_references_name(then_expr, name)
+                    || else_expr
+                        .as_ref()
+                        .map_or(false, |e| self.expr_references_name(e, name))
+            }
+            Expr::Lambda { body, .. } => self.expr_references_name(body, name),
+            Expr::BlockExpression { statements, .. } => statements
+                .iter()
+                .any(|stmt| self.stmt_references_name(stmt, name)),
+            // Add other expression types as needed
+            _ => false,
+        }
+    }
+
+    // Helper function to check if a statement references a given variable name
+    fn stmt_references_name(&self, stmt: &Statement, name: &str) -> bool {
+        match stmt {
+            Statement::ExprStatement(expr) => self.expr_references_name(expr, name),
+            Statement::VariableDeclaration { value, .. } => self.expr_references_name(value, name),
+            Statement::Assignment { value, .. } => self.expr_references_name(value, name),
+            // Add other statement types as needed
+            _ => false,
+        }
     }
 
     fn type_check_if(
@@ -2040,6 +2153,43 @@ impl TypeChecker {
                 self.env.solve_constraints()?;
                 Ok(*return_type)
             }
+            Type::TypeVar(_) => {
+                // Handle type variables that should be constrained to function types
+                tracing::debug!(
+                    "Function call on type variable: {} with type {:?}",
+                    name,
+                    func_type
+                );
+
+                // Create parameter types for the arguments
+                let mut param_types = Vec::new();
+                for arg in args {
+                    let arg_expr = match arg {
+                        Argument::Positional(expr) => expr,
+                        Argument::Named { name: _, value } => value,
+                    };
+                    let arg_type = self.infer_expression_type(arg_expr)?;
+                    param_types.push(arg_type);
+                }
+
+                // Create a fresh return type variable
+                let return_type = self.env.fresh_type_var();
+
+                // Constrain the function type variable to be a function type
+                let expected_func_type = Type::Function {
+                    params: param_types,
+                    return_type: Box::new(return_type.clone()),
+                };
+
+                tracing::debug!(
+                    "Constraining {} to function type: {:?}",
+                    name,
+                    expected_func_type
+                );
+                self.env.add_constraint(func_type, expected_func_type);
+
+                Ok(return_type)
+            }
             _ => Err(VeldError::TypeError(format!("{} is not a function", name))),
         }
     }
@@ -2053,7 +2203,15 @@ impl TypeChecker {
         let _span = tracing::span!(tracing::Level::DEBUG, "infer_lambda_type", params = ?params, body = ?body, return_type_anno = ?return_type_anno);
         let _enter = _span.enter();
 
+        tracing::debug!(
+            "Lambda type inference starting at scope depth: {}",
+            self.env.scope_depth()
+        );
         self.env.push_scope();
+        tracing::debug!(
+            "Lambda type inference after push_scope at depth: {}",
+            self.env.scope_depth()
+        );
         let mut param_types = Vec::new();
 
         for (name, type_anno) in params {
@@ -2067,6 +2225,10 @@ impl TypeChecker {
             self.env.define(name, param_type);
         }
 
+        tracing::debug!(
+            "About to type-check lambda body at scope depth: {}",
+            self.env.scope_depth()
+        );
         let body_type = self.infer_expression_type(body)?;
         tracing::debug!("Lambda body type before constraints: {:?}", body_type);
 
