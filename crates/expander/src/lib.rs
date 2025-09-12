@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use veld_core::{
-    ast::{
-        Argument, Expr, Literal, MacroPattern, MacroTemplate,
-        Statement,
-    },
+    ast::{Argument, Expr, Literal, MacroPattern, MacroTemplate, Statement},
     common::source::NodeId,
     types::Type,
 };
@@ -842,8 +839,7 @@ impl ExpansionContext {
             });
         }
 
-        // Simple substitution for now - in a real implementation this would
-        // substitute the arguments into the body based on parameter names
+        // TODO: refactor to substitute the arguments into the body based on parameter names
         Ok(body.to_vec())
     }
 
@@ -911,8 +907,7 @@ impl ExpansionContext {
         let mut expander = TemplateExpander::new();
         expander.current_expansion = Some(name.to_string());
 
-        // For now, just return the body as-is
-        // In a real implementation, we'd substitute the bindings
+        // TODO: refactof to substitute the bindings
         Ok(body.to_vec())
     }
 
@@ -955,7 +950,7 @@ impl ExpansionContext {
             NodeId::new(),
         )
         .with_description("Creates a vector from elements".to_string())
-        .with_example("vec!(1, 2, 3)".to_string())
+        .with_example("vec~(1, 2, 3)".to_string())
         .with_stability(MacroStability::Stable);
 
         ctx.macros.insert("vec".to_string(), vec_macro);
@@ -984,7 +979,6 @@ impl ExpansionContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veld_core::ast::*;
 
     #[test]
     fn test_pattern_matching() {
@@ -1036,7 +1030,7 @@ mod tests {
             NodeId::new(),
         )
         .with_description("Create a vector".to_string())
-        .with_example("vec!(1, 2, 3)".to_string())
+        .with_example("vec~(1, 2, 3)".to_string())
         .with_stability(MacroStability::Stable);
 
         assert!(vec_macro.is_declarative());
@@ -1047,7 +1041,7 @@ mod tests {
         );
         assert_eq!(
             vec_macro.metadata.examples,
-            vec!["vec!(1, 2, 3)".to_string()]
+            vec!["vec~(1, 2, 3)".to_string()]
         );
     }
 
