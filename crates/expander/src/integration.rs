@@ -1,14 +1,8 @@
 use std::collections::HashMap;
+use veld_common::source::NodeId;
+use veld_core::ast::{Expr, MacroExpansion, MacroPattern, MacroTemplate, Statement};
 
-use veld_core::{
-    ast::{Expr, MacroExpansion, MacroPattern, MacroTemplate, Statement},
-    common::source::NodeId,
-};
-
-use crate::{
-    parser::MacroParser,
-    ExpansionContext, ExpansionError, MacroDefinition,
-};
+use crate::{parser::MacroParser, ExpansionContext, ExpansionError, MacroDefinition};
 
 /// Integration point for the macro system with the Veld interpreter/compiler
 pub struct MacroSystem {

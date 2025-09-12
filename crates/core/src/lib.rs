@@ -1,6 +1,6 @@
 pub mod ast;
-pub mod common;
-pub mod error;
+// pub mod common;
+// pub mod error;
 pub mod interpreter;
 pub mod lexer;
 pub mod module;

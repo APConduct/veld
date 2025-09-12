@@ -1,0 +1,9 @@
+[package]
+name = "veld-error"
+version = "0.1.4"
+edition = "2024"
+description = "Error handling utilities for the Veld programming language"
+
+[dependencies]
+thiserror = "1.0"          # For error handling
+colored = "2.0"

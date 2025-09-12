@@ -3,8 +3,8 @@
 //! This example shows how to migrate existing macro code from the simple
 //! format to the new advanced macro system while maintaining backward compatibility.
 
+use veld_common::source::NodeId;
 use veld_core::ast::*;
-use veld_core::common::source::NodeId;
 use veld_expander::{MacroDefinition, MacroStability, MacroSystem};
 
 fn main() {

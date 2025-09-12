@@ -1,0 +1,5 @@
+import std.option.{some}
+
+let succ = x => x + 1
+
+let some_succ = some(succ(5))

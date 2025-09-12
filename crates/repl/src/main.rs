@@ -5,10 +5,10 @@ use colored::Colorize;
 use std::env;
 use std::fs;
 use tracing::Level;
-use veld_core::error::{Result, VeldError};
 use veld_core::interpreter::Interpreter;
 use veld_core::lexer::Lexer;
 use veld_core::parser::Parser;
+use veld_error::{Result, VeldError};
 
 fn main() -> Result<()> {
     // Always run in a new thread with a larger stack on all platforms
@@ -23,7 +23,7 @@ fn main() -> Result<()> {
             if args.len() == 1 {
                 let mut repl = Repl::new();
                 repl.run()
-                    .map_err(|e| veld_core::error::VeldError::RuntimeError(format!("{e}")))?;
+                    .map_err(|e| veld_error::VeldError::RuntimeError(format!("{e}")))?;
                 Ok(())
             } else if args.len() == 2 {
                 // One argument - interpret the file

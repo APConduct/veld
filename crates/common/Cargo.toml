@@ -1,0 +1,6 @@
+[package]
+name = "veld-common"
+version = "0.1.4"
+edition = "2024"
+description = "Common utilities and types for the Veld programming language ecosystem"
+license = "Apache-2.0"

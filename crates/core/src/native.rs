@@ -1,8 +1,8 @@
-use crate::error::{Result, VeldError};
 use crate::interpreter::Interpreter;
 use crate::interpreter::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use veld_error::{Result, VeldError};
 
 // Type for native function implementations
 pub type NativeFn = Arc<dyn Fn(Vec<Value>) -> Result<Value> + Send + Sync>;

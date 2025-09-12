@@ -1,9 +1,9 @@
 use crate::ast::{ImportItem, Statement};
-use crate::error::{Result as VeldResult, VeldError};
 use crate::lexer::Lexer;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use veld_error::{Result as VeldResult, VeldError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {

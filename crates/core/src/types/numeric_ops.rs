@@ -1,6 +1,6 @@
 use crate::ast::BinaryOperator;
-use crate::error::{Result, VeldError};
 use crate::types::numeric::{FloatValue, IntegerValue, NumericValue};
+use veld_error::{Result, VeldError};
 
 impl NumericValue {
     /// Performs the specified binary operation with the given right-hand side numeric value.

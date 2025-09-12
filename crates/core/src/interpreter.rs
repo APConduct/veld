@@ -3,7 +3,6 @@ use crate::ast::{
     Literal, MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement,
     StructField, StructMethod, TypeAnnotation, UnaryOperator, VarKind,
 };
-use crate::error::{Result, VeldError};
 use crate::module::{ExportedItem, ModuleManager};
 use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
@@ -13,6 +12,7 @@ use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
 use std::vec::IntoIter;
+use veld_error::{Result, VeldError};
 
 pub mod scope;
 pub mod value;

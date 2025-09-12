@@ -1,8 +1,8 @@
 //! Integration example showing how to use the Veld macro system
 //! This example demonstrates parsing Veld code, expanding macros, and processing the result
 
+use veld_common::source::NodeId;
 use veld_core::ast::*;
-use veld_core::common::source::NodeId;
 use veld_expander::MacroSystem;
 
 fn main() {

@@ -1,4 +1,4 @@
-use veld_core::common::source::NodeId;
+use veld_common::source::NodeId;
 
 use crate::{ExpansionError, FragmentType, PatternElement};
 

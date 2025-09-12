@@ -8,9 +8,9 @@ use crate::ast::{
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
     StructMethod, TypeAnnotation, VarKind,
 };
-use crate::common::source::{NodeId, ParseContext, Position, SourceMap};
-use crate::error::{Result, VeldError};
 use crate::lexer::{Lexer, Token};
+use veld_common::source::{NodeId, ParseContext, Position, SourceMap};
+use veld_error::{Result, VeldError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InitializerType {
@@ -5187,8 +5187,8 @@ fn test_anon_record() {
 
 #[test]
 fn test_ast_source_span_registration() {
-    use crate::common::source::{FileId, Position, SourceMap};
     use crate::parser::ParseContext;
+    use veld_common::source::{FileId, Position, SourceMap};
 
     let mut source_map = SourceMap::new();
     let mut parse_context = ParseContext {

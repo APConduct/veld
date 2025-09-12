@@ -4,13 +4,13 @@ use super::super::ast::{
     Argument, BinaryOperator, Expr, GenericArgument, Literal, MethodImpl, Statement, StructMethod,
     TypeAnnotation, UnaryOperator, VarKind,
 };
-use super::super::error::{Result, VeldError};
 use super::super::types::{
     ImplementationInfo, Type, Type::TypeVar, TypeEnvironment, base::EnumVariant,
 };
 use super::base::VarInfo;
 use crate::interpreter::Value;
 use std::collections::HashMap;
+use veld_error::{Result, VeldError};
 
 pub struct TypeChecker {
     env: TypeEnvironment,

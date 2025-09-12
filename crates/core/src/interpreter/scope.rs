@@ -1,7 +1,7 @@
 use super::Value;
-use crate::error::{Result, VeldError};
 use crate::interpreter::VarKind;
 use std::collections::HashMap;
+use veld_error::{Result, VeldError};
 
 #[derive(Debug, Default)]
 pub struct Scope {

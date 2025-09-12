@@ -3,7 +3,7 @@ use tracing::{self, Level, span};
 
 use logos::{Lexer as LLexer, Logos, Skip};
 
-use crate::common::{self, source::Position};
+use veld_common::{self, source::Position};
 
 /// Update the line count and the char index.
 fn newline_callback(lex: &mut LLexer<Token>) -> Skip {
@@ -427,7 +427,7 @@ impl Token {
         }
     }
 
-    pub fn source_pos(&self) -> common::source::Position {
+    pub fn source_pos(&self) -> Position {
         match self {
             Token::Fn((x, y)) => Position {
                 line: *x as u32,

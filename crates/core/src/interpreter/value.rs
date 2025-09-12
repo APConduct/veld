@@ -1,7 +1,7 @@
-use super::super::error::{Result, VeldError};
 use super::super::interpreter::{BinaryOperator, Statement, TypeAnnotation};
 use super::super::types::{NumericValue, Type};
 use std::collections::HashMap;
+use veld_error::{Result, VeldError};
 
 #[derive(Debug, Clone, PartialEq)]
 // Anonymous struct like: { field1: Type, field2: Type }

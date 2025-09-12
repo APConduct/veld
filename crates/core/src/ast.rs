@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
-
-use crate::{common::source::SourceMap, error::VeldError};
+use veld_common::source::SourceMap;
+use veld_error::VeldError;
 
 pub struct AST {
     pub statements: Vec<Statement>,

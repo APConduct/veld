@@ -1,9 +1,9 @@
-use crate::error::Result;
 use crate::types::Type;
 use crate::types::TypeEnvironment;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::hash::Hasher;
+use veld_error::Result;
 
 pub struct NumericKinds;
 
