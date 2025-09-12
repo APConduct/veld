@@ -208,10 +208,12 @@ impl Parser {
             self.import_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Macro(ZTUP)]) {
             self.macro_declaration(ctx.as_deref_mut())
+        } else if self.match_token(&[Token::Fn(ZTUP)]) {
+            self.function_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Pub(ZTUP)]) {
             // Handle public declarations
             if self.match_token(&[Token::Fn(ZTUP)]) {
-                self.function_declaration_with_visibility(true)
+                self.function_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Proc(ZTUP)]) {
                 self.proc_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Struct(ZTUP)]) {
@@ -238,8 +240,6 @@ impl Parser {
                         .to_string(),
                 ))
             }
-        } else if self.match_token(&[Token::Fn(ZTUP)]) {
-            self.function_declaration()
         } else if self.match_token(&[Token::Proc(ZTUP)]) {
             self.proc_declaration()
         } else if self.match_token(&[Token::Struct(ZTUP)]) {
@@ -403,12 +403,18 @@ impl Parser {
         }
     }
 
-    fn function_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn function_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(
             tracing::Level::TRACE,
             "function_declaration_with_visibility"
         );
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         let name = self.consume_identifier("Expected function name")?;
 
@@ -514,7 +520,7 @@ impl Parser {
             self.consume(&Token::End(ZTUP), "Expected 'end' after function body")?;
         }
 
-        Ok(Statement::FunctionDeclaration {
+        let result = Ok(Statement::FunctionDeclaration {
             name,
             params,
             return_type,
@@ -522,7 +528,15 @@ impl Parser {
             is_proc: false,
             is_public,
             generic_params,
-        })
+        });
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        result
     }
 
     fn lambda_expression(&mut self) -> Result<Expr> {
@@ -796,11 +810,11 @@ impl Parser {
         })
     }
 
-    fn function_declaration(&mut self) -> Result<Statement> {
+    fn function_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "function_declaration");
         let _span = _span.enter();
 
-        self.function_declaration_with_visibility(false)
+        self.function_declaration_with_visibility(false, ctx)
     }
 
     fn proc_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
