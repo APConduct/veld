@@ -1,4 +1,3 @@
-
 use veld_core::common::source::NodeId;
 
 use crate::{ExpansionError, FragmentType, PatternElement};
@@ -726,5 +725,298 @@ mod tests {
             }
             _ => panic!("Expected repetition pattern"),
         }
+    }
+
+    #[test]
+    fn test_string_tokenization() {
+        let parser = MacroParser::new("\"hello world\"");
+        assert_eq!(parser.tokens.len(), 2); // String + Eof
+        match &parser.tokens[0] {
+            Token::String(s) => assert_eq!(s, "hello world"),
+            _ => panic!("Expected string token"),
+        }
+    }
+
+    #[test]
+    fn test_string_escaping() {
+        let parser = MacroParser::new("\"hello\\nworld\"");
+        match &parser.tokens[0] {
+            Token::String(s) => assert_eq!(s, "hello\nworld"),
+            _ => panic!("Expected string token"),
+        }
+    }
+
+    #[test]
+    fn test_char_tokenization() {
+        let parser = MacroParser::new("'a'");
+        match &parser.tokens[0] {
+            Token::Char(c) => assert_eq!(*c, 'a'),
+            _ => panic!("Expected char token"),
+        }
+    }
+
+    #[test]
+    fn test_escaped_char_tokenization() {
+        let parser = MacroParser::new("'\\n'");
+        match &parser.tokens[0] {
+            Token::Char(c) => assert_eq!(*c, '\n'),
+            _ => panic!("Expected char token"),
+        }
+    }
+
+    #[test]
+    fn test_integer_tokenization() {
+        let parser = MacroParser::new("42");
+        match &parser.tokens[0] {
+            Token::Integer(i) => assert_eq!(*i, 42),
+            _ => panic!("Expected integer token"),
+        }
+    }
+
+    #[test]
+    fn test_float_tokenization() {
+        let parser = MacroParser::new("3.14");
+        match &parser.tokens[0] {
+            Token::Float(f) => assert_eq!(*f, 3.14),
+            _ => panic!("Expected float token"),
+        }
+    }
+
+    #[test]
+    fn test_boolean_tokenization() {
+        let parser = MacroParser::new("true false");
+        assert_eq!(parser.tokens.len(), 4); // true + whitespace + false + Eof
+        match &parser.tokens[0] {
+            Token::Boolean(b) => assert_eq!(*b, true),
+            _ => panic!("Expected boolean token"),
+        }
+        match &parser.tokens[2] {
+            Token::Boolean(b) => assert_eq!(*b, false),
+            _ => panic!("Expected boolean token"),
+        }
+    }
+
+    #[test]
+    fn test_keyword_tokenization() {
+        let parser = MacroParser::new("macro end do");
+        assert_eq!(parser.tokens[0], Token::Macro);
+        assert_eq!(parser.tokens[2], Token::End);
+        assert_eq!(parser.tokens[4], Token::Do);
+    }
+
+    #[test]
+    fn test_punctuation_tokenization() {
+        let parser = MacroParser::new("(){}[]<>+-*?:,;~$");
+        let expected = vec![
+            Token::LeftParen,
+            Token::RightParen,
+            Token::LeftBrace,
+            Token::RightBrace,
+            Token::LeftBracket,
+            Token::RightBracket,
+            Token::LeftAngle,
+            Token::RightAngle,
+            Token::Plus,
+            Token::Minus,
+            Token::Star,
+            Token::Question,
+            Token::Colon,
+            Token::Comma,
+            Token::Semicolon,
+            Token::Tilde,
+            Token::Dollar,
+            Token::Eof,
+        ];
+        assert_eq!(parser.tokens, expected);
+    }
+
+    #[test]
+    fn test_fat_arrow_tokenization() {
+        let parser = MacroParser::new("=>");
+        assert_eq!(parser.tokens[0], Token::FatArrow);
+    }
+
+    #[test]
+    fn test_identifier_tokenization() {
+        let parser = MacroParser::new("test_var");
+        match &parser.tokens[0] {
+            Token::Identifier(name) => assert_eq!(name, "test_var"),
+            _ => panic!("Expected identifier token"),
+        }
+    }
+
+    #[test]
+    fn test_complex_pattern_parsing() {
+        let mut parser = MacroPatternParser::new("$x:expr, $y:stmt");
+        let elements = parser.parse().unwrap();
+        assert_eq!(elements.len(), 3); // var, literal comma, var
+
+        match &elements[0] {
+            PatternElement::Variable {
+                name,
+                fragment_type,
+            } => {
+                assert_eq!(name, "x");
+                assert!(matches!(fragment_type, FragmentType::Expr));
+            }
+            _ => panic!("Expected variable pattern"),
+        }
+
+        match &elements[1] {
+            PatternElement::Literal(lit) => assert_eq!(lit, ","),
+            _ => panic!("Expected literal pattern"),
+        }
+
+        match &elements[2] {
+            PatternElement::Variable {
+                name,
+                fragment_type,
+            } => {
+                assert_eq!(name, "y");
+                assert!(matches!(fragment_type, FragmentType::Stmt));
+            }
+            _ => panic!("Expected variable pattern"),
+        }
+    }
+
+    #[test]
+    fn test_optional_pattern_parsing() {
+        let mut parser = MacroPatternParser::new("($x:expr)?");
+        let elements = parser.parse().unwrap();
+        assert_eq!(elements.len(), 1);
+
+        match &elements[0] {
+            PatternElement::Optional(_) => {}
+            _ => panic!("Expected optional pattern"),
+        }
+    }
+
+    #[test]
+    fn test_star_repetition_parsing() {
+        let mut parser = MacroPatternParser::new("($x:expr)*");
+        let elements = parser.parse().unwrap();
+        assert_eq!(elements.len(), 1);
+
+        match &elements[0] {
+            PatternElement::Repetition {
+                min_count,
+                max_count,
+                ..
+            } => {
+                assert_eq!(*min_count, 0);
+                assert_eq!(*max_count, None);
+            }
+            _ => panic!("Expected repetition pattern"),
+        }
+    }
+
+    #[test]
+    fn test_group_parsing() {
+        let mut parser = MacroPatternParser::new("($x:expr, $y:stmt)");
+        let elements = parser.parse().unwrap();
+        assert_eq!(elements.len(), 1);
+
+        match &elements[0] {
+            PatternElement::Group(group) => {
+                assert_eq!(group.len(), 3); // var, comma, var
+            }
+            _ => panic!("Expected group pattern"),
+        }
+    }
+
+    #[test]
+    fn test_fragment_type_parsing() {
+        let fragment_types = vec![
+            ("expr", FragmentType::Expr),
+            ("stmt", FragmentType::Stmt),
+            ("ident", FragmentType::Ident),
+            ("literal", FragmentType::Literal),
+            ("tt", FragmentType::TokenTree),
+            ("item", FragmentType::Item),
+            ("block", FragmentType::Block),
+            ("unknown", FragmentType::TokenTree), // default
+        ];
+
+        for (type_str, expected) in fragment_types {
+            let mut parser = MacroPatternParser::new(&format!("$x:{}", type_str));
+            let elements = parser.parse().unwrap();
+
+            match &elements[0] {
+                PatternElement::Variable { fragment_type, .. } => {
+                    assert!(matches!(fragment_type, expected));
+                }
+                _ => panic!("Expected variable pattern"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_macro_definition_parsing() {
+        let mut parser = MacroParser::new("macro~ test ($x:expr) => $x end");
+        let result = parser.parse_macro_definition().unwrap();
+        assert_eq!(result.0, "test");
+        assert_eq!(result.1.len(), 1);
+    }
+
+    #[test]
+    fn test_multiple_pattern_macro() {
+        let mut parser = MacroParser::new("macro~ test ($x:expr) => $x, () => nothing end");
+        let result = parser.parse_macro_definition().unwrap();
+        assert_eq!(result.0, "test");
+        assert_eq!(result.1.len(), 2);
+    }
+
+    #[test]
+    fn test_do_block_template() {
+        let mut parser = MacroParser::new("macro~ test () => do let x = 42; x end end");
+        let result = parser.parse_macro_definition().unwrap();
+        assert_eq!(result.0, "test");
+        assert!(result.1[0].1.contains("let x = 42"));
+    }
+
+    #[test]
+    fn test_whitespace_handling() {
+        let parser = MacroParser::new("   macro~   test   ");
+        let non_whitespace_tokens: Vec<_> = parser
+            .tokens
+            .iter()
+            .filter(|t| !matches!(t, Token::Whitespace | Token::Newline))
+            .collect();
+
+        assert_eq!(non_whitespace_tokens.len(), 4); // macro, ~, test, eof
+    }
+
+    #[test]
+    fn test_newline_handling() {
+        let parser = MacroParser::new("macro~\ntest\n");
+        assert!(parser.tokens.contains(&Token::Newline));
+    }
+
+    #[test]
+    fn test_error_handling_missing_macro_keyword() {
+        let mut parser = MacroParser::new("test => body end");
+        let result = parser.parse_macro_definition();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_handling_missing_tilde() {
+        let mut parser = MacroParser::new("macro test => body end");
+        let result = parser.parse_macro_definition();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_handling_missing_fat_arrow() {
+        let mut parser = MacroParser::new("macro~ test pattern body end");
+        let result = parser.parse_macro_definition();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_handling_missing_end() {
+        let mut parser = MacroParser::new("macro~ test pattern => body");
+        let result = parser.parse_macro_definition();
+        assert!(result.is_err());
     }
 }
