@@ -289,6 +289,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_macro_expansion");
         let _span = _span.enter();
 
+        let start = self.get_current_position();
+
         let mut statements = Vec::new();
 
         if self.match_token(&[Token::Do(ZTUP)]) {
@@ -311,6 +313,13 @@ impl Parser {
                 ));
             }
         }
+
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
+
         Ok(MacroExpansion(statements))
     }
 
@@ -545,6 +554,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "lambda_expression");
         let _span = _span.enter();
 
+        let start = self.get_current_position();
+
         let mut params = Vec::new();
         let mut return_type_anno: Option<TypeAnnotation> = None;
         let mut is_block_demi = false;
@@ -633,6 +644,12 @@ impl Parser {
             let inferred_return_type =
                 return_type_anno.or_else(|| self.infer_lambda_return_type(&expr));
 
+            let end = self.get_current_position();
+
+            if let Some(ctx) = ctx {
+                ctx.add_span(NodeId::new(), start, end);
+            }
+
             Ok(Expr::Lambda {
                 params,
                 body: Box::new(expr),
@@ -650,6 +667,8 @@ impl Parser {
     ) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_block_demi_lambda");
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         let mut body = Vec::new();
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
@@ -670,6 +689,12 @@ impl Parser {
             }
         });
 
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
+
         Ok(Expr::BlockLambda {
             params,
             body,
@@ -687,6 +712,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_block_lambda");
         let _span = _span.enter();
 
+        let start = self.get_current_position();
+
         let mut body = Vec::new();
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
             body.push(self.statement(ctx)?);
@@ -702,6 +729,12 @@ impl Parser {
                 Some(TypeAnnotation::Unit)
             }
         });
+
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
 
         Ok(Expr::BlockLambda {
             params,
@@ -1051,6 +1084,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_struct_method");
         let _span = _span.enter();
 
+        let start = self.get_current_position();
+
         let method_name = self.consume_identifier("Expected method name")?;
 
         self.consume(&Token::LParen(ZTUP), "Expected '(' after method name")?;
@@ -1117,6 +1152,11 @@ impl Parser {
 
         if !self.check(&Token::Fn((0, 0))) {
             self.consume(&Token::End(ZTUP), "Expected 'end' after method body")?;
+        }
+
+        let end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
         }
 
         Ok(StructMethod {
@@ -1319,6 +1359,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_implementation_methods");
         let _span = _span.enter();
 
+        let start = self.get_current_position();
+
         let mut methods = Vec::new();
 
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
@@ -1338,6 +1380,13 @@ impl Parser {
             &Token::End(ZTUP),
             "Expected 'end' after implementation methods",
         );
+
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
+
         Ok(methods)
     }
 
@@ -1440,6 +1489,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_impl_method");
         let _span = _span.enter();
 
+        let start = self.get_current_position();
+
         let method_name = self.consume_identifier("Expected method name")?;
 
         // Parse optional generic parameters for the method (e.g., <U>)
@@ -1475,7 +1526,7 @@ impl Parser {
         };
 
         // Support '=>' for method bodies (single-expression or block)
-        if self.match_token(&[Token::FatArrow(ZTUP)]) {
+        let result = if self.match_token(&[Token::FatArrow(ZTUP)]) {
             // Support block body: => do ... end
             if self.match_token(&[Token::Do(ZTUP)]) {
                 // Parse statements until 'end'
@@ -1524,7 +1575,15 @@ impl Parser {
                 body: statements,
                 is_public: false, // Will be set by caller
             })
+        };
+
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
         }
+
+        result
     }
 
     fn parse_type(&mut self) -> Result<TypeAnnotation> {
@@ -2002,6 +2061,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_match_pattern");
         let _span = _span.enter();
 
+        let start = self.get_current_position();
+
         // Check for wildcard pattern (_)
         if self.match_token(&[Token::Identifier(("_".to_string(), ZTUP))]) {
             return Ok(MatchPattern::Wildcard);
@@ -2061,6 +2122,12 @@ impl Parser {
                 name: ident,
                 fields,
             });
+        }
+
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
         }
 
         // Simple variable binding
@@ -2328,6 +2395,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "pipeline");
         let _span = _span.enter();
 
+        let _start = self.get_current_position();
+
         let mut expr = self.range(ctx)?;
 
         while self.match_token(&[Token::Pipe(ZTUP)]) {
@@ -2338,12 +2407,20 @@ impl Parser {
                 right: Box::new(right),
             };
         }
+
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         Ok(expr)
     }
 
     fn range(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "range");
         let _span = _span.enter();
+
+        let _start = self.get_current_position();
 
         let expr = self.logical(ctx)?;
 
@@ -2382,12 +2459,19 @@ impl Parser {
             });
         }
 
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         Ok(expr)
     }
 
     pub fn expression(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "expression");
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         self.recursive_depth += 1;
         if self.recursive_depth > 100 {
@@ -2415,7 +2499,13 @@ impl Parser {
 
         let result = self.pipeline(ctx);
 
+        let end = self.get_current_position();
+
         self.recursive_depth -= 1;
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
 
         result
     }
@@ -2426,6 +2516,8 @@ impl Parser {
     ) -> Result<Vec<(String, Expr)>> {
         let _span = tracing::span!(tracing::Level::TRACE, "record_fields");
         let _span = _span.enter();
+
+        let _start = self.get_current_position();
 
         let mut fields = Vec::new();
 
@@ -2452,6 +2544,12 @@ impl Parser {
         }
 
         self.advance();
+
+        let _end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
 
         Ok(fields)
     }
@@ -2545,6 +2643,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "logical");
         let _span = _span.enter();
 
+        let _start = self.get_current_position();
+
         let mut expr = self.comparison(ctx)?;
 
         while self.match_token(&[Token::And(ZTUP), Token::Or(ZTUP)]) {
@@ -2561,12 +2661,20 @@ impl Parser {
             };
         }
 
+        let _end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         Ok(expr)
     }
 
     fn unary(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "unary");
         let _span = _span.enter();
+
+        let _start = self.get_current_position();
 
         // Check for unary operators
         if self.match_token(&[Token::Minus(ZTUP), Token::Bang(ZTUP)]) {
@@ -2587,12 +2695,30 @@ impl Parser {
 
         // If no unary operator, delegate to postfix
         let pos = self.postfix(ctx);
+
+        let _end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         pos
     }
 
     fn postfix(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "postfix");
+        let _span = _span.enter();
+
+        let _start = self.get_current_position();
+
         let expr = self.primary(ctx)?;
-        self.postfix_with_expr(expr, ctx)
+        let result = self.postfix_with_expr(expr, ctx);
+
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+        result
     }
 
     fn postfix_with_expr(
@@ -2602,6 +2728,8 @@ impl Parser {
     ) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "postfix_with_expr", expr = ?expr);
         let _enter = _span.enter();
+
+        let start = self.get_current_position();
 
         loop {
             if self.is_at_end() {
@@ -2840,6 +2968,11 @@ impl Parser {
             }
         }
 
+        let end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
+
         Ok(expr)
     }
 
@@ -2867,6 +3000,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_named_arguments");
         let _enter = _span.enter();
 
+        let _start = self.get_current_position();
+
         let mut args = Vec::new();
 
         while !self.check(&Token::RParen(ZTUP)) {
@@ -2891,12 +3026,20 @@ impl Parser {
             }
         }
 
+        let _end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         Ok(args)
     }
 
     fn primary(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "primary");
         let _enter = _span.enter();
+
+        let start = self.get_current_position();
 
         if self.match_token(&[Token::Do(ZTUP)]) {
             // Parse block expression: do statements... [expr] end
@@ -3033,12 +3176,19 @@ impl Parser {
             }
         };
 
+        let end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
+
         Ok(expr)
     }
 
     fn parse_block_expression(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_block_expression");
         let _enter = _span.enter();
+
+        let start = self.get_current_position();
 
         let mut statements = Vec::new();
         let mut final_expr = None;
@@ -3058,6 +3208,11 @@ impl Parser {
         }
 
         self.consume(&Token::End(ZTUP), "Expected 'end' after block expression")?;
+
+        let end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
 
         Ok(Expr::BlockExpression {
             statements,
@@ -3147,6 +3302,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_if_expression");
         let _enter = _span.enter();
 
+        let _start = self.get_current_position();
+
         // Parse condition (we already consumed 'if')
         let condition = self.expression(ctx)?;
 
@@ -3174,6 +3331,11 @@ impl Parser {
 
         self.consume(&Token::End(ZTUP), "Expected 'end' after if expression")?;
 
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         Ok(Expr::IfExpression {
             condition: Box::new(condition),
             then_expr: Box::new(then_expr),
@@ -3184,6 +3346,8 @@ impl Parser {
     fn parse_function_expression(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_function_expression");
         let _enter = _span.enter();
+
+        let start = self.get_current_position();
 
         // Parse parameters
         self.consume(&Token::LParen(ZTUP), "Expected '(' after 'fn'")?;
@@ -3221,6 +3385,11 @@ impl Parser {
 
         // If there's an 'end' token, consume it
         self.match_token(&[Token::End(ZTUP)]);
+
+        let end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
 
         Ok(Expr::Lambda {
             params,
@@ -3271,6 +3440,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "comparison");
         let _enter = _span.enter();
 
+        let _start = self.get_current_position();
+
         let mut expr = self.term(ctx)?;
 
         while self.match_token(&[
@@ -3298,12 +3469,19 @@ impl Parser {
             };
         }
 
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         Ok(expr)
     }
 
     fn term(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "term");
         let _enter = _span.enter();
+
+        let _start = self.get_current_position();
 
         let mut expr = self.factor(ctx)?;
 
@@ -3321,12 +3499,19 @@ impl Parser {
             };
         }
 
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         Ok(expr)
     }
 
     fn factor(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "factor");
         let _enter = _span.enter();
+
+        let _start = self.get_current_position();
 
         let mut expr = self.exponent(ctx)?;
 
@@ -3345,12 +3530,19 @@ impl Parser {
             };
         }
 
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
         Ok(expr)
     }
 
     fn exponent(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "exponent");
         let _enter = _span.enter();
+
+        let _start = self.get_current_position();
 
         let mut expr = self.unary(ctx)?;
 
@@ -3362,6 +3554,11 @@ impl Parser {
                 operator: BinaryOperator::Exponent,
                 right: Box::new(right),
             };
+        }
+
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
         }
 
         Ok(expr)
@@ -3428,6 +3625,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_assignment_target");
         let _enter = _span.enter();
 
+        let _start = self.get_current_position();
+
         // Parse self or identifier
         let mut expr = if self.match_token(&[Token::SelfToken(ZTUP)]) {
             Expr::SelfReference
@@ -3456,6 +3655,11 @@ impl Parser {
             } else {
                 break;
             }
+        }
+
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
         }
 
         Ok(expr)
@@ -3630,6 +3834,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_array_literal");
         let _enter = _span.enter();
 
+        let _start = self.get_current_position();
+
         let mut elements = Vec::new();
 
         // Empty array case
@@ -3654,6 +3860,11 @@ impl Parser {
         }
 
         self.consume(&Token::RBracket(ZTUP), "Expected ']' after array elements")?;
+
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
 
         Ok(Expr::ArrayLiteral(elements))
     }
@@ -4945,6 +5156,31 @@ fn test_anon_record() {
     );
 }
 
+#[test]
+fn test_ast_source_span_registration() {
+    use crate::common::source::{FileId, Position, SourceMap};
+    use crate::parser::ParseContext;
+
+    let mut source_map = SourceMap::new();
+    let mut parse_context = ParseContext {
+        current_file_id: FileId(0),
+        source_map: &mut source_map,
+    };
+
+    let start = Position { line: 1, column: 1 };
+    let end = Position { line: 1, column: 5 };
+    let node_id = NodeId::new();
+
+    parse_context.add_span(node_id, start, end);
+
+    let span = parse_context.source_map.get_span(node_id);
+    assert!(span.is_some());
+    let span = span.unwrap();
+    assert_eq!(span.start, start);
+    assert_eq!(span.end, end);
+    assert_eq!(span.file_id, FileId(0));
+}
+
 // #[ignore = "Anonymous enums are not fully fleshed out yet, and may not even be in the final design or implemented at all."]
 // #[test]
 // fn test_anon_enum_no_methods() {
@@ -4978,7 +5214,7 @@ impl Parser {
             | Token::Do(_)
             | Token::If(_)
             | Token::SelfToken(_) => true,
-            Token::LBrace(_) => true, // Start of Record instance, let's hope it doesn't break anything
+            Token::LBrace(_) => true, // For record literals
             _ => false,
         }
     }
