@@ -1868,7 +1868,7 @@ impl Parser {
         }
 
         // Check for literal patterns
-        if self.check(&Token::IntegerLiteral(0))
+        if self.check(&Token::IntegerLiteral((0, (0, 0))))
             || self.check(&Token::FloatLiteral(0.0))
             || self.check(&Token::StringLiteral("".to_string()))
             || self.check(&Token::True(ZTUP))
@@ -2502,7 +2502,7 @@ impl Parser {
                     self.advance(); // consume the integer
                     expr = Expr::TupleAccess {
                         tuple: Box::new(expr),
-                        index: *idx as usize,
+                        index: idx.0 as usize,
                     };
                 } else {
                     // Check if this is a method call (property followed by parentheses)
@@ -2773,7 +2773,7 @@ impl Parser {
         let expr = match self.peek().clone() {
             Token::IntegerLiteral(n) => {
                 self.advance();
-                Expr::Literal(Literal::Integer(n))
+                Expr::Literal(Literal::Integer(n.0))
             }
             Token::FloatLiteral(n) => {
                 self.advance();
@@ -3039,7 +3039,7 @@ impl Parser {
     fn peek(&self) -> &Token {
         if self.is_at_end() {
             // Return a placeholder token if we're at the end
-            &Token::IntegerLiteral(0)
+            &Token::IntegerLiteral((0, ZTUP))
         } else {
             &self.tokens[self.current]
         }

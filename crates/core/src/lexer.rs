@@ -20,6 +20,13 @@ fn word_callback(lex: &mut LLexer<Token>) -> (usize, usize) {
     (line, column)
 }
 
+fn int_lit_callback(lex: &mut LLexer<Token>) -> (i64, (usize, usize)) {
+    let value = lex.slice().parse().unwrap();
+    let position = word_callback(lex);
+
+    (value, position)
+}
+
 #[derive(Debug, Logos, Clone)]
 #[logos(extras = (usize, usize))]
 #[logos(skip(r"[ \t\f]+"))] // Skip whitespace
@@ -161,8 +168,8 @@ pub enum Token {
     })]
     StringLiteral(String),
 
-    #[regex(r#"[0-9]+"#, |lex| lex.slice().parse().ok())]
-    IntegerLiteral(i64),
+    #[regex(r#"[0-9]+"#, int_lit_callback)]
+    IntegerLiteral((i64, (usize, usize))),
 
     #[regex(r#"[0-9]+\.[0-9]+"#, |lex| lex.slice().parse().ok())]
     FloatLiteral(f64),
@@ -279,7 +286,7 @@ impl Display for Token {
             Token::Bang((x, y)) => write!(f, "! at {},{}", x, y),
             Token::Identifier(s) => write!(f, "{}", s),
             Token::StringLiteral(s) => write!(f, "\"{}\"", s),
-            Token::IntegerLiteral(n) => write!(f, "{}", n),
+            Token::IntegerLiteral(n) => write!(f, "{} at ({}, {})", n.0, n.1.0, n.1.1),
             Token::FloatLiteral(n) => write!(f, "{}", n),
             Token::If((x, y)) => write!(f, "if at {},{}", x, y),
             Token::Else((x, y)) => write!(f, "else at {},{}", x, y),
@@ -935,7 +942,7 @@ fn main()
         println~(y)
     end
 end
-            "#;
+                "#;
 
         let mut lexer = Lexer::new(input);
         let tokens = lexer.collect_tokens().unwrap();
@@ -967,7 +974,11 @@ end
             tokens[6],
             Token::Equals((0, 0)),
         );
-        assert_eq!(tokens[7], Token::IntegerLiteral(42));
+        assert!(
+            matches!(tokens[7], Token::IntegerLiteral((42, (2, 12)))),
+            "Expected integer literal at position (2, 12), got {}",
+            tokens[7]
+        );
         assert!(
             matches!(tokens[8], Token::Let((3, 4))),
             "Expected {} ",
@@ -997,10 +1008,9 @@ end
             tokens[14],
             Token::Greater((0, 0))
         );
-        assert_eq!(tokens[15], Token::IntegerLiteral(0));
-        assert_eq!(
-            tokens[16],
-            Token::Then((0, 0)),
+        assert!(matches!(tokens[15], Token::IntegerLiteral((0, _))));
+        assert!(
+            matches!(tokens[16], Token::Then(_)),
             "Expected {}, got {}",
             tokens[16],
             Token::Then((0, 0))
