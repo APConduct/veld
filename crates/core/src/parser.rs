@@ -190,13 +190,14 @@ impl Parser {
         self.declaration(Some(context))
     }
 
-    fn declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
+    fn declaration(&mut self, mut ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "declaration");
         let _span = _span.enter();
 
         let start = self.get_current_position();
+
         let res = if self.is_declaration_keyword() {
-            self.variable_declaration()
+            self.variable_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Enum(ZTUP)]) {
             self.enum_declaration()
         } else if self.match_token(&[Token::Plex(ZTUP)]) {
@@ -251,8 +252,8 @@ impl Parser {
             self.statement()
         };
         let end = self.get_current_position();
-        if ctx.is_some() {
-            ctx.unwrap().add_span(NodeId::new(), start, end);
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
         }
         res
     }
@@ -1663,6 +1664,8 @@ impl Parser {
         );
         let _span = _span.enter();
 
+        let start = self.get_current_position();
+
         // Determine the variable kind
         let var_kind = if matches!(self.peek(), Token::Let(_)) {
             self.advance(); // consume the let token
@@ -1701,16 +1704,20 @@ impl Parser {
         // Optional semicolon
         self.match_token(&[Token::Semicolon(ZTUP)]);
 
-        Ok(Statement::VariableDeclaration {
+        let res = Ok(Statement::VariableDeclaration {
             name,
             var_kind,
             type_annotation,
             value,
             is_public,
-        })
+        });
+        let end = self.get_current_position();
+        // ctx.expect("Failed to unwrap ParseContext in variable_declaration")
+        //     .add_span(NodeId::new(), start, end);
+        res
     }
 
-    fn variable_declaration(&mut self) -> Result<Statement> {
+    fn variable_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "variable_declaration");
         let _span = _span.enter();
 
@@ -1774,7 +1781,7 @@ impl Parser {
             Ok(Statement::Continue)
         } else if self.is_declaration_keyword() {
             // Handle variable declarations (let, var, const)
-            self.variable_declaration()
+            self.variable_declaration(None)
         } else if self.check_assignment() {
             self.assignment_statement()
         } else {

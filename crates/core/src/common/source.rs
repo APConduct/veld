@@ -114,7 +114,7 @@ pub struct FileInfo {
     pub encoding: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ParseContext<'a> {
     pub current_file_id: FileId,
     pub source_map: &'a mut SourceMap,
