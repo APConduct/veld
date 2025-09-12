@@ -205,9 +205,9 @@ impl Parser {
         } else if self.match_token(&[Token::Mod(ZTUP)]) {
             self.module_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Import(ZTUP)]) {
-            self.import_declaration()
+            self.import_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Macro(ZTUP)]) {
-            self.macro_declaration()
+            self.macro_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Pub(ZTUP)]) {
             // Handle public declarations
             if self.match_token(&[Token::Fn(ZTUP)]) {
@@ -225,7 +225,7 @@ impl Parser {
             } else if self.match_token(&[Token::Mod(ZTUP)]) {
                 self.module_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Import(ZTUP)]) {
-                self.import_declaration_with_visibility(true)
+                self.import_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if matches!(self.peek(), Token::Let(_))
                 || self.peek() == &Token::Var(ZTUP)
                 || self.peek() == &Token::Const(ZTUP)
@@ -312,9 +312,11 @@ impl Parser {
         Ok(MacroExpansion(statements))
     }
 
-    fn macro_declaration(&mut self) -> Result<Statement> {
+    fn macro_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "macro_declaration");
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         // Consume the tilde after 'macro'
         self.consume(&Token::Tilde(ZTUP), "Expected '~' after 'macro'")?;
@@ -385,11 +387,19 @@ impl Parser {
                 ));
             }
 
-            Ok(Statement::MacroDeclaration {
+            let result = Ok(Statement::MacroDeclaration {
                 name,
                 patterns: Vec::new(), // No patterns for simple macros
                 body: Some(body),
-            })
+            });
+
+            let end = self.get_current_position();
+
+            if ctx.is_some() {
+                ctx.unwrap().add_span(NodeId::new(), start, end);
+            }
+
+            result
         }
     }
 
@@ -3356,9 +3366,15 @@ impl Parser {
         self.module_declaration_with_visibility(false, ctx)
     }
 
-    fn import_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn import_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "import_declaration_with_visibility");
         let _enter = _span.enter();
+
+        let start = self.get_current_position();
 
         // parse import path
         let mut path = vec![self.consume_identifier("Expected module name")?];
@@ -3424,19 +3440,27 @@ impl Parser {
             items.push(ImportItem::All);
         }
 
-        Ok(Statement::ImportDeclaration {
+        let res = Ok(Statement::ImportDeclaration {
             path,
             items,
             alias,
             is_public,
-        })
+        });
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        res
     }
 
-    fn import_declaration(&mut self) -> Result<Statement> {
+    fn import_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "import_declaration");
         let _enter = _span.enter();
 
-        self.import_declaration_with_visibility(false)
+        self.import_declaration_with_visibility(false, ctx)
     }
 
     fn parse_array_literal(&mut self) -> Result<Expr> {
