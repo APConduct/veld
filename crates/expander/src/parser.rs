@@ -272,6 +272,7 @@ impl MacroParser {
         self.tokens.get(self.position).unwrap_or(&Token::Eof)
     }
 
+    #[allow(unused)]
     fn peek_token(&self) -> &Token {
         self.tokens.get(self.position + 1).unwrap_or(&Token::Eof)
     }
@@ -573,6 +574,10 @@ impl MacroPatternParser {
                 self.parser.advance();
                 Ok(PatternElement::Literal(value))
             }
+            Token::Comma => {
+                self.parser.advance();
+                Ok(PatternElement::Literal(",".to_string()))
+            }
             _ => Err(ExpansionError::InvalidSyntaxGenerated {
                 macro_name: "pattern".to_string(),
                 error: format!(
@@ -638,12 +643,6 @@ impl MacroPatternParser {
         while !matches!(self.parser.current_token(), Token::RightParen | Token::Eof) {
             group_elements.push(self.parse_pattern_element()?);
             self.parser.skip_whitespace();
-
-            // Skip optional comma
-            if matches!(self.parser.current_token(), Token::Comma) {
-                self.parser.advance();
-                self.parser.skip_whitespace();
-            }
         }
 
         // Consume ')'
@@ -937,13 +936,13 @@ mod tests {
             ("unknown", FragmentType::TokenTree), // default
         ];
 
-        for (type_str, expected) in fragment_types {
+        for (type_str, _expected) in fragment_types {
             let mut parser = MacroPatternParser::new(&format!("$x:{}", type_str));
             let elements = parser.parse().unwrap();
 
             match &elements[0] {
                 PatternElement::Variable { fragment_type, .. } => {
-                    assert!(matches!(fragment_type, expected));
+                    assert!(matches!(fragment_type, _expected));
                 }
                 _ => panic!("Expected variable pattern"),
             }
