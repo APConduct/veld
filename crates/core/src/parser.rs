@@ -231,7 +231,7 @@ impl Parser {
                 || self.peek() == &Token::Const(ZTUP)
             {
                 // Handle public variable declarations
-                self.variable_declaration_with_visibility(true)
+                self.variable_declaration_with_visibility(true, ctx.as_deref_mut())
             } else {
                 Err(VeldError::ParserError(
                     "Expected function, proc, struct, or variable declaration after 'pub'"
@@ -1657,7 +1657,11 @@ impl Parser {
         }
     }
 
-    fn variable_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn variable_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(
             tracing::Level::TRACE,
             "variable_declaration_with_visibility"
@@ -1712,8 +1716,10 @@ impl Parser {
             is_public,
         });
         let end = self.get_current_position();
-        // ctx.expect("Failed to unwrap ParseContext in variable_declaration")
-        //     .add_span(NodeId::new(), start, end);
+        if ctx.is_some() {
+            ctx.expect("Failed to unwrap ParseContext in variable_declaration")
+                .add_span(NodeId::new(), start, end);
+        }
         res
     }
 
@@ -1722,7 +1728,7 @@ impl Parser {
         let _span = _span.enter();
 
         let is_public = self.match_token(&[Token::Pub(ZTUP)]);
-        self.variable_declaration_with_visibility(is_public)
+        self.variable_declaration_with_visibility(is_public, ctx)
     }
 
     fn parse_macro_invocation(&mut self) -> Result<Statement> {
