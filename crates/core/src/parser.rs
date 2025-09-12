@@ -9,7 +9,7 @@ use crate::ast::{
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
     StructMethod, TypeAnnotation, VarKind,
 };
-use crate::common::source::{ParseContext, Position, SourceMap};
+use crate::common::source::{FileId, NodeId, ParseContext, Position, SourceMap, Span};
 use crate::error::{Result, VeldError};
 use crate::lexer::{Lexer, Token};
 
@@ -35,8 +35,14 @@ impl Parser {
     pub fn get_current_position(&self) -> Option<Position> {
         if let Some(token) = self.tokens.get(self.current) {
             Some(Position {
-                line: token.source_pos().unwrap().line,
-                column: token.source_pos().unwrap().column,
+                line: token
+                    .source_pos()
+                    .expect(format!("No location found for current token: {}", token).as_str())
+                    .line,
+                column: token
+                    .source_pos()
+                    .expect(format!("No location found for current token: {}", token).as_str())
+                    .column,
             })
         } else {
             None
@@ -76,7 +82,7 @@ impl Parser {
                 )));
             }
 
-            let stmt = self.declaration()?;
+            let stmt = self.declaration(None)?;
             statements.push(stmt);
         }
         Ok(statements)
@@ -190,14 +196,15 @@ impl Parser {
 
     // TODO: propagate context
     fn declaration_with_context(&mut self, context: &mut ParseContext) -> Result<Statement> {
-        self.declaration()
+        self.declaration(Some(context))
     }
 
-    fn declaration(&mut self) -> Result<Statement> {
+    fn declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "declaration");
         let _span = _span.enter();
 
-        if self.is_declaration_keyword() {
+        let start = self.get_current_position();
+        let res = if self.is_declaration_keyword() {
             self.variable_declaration()
         } else if self.match_token(&[Token::Enum(ZTUP)]) {
             self.enum_declaration()
@@ -205,19 +212,19 @@ impl Parser {
             self.plex_declaration_with_visibility(false)
         } else if self.match_token(&[Token::Mod(ZTUP)]) {
             self.module_declaration()
-        } else if self.match_token(&[Token::Import((0, 0))]) {
+        } else if self.match_token(&[Token::Import(ZTUP)]) {
             self.import_declaration()
         } else if self.match_token(&[Token::Macro(ZTUP)]) {
             self.macro_declaration()
         } else if self.match_token(&[Token::Pub(ZTUP)]) {
             // Handle public declarations
-            if self.match_token(&[Token::Fn((0, 0))]) {
+            if self.match_token(&[Token::Fn(ZTUP)]) {
                 self.function_declaration_with_visibility(true)
-            } else if self.match_token(&[Token::Proc((0, 0))]) {
+            } else if self.match_token(&[Token::Proc(ZTUP)]) {
                 self.proc_declaration_with_visibility(true)
-            } else if self.match_token(&[Token::Struct((0, 0))]) {
+            } else if self.match_token(&[Token::Struct(ZTUP)]) {
                 self.struct_declaration_with_visibility(true)
-            } else if self.match_token(&[Token::Kind((0, 0))]) {
+            } else if self.match_token(&[Token::Kind(ZTUP)]) {
                 self.kind_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Enum(ZTUP)]) {
                 self.enum_declaration_with_visibility(true)
@@ -225,7 +232,7 @@ impl Parser {
                 self.plex_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Mod(ZTUP)]) {
                 self.module_declaration_with_visibility(true)
-            } else if self.match_token(&[Token::Import((0, 0))]) {
+            } else if self.match_token(&[Token::Import(ZTUP)]) {
                 self.import_declaration_with_visibility(true)
             } else if matches!(self.peek(), Token::Let(_))
                 || self.peek() == &Token::Var(ZTUP)
@@ -239,19 +246,28 @@ impl Parser {
                         .to_string(),
                 ))
             }
-        } else if self.match_token(&[Token::Fn((0, 0))]) {
+        } else if self.match_token(&[Token::Fn(ZTUP)]) {
             self.function_declaration()
-        } else if self.match_token(&[Token::Proc((0, 0))]) {
+        } else if self.match_token(&[Token::Proc(ZTUP)]) {
             self.proc_declaration()
-        } else if self.match_token(&[Token::Struct((0, 0))]) {
+        } else if self.match_token(&[Token::Struct(ZTUP)]) {
             self.struct_declaration()
-        } else if self.match_token(&[Token::Kind((0, 0))]) {
+        } else if self.match_token(&[Token::Kind(ZTUP)]) {
             self.kind_declaration()
         } else if self.match_token(&[Token::Impl(ZTUP)]) {
             self.implementation_declaration()
         } else {
             self.statement()
+        };
+        let end = self.get_current_position();
+        if ctx.is_some() {
+            ctx.unwrap().add_span(
+                NodeId::new(),
+                start.expect("No location found for last token for span start"),
+                end.expect("No location found for last token for span end"),
+            );
         }
+        res
     }
 
     fn parse_macro_pattern(&mut self) -> Result<MacroPattern> {
@@ -287,12 +303,12 @@ impl Parser {
 
         if self.match_token(&[Token::Do(ZTUP)]) {
             while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                statements.push(self.declaration()?);
+                statements.push(self.declaration(None)?);
             }
             self.consume(&Token::End(ZTUP), "Expected 'end' after macro expansion")?;
         } else {
             // Try to parse a declaration; if that fails, parse an expression as a statement
-            if let Ok(stmt) = self.declaration() {
+            if let Ok(stmt) = self.declaration(None) {
                 statements.push(stmt);
             } else if self.is_start_of_expression() {
                 let expr = self.expression()?;
@@ -367,7 +383,7 @@ impl Parser {
                 if self.match_token(&[Token::Do(ZTUP)]) {
                     // Multiple statements macro body with 'do'/'end'
                     while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                        body.push(self.declaration()?);
+                        body.push(self.declaration(None)?);
                     }
                     self.consume(&Token::End(ZTUP), "Expected 'end' after macro body")?;
                 } else {
@@ -1077,7 +1093,7 @@ impl Parser {
         let mut body = Vec::new();
 
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-            body.push(self.declaration()?);
+            body.push(self.declaration(None)?);
         }
 
         self.consume(&Token::End(ZTUP), "Expected 'end' after module body")?;
@@ -3587,7 +3603,7 @@ impl Parser {
             let default_impl = if self.match_token(&[Token::Do(ZTUP)]) {
                 let mut body = Vec::new();
                 while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                    body.push(self.declaration()?);
+                    body.push(self.declaration(None)?);
                 }
                 self.consume(&Token::End(ZTUP), "Expected 'end' after method body")?;
                 Some(body)
@@ -3646,7 +3662,7 @@ impl Parser {
                 let default_impl = if self.match_token(&[Token::Do(ZTUP)]) {
                     let mut body = Vec::new();
                     while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                        body.push(self.declaration()?);
+                        body.push(self.declaration(None)?);
                     }
                     self.consume(&Token::End(ZTUP), "Expected 'end' after method body")?;
                     Some(body)

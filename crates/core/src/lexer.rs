@@ -753,10 +753,22 @@ impl Token {
                 line: *x as u32,
                 column: *y as u32,
             }),
-            Token::Identifier(_) => None,
-            Token::StringLiteral(_) => None,
-            Token::IntegerLiteral(_) => None,
-            Token::FloatLiteral(_) => None,
+            Token::Identifier(word) => Some(Position {
+                line: word.1.0 as u32,
+                column: word.1.1 as u32,
+            }),
+            Token::StringLiteral(word) => Some(Position {
+                line: word.1.0 as u32,
+                column: word.1.1 as u32,
+            }),
+            Token::IntegerLiteral(int) => Some(Position {
+                line: int.1.0 as u32,
+                column: int.1.1 as u32,
+            }),
+            Token::FloatLiteral(float) => Some(Position {
+                line: float.1.0 as u32,
+                column: float.1.1 as u32,
+            }),
         }
     }
 }
