@@ -9,7 +9,6 @@ use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fmt::format;
 use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
@@ -20,6 +19,7 @@ pub mod value;
 pub use scope::Scope;
 pub use value::Value;
 
+#[derive(Debug)]
 enum PatternToken {
     Literal(String),
     Variable(String),
@@ -30,19 +30,13 @@ enum PatternToken {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct StructInfo {
     fields: Vec<(String, TypeAnnotation)>,
     generic_params: Vec<GenericArgument>,
 }
 
 impl StructInfo {
-    pub fn new() -> Self {
-        Self {
-            fields: Vec::new(),
-            generic_params: Vec::new(),
-        }
-    }
     pub fn with_fields(fields: Vec<(String, TypeAnnotation)>) -> Self {
         Self {
             fields,
@@ -962,8 +956,6 @@ struct BlockScope1 {
 struct If1 {
     stmts: IntoIter<Statement>,
 }
-
-struct While1 {}
 
 enum Frame {
     BlockScope1(BlockScope1),
