@@ -1,23 +1,25 @@
-use crate::module::{ExportedItem, ModuleManager};
 use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
-use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
 use std::vec::IntoIter;
-use veld_ast::{
+use veld_common::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, FunctionDeclaration, GenericArgument, ImportItem,
     Literal, MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement,
     StructField, StructMethod, TypeAnnotation, UnaryOperator, VarKind,
 };
+use veld_common::types::Type;
+use veld_common::types::checker::TypeChecker;
+use veld_common::value::module::{ExportedItem, ModuleManager};
+
+use veld_common::value::numeric::{FloatValue, IntegerValue, NumericValue};
 use veld_error::{Result, VeldError};
 
-pub mod scope;
-pub mod value;
-pub use scope::Scope;
-pub use value::Value;
+// pub mod value;
+pub use super::scope::Scope;
+pub use veld_common::value::Value;
 
 #[derive(Debug)]
 enum PatternToken {
@@ -2445,7 +2447,7 @@ impl Interpreter {
                                         // Look up the property in module.exports
                                         if let Some(export) = module.exports.get(property) {
                                             // If it's a function, call as function
-                                            if let crate::module::ExportedItem::Function(idx) =
+                                            if let veld_common::value::module::ExportedItem::Function(idx) =
                                                 export
                                             {
                                                 if let Some(Statement::FunctionDeclaration {
@@ -2529,7 +2531,10 @@ impl Interpreter {
                                 // Check if this is a module function call
                                 if let Value::Module(module) = &obj_value {
                                     if let Some(export) = module.exports.get(&method) {
-                                        if let crate::module::ExportedItem::Function(idx) = export {
+                                        if let veld_common::value::module::ExportedItem::Function(
+                                            idx,
+                                        ) = export
+                                        {
                                             if let Some(Statement::FunctionDeclaration {
                                                 params,
                                                 body,
@@ -2676,9 +2681,9 @@ impl Interpreter {
                                         Value::Numeric(ref num_val) => {
                                             if let Ok(i) = num_val.to_i32() {
                                                 let idx = match i {
-                                                    crate::types::NumericValue::Integer(
-                                                        int_val,
-                                                    ) => int_val.as_i64().unwrap_or(0),
+                                                    NumericValue::Integer(int_val) => {
+                                                        int_val.as_i64().unwrap_or(0)
+                                                    }
                                                     _ => {
                                                         return Err(VeldError::RuntimeError(
                                                             "Array index must be an integer"
@@ -4106,7 +4111,7 @@ impl Interpreter {
         // Substring
         self.native_method_registry
                             .register("str", "substring", |args| {
-                                use crate::types::numeric::IntegerValue;
+                                use veld_common::value::numeric::IntegerValue;
                                 if let (
                                     Some(Value::String(s)),
                                     Some(Value::Numeric(NumericValue::Integer(start))),
@@ -4182,7 +4187,7 @@ impl Interpreter {
         // Repeat
         self.native_method_registry
             .register("str", "repeat", |args| {
-                use crate::types::numeric::IntegerValue;
+                use veld_common::value::numeric::IntegerValue;
                 if let (
                     Some(Value::String(s)),
                     Some(Value::Numeric(NumericValue::Integer(count))),
@@ -4216,7 +4221,7 @@ impl Interpreter {
         // Padding
         self.native_method_registry
             .register("str", "pad_start", |args| {
-                use crate::types::numeric::IntegerValue;
+                use veld_common::value::numeric::IntegerValue;
                 if let (
                     Some(Value::String(s)),
                     Some(Value::Numeric(NumericValue::Integer(length))),
@@ -4253,7 +4258,7 @@ impl Interpreter {
 
         self.native_method_registry
             .register("str", "pad_end", |args| {
-                use crate::types::numeric::IntegerValue;
+                use veld_common::value::numeric::IntegerValue;
                 if let (
                     Some(Value::String(s)),
                     Some(Value::Numeric(NumericValue::Integer(length))),
@@ -4792,7 +4797,7 @@ impl Interpreter {
                 // Try to resolve as an exported item first
                 if let Some(export) = module.exports.get(property) {
                     match export {
-                        crate::module::ExportedItem::Function(idx) => {
+                        ExportedItem::Function(idx) => {
                             // Look up the function statement in module.statements
                             if let Some(Statement::FunctionDeclaration {
                                 params,
@@ -4814,31 +4819,25 @@ impl Interpreter {
                                 )))
                             }
                         }
-                        crate::module::ExportedItem::Struct(idx) => {
+                        veld_common::value::module::ExportedItem::Struct(idx) => {
                             Err(VeldError::RuntimeError(format!(
                                 "Struct '{}' exported from module '{}' is not directly accessible yet (implement struct resolution here)",
                                 property, module.name
                             )))
                         }
-                        crate::module::ExportedItem::Variable(idx) => {
-                            Err(VeldError::RuntimeError(format!(
-                                "Variable '{}' exported from module '{}' is not directly accessible yet (implement variable resolution here)",
-                                property, module.name
-                            )))
-                        }
-                        crate::module::ExportedItem::Kind(idx) => {
-                            Err(VeldError::RuntimeError(format!(
-                                "Kind '{}' exported from module '{}' is not directly accessible yet (implement kind resolution here)",
-                                property, module.name
-                            )))
-                        }
-                        crate::module::ExportedItem::Enum(idx) => {
-                            Err(VeldError::RuntimeError(format!(
-                                "Enum '{}' exported from module '{}' is not directly accessible yet (implement enum resolution here)",
-                                property, module.name
-                            )))
-                        }
-                        crate::module::ExportedItem::Module(submod_name) => {
+                        ExportedItem::Variable(idx) => Err(VeldError::RuntimeError(format!(
+                            "Variable '{}' exported from module '{}' is not directly accessible yet (implement variable resolution here)",
+                            property, module.name
+                        ))),
+                        ExportedItem::Kind(idx) => Err(VeldError::RuntimeError(format!(
+                            "Kind '{}' exported from module '{}' is not directly accessible yet (implement kind resolution here)",
+                            property, module.name
+                        ))),
+                        ExportedItem::Enum(idx) => Err(VeldError::RuntimeError(format!(
+                            "Enum '{}' exported from module '{}' is not directly accessible yet (implement enum resolution here)",
+                            property, module.name
+                        ))),
+                        ExportedItem::Module(submod_name) => {
                             if let Some(submodule) = self.module_manager.get_module(submod_name) {
                                 Ok(Value::Module(submodule.clone()))
                             } else {
@@ -6045,17 +6044,16 @@ impl Interpreter {
                             self.current_scope_mut().set(name.clone(), function);
 
                             // Also add function to type environment for type checking
-                            let param_types: Vec<crate::types::Type> = params
+                            let param_types: Vec<Type> = params
                                 .iter()
                                 .map(|(_, type_annotation)| {
-                                    crate::types::Type::from_annotation(type_annotation, None)
-                                        .unwrap_or(crate::types::Type::Any)
+                                    Type::from_annotation(type_annotation, None)
+                                        .unwrap_or(Type::Any)
                                 })
                                 .collect();
                             let return_type =
-                                crate::types::Type::from_annotation(return_type, None)
-                                    .unwrap_or(crate::types::Type::Any);
-                            let function_type = crate::types::Type::Function {
+                                Type::from_annotation(return_type, None).unwrap_or(Type::Any);
+                            let function_type = Type::Function {
                                 params: param_types,
                                 return_type: Box::new(return_type),
                             };
@@ -6080,7 +6078,7 @@ impl Interpreter {
                                     .type_checker
                                     .env()
                                     .from_annotation(&field.type_annotation, None)
-                                    .unwrap_or(crate::types::Type::Any); // Fallback to Any type if conversion fails
+                                    .unwrap_or(Type::Any); // Fallback to Any type if conversion fails
                                 field_types.insert(field.name.clone(), field_type);
                             }
 
@@ -6089,7 +6087,7 @@ impl Interpreter {
 
                             // Also register the struct as an identifier in the type environment
                             // This allows struct types to be used in property access like Vec.new
-                            let struct_type = crate::types::Type::Generic {
+                            let struct_type = Type::Generic {
                                 base: name.clone(),
                                 type_args: vec![],
                             };
@@ -6129,9 +6127,8 @@ impl Interpreter {
                                                 let param_name = match &generic_arg.name {
                                                     Some(name) => name.clone(),
                                                     None => {
-                                                        if let veld_ast::TypeAnnotation::Basic(
-                                                            base_name,
-                                                        ) = &generic_arg.type_annotation
+                                                        if let TypeAnnotation::Basic(base_name) =
+                                                            &generic_arg.type_annotation
                                                         {
                                                             base_name.clone()
                                                         } else {
@@ -6149,7 +6146,7 @@ impl Interpreter {
                                                     let param_name = match &generic_arg.name {
                                                         Some(name) => name.clone(),
                                                         None => {
-                                                            if let veld_ast::TypeAnnotation::Basic(
+                                                            if let TypeAnnotation::Basic(
                                                                 base_name,
                                                             ) = &generic_arg.type_annotation
                                                             {
@@ -6164,22 +6161,22 @@ impl Interpreter {
                                                         .add_type_param(&param_name);
                                                 }
 
-                                                let param_types: Vec<crate::types::Type> = method
+                                                let param_types: Vec<Type> = method
                                                     .params
                                                     .iter()
                                                     .map(|(_, type_annotation)| {
                                                         self.type_checker
                                                             .env()
                                                             .from_annotation(type_annotation, None)
-                                                            .unwrap_or(crate::types::Type::Any)
+                                                            .unwrap_or(Type::Any)
                                                     })
                                                     .collect();
                                                 let return_type = self
                                                     .type_checker
                                                     .env()
                                                     .from_annotation(&method.return_type, None)
-                                                    .unwrap_or(crate::types::Type::Any);
-                                                let function_type = crate::types::Type::Function {
+                                                    .unwrap_or(Type::Any);
+                                                let function_type = Type::Function {
                                                     params: param_types,
                                                     return_type: Box::new(return_type),
                                                 };
@@ -6219,9 +6216,8 @@ impl Interpreter {
                                                 let param_name = match &generic_arg.name {
                                                     Some(name) => name.clone(),
                                                     None => {
-                                                        if let veld_ast::TypeAnnotation::Basic(
-                                                            base_name,
-                                                        ) = &generic_arg.type_annotation
+                                                        if let TypeAnnotation::Basic(base_name) =
+                                                            &generic_arg.type_annotation
                                                         {
                                                             base_name.clone()
                                                         } else {
@@ -6239,7 +6235,7 @@ impl Interpreter {
                                                     let param_name = match &generic_arg.name {
                                                         Some(name) => name.clone(),
                                                         None => {
-                                                            if let veld_ast::TypeAnnotation::Basic(
+                                                            if let TypeAnnotation::Basic(
                                                                 base_name,
                                                             ) = &generic_arg.type_annotation
                                                             {
@@ -6254,22 +6250,22 @@ impl Interpreter {
                                                         .add_type_param(&param_name);
                                                 }
 
-                                                let param_types: Vec<crate::types::Type> = method
+                                                let param_types: Vec<Type> = method
                                                     .params
                                                     .iter()
                                                     .map(|(_, type_annotation)| {
                                                         self.type_checker
                                                             .env()
                                                             .from_annotation(type_annotation, None)
-                                                            .unwrap_or(crate::types::Type::Any)
+                                                            .unwrap_or(Type::Any)
                                                     })
                                                     .collect();
                                                 let return_type = self
                                                     .type_checker
                                                     .env()
                                                     .from_annotation(&method.return_type, None)
-                                                    .unwrap_or(crate::types::Type::Any);
-                                                let function_type = crate::types::Type::Function {
+                                                    .unwrap_or(Type::Any);
+                                                let function_type = Type::Function {
                                                     params: param_types,
                                                     return_type: Box::new(return_type),
                                                 };
@@ -6308,26 +6304,26 @@ impl Interpreter {
                         self.enums.insert(enum_name.clone(), variants.clone());
                         // Register the enum in the type environment for type checking
                         fn convert_ast_enum_variant_to_base(
-                            ast_variant: &veld_ast::EnumVariant,
-                        ) -> crate::types::EnumVariant {
+                            ast_variant: &EnumVariant,
+                        ) -> veld_common::types::EnumVariant {
                             match &ast_variant.fields {
-                                None => crate::types::EnumVariant::Simple,
+                                None => veld_common::types::EnumVariant::Simple,
                                 Some(fields) => {
                                     // For now, treat all as Tuple (adjust if you support named fields)
-                                    let tuple_types: Vec<crate::types::Type> = fields
+                                    let tuple_types: Vec<Type> = fields
                                         .iter()
                                         .map(|anno| {
-                                            crate::types::Type::from_annotation(anno, None)
-                                                .unwrap_or(crate::types::Type::Any)
+                                            veld_common::types::Type::from_annotation(anno, None)
+                                                .unwrap_or(veld_common::types::Type::Any)
                                         })
                                         .collect();
-                                    crate::types::EnumVariant::Tuple(tuple_types)
+                                    veld_common::types::EnumVariant::Tuple(tuple_types)
                                 }
                             }
                         }
                         let variant_map: std::collections::HashMap<
                             String,
-                            crate::types::EnumVariant,
+                            veld_common::types::EnumVariant,
                         > = variants
                             .iter()
                             .map(|v| (v.name.clone(), convert_ast_enum_variant_to_base(v)))
@@ -6336,7 +6332,7 @@ impl Interpreter {
 
                         // Also register the enum as an identifier in the type environment
                         // This allows enum types to be used in property access like Option.None
-                        let enum_type = crate::types::Type::Generic {
+                        let enum_type = Type::Generic {
                             base: enum_name.clone(),
                             type_args: vec![],
                         };
@@ -6384,7 +6380,7 @@ impl Interpreter {
                                         let param_name = match &generic_arg.name {
                                             Some(name) => name.clone(),
                                             None => {
-                                                if let veld_ast::TypeAnnotation::Basic(base_name) =
+                                                if let TypeAnnotation::Basic(base_name) =
                                                     &generic_arg.type_annotation
                                                 {
                                                     base_name.clone()
@@ -6403,9 +6399,8 @@ impl Interpreter {
                                             let param_name = match &generic_arg.name {
                                                 Some(name) => name.clone(),
                                                 None => {
-                                                    if let veld_ast::TypeAnnotation::Basic(
-                                                        base_name,
-                                                    ) = &generic_arg.type_annotation
+                                                    if let TypeAnnotation::Basic(base_name) =
+                                                        &generic_arg.type_annotation
                                                     {
                                                         base_name.clone()
                                                     } else {
@@ -6416,22 +6411,22 @@ impl Interpreter {
                                             self.type_checker.env().add_type_param(&param_name);
                                         }
 
-                                        let param_types: Vec<crate::types::Type> = method
+                                        let param_types: Vec<Type> = method
                                             .params
                                             .iter()
                                             .map(|(_, type_annotation)| {
                                                 self.type_checker
                                                     .env()
                                                     .from_annotation(type_annotation, None)
-                                                    .unwrap_or(crate::types::Type::Any)
+                                                    .unwrap_or(Type::Any)
                                             })
                                             .collect();
                                         let return_type = self
                                             .type_checker
                                             .env()
                                             .from_annotation(&method.return_type, None)
-                                            .unwrap_or(crate::types::Type::Any);
-                                        let function_type = crate::types::Type::Function {
+                                            .unwrap_or(veld_common::types::Type::Any);
+                                        let function_type = veld_common::types::Type::Function {
                                             params: param_types,
                                             return_type: Box::new(return_type),
                                         };
@@ -6495,7 +6490,7 @@ impl Interpreter {
         self.enums.insert("Ordering".to_string(), ordering_variants);
 
         let mut add_kind_methods = HashMap::new();
-        use crate::types::Type;
+        use veld_common::types::Type;
 
         let add_method_type = Type::Function {
             params: vec![

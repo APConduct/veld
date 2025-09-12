@@ -1,7 +1,12 @@
-use super::super::interpreter::{BinaryOperator, Statement, TypeAnnotation};
-use super::super::types::{NumericValue, Type};
+use super::ast::{Statement, TypeAnnotation};
+use super::types::Type;
 use std::collections::HashMap;
 use veld_error::{Result, VeldError};
+pub mod module;
+pub mod numeric;
+pub mod numeric_ops;
+use module::Module;
+use numeric::NumericValue;
 
 #[derive(Debug, Clone, PartialEq)]
 // Anonymous struct like: { field1: Type, field2: Type }
@@ -48,7 +53,7 @@ pub enum Value {
     Break,
     Continue,
 
-    Module(crate::module::Module),
+    Module(Module),
 }
 
 impl Value {
@@ -115,7 +120,7 @@ impl Value {
         }
     }
 
-    pub fn perform_binary_op(&self, op: &BinaryOperator, rhs: &Value) -> Result<Value> {
+    pub fn perform_binary_op(&self, op: &super::ast::BinaryOperator, rhs: &Value) -> Result<Value> {
         let span = tracing::debug_span!("binary_op", op = ?op, lhs = ?self, rhs = ?rhs);
         let _enter = span.enter();
 

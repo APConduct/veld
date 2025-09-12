@@ -1,9 +1,9 @@
+use super::super::ast::{ImportItem, Statement};
+use super::super::lexer::Lexer;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use veld_ast::{ImportItem, Statement};
 use veld_error::{Result as VeldResult, VeldError};
-use veld_lexer::Lexer;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {

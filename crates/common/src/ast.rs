@@ -1,5 +1,5 @@
+use super::source::SourceMap;
 use std::{collections::HashMap, fmt::Display};
-use veld_common::source::SourceMap;
 use veld_error::VeldError;
 
 pub struct AST {
@@ -17,6 +17,7 @@ impl AST {
         }
     }
 
+    #[allow(unused)]
     pub fn find_at_pos(&self, line: u32, col: u32) -> Option<&Statement> {
         todo!("Implement find_at_pos")
     }

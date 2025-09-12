@@ -1,6 +1,6 @@
-use super::Value;
-use crate::interpreter::VarKind;
 use std::collections::HashMap;
+use veld_common::ast::VarKind;
+use veld_common::value::Value;
 use veld_error::{Result, VeldError};
 
 #[derive(Debug, Default)]

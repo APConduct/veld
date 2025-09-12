@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use veld_ast::*;
+use veld_common::ast::*;
 use veld_common::source::NodeId;
 use veld_expander::MacroSystem;
 

@@ -1,8 +1,10 @@
-use crate::interpreter::Value;
+use super::ast::{GenericArgument, Statement, TypeAnnotation, VarKind};
+use super::value::Value;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
-use veld_ast::{GenericArgument, Statement, TypeAnnotation, VarKind};
 use veld_error::{Result, VeldError};
+
+pub mod checker;
 
 // pub const U8_MAX: u8 = 255;
 // pub const U16_MAX: u16 = 65535;

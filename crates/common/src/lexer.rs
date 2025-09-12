@@ -1,9 +1,9 @@
 use std::fmt::Display;
-use tracing::{self, span, Level};
+use tracing::{self, Level, span};
 
 use logos::{Lexer as LLexer, Logos, Skip};
 
-use veld_common::{self, source::Position};
+use super::source::Position;
 
 /// Update the line count and the char index.
 fn newline_callback(lex: &mut LLexer<Token>) -> Skip {
@@ -303,10 +303,10 @@ impl Display for Token {
             Token::DotDotDot((x, y)) => write!(f, "... at {},{}", x, y),
             Token::Tilde((x, y)) => write!(f, "~ at {},{}", x, y),
             Token::Bang((x, y)) => write!(f, "! at {},{}", x, y),
-            Token::Identifier(s) => write!(f, "{} at {},{}", s.0, s.1 .0, s.1 .1),
-            Token::StringLiteral(s) => write!(f, "\"{}\" at {},{}", s.0, s.1 .0, s.1 .1),
-            Token::IntegerLiteral(n) => write!(f, "{} at ({}, {})", n.0, n.1 .0, n.1 .1),
-            Token::FloatLiteral(n) => write!(f, "{} at {},{}", n.0, n.1 .0, n.1 .1),
+            Token::Identifier(s) => write!(f, "{} at {},{}", s.0, s.1.0, s.1.1),
+            Token::StringLiteral(s) => write!(f, "\"{}\" at {},{}", s.0, s.1.0, s.1.1),
+            Token::IntegerLiteral(n) => write!(f, "{} at ({}, {})", n.0, n.1.0, n.1.1),
+            Token::FloatLiteral(n) => write!(f, "{} at {},{}", n.0, n.1.0, n.1.1),
             Token::If((x, y)) => write!(f, "if at {},{}", x, y),
             Token::Else((x, y)) => write!(f, "else at {},{}", x, y),
             Token::While((x, y)) => write!(f, "while at {},{}", x, y),
@@ -754,20 +754,20 @@ impl Token {
                 column: *y as u32,
             },
             Token::Identifier(word) => Position {
-                line: word.1 .0 as u32,
-                column: word.1 .1 as u32,
+                line: word.1.0 as u32,
+                column: word.1.1 as u32,
             },
             Token::StringLiteral(word) => Position {
-                line: word.1 .0 as u32,
-                column: word.1 .1 as u32,
+                line: word.1.0 as u32,
+                column: word.1.1 as u32,
             },
             Token::IntegerLiteral(int) => Position {
-                line: int.1 .0 as u32,
-                column: int.1 .1 as u32,
+                line: int.1.0 as u32,
+                column: int.1.1 as u32,
             },
             Token::FloatLiteral(float) => Position {
-                line: float.1 .0 as u32,
-                column: float.1 .1 as u32,
+                line: float.1.0 as u32,
+                column: float.1.1 as u32,
             },
         }
     }

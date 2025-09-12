@@ -1,5 +1,5 @@
-use crate::types::numeric::{FloatValue, IntegerValue, NumericValue};
-use veld_ast::BinaryOperator;
+use super::super::ast::BinaryOperator;
+use super::numeric::{FloatValue, IntegerValue, NumericValue};
 use veld_error::{Result, VeldError};
 
 impl NumericValue {

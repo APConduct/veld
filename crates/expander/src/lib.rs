@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use veld_ast::{Argument, Expr, Literal, MacroPattern, MacroTemplate, Statement};
+use veld_common::ast::{Argument, Expr, Literal, MacroPattern, MacroTemplate, Statement};
 use veld_common::source::NodeId;
 
-use veld_core::types::Type;
+use veld_common::types::Type;
 
 pub mod integration;
 pub mod parser;
@@ -931,7 +931,7 @@ impl ExpansionContext {
             vec![
                 MacroTemplate {
                     pattern: MacroPattern("()".to_string()),
-                    expansion: veld_ast::MacroExpansion(vec![Statement::ExprStatement(
+                    expansion: veld_common::ast::MacroExpansion(vec![Statement::ExprStatement(
                         Expr::FunctionCall {
                             name: "Vec.new".to_string(),
                             arguments: vec![],
@@ -940,7 +940,7 @@ impl ExpansionContext {
                 },
                 MacroTemplate {
                     pattern: MacroPattern("($($elem:expr),+ $(,)?)".to_string()),
-                    expansion: veld_ast::MacroExpansion(vec![Statement::ExprStatement(
+                    expansion: veld_common::ast::MacroExpansion(vec![Statement::ExprStatement(
                         Expr::ArrayLiteral(vec![Expr::MacroVar("elem".to_string())]),
                     )]),
                 },

@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::Level;
 
-use veld_ast::{AST, UnaryOperator};
-use veld_ast::{
+use super::ast::{AST, UnaryOperator};
+use super::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
     StructMethod, TypeAnnotation, VarKind,
 };
-use veld_common::source::{NodeId, ParseContext, Position, SourceMap};
+use super::lexer::{Lexer, Token};
+use super::source::{NodeId, ParseContext, Position, SourceMap};
 use veld_error::{Result, VeldError};
-use veld_lexer::{Lexer, Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InitializerType {
@@ -4226,9 +4226,9 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use super::super::ast::{Expr, Literal, Statement, TypeAnnotation, VarKind};
+    use super::super::lexer::Lexer;
     use super::*;
-    use veld_ast::{Expr, Literal, Statement, TypeAnnotation, VarKind};
-    use veld_lexer::Lexer;
 
     fn parse_code(input: &str) -> Vec<Statement> {
         let _span = tracing::span!(tracing::Level::INFO, "Parsing code", input = input);
@@ -4991,7 +4991,7 @@ mod tests {
                         enum_name,
                         variant_name,
                         fields,
-                        type_args,
+                        ..
                     } => {
                         assert_eq!(enum_name, "Shape");
                         assert_eq!(variant_name, "Circle");
@@ -5145,7 +5145,7 @@ mod tests {
         "#;
 
         // Dump tokens for debugging
-        let mut lexer = veld_lexer::Lexer::new(input);
+        let mut lexer = Lexer::new(input);
         let _tokens: Vec<_> = lexer.collect_tokens().unwrap();
 
         let statements = parse_code(input);
@@ -5175,7 +5175,7 @@ fn test_anon_record() {
         }
     "#;
 
-    let mut lexer = veld_lexer::Lexer::new(input);
+    let mut lexer = super::lexer::Lexer::new(input);
     let tokens = lexer.collect_tokens().unwrap();
     let mut parser = Parser::new(tokens);
     let statements = parser.parse().unwrap();
@@ -5187,8 +5187,8 @@ fn test_anon_record() {
 
 #[test]
 fn test_ast_source_span_registration() {
+    use super::source::{FileId, Position, SourceMap};
     use crate::parser::ParseContext;
-    use veld_common::source::{FileId, Position, SourceMap};
 
     let mut source_map = SourceMap::new();
     let mut parse_context = ParseContext {
