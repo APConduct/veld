@@ -199,7 +199,7 @@ impl Parser {
         let res = if self.is_declaration_keyword() {
             self.variable_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Enum(ZTUP)]) {
-            self.enum_declaration()
+            self.enum_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Plex(ZTUP)]) {
             self.plex_declaration_with_visibility(false)
         } else if self.match_token(&[Token::Mod(ZTUP)]) {
@@ -219,7 +219,7 @@ impl Parser {
             } else if self.match_token(&[Token::Kind(ZTUP)]) {
                 self.kind_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Enum(ZTUP)]) {
-                self.enum_declaration_with_visibility(true)
+                self.enum_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Plex(ZTUP)]) {
                 self.plex_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Mod(ZTUP)]) {
@@ -3457,16 +3457,22 @@ impl Parser {
         Ok(Expr::ArrayLiteral(elements))
     }
 
-    fn enum_declaration(&mut self) -> Result<Statement> {
+    fn enum_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "enum_declaration");
         let _enter = _span.enter();
 
-        self.enum_declaration_with_visibility(false)
+        self.enum_declaration_with_visibility(false, ctx)
     }
 
-    fn enum_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn enum_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "enum_declaration_with_visibility");
         let _enter = _span.enter();
+
+        let start = self.get_current_position();
 
         let name = self.consume_identifier("Expected enum name after 'enum'")?;
 
@@ -3530,12 +3536,18 @@ impl Parser {
             self.consume(&Token::End(ZTUP), "Expected 'end' after enum body")?;
         }
 
-        Ok(Statement::EnumDeclaration {
+        let res = Ok(Statement::EnumDeclaration {
             name,
             variants,
             is_public,
             generic_params,
-        })
+        });
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+        res
     }
 
     fn kind_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
