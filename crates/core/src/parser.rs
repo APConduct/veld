@@ -1616,14 +1616,14 @@ impl Parser {
 
     fn consume_identifier(&mut self, message: &str) -> Result<String> {
         match self.advance() {
-            Token::Identifier(s) => Ok(s),
+            Token::Identifier(s) => Ok(s.0),
             _ => Err(VeldError::ParserError(message.to_string())),
         }
     }
 
     fn consume_method_name(&mut self, message: &str) -> Result<String> {
         match self.advance() {
-            Token::Identifier(s) => Ok(s),
+            Token::Identifier(s) => Ok(s.0),
             Token::With(_) => Ok("with".to_string()),
             _ => Err(VeldError::ParserError(message.to_string())),
         }
@@ -1634,7 +1634,7 @@ impl Parser {
         if self.match_token(&[Token::Mut(ZTUP)]) {
             // After 'mut', expect a parameter name
             match self.advance() {
-                Token::Identifier(s) => Ok(format!("mut {}", s)),
+                Token::Identifier(s) => Ok(format!("mut {}", s.0)),
                 Token::SelfToken(_) => Ok("mut self".to_string()),
                 token => Err(VeldError::ParserError(format!(
                     "Expected parameter name after 'mut', got: {:?}",
@@ -1643,7 +1643,7 @@ impl Parser {
             }
         } else {
             match self.advance() {
-                Token::Identifier(s) => Ok(s),
+                Token::Identifier(s) => Ok(s.0),
                 Token::SelfToken(_) => Ok("self".to_string()),
                 token => Err(VeldError::ParserError(format!(
                     "{}, got: {:?}",
@@ -1863,14 +1863,14 @@ impl Parser {
         let _span = _span.enter();
 
         // Check for wildcard pattern (_)
-        if self.match_token(&[Token::Identifier("_".to_string())]) {
+        if self.match_token(&[Token::Identifier(("_".to_string(), ZTUP))]) {
             return Ok(MatchPattern::Wildcard);
         }
 
         // Check for literal patterns
-        if self.check(&Token::IntegerLiteral((0, (0, 0))))
-            || self.check(&Token::FloatLiteral(0.0))
-            || self.check(&Token::StringLiteral("".to_string()))
+        if self.check(&Token::IntegerLiteral((0, ZTUP)))
+            || self.check(&Token::FloatLiteral((0.0, ZTUP)))
+            || self.check(&Token::StringLiteral(("".to_string(), ZTUP)))
             || self.check(&Token::True(ZTUP))
             || self.check(&Token::False(ZTUP))
         {
@@ -2713,7 +2713,7 @@ impl Parser {
         // Parse macro variable reference: $identifier
         if self.match_token(&[Token::Dollar(ZTUP)]) {
             if let Token::Identifier(name) = self.advance() {
-                return Ok(Expr::MacroVar(name));
+                return Ok(Expr::MacroVar(name.0));
             } else {
                 return Err(VeldError::ParserError(
                     "Expected identifier after '$'".to_string(),
@@ -2777,11 +2777,11 @@ impl Parser {
             }
             Token::FloatLiteral(n) => {
                 self.advance();
-                Expr::Literal(Literal::Float(n))
+                Expr::Literal(Literal::Float(n.0))
             }
             Token::StringLiteral(s) => {
                 self.advance();
-                Expr::Literal(Literal::String(s))
+                Expr::Literal(Literal::String(s.0))
             }
             Token::True(_) => {
                 self.advance();
@@ -2793,7 +2793,7 @@ impl Parser {
             }
             Token::Identifier(name) => {
                 self.advance();
-                Expr::Identifier(name)
+                Expr::Identifier(name.0)
             }
             Token::Fn(_) => {
                 // Handle function expressions: fn(x, y) -> type x + y end

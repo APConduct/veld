@@ -27,6 +27,30 @@ fn int_lit_callback(lex: &mut LLexer<Token>) -> (i64, (usize, usize)) {
     (value, position)
 }
 
+fn identifier_callback(lex: &mut LLexer<Token>) -> (String, (usize, usize)) {
+    let value = lex.slice().to_string();
+    let position = word_callback(lex);
+
+    (value, position)
+}
+
+fn string_lit_callback(lex: &mut LLexer<Token>) -> (String, (usize, usize)) {
+    let mut content = lex.slice().to_string();
+    content.remove(0);
+    content.pop();
+    let value = content;
+    let position = word_callback(lex);
+
+    (value, position)
+}
+
+fn float_lit_callback(lex: &mut LLexer<Token>) -> (f64, (usize, usize)) {
+    let value = lex.slice().parse().unwrap();
+    let position = word_callback(lex);
+
+    (value, position)
+}
+
 #[derive(Debug, Logos, Clone)]
 #[logos(extras = (usize, usize))]
 #[logos(skip(r"[ \t\f]+"))] // Skip whitespace
@@ -157,22 +181,17 @@ pub enum Token {
     Bang((usize, usize)),
 
     // Literals and Identifiers
-    #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
-    Identifier(String),
+    #[regex("[a-zA-Z_][a-zA-Z0-9_]*", identifier_callback)]
+    Identifier((String, (usize, usize))),
 
-    #[regex(r#""[^"]*""#, |lex| {
-        let mut content = lex.slice().to_string();
-        content.remove(0);
-        content.pop();
-        content
-    })]
-    StringLiteral(String),
+    #[regex(r#""[^"]*""#, string_lit_callback)]
+    StringLiteral((String, (usize, usize))),
 
     #[regex(r#"[0-9]+"#, int_lit_callback)]
     IntegerLiteral((i64, (usize, usize))),
 
-    #[regex(r#"[0-9]+\.[0-9]+"#, |lex| lex.slice().parse().ok())]
-    FloatLiteral(f64),
+    #[regex(r#"[0-9]+\.[0-9]+"#, float_lit_callback)]
+    FloatLiteral((f64, (usize, usize))),
 
     #[token("if", word_callback)]
     If((usize, usize)),
@@ -284,10 +303,10 @@ impl Display for Token {
             Token::DotDotDot((x, y)) => write!(f, "... at {},{}", x, y),
             Token::Tilde((x, y)) => write!(f, "~ at {},{}", x, y),
             Token::Bang((x, y)) => write!(f, "! at {},{}", x, y),
-            Token::Identifier(s) => write!(f, "{}", s),
-            Token::StringLiteral(s) => write!(f, "\"{}\"", s),
+            Token::Identifier(s) => write!(f, "{} at {},{}", s.0, s.1.0, s.1.1),
+            Token::StringLiteral(s) => write!(f, "\"{}\" at {},{}", s.0, s.1.0, s.1.1),
             Token::IntegerLiteral(n) => write!(f, "{} at ({}, {})", n.0, n.1.0, n.1.1),
-            Token::FloatLiteral(n) => write!(f, "{}", n),
+            Token::FloatLiteral(n) => write!(f, "{} at {},{}", n.0, n.1.0, n.1.1),
             Token::If((x, y)) => write!(f, "if at {},{}", x, y),
             Token::Else((x, y)) => write!(f, "else at {},{}", x, y),
             Token::While((x, y)) => write!(f, "while at {},{}", x, y),
@@ -942,7 +961,7 @@ fn main()
         println~(y)
     end
 end
-                "#;
+                        "#;
 
         let mut lexer = Lexer::new(input);
         let tokens = lexer.collect_tokens().unwrap();
@@ -953,7 +972,10 @@ end
             "Expected {} ",
             tokens[0],
         );
-        assert_eq!(tokens[1], Token::Identifier("main".to_string()));
+        assert!(matches!(
+            tokens[1],
+            Token::Identifier((ref name, (_, _))) if name == "main"
+        ));
         assert!(matches!(tokens[2], Token::LParen((1, 7))));
         assert!(
             matches!(tokens[3], Token::RParen((1, 8))),
@@ -967,7 +989,10 @@ end
             tokens[4],
             Token::Let((2, 4)),
         );
-        assert_eq!(tokens[5], Token::Identifier("x".to_string()));
+        assert!(matches!(
+            tokens[5],
+            Token::Identifier((ref name, (_, _))) if name == "x"
+        ));
         assert!(
             matches!(tokens[6], Token::Equals((2, 10))),
             "Expected {}, got {}",
@@ -984,7 +1009,10 @@ end
             "Expected {} ",
             tokens[0],
         );
-        assert_eq!(tokens[9], Token::Identifier("y".to_string()));
+        assert!(matches!(
+            tokens[9],
+            Token::Identifier((ref name, (_, _))) if name == "y"
+        ));
         assert!(
             matches!(tokens[10], Token::Equals((3, 10))),
             "Expected {}, got {}",
@@ -993,7 +1021,7 @@ end
         );
         assert_eq!(
             tokens[11],
-            Token::StringLiteral("Hello, world!".to_string())
+            Token::StringLiteral(("Hello, world!".to_string(), (3, 12)))
         );
         assert!(
             matches!(tokens[12], Token::If((4, 4))),
@@ -1001,7 +1029,10 @@ end
             tokens[12],
             Token::If((4, 4))
         );
-        assert_eq!(tokens[13], Token::Identifier("x".to_string()));
+        assert!(matches!(
+            tokens[13],
+            Token::Identifier((ref name, (_, _))) if name == "x"
+        ));
         assert!(
             matches!(tokens[14], Token::Greater((4, 9))),
             "Expected {}, got {}",
@@ -1015,7 +1046,10 @@ end
             tokens[16],
             Token::Then((0, 0))
         );
-        assert_eq!(tokens[17], Token::Identifier("println".to_string()));
+        assert!(matches!(
+            tokens[17],
+            Token::Identifier((ref name, (_, _))) if name == "println"
+        ));
         assert!(
             matches!(tokens[18], Token::Tilde((5, 15))),
             "Expected {}, got {}",
@@ -1028,7 +1062,10 @@ end
             tokens[19],
             Token::LParen((5, 16))
         );
-        assert_eq!(tokens[20], Token::Identifier("y".to_string()));
+        assert!(matches!(
+            tokens[20],
+            Token::Identifier((ref name, (_, _))) if name == "y"
+        ));
         assert!(
             matches!(tokens[21], Token::RParen((5, 18))),
             "Expected {}, got {}",
