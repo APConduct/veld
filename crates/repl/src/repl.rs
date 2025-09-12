@@ -279,7 +279,7 @@ impl Repl {
         };
 
         let mut parser = Parser::new(tokens);
-        let expr_result = parser.expression();
+        let expr_result = parser.expression(&mut None);
 
         let _expr_ast = match expr_result {
             Ok(expr) => expr,
