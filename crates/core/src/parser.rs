@@ -203,7 +203,7 @@ impl Parser {
         } else if self.match_token(&[Token::Plex(ZTUP)]) {
             self.plex_declaration_with_visibility(false)
         } else if self.match_token(&[Token::Mod(ZTUP)]) {
-            self.module_declaration()
+            self.module_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Import(ZTUP)]) {
             self.import_declaration()
         } else if self.match_token(&[Token::Macro(ZTUP)]) {
@@ -223,7 +223,7 @@ impl Parser {
             } else if self.match_token(&[Token::Plex(ZTUP)]) {
                 self.plex_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Mod(ZTUP)]) {
-                self.module_declaration_with_visibility(true)
+                self.module_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Import(ZTUP)]) {
                 self.import_declaration_with_visibility(true)
             } else if matches!(self.peek(), Token::Let(_))
@@ -1064,9 +1064,15 @@ impl Parser {
         self.kind_declaration_with_visibility(false)
     }
 
-    fn module_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn module_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "module_declaration_with_visibility");
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         let name = self.consume_identifier("Expected module name after 'mod'")?;
 
@@ -1086,11 +1092,19 @@ impl Parser {
 
         self.consume(&Token::End(ZTUP), "Expected 'end' after module body")?;
 
-        Ok(Statement::ModuleDeclaration {
+        let res = Ok(Statement::ModuleDeclaration {
             name,
             body: Some(body),
             is_public,
-        })
+        });
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        res
     }
 
     fn peek_next_token_is(&self, token: &Token) -> bool {
@@ -3335,11 +3349,11 @@ impl Parser {
     //     context
     // }
 
-    fn module_declaration(&mut self) -> Result<Statement> {
+    fn module_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "module_declaration");
         let _enter = _span.enter();
 
-        self.module_declaration_with_visibility(false)
+        self.module_declaration_with_visibility(false, ctx)
     }
 
     fn import_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
