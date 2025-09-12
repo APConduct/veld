@@ -4,8 +4,10 @@ version = "0.1.3"
 edition = "2024"
 
 [dependencies]
-veld-common = { path = "../common" }  # Path to your common library
-veld-error = { path = "../error" }    # Path to your error library
+veld-common = { path = "../common" }
+veld-error = { path = "../error" }
+veld-lexer = { path = "../lexer" }
+veld-ast = { path = "../ast" }
 logos = { version = "0.15.1", features = ["export_derive"] }          # For lexing
 thiserror = "1.0"          # For error handling
 tracing = "0.1"            # For tracing support

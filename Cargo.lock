@@ -1453,6 +1453,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
+name = "veld-ast"
+version = "0.1.4"
+dependencies = [
+ "veld-common",
+ "veld-error",
+]
+
+[[package]]
 name = "veld-common"
 version = "0.1.4"
 
@@ -1466,8 +1474,10 @@ dependencies = [
  "tracing",
  "tracing-indicatif",
  "tracing-subscriber 0.3.19",
+ "veld-ast",
  "veld-common",
  "veld-error",
+ "veld-lexer",
 ]
 
 [[package]]
@@ -1483,8 +1493,18 @@ name = "veld-expander"
 version = "0.1.4"
 dependencies = [
  "criterion",
+ "veld-ast",
  "veld-common",
  "veld-core",
+]
+
+[[package]]
+name = "veld-lexer"
+version = "0.1.4"
+dependencies = [
+ "logos 0.15.1",
+ "tracing",
+ "veld-common",
 ]
 
 [[package]]
@@ -1516,6 +1536,7 @@ dependencies = [
  "tracing-subscriber 0.3.19",
  "veld-core",
  "veld-error",
+ "veld-lexer",
 ]
 
 [[package]]

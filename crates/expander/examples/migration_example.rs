@@ -3,8 +3,8 @@
 //! This example shows how to migrate existing macro code from the simple
 //! format to the new advanced macro system while maintaining backward compatibility.
 
+use veld_ast::*;
 use veld_common::source::NodeId;
-use veld_core::ast::*;
 use veld_expander::{MacroDefinition, MacroStability, MacroSystem};
 
 fn main() {
@@ -102,29 +102,29 @@ fn demonstrate_advanced_features() {
     let declarative_macro = MacroDefinition::declarative(
         "advanced_vec".to_string(),
         vec![
-            veld_core::ast::MacroPattern("()".to_string()),
-            veld_core::ast::MacroPattern("($elem:expr)".to_string()),
-            veld_core::ast::MacroPattern("($($elem:expr),+ $(,)?)".to_string()),
+            veld_ast::MacroPattern("()".to_string()),
+            veld_ast::MacroPattern("($elem:expr)".to_string()),
+            veld_ast::MacroPattern("($($elem:expr),+ $(,)?)".to_string()),
         ],
         vec![
-            veld_core::ast::MacroTemplate {
-                pattern: veld_core::ast::MacroPattern("()".to_string()),
-                expansion: veld_core::ast::MacroExpansion(vec![Statement::ExprStatement(
+            veld_ast::MacroTemplate {
+                pattern: veld_ast::MacroPattern("()".to_string()),
+                expansion: veld_ast::MacroExpansion(vec![Statement::ExprStatement(
                     Expr::FunctionCall {
                         name: "Vec.new".to_string(),
                         arguments: vec![],
                     },
                 )]),
             },
-            veld_core::ast::MacroTemplate {
-                pattern: veld_core::ast::MacroPattern("($elem:expr)".to_string()),
-                expansion: veld_core::ast::MacroExpansion(vec![Statement::ExprStatement(
+            veld_ast::MacroTemplate {
+                pattern: veld_ast::MacroPattern("($elem:expr)".to_string()),
+                expansion: veld_ast::MacroExpansion(vec![Statement::ExprStatement(
                     Expr::ArrayLiteral(vec![Expr::MacroVar("elem".to_string())]),
                 )]),
             },
-            veld_core::ast::MacroTemplate {
-                pattern: veld_core::ast::MacroPattern("($($elem:expr),+ $(,)?)".to_string()),
-                expansion: veld_core::ast::MacroExpansion(vec![Statement::ExprStatement(
+            veld_ast::MacroTemplate {
+                pattern: veld_ast::MacroPattern("($($elem:expr),+ $(,)?)".to_string()),
+                expansion: veld_ast::MacroExpansion(vec![Statement::ExprStatement(
                     Expr::ArrayLiteral(vec![Expr::MacroVar("elem".to_string())]),
                 )]),
             },
@@ -154,12 +154,10 @@ fn demonstrate_advanced_features() {
             Statement::ExprStatement(Expr::FunctionCall {
                 name: "println".to_string(),
                 arguments: vec![
-                    veld_core::ast::Argument::Positional(Expr::Literal(Literal::String(
+                    veld_ast::Argument::Positional(Expr::Literal(Literal::String(
                         "DEBUG: {}".to_string(),
                     ))),
-                    veld_core::ast::Argument::Positional(Expr::Identifier(
-                        "debug_value".to_string(),
-                    )),
+                    veld_ast::Argument::Positional(Expr::Identifier("debug_value".to_string())),
                 ],
             }),
         ],
@@ -265,8 +263,8 @@ fn real_world_migration_example() {
         vec![Statement::ExprStatement(Expr::FunctionCall {
             name: "println".to_string(),
             arguments: vec![
-                veld_core::ast::Argument::Positional(Expr::Identifier("level".to_string())),
-                veld_core::ast::Argument::Positional(Expr::Identifier("message".to_string())),
+                veld_ast::Argument::Positional(Expr::Identifier("level".to_string())),
+                veld_ast::Argument::Positional(Expr::Identifier("message".to_string())),
             ],
         })],
         NodeId::new(),
@@ -283,8 +281,8 @@ fn real_world_migration_example() {
         vec![Statement::ExprStatement(Expr::FunctionCall {
             name: "println".to_string(),
             arguments: vec![
-                veld_core::ast::Argument::Positional(Expr::Identifier("level".to_string())),
-                veld_core::ast::Argument::Positional(Expr::Identifier("message".to_string())),
+                veld_ast::Argument::Positional(Expr::Identifier("level".to_string())),
+                veld_ast::Argument::Positional(Expr::Identifier("message".to_string())),
             ],
         })],
         NodeId::new(),
@@ -313,12 +311,12 @@ fn real_world_migration_example() {
     let evolved_log_macro = MacroDefinition::declarative(
         "log".to_string(),
         vec![
-            veld_core::ast::MacroPattern("($level:literal, $message:expr)".to_string()),
-            veld_core::ast::MacroPattern("($level:expr, $message:expr)".to_string()),
+            veld_ast::MacroPattern("($level:literal, $message:expr)".to_string()),
+            veld_ast::MacroPattern("($level:expr, $message:expr)".to_string()),
         ],
-        vec![veld_core::ast::MacroTemplate {
-            pattern: veld_core::ast::MacroPattern("($level:literal, $message:expr)".to_string()),
-            expansion: veld_core::ast::MacroExpansion(vec![Statement::ExprStatement(
+        vec![veld_ast::MacroTemplate {
+            pattern: veld_ast::MacroPattern("($level:literal, $message:expr)".to_string()),
+            expansion: veld_ast::MacroExpansion(vec![Statement::ExprStatement(
                 Expr::FunctionCall {
                     name: "log_with_level".to_string(),
                     arguments: vec![],

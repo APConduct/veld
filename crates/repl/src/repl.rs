@@ -3,9 +3,9 @@ use reedline::{DefaultPrompt, DefaultPromptSegment, Reedline, Signal};
 use std::collections::HashMap;
 use tracing_indicatif::*;
 use veld_core::interpreter::Interpreter;
-use veld_core::lexer::Lexer;
 use veld_core::parser::Parser;
 use veld_error::{ContextResult, ErrorContext, VeldError};
+use veld_lexer::Lexer;
 
 type CommandFn = fn(&mut Repl, &[&str]) -> anyhow::Result<()>;
 

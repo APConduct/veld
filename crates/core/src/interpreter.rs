@@ -1,8 +1,3 @@
-use crate::ast::{
-    Argument, BinaryOperator, EnumVariant, Expr, FunctionDeclaration, GenericArgument, ImportItem,
-    Literal, MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement,
-    StructField, StructMethod, TypeAnnotation, UnaryOperator, VarKind,
-};
 use crate::module::{ExportedItem, ModuleManager};
 use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
 use crate::types::{FloatValue, IntegerValue, NumericValue, Type, TypeChecker};
@@ -12,6 +7,11 @@ use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
 use std::vec::IntoIter;
+use veld_ast::{
+    Argument, BinaryOperator, EnumVariant, Expr, FunctionDeclaration, GenericArgument, ImportItem,
+    Literal, MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement,
+    StructField, StructMethod, TypeAnnotation, UnaryOperator, VarKind,
+};
 use veld_error::{Result, VeldError};
 
 pub mod scope;
@@ -6129,7 +6129,7 @@ impl Interpreter {
                                                 let param_name = match &generic_arg.name {
                                                     Some(name) => name.clone(),
                                                     None => {
-                                                        if let crate::ast::TypeAnnotation::Basic(
+                                                        if let veld_ast::TypeAnnotation::Basic(
                                                             base_name,
                                                         ) = &generic_arg.type_annotation
                                                         {
@@ -6149,7 +6149,7 @@ impl Interpreter {
                                                     let param_name = match &generic_arg.name {
                                                         Some(name) => name.clone(),
                                                         None => {
-                                                            if let crate::ast::TypeAnnotation::Basic(
+                                                            if let veld_ast::TypeAnnotation::Basic(
                                                                 base_name,
                                                             ) = &generic_arg.type_annotation
                                                             {
@@ -6219,7 +6219,7 @@ impl Interpreter {
                                                 let param_name = match &generic_arg.name {
                                                     Some(name) => name.clone(),
                                                     None => {
-                                                        if let crate::ast::TypeAnnotation::Basic(
+                                                        if let veld_ast::TypeAnnotation::Basic(
                                                             base_name,
                                                         ) = &generic_arg.type_annotation
                                                         {
@@ -6239,7 +6239,7 @@ impl Interpreter {
                                                     let param_name = match &generic_arg.name {
                                                         Some(name) => name.clone(),
                                                         None => {
-                                                            if let crate::ast::TypeAnnotation::Basic(
+                                                            if let veld_ast::TypeAnnotation::Basic(
                                                                 base_name,
                                                             ) = &generic_arg.type_annotation
                                                             {
@@ -6308,7 +6308,7 @@ impl Interpreter {
                         self.enums.insert(enum_name.clone(), variants.clone());
                         // Register the enum in the type environment for type checking
                         fn convert_ast_enum_variant_to_base(
-                            ast_variant: &crate::ast::EnumVariant,
+                            ast_variant: &veld_ast::EnumVariant,
                         ) -> crate::types::EnumVariant {
                             match &ast_variant.fields {
                                 None => crate::types::EnumVariant::Simple,
@@ -6384,9 +6384,8 @@ impl Interpreter {
                                         let param_name = match &generic_arg.name {
                                             Some(name) => name.clone(),
                                             None => {
-                                                if let crate::ast::TypeAnnotation::Basic(
-                                                    base_name,
-                                                ) = &generic_arg.type_annotation
+                                                if let veld_ast::TypeAnnotation::Basic(base_name) =
+                                                    &generic_arg.type_annotation
                                                 {
                                                     base_name.clone()
                                                 } else {
@@ -6404,7 +6403,7 @@ impl Interpreter {
                                             let param_name = match &generic_arg.name {
                                                 Some(name) => name.clone(),
                                                 None => {
-                                                    if let crate::ast::TypeAnnotation::Basic(
+                                                    if let veld_ast::TypeAnnotation::Basic(
                                                         base_name,
                                                     ) = &generic_arg.type_annotation
                                                     {

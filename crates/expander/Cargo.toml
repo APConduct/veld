@@ -11,6 +11,7 @@ categories = ["compilers", "development-tools"]
 [dependencies]
 veld-core = { path = "../core" }
 veld-common = { path = "../common" }
+veld-ast = { path = "../ast" }
 
 [dev-dependencies]
 criterion = "0.5"

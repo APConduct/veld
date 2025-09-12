@@ -1,5 +1,5 @@
+use veld_ast::*;
 use veld_common::source::NodeId;
-use veld_core::ast::*;
 use veld_expander::{ExpansionError, MacroSystem};
 
 #[test]

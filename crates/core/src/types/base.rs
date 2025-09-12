@@ -1,7 +1,7 @@
-use crate::ast::{GenericArgument, Statement, TypeAnnotation, VarKind};
 use crate::interpreter::Value;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
+use veld_ast::{GenericArgument, Statement, TypeAnnotation, VarKind};
 use veld_error::{Result, VeldError};
 
 // pub const U8_MAX: u8 = 255;

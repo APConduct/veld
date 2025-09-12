@@ -1,6 +1,6 @@
 use std::collections::HashMap;
+use veld_ast::{Expr, MacroExpansion, MacroPattern, MacroTemplate, Statement};
 use veld_common::source::NodeId;
-use veld_core::ast::{Expr, MacroExpansion, MacroPattern, MacroTemplate, Statement};
 
 use crate::{parser::MacroParser, ExpansionContext, ExpansionError, MacroDefinition};
 
@@ -108,7 +108,7 @@ impl MacroSystem {
             templates.push(MacroTemplate {
                 pattern: MacroPattern(template_str.clone()),
                 expansion: MacroExpansion(vec![Statement::ExprStatement(Expr::Literal(
-                    veld_core::ast::Literal::String(template_str),
+                    veld_ast::Literal::String(template_str),
                 ))]),
             });
         }
@@ -242,8 +242,8 @@ impl MacroSystem {
                     let arg_exprs: Vec<Expr> = arguments
                         .into_iter()
                         .map(|arg| match arg {
-                            veld_core::ast::Argument::Positional(expr) => expr,
-                            veld_core::ast::Argument::Named { value, .. } => value,
+                            veld_ast::Argument::Positional(expr) => expr,
+                            veld_ast::Argument::Named { value, .. } => value,
                         })
                         .collect();
 
@@ -265,12 +265,12 @@ impl MacroSystem {
                     let processed_args = arguments
                         .into_iter()
                         .map(|arg| match arg {
-                            veld_core::ast::Argument::Positional(expr) => self
+                            veld_ast::Argument::Positional(expr) => self
                                 .preprocess_expr(expr)
-                                .map(veld_core::ast::Argument::Positional),
-                            veld_core::ast::Argument::Named { name, value } => self
+                                .map(veld_ast::Argument::Positional),
+                            veld_ast::Argument::Named { name, value } => self
                                 .preprocess_expr(value)
-                                .map(|processed_value| veld_core::ast::Argument::Named {
+                                .map(|processed_value| veld_ast::Argument::Named {
                                     name,
                                     value: processed_value,
                                 }),
@@ -323,7 +323,7 @@ fn expand_format_macro(
         name: "format".to_string(),
         arguments: args
             .iter()
-            .map(|arg| veld_core::ast::Argument::Positional(arg.clone()))
+            .map(|arg| veld_ast::Argument::Positional(arg.clone()))
             .collect(),
     })])
 }
@@ -336,15 +336,15 @@ fn expand_println_macro(
         // println!() -> println("")
         Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
             name: "println".to_string(),
-            arguments: vec![veld_core::ast::Argument::Positional(Expr::Literal(
-                veld_core::ast::Literal::String("".to_string()),
+            arguments: vec![veld_ast::Argument::Positional(Expr::Literal(
+                veld_ast::Literal::String("".to_string()),
             ))],
         })])
     } else if args.len() == 1 {
         // println!(expr) -> println(expr)
         Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
             name: "println".to_string(),
-            arguments: vec![veld_core::ast::Argument::Positional(args[0].clone())],
+            arguments: vec![veld_ast::Argument::Positional(args[0].clone())],
         })])
     } else {
         // println!("format", args...) -> println(format("format", args...))
@@ -352,13 +352,13 @@ fn expand_println_macro(
             name: "format".to_string(),
             arguments: args
                 .iter()
-                .map(|arg| veld_core::ast::Argument::Positional(arg.clone()))
+                .map(|arg| veld_ast::Argument::Positional(arg.clone()))
                 .collect(),
         };
 
         Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
             name: "println".to_string(),
-            arguments: vec![veld_core::ast::Argument::Positional(format_call)],
+            arguments: vec![veld_ast::Argument::Positional(format_call)],
         })])
     }
 }
@@ -380,7 +380,7 @@ fn expand_debug_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement
     let statements = vec![
         Statement::VariableDeclaration {
             name: var_name.clone(),
-            var_kind: veld_core::ast::VarKind::Let,
+            var_kind: veld_ast::VarKind::Let,
             type_annotation: None,
             value: Box::new(expr.clone()),
             is_public: false,
@@ -388,10 +388,10 @@ fn expand_debug_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement
         Statement::ExprStatement(Expr::FunctionCall {
             name: "println".to_string(),
             arguments: vec![
-                veld_core::ast::Argument::Positional(Expr::Literal(
-                    veld_core::ast::Literal::String("DEBUG: {}".to_string()),
-                )),
-                veld_core::ast::Argument::Positional(Expr::Identifier(var_name.clone())),
+                veld_ast::Argument::Positional(Expr::Literal(veld_ast::Literal::String(
+                    "DEBUG: {}".to_string(),
+                ))),
+                veld_ast::Argument::Positional(Expr::Identifier(var_name.clone())),
             ],
         }),
     ];
@@ -416,20 +416,18 @@ fn expand_assert_macro(args: &[Expr], call_site: NodeId) -> Result<Vec<Statement
     let message = if args.len() == 2 {
         args[1].clone()
     } else {
-        Expr::Literal(veld_core::ast::Literal::String(
-            "Assertion failed".to_string(),
-        ))
+        Expr::Literal(veld_ast::Literal::String("Assertion failed".to_string()))
     };
 
     // assert!(condition) -> if !condition { panic!("Assertion failed") }
     Ok(vec![Statement::If {
         condition: Expr::UnaryOp {
-            operator: veld_core::ast::UnaryOperator::Not,
+            operator: veld_ast::UnaryOperator::Not,
             operand: Box::new(condition.clone()),
         },
         then_branch: vec![Statement::ExprStatement(Expr::FunctionCall {
             name: "panic".to_string(),
-            arguments: vec![veld_core::ast::Argument::Positional(message)],
+            arguments: vec![veld_ast::Argument::Positional(message)],
         })],
         else_branch: None,
     }])
@@ -437,7 +435,7 @@ fn expand_assert_macro(args: &[Expr], call_site: NodeId) -> Result<Vec<Statement
 
 fn expand_todo_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>, ExpansionError> {
     let message = if args.is_empty() {
-        Expr::Literal(veld_core::ast::Literal::String(
+        Expr::Literal(veld_ast::Literal::String(
             "TODO: not yet implemented".to_string(),
         ))
     } else {
@@ -447,14 +445,14 @@ fn expand_todo_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>
     // todo!() -> panic!("TODO: not yet implemented")
     Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
         name: "panic".to_string(),
-        arguments: vec![veld_core::ast::Argument::Positional(message)],
+        arguments: vec![veld_ast::Argument::Positional(message)],
     })])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veld_core::ast::*;
+    use veld_ast::*;
 
     #[test]
     fn test_vec_macro_empty() {

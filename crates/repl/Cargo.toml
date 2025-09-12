@@ -19,3 +19,4 @@ ratatui = "0.29.0"
 
 "veld-core" = { path = "../core" } # Path to your core library
 "veld-error" = { path = "../error" }   # Path to your AST library
+veld-lexer = { path = "../lexer" }   # Path to your lexer libraryx

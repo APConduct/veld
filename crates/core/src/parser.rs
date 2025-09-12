@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::Level;
 
-use crate::ast::{AST, UnaryOperator};
-use crate::ast::{
+use veld_ast::{AST, UnaryOperator};
+use veld_ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
     StructMethod, TypeAnnotation, VarKind,
 };
-use crate::lexer::{Lexer, Token};
 use veld_common::source::{NodeId, ParseContext, Position, SourceMap};
 use veld_error::{Result, VeldError};
+use veld_lexer::{Lexer, Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InitializerType {
@@ -4227,8 +4227,8 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Expr, Literal, Statement, TypeAnnotation, VarKind};
-    use crate::lexer::Lexer;
+    use veld_ast::{Expr, Literal, Statement, TypeAnnotation, VarKind};
+    use veld_lexer::Lexer;
 
     fn parse_code(input: &str) -> Vec<Statement> {
         let _span = tracing::span!(tracing::Level::INFO, "Parsing code", input = input);
@@ -5145,7 +5145,7 @@ mod tests {
         "#;
 
         // Dump tokens for debugging
-        let mut lexer = crate::lexer::Lexer::new(input);
+        let mut lexer = veld_lexer::Lexer::new(input);
         let _tokens: Vec<_> = lexer.collect_tokens().unwrap();
 
         let statements = parse_code(input);
@@ -5175,7 +5175,7 @@ fn test_anon_record() {
         }
     "#;
 
-    let mut lexer = crate::lexer::Lexer::new(input);
+    let mut lexer = veld_lexer::Lexer::new(input);
     let tokens = lexer.collect_tokens().unwrap();
     let mut parser = Parser::new(tokens);
     let statements = parser.parse().unwrap();

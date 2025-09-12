@@ -2,9 +2,8 @@
 name = "veld-ast"
 version = "0.1.4"
 edition = "2024"
-description = "Abstract Syntax Tree (AST) definitions for the Veld programming language"
-license = "Apache-2.0"
+description = "Abstract Syntax Tree (AST) for the Veld programming language"
 
 [dependencies]
-veld-common = { path = "../common" } # Path to your common library
-veld-error = { path = "../error" }   # Path to your error library
+veld-common = { path = "../common" }  # Path to your common library
+veld-error = { path = "../error" }    # Path to your error library

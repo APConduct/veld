@@ -1,0 +1,10 @@
+[package]
+name = "veld-lexer"
+version = "0.1.4"
+edition = "2024"
+description = "Lexer for the Veld programming language"
+
+[dependencies]
+logos = { version = "0.15.1", features = ["export_derive"] }          # For lexing
+tracing = "0.1"            # For tracing support
+veld-common = { path = "../common" }  # Path to your common library
