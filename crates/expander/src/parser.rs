@@ -1,11 +1,7 @@
-use std::collections::HashMap;
 
-use veld_core::{
-    ast::{Expr, Literal, Statement, TypeAnnotation},
-    common::source::NodeId,
-};
+use veld_core::common::source::NodeId;
 
-use crate::{ExpansionError, FragmentType, MacroFragment, PatternElement};
+use crate::{ExpansionError, FragmentType, PatternElement};
 
 #[derive(Debug, Clone)]
 pub struct MacroParser {

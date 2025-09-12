@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::Level;
-use tracing_indicatif::*;
 
 use crate::ast::{AST, UnaryOperator};
 use crate::ast::{
@@ -9,7 +8,7 @@ use crate::ast::{
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
     StructMethod, TypeAnnotation, VarKind,
 };
-use crate::common::source::{FileId, NodeId, ParseContext, Position, SourceMap, Span};
+use crate::common::source::{NodeId, ParseContext, Position, SourceMap};
 use crate::error::{Result, VeldError};
 use crate::lexer::{Lexer, Token};
 

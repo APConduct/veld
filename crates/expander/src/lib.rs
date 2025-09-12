@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use veld_core::{
     ast::{
-        Argument, BinaryOperator, Expr, GenericArgument, Literal, MacroPattern, MacroTemplate,
-        Statement, TypeAnnotation, UnaryOperator,
+        Argument, Expr, Literal, MacroPattern, MacroTemplate,
+        Statement,
     },
     common::source::NodeId,
     types::Type,

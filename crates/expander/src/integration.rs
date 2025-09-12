@@ -3,14 +3,11 @@ use std::collections::HashMap;
 use veld_core::{
     ast::{Expr, MacroExpansion, MacroPattern, MacroTemplate, Statement},
     common::source::NodeId,
-    interpreter::Value,
-    types::Type,
 };
 
 use crate::{
-    parser::{MacroParser, MacroPatternParser},
-    ExpansionContext, ExpansionError, MacroDefinition, MacroKind, MacroStability, PatternMatcher,
-    TemplateExpander,
+    parser::MacroParser,
+    ExpansionContext, ExpansionError, MacroDefinition,
 };
 
 /// Integration point for the macro system with the Veld interpreter/compiler

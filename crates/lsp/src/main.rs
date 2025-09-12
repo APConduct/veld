@@ -313,7 +313,7 @@ fn handle_message(
         "textDocument/completion" => {
             tracing::info!("Handling completion request");
 
-            let mut completion_items = vec![
+            let completion_items = vec![
                 serde_json::json!({
                     "label": "fn",
                     "kind": 3,
