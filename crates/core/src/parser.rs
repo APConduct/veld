@@ -32,20 +32,11 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn get_current_position(&self) -> Option<Position> {
-        if let Some(token) = self.tokens.get(self.current) {
-            Some(Position {
-                line: token
-                    .source_pos()
-                    .expect(format!("No location found for current token: {}", token).as_str())
-                    .line,
-                column: token
-                    .source_pos()
-                    .expect(format!("No location found for current token: {}", token).as_str())
-                    .column,
-            })
-        } else {
-            None
+    pub fn get_current_position(&self) -> Position {
+        let last_token_pos = self.tokens.last().expect("No tokens").source_pos();
+        Position {
+            line: last_token_pos.line,
+            column: last_token_pos.column,
         }
     }
 
@@ -261,11 +252,7 @@ impl Parser {
         };
         let end = self.get_current_position();
         if ctx.is_some() {
-            ctx.unwrap().add_span(
-                NodeId::new(),
-                start.expect("No location found for last token for span start"),
-                end.expect("No location found for last token for span end"),
-            );
+            ctx.unwrap().add_span(NodeId::new(), start, end);
         }
         res
     }
