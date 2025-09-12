@@ -9,3 +9,4 @@ license = "Apache-2.0"
 veld-error = { path = "../error" }   # Path to your AST library
 tracing = "0.1"            # For tracing support
 logos = { version = "0.15.1", features = ["export_derive"] }          # For lexing
+inkwell = { version = "0.6.0", features = ["llvm18-1"] }
