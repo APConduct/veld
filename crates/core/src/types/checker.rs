@@ -282,6 +282,7 @@ impl TypeChecker {
         let _span = tracing::span!(tracing::Level::INFO, "Checking program");
         let _guard = _span.enter();
 
+        // First pass: Register struct declarations and function signatures
         for stmt in statements {
             match stmt {
                 Statement::StructDeclaration {
@@ -302,10 +303,34 @@ impl TypeChecker {
                         self.env.add_struct(name, field_types);
                     }
                 }
+                Statement::FunctionDeclaration {
+                    name,
+                    params,
+                    return_type,
+                    generic_params,
+                    ..
+                } => {
+                    // Skip generic functions for now - they need special handling
+                    if generic_params.is_empty() {
+                        let param_types = params
+                            .iter()
+                            .map(|(_, type_anno)| self.env.from_annotation(type_anno, None))
+                            .collect::<Result<Vec<_>>>()?;
+
+                        let function_return_type = self.env.from_annotation(return_type, None)?;
+
+                        let function_type = Type::Function {
+                            params: param_types,
+                            return_type: Box::new(function_return_type),
+                        };
+
+                        self.env.define(name, function_type);
+                    }
+                }
                 _ => {} // TODO: Handle enum declarations
             }
         }
-        // Fix: type_check_statement expects &mut Statement, so we need to create mutable clones
+        // Second pass: Type check all statements (function bodies will be checked here)
         for stmt in statements {
             let mut stmt_mut = stmt.clone();
             self.type_check_statement(&mut stmt_mut)?;
@@ -659,6 +684,13 @@ impl TypeChecker {
         let function_return_type = self.env.from_annotation(return_type, None)?;
         self.current_function_return_type = Some(function_return_type.clone());
 
+        // Add function to environment before type-checking body (for recursive functions)
+        let preliminary_function_type = Type::Function {
+            params: param_types.clone(),
+            return_type: Box::new(function_return_type.clone()),
+        };
+        self.env.define(name, preliminary_function_type);
+
         self.env.push_scope();
 
         for (i, (param_name, _)) in params.iter().enumerate() {
@@ -705,7 +737,6 @@ impl TypeChecker {
                 specified_type
             }
         };
-
         self.env.solve_constraints()?;
         self.env.pop_scope();
 
@@ -717,6 +748,7 @@ impl TypeChecker {
             return_type: Box::new(actual_return_type),
         };
 
+        // Update function in environment with final type (may be different from preliminary)
         self.env.define(name, function_type);
         Ok(())
     }
@@ -1041,6 +1073,12 @@ impl TypeChecker {
             };
             param_types.push(param_type.clone());
             self.env.define(name, param_type);
+        }
+
+        // Type check all statements in the body first
+        for stmt in body {
+            let mut stmt_mut = stmt.clone();
+            self.type_check_statement(&mut stmt_mut)?;
         }
 
         // Infer return type from body

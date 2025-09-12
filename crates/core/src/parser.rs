@@ -488,20 +488,21 @@ impl Parser {
 
                 // Infer return type from last statement if needed
                 if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
-                    return_type = if let Some(last_stmt) = body.last() {
-                        self.infer_block_return_type(last_stmt)
-                            .unwrap_or(TypeAnnotation::Unit)
-                    } else {
-                        TypeAnnotation::Unit
-                    };
+                    if let Some(last_stmt) = body.last() {
+                        if let Some(inferred_type) = self.infer_block_return_type(last_stmt) {
+                            return_type = inferred_type;
+                        }
+                        // If inference fails, keep "infer" to let type checker handle it
+                    }
                 }
             } else {
                 // Single expression: fn name() => expr
                 let expr = self.expression(ctx)?;
                 if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
-                    return_type = self
-                        .infer_lambda_return_type(&expr)
-                        .unwrap_or(TypeAnnotation::Unit);
+                    if let Some(inferred_type) = self.infer_lambda_return_type(&expr) {
+                        return_type = inferred_type;
+                    }
+                    // If inference fails, keep "infer" to let type checker handle it
                 }
                 body.push(Statement::Return(Some(expr)));
             }
@@ -516,9 +517,10 @@ impl Parser {
                 if self.check(&Token::End(ZTUP)) {
                     if let Statement::ExprStatement(expr) = stmt {
                         if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
-                            return_type = self
-                                .infer_lambda_return_type(&expr)
-                                .unwrap_or(TypeAnnotation::Unit);
+                            if let Some(inferred_type) = self.infer_lambda_return_type(&expr) {
+                                return_type = inferred_type;
+                            }
+                            // If inference fails, keep "infer" to let type checker handle it
                         }
                         body.push(Statement::Return(Some(expr)));
                     } else {
@@ -559,6 +561,7 @@ impl Parser {
         let mut params = Vec::new();
         let mut return_type_anno: Option<TypeAnnotation> = None;
         let mut is_block_demi = false;
+        let mut is_expr_demi = false;
 
         // Handle 'fn' keyword if present
         if self.match_token(&[Token::Fn((0, 0))]) {
@@ -590,6 +593,9 @@ impl Parser {
             if !self.check(&Token::FatArrow(ZTUP)) {
                 // This is fn() body end syntax (block demi lambda)
                 is_block_demi = true;
+            } else {
+                is_block_demi = false;
+                is_expr_demi = true;
             }
         } else {
             // Handle parameters without 'fn' keyword
@@ -3132,6 +3138,7 @@ impl Parser {
                 Expr::Identifier(name.0)
             }
             Token::Fn(_) => {
+                tracing::debug!("Parsing function expression in primary");
                 // Handle function expressions: fn(x, y) -> type x + y end
                 self.advance(); // consume 'fn'
                 self.parse_function_expression(ctx)?
@@ -3168,7 +3175,23 @@ impl Parser {
                 self.advance();
                 Expr::SelfReference
             }
+            // Token::FatArrow(_) => {
+            //     // Handle closure demi-lambda: () => expr
+            //     self.advance(); // consume '=>'
+            //     let body = if self.match_token(&[Token::Do(ZTUP)]) {
+            //         self.parse_block_expression(ctx)?
+            //     } else {
+            //         self.expression(ctx)?
+            //     };
+            //     Expr::Lambda {
+            //         params: Vec::new(),
+            //         return_type: None,
+            //         body: Box::new(body),
+            //     }
+            // }
             _ => {
+                tracing::debug!("Last token: {:?}", self.previous());
+                tracing::error!("Unexpected token in primary expression: {:?}", self.peek());
                 return Err(VeldError::ParserError(format!(
                     "Unexpected token: {:?}",
                     self.peek()
@@ -3379,6 +3402,12 @@ impl Parser {
         } else {
             None
         };
+
+        let mut is_block_lambda = false;
+        // Expect '=>' for single-expression lambdas and '=> do' or nothing for block lambdas
+        if self.match_token(&[Token::FatArrow(ZTUP)]) {
+            tracing::debug!("Detected '=>' for single-expression lambda");
+        }
 
         // Body - expect and expression
         let body = self.expression(ctx)?;

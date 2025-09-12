@@ -646,6 +646,7 @@ impl TypeEnvironment {
                     "i8" => Ok(Type::I8),
                     "i16" => Ok(Type::I16),
                     "any" => Ok(Type::Any),
+                    "infer" => Ok(self.fresh_type_var()),
                     name if self.structs.contains_key(name)
                         || self.generic_struct_names.contains(name) =>
                     {
