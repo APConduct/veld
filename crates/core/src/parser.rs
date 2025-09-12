@@ -201,7 +201,7 @@ impl Parser {
         } else if self.match_token(&[Token::Enum(ZTUP)]) {
             self.enum_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Plex(ZTUP)]) {
-            self.plex_declaration_with_visibility(false)
+            self.plex_declaration_with_visibility(false, ctx.as_deref_mut())
         } else if self.match_token(&[Token::Mod(ZTUP)]) {
             self.module_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Import(ZTUP)]) {
@@ -217,13 +217,13 @@ impl Parser {
             } else if self.match_token(&[Token::Proc(ZTUP)]) {
                 self.proc_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Struct(ZTUP)]) {
-                self.struct_declaration_with_visibility(true)
+                self.struct_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Kind(ZTUP)]) {
-                self.kind_declaration_with_visibility(true)
+                self.kind_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Enum(ZTUP)]) {
                 self.enum_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Plex(ZTUP)]) {
-                self.plex_declaration_with_visibility(true)
+                self.plex_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Mod(ZTUP)]) {
                 self.module_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Import(ZTUP)]) {
@@ -243,11 +243,11 @@ impl Parser {
         } else if self.match_token(&[Token::Proc(ZTUP)]) {
             self.proc_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Struct(ZTUP)]) {
-            self.struct_declaration()
+            self.struct_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Kind(ZTUP)]) {
-            self.kind_declaration()
+            self.kind_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Impl(ZTUP)]) {
-            self.implementation_declaration()
+            self.implementation_declaration(ctx.as_deref_mut())
         } else {
             self.statement()
         };
@@ -730,9 +730,15 @@ impl Parser {
         }
     }
 
-    fn struct_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn struct_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "struct_declaration_with_visibility");
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         let name = self.consume_identifier("Expected struct name")?;
 
@@ -794,7 +800,7 @@ impl Parser {
             self.consume(&Token::End(ZTUP), "Expected 'end' after struct definition")?;
         }
 
-        Ok(Statement::StructDeclaration {
+        let res = Ok(Statement::StructDeclaration {
             name,
             fields: fields
                 .into_iter()
@@ -807,7 +813,15 @@ impl Parser {
             methods,
             is_public,
             generic_params,
-        })
+        });
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        res
     }
 
     fn function_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
@@ -933,9 +947,11 @@ impl Parser {
         self.proc_declaration_with_visibility(false, ctx)
     }
 
-    fn struct_declaration(&mut self) -> Result<Statement> {
+    fn struct_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "struct_declaration");
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         let name = self.consume_identifier("Expected struct name")?;
 
@@ -999,7 +1015,7 @@ impl Parser {
             self.consume(&Token::End(ZTUP), "Expected 'end' after struct definition")?;
         }
 
-        Ok(Statement::StructDeclaration {
+        let res = Ok(Statement::StructDeclaration {
             name,
             fields: fields
                 .into_iter()
@@ -1012,7 +1028,15 @@ impl Parser {
             methods,
             is_public: false, // Default visibility
             generic_params,
-        })
+        });
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        res
     }
 
     fn parse_struct_method(&mut self, struct_name: String) -> Result<StructMethod> {
@@ -1095,11 +1119,11 @@ impl Parser {
         })
     }
 
-    fn kind_declaration(&mut self) -> Result<Statement> {
+    fn kind_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "kind_declaration");
         let _span = _span.enter();
 
-        self.kind_declaration_with_visibility(false)
+        self.kind_declaration_with_visibility(false, ctx)
     }
 
     fn module_declaration_with_visibility(
@@ -1305,9 +1329,11 @@ impl Parser {
         Ok(methods)
     }
 
-    fn implementation_declaration(&mut self) -> Result<Statement> {
+    fn implementation_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "implementation_declaration");
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         // Assume 'impl' has already been consumed
 
@@ -1323,7 +1349,7 @@ impl Parser {
             ));
         };
 
-        match next_token {
+        let res = match next_token {
             Token::Identifier(_) => {
                 // Parse type name
                 let type_name = self.consume_identifier("Expected type name after 'impl'")?;
@@ -1380,7 +1406,15 @@ impl Parser {
                     generic_args,
                 })
             }
+        };
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
         }
+
+        res
     }
 
     fn parse_impl_method(&mut self, type_name: String) -> Result<MethodImpl> {
@@ -3616,9 +3650,15 @@ impl Parser {
         res
     }
 
-    fn kind_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn kind_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "kind_declaration_with_visibility");
         let _enter = _span.enter();
+
+        let start = self.get_current_position();
 
         let name = self.consume_identifier("Expected kind name")?;
 
@@ -3760,17 +3800,31 @@ impl Parser {
             self.consume(&Token::End(ZTUP), "Expected 'end' after kind body")?;
         }
 
-        Ok(Statement::KindDeclaration {
+        let res = Ok(Statement::KindDeclaration {
             name,
             methods,
             is_public,
             generic_params,
-        })
+        });
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        res
     }
 
-    fn plex_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn plex_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "plex_declaration_with_visibility");
         let _enter = _span.enter();
+
+        let start = self.get_current_position();
 
         let name = self.consume_identifier("Expected plex name")?;
 
@@ -3812,12 +3866,20 @@ impl Parser {
         self.consume(&Token::Equals(ZTUP), "Expected '=' after plex name")?;
         let type_annotation = self.parse_type()?;
 
-        Ok(Statement::PlexDeclaration {
+        let res = Ok(Statement::PlexDeclaration {
             name,
             type_annotation,
             is_public,
             generic_params,
-        })
+        });
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        res
     }
 }
 
