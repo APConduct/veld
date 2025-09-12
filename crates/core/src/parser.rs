@@ -215,7 +215,7 @@ impl Parser {
             if self.match_token(&[Token::Fn(ZTUP)]) {
                 self.function_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Proc(ZTUP)]) {
-                self.proc_declaration_with_visibility(true)
+                self.proc_declaration_with_visibility(true, ctx.as_deref_mut())
             } else if self.match_token(&[Token::Struct(ZTUP)]) {
                 self.struct_declaration_with_visibility(true)
             } else if self.match_token(&[Token::Kind(ZTUP)]) {
@@ -241,7 +241,7 @@ impl Parser {
                 ))
             }
         } else if self.match_token(&[Token::Proc(ZTUP)]) {
-            self.proc_declaration()
+            self.proc_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Struct(ZTUP)]) {
             self.struct_declaration()
         } else if self.match_token(&[Token::Kind(ZTUP)]) {
@@ -817,9 +817,15 @@ impl Parser {
         self.function_declaration_with_visibility(false, ctx)
     }
 
-    fn proc_declaration_with_visibility(&mut self, is_public: bool) -> Result<Statement> {
+    fn proc_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "proc_declaration_with_visibility");
         let _span = _span.enter();
+
+        let start = self.get_current_position();
 
         let name = self.consume_identifier("Expected procedure name")?;
 
@@ -865,13 +871,21 @@ impl Parser {
             self.consume(&Token::End(ZTUP), "Expected 'end' after proc body")?;
         }
 
-        Ok(Statement::ProcDeclaration {
+        let result = Ok(Statement::ProcDeclaration {
             name,
             params,
             body,
             is_public,
             generic_params: Vec::new(),
-        })
+        });
+
+        let end = self.get_current_position();
+
+        if ctx.is_some() {
+            ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        result
     }
 
     // fn block_scope_statement(&mut self) -> Result<Statement> {
@@ -912,11 +926,11 @@ impl Parser {
             || self.check(&Token::Var(ZTUP))
     }
 
-    fn proc_declaration(&mut self) -> Result<Statement> {
+    fn proc_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "proc_declaration");
         let _span = _span.enter();
 
-        self.proc_declaration_with_visibility(false)
+        self.proc_declaration_with_visibility(false, ctx)
     }
 
     fn struct_declaration(&mut self) -> Result<Statement> {
