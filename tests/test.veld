@@ -1,0 +1,17 @@
+let add = (x, y) => x + y
+
+fn another_add(x: i32, y: i32) -> i32
+    x + y
+end
+
+add(
+    another_add(1, 1),
+    another_add(2, 2)
+) #--> 6
+
+
+# Minimal test for generic params
+
+kind Simple<T>
+    fn test(self) -> T
+end
