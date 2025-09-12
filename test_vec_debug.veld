@@ -1,0 +1,11 @@
+import std.vec.{Vec}
+
+# Simple test to see if Vec.new() works
+let vec_immutable = Vec.new()
+let len_immutable = vec_immutable.len()
+
+# Test with mutable variable
+var vec_mutable = Vec.new()
+let len_mutable = vec_mutable.len()
+
+len_mutable

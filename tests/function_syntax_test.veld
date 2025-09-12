@@ -150,6 +150,9 @@ fn factorial(n: i32) -> i32 => if n <= 1 then 1 else n * factorial(n - 1) end
 
 let factorial_result = factorial(5)  # Should be 120
 
+let fact = fn(n) => if n <= 1 then 1 else n * fact(n - 1) end
+let lambda_factorial_result = fact(6)  # Should be 720
+
 # Test mutual recursion
 fn is_even(n: i32) -> bool => if n <= 0 then true else is_odd(n - 1) end
 fn is_odd(n: i32) -> bool => if n <= 0 then false else is_even(n - 1) end
