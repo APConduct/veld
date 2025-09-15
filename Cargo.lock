@@ -1508,17 +1508,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "veld-core"
-version = "0.1.3"
+name = "veld-compiler"
+version = "0.1.0"
 dependencies = [
- "colored 2.2.0",
- "logos 0.15.1",
- "thiserror",
- "tracing",
- "tracing-indicatif",
- "tracing-subscriber 0.3.19",
- "veld-common",
- "veld-error",
+ "inkwell",
 ]
 
 [[package]]
@@ -1538,6 +1531,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "veld-interpreter"
+version = "0.1.3"
+dependencies = [
+ "colored 2.2.0",
+ "logos 0.15.1",
+ "thiserror",
+ "tracing",
+ "tracing-indicatif",
+ "tracing-subscriber 0.3.19",
+ "veld-common",
+ "veld-error",
+]
+
+[[package]]
 name = "veld-lsp"
 version = "0.1.0"
 dependencies = [
@@ -1546,7 +1553,7 @@ dependencies = [
  "serde_json",
  "tracing",
  "tracing-subscriber 0.2.25",
- "veld-core",
+ "veld-interpreter",
 ]
 
 [[package]]
@@ -1565,8 +1572,8 @@ dependencies = [
  "tracing-indicatif",
  "tracing-subscriber 0.3.19",
  "veld-common",
- "veld-core",
  "veld-error",
+ "veld-interpreter",
 ]
 
 [[package]]

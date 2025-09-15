@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use tracing_indicatif::*;
 use veld_common::lexer::Lexer;
 use veld_common::parser::Parser;
-use veld_core::interpreter::Interpreter;
 use veld_error::{ContextResult, ErrorContext, VeldError};
+use veld_interpreter::interpreter::Interpreter;
 
 type CommandFn = fn(&mut Repl, &[&str]) -> anyhow::Result<()>;
 
@@ -171,8 +171,8 @@ impl Repl {
         }
     }
 
-    fn pretty_print_value(&self, value: &veld_core::interpreter::Value) {
-        use veld_core::interpreter::Value::*;
+    fn pretty_print_value(&self, value: &veld_interpreter::interpreter::Value) {
+        use veld_interpreter::interpreter::Value::*;
         match value {
             Unit => println!("=> ()"),
             Integer(n) => println!("=> \x1B[33m{n}\x1B[0m"),
@@ -302,7 +302,7 @@ impl Repl {
         &mut self,
         input: &str,
         start_line: usize,
-    ) -> ContextResult<veld_core::interpreter::Value> {
+    ) -> ContextResult<veld_interpreter::interpreter::Value> {
         // If debug is enabled, show the input
         if self.get_var("debug") == "true" {
             println!("DEBUG: Evaluating input:\n{}", input);
@@ -456,16 +456,16 @@ impl Repl {
     //         _ => println!("=> {:?}", value),
     //     }
     // }
-    fn value_to_string(&self, value: &veld_core::interpreter::Value) -> String {
+    fn value_to_string(&self, value: &veld_interpreter::interpreter::Value) -> String {
         match value {
-            veld_core::interpreter::Value::Integer(n) => format!("{}", n),
-            veld_core::interpreter::Value::Float(f) => format!("{}", f),
-            veld_core::interpreter::Value::String(s) => format!("\"{}\"", s),
-            veld_core::interpreter::Value::Boolean(b) => format!("{}", b),
-            veld_core::interpreter::Value::Unit => "()".to_string(),
-            veld_core::interpreter::Value::Function { .. } => "<function>".to_string(),
-            veld_core::interpreter::Value::Struct { name, .. } => format!("<{}>", name),
-            veld_core::interpreter::Value::Array(elements) => {
+            veld_interpreter::interpreter::Value::Integer(n) => format!("{}", n),
+            veld_interpreter::interpreter::Value::Float(f) => format!("{}", f),
+            veld_interpreter::interpreter::Value::String(s) => format!("\"{}\"", s),
+            veld_interpreter::interpreter::Value::Boolean(b) => format!("{}", b),
+            veld_interpreter::interpreter::Value::Unit => "()".to_string(),
+            veld_interpreter::interpreter::Value::Function { .. } => "<function>".to_string(),
+            veld_interpreter::interpreter::Value::Struct { name, .. } => format!("<{}>", name),
+            veld_interpreter::interpreter::Value::Array(elements) => {
                 let items: Vec<String> = elements.iter().map(|e| self.value_to_string(e)).collect();
                 format!("[{}]", items.join(", "))
             }

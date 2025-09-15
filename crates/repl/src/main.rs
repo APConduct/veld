@@ -7,8 +7,8 @@ use std::fs;
 use tracing::Level;
 use veld_common::lexer::Lexer;
 use veld_common::parser::Parser;
-use veld_core::interpreter::Interpreter;
 use veld_error::{Result, VeldError};
+use veld_interpreter::interpreter::Interpreter;
 
 fn main() -> Result<()> {
     // Always run in a new thread with a larger stack on all platforms
