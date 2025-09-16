@@ -107,6 +107,11 @@ impl Interpreter {
         interpreter
     }
 
+    pub fn interpret_ast(&mut self, ast: veld_common::ast::AST) -> Result<Value> {
+        // TODO: Add features/logic only available at the AST level
+        self.interpret(ast.statements)
+    }
+
     pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<Value> {
         let span = tracing::info_span!("interpret", statement_count = statements.len());
         let _enter = span.enter();
