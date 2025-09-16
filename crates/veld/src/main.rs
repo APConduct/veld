@@ -39,12 +39,26 @@ fn main() -> Result<()> {
 }
 
 fn run_file(filename: &str) -> Result<()> {
-    tracing::span!(tracing::Level::TRACE, "run_file", filename = filename);
+    let _span = tracing::span!(tracing::Level::TRACE, "run_file", filename = filename);
+    let _enter = _span.enter();
     tracing::event!(tracing::Level::TRACE, "Running file: {}", filename);
+
+    // Get absolute path
+    let abs_filename = fs::canonicalize(filename)
+        .map_err(|e| VeldError::RuntimeError(format!("Failed to get absolute path: {}", e)))?
+        .to_str()
+        .ok_or_else(|| VeldError::RuntimeError("Invalid filename".to_string()))?
+        .to_string();
+
+    tracing::event!(tracing::Level::TRACE, "Absolute path: {}", abs_filename);
+
+    // Only tace on debug builds
+    #[cfg(debug_assertions)]
     tracing::info!(
         "{}",
         "Veld Language Interpreter v0.1.4".bold().bright_blue()
     );
+    #[cfg(debug_assertions)]
     tracing::info!(
         "{} {}",
         "Running file: ".bright_green(),
@@ -55,7 +69,7 @@ fn run_file(filename: &str) -> Result<()> {
     let source = match fs::read_to_string(filename) {
         Ok(content) => content,
         Err(e) => {
-            println!("Error reading file: {}", e);
+            tracing::error!("Error reading file: {}", e);
             return Ok(());
         }
     };
@@ -67,25 +81,29 @@ fn run_file(filename: &str) -> Result<()> {
         .map_err(|e| VeldError::LexerError(e))?;
 
     // Parsing
-    let mut parser = Parser::new(tokens.clone());
+    let parser = Parser::new(tokens.clone());
     tracing::event!(Level::TRACE, "Starting parsing...");
 
-    match parser.parse() {
-        Ok(stmts) => {
+    // match parser.parse() {
+    match parser.parse_with_source_map(source.as_str(), abs_filename) {
+        Ok(ast) => {
             // Run the interpreter if parsing succeeds
             let mut interpreter = Interpreter::new("../..");
-            match interpreter.interpret(stmts) {
-                Ok(result) => tracing::info!(
-                    "{} {}",
-                    "Program result:".bright_green(),
-                    format!("{:?}", result).italic().bright_yellow()
-                ),
+            match interpreter.interpret(ast.statements) {
+                Ok(result) => {
+                    #[cfg(debug_assertions)]
+                    tracing::info!(
+                        "{} {}",
+                        "Program result:".bright_green(),
+                        format!("{:?}", result).italic().bright_yellow()
+                    );
+                }
                 Err(e) => tracing::error!("Runtime error: {:?}", e),
             }
         }
         Err(e) => tracing::error!("Parse error: {:?}", e),
     }
-
+    #[cfg(debug_assertions)]
     tracing::event!(Level::INFO, "{}", "Execution complete".bright_blue());
     Ok(())
 }

@@ -1541,6 +1541,7 @@ version = "0.1.4"
 dependencies = [
  "colored 2.2.0",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

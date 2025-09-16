@@ -3,7 +3,7 @@ import std.vec.{Vec}
 
 
 # Make a vector (of i32s)
-let vec = Vec.new()
+var vec = Vec.new()
 
 # Fill her up with values
 vec.push(1)

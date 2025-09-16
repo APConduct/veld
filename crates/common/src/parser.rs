@@ -184,7 +184,6 @@ impl Parser {
         }
     }
 
-    // TODO: propagate context
     fn declaration_with_context(&mut self, context: &mut ParseContext) -> Result<Statement> {
         self.declaration(&mut Some(context))
     }

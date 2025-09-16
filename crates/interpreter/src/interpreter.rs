@@ -2697,9 +2697,15 @@ impl Interpreter {
                                                     }
                                                 };
                                                 if idx < 0 || idx >= elements.len() as i64 {
+                                                    tracing::error!(
+                                                        "Array index out of bounds: {} (array length {})",
+                                                        idx,
+                                                        elements.len()
+                                                    );
                                                     return Err(VeldError::RuntimeError(format!(
-                                                        "Array index out of bounds: {}",
-                                                        idx
+                                                        "Array index out of bounds: index was {}, but length is {}",
+                                                        idx,
+                                                        elements.len()
                                                     )));
                                                 }
                                                 Ok(elements[idx as usize].clone())

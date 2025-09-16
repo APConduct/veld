@@ -7,3 +7,4 @@ description = "Error handling utilities for the Veld programming language"
 [dependencies]
 thiserror = "1.0"          # For error handling
 colored = "2.0"
+tracing = "0.1"          # For logging and diagnostics
