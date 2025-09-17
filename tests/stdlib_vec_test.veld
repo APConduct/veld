@@ -31,3 +31,4 @@ let insert_res_good = vec.insert(4, 10)
 # Sould obviously be a Some (index is valid)
 # because 0 Should be within the bounds of the vector
 let removed = vec.remove(0)
+removed

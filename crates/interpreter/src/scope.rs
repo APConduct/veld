@@ -114,4 +114,19 @@ impl Scope {
             ))),
         }
     }
+
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut Value> {
+        // First, check if the variable is mutable using the scope's own method.
+        if self.is_mutable(name) {
+            // If it is, get a mutable reference to its value from the `values` map.
+            self.values.get_mut(name)
+        } else {
+            // Otherwise, it's an immutable variable, so we can't return a mutable reference.
+            None
+        }
+    }
+
+    pub fn vals_mut(&mut self) -> &mut HashMap<String, Value> {
+        &mut self.values
+    }
 }

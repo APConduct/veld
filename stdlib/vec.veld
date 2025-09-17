@@ -33,20 +33,12 @@ impl<T> Vec<T>
     end
 
     # Ensure the vector has at least the specified capacity
+    # Ensure the vector has at least the specified capacity
     fn ensure_capacity(mut self, min_capacity: i32) -> ()
-        let current_cap = self.capacity()
-        if current_cap < min_capacity then
-            # Create new array with larger capacity
-            let mut new_data = []
-            let mut i = 0
-            while i < self.size do
-                let elem = self.data[i]
-                let temp_array = new_data.with(elem)
-                new_data = temp_array
-                i = i + 1
-            end
-            self.data = new_data
-        end
+        # THIS IS A NO-OP. The original logic was buggy and the capacity
+        # is implicitly handled by creating new arrays in push/insert.
+
+
     end
 end
 
@@ -85,45 +77,40 @@ end
 # Implement GrowableSequence<T> for Vec<T>
 impl<T> Vec<T> <- GrowableSequence<T>
     # Add an element to the end of the vector
+    # Add an element to the end of the vector
     fn push(mut self, item: T) -> ()
-        self.ensure_capacity(self.size + 1)
-
-        # Create new array with the item added
-        let mut new_data = []
-        let mut i = 0
+        var new_data = []
+        var i = 0
 
         # Copy existing elements
         while i < self.size do
             let elem = self.data[i]
-            let temp_array = new_data.with(elem)
-            new_data = temp_array
+            new_data = new_data.with(elem)
             i = i + 1
         end
 
         # Add the new item
-        let temp_array = new_data.with(item)
-        new_data = temp_array
+        new_data = new_data.with(item)
 
         # Update the vector
         self.data = new_data
         self.size = self.size + 1
     end
 
+
     # Remove and return the last element, or None if empty
     fn pop(mut self) -> Option<T>
         if self.size == 0 then
             Option.None
         else
+            let value = self.data[self.size - 1]  # Get the last element before decrementing size
             self.size = self.size - 1
-            let value = self.data[self.size]
 
-            # Create new array without the last element
-            let mut new_data = []
-            let mut i = 0
+            var new_data = []
+            var i = 0
             while i < self.size do
                 let elem = self.data[i]
-                let temp_array = new_data.with(elem)
-                new_data = temp_array
+                new_data = new_data.with(elem)
                 i = i + 1
             end
 
@@ -132,34 +119,29 @@ impl<T> Vec<T> <- GrowableSequence<T>
         end
     end
 
+
     # Insert an element at the specified index
     fn insert(mut self, index: i32, value: T) -> bool
         if index < 0 or index > self.size then
             false
         else
-            self.ensure_capacity(self.size + 1)
-
-            # Create new array with the inserted element
-            let mut new_data = []
-            let mut i = 0
+            var new_data = []
+            var i = 0
 
             # Copy elements before the insertion point
             while i < index do
                 let elem = self.data[i]
-                let temp_array = new_data.with(elem)
-                new_data = temp_array
+                new_data = new_data.with(elem)
                 i = i + 1
             end
 
             # Insert the new element
-            let temp_array = new_data.with(value)
-            new_data = temp_array
+            new_data = new_data.with(value)
 
             # Copy remaining elements
             while i < self.size do
                 let elem = self.data[i]
-                let temp_array = new_data.with(elem)
-                new_data = temp_array
+                new_data = new_data.with(elem)
                 i = i + 1
             end
 
@@ -168,6 +150,7 @@ impl<T> Vec<T> <- GrowableSequence<T>
             true
         end
     end
+
 
     # Remove and return the element at the specified index
     fn remove(mut self, index: i32) -> Option<T>

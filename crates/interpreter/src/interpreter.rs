@@ -957,11 +957,12 @@ impl Interpreter {
 }
 struct BlockScope1 {
     stmts: IntoIter<Statement>,
-    // last_val: Result<Value>,
+    last_value: Result<Value>,
 }
 
 struct If1 {
     stmts: IntoIter<Statement>,
+    last_value: Value,
 }
 
 enum Frame {
@@ -985,27 +986,43 @@ impl Interpreter {
                             let result = value?;
 
                             match frame {
-                                Frame::BlockScope1(BlockScope1 { stmts, .. }) => match result {
+                                Frame::BlockScope1(BlockScope1 {
+                                    mut stmts,
+                                    mut last_value,
+                                }) => match result {
                                     r @ (Value::Return(_) | Value::Break | Value::Continue) => {
                                         self.pop_scope();
                                         Ok(r)
                                     }
                                     r => {
-                                        break 'continue_case self.block_flow(
-                                            &mut stack,
-                                            Ok(r),
-                                            stmts,
-                                        );
+                                        last_value = Ok(r);
+                                        if let Some(stmt) = stmts.next() {
+                                            stack.push(Frame::BlockScope1(BlockScope1 {
+                                                stmts,
+                                                last_value,
+                                            }));
+                                            break 'continue_case ControlFlow::Continue(stmt);
+                                        } else {
+                                            self.pop_scope();
+                                            // When block is done, return the last_value
+                                            break 'continue_case ControlFlow::Break(last_value);
+                                        }
                                     }
                                 },
-                                Frame::If1(If1 { mut stmts }) => {
+                                Frame::If1(If1 {
+                                    mut stmts,
+                                    mut last_value,
+                                }) => {
                                     if matches!(result, Value::Return(_)) {
                                         Ok(result)
                                     } else if let Some(stmt) = stmts.next() {
-                                        stack.push(Frame::If1(If1 { stmts }));
+                                        // Update last_value with the result of the previous statement
+                                        last_value = result;
+                                        stack.push(Frame::If1(If1 { stmts, last_value }));
                                         break 'continue_case ControlFlow::Continue(stmt);
                                     } else {
-                                        Ok(Value::Unit)
+                                        // When done, return the last_value instead of Unit
+                                        Ok(last_value)
                                     }
                                 }
                             }
@@ -1106,7 +1123,13 @@ impl Interpreter {
                             generic_params,
                         } => self.execute_plex_declaration(name, type_annotation, generic_params),
                         Statement::ExprStatement(expr) => {
-                            let value = self.evaluate_expression(expr)?;
+                            let value = self.evaluate_expression(expr.clone())?;
+                            tracing::debug!(
+                                target: "veld.mutself",
+                                "ExprStatement evaluated: expr={:?}, value={:?}",
+                                expr,
+                                value
+                            );
                             Ok(value.unwrap_return())
                         }
 
@@ -1142,45 +1165,81 @@ impl Interpreter {
                             } else {
                                 break 'continue_case ControlFlow::Break(Ok(Value::Unit));
                             };
-                            let mut stmts = branch.into_iter();
-                            // loop {
-                            if let Some(stmt) = stmts.next() {
-                                stack.push(Frame::If1(If1 { stmts }));
-                                break 'continue_case ControlFlow::Continue(stmt);
-                            } else {
-                                Ok(Value::Unit)
+                            // Execute all statements in the chosen branch, propagating the value of the last executed statement
+                            let mut last_value = Value::Unit;
+                            for stmt in branch {
+                                let stmt_result = self.execute_statement(stmt)?;
+                                if matches!(stmt_result, Value::Return(_)) {
+                                    last_value = stmt_result;
+                                    break;
+                                }
+                                last_value = stmt_result;
                             }
+                            Ok(last_value)
                         }
                         Statement::While { condition, body } => {
-                            let mut maybe_stmts = None;
-                            loop {
-                                maybe_stmts = match maybe_stmts {
-                                    None => {
-                                        let cond_result = self
-                                            .evaluate_expression(condition.clone())?
-                                            .unwrap_return();
-                                        if !self.is_truthy(cond_result) {
-                                            break;
-                                        };
-                                        Some(body.clone().into_iter())
-                                    }
-                                    Some(mut stmts) => {
-                                        if let Some(stmt) = stmts.next() {
-                                            // Differential Type will be constructed here and loop state will be saved
-                                            let result = self.execute_statement(stmt)?;
-                                            match result {
-                                                Value::Return(_) => return Ok(result),
-                                                Value::Break => return Ok(Value::Unit),
-                                                Value::Continue => break,
-                                                _ => {}
-                                            }
-                                            Some(stmts)
-                                        } else {
-                                            None
+                            // Save the parent scope index
+                            let parent_scope_index = self.scopes.len() - 1;
+
+                            // Track sticky variables and their values
+                            let mut sticky_vars: Option<Vec<String>> = None;
+                            let mut sticky_vals: HashMap<String, Value> = HashMap::new();
+
+                            'outer: loop {
+                                // Push a new scope for the loop body
+                                self.push_scope();
+
+                                // If we have sticky values from a previous iteration, initialize them
+                                for (name, val) in &sticky_vals {
+                                    self.current_scope_mut().set(name.clone(), val.clone());
+                                }
+
+                                // Evaluate the condition in the parent scope
+                                let cond_result =
+                                    self.evaluate_expression(condition.clone())?.unwrap_return();
+                                if !self.is_truthy(cond_result) {
+                                    self.pop_scope();
+                                    break;
+                                }
+
+                                // On the first iteration, collect declared variable names
+                                if sticky_vars.is_none() {
+                                    let mut vars = Vec::new();
+                                    for stmt in &body {
+                                        if let Statement::VariableDeclaration { name, .. } = stmt {
+                                            vars.push(name.clone());
                                         }
-                                        // REMEMBER: hold onto variable before loop into Frame structure
                                     }
-                                };
+                                    sticky_vars = Some(vars);
+                                }
+
+                                // Execute the loop body
+                                for stmt in body.clone() {
+                                    let result = self.execute_statement(stmt)?;
+                                    match result {
+                                        Value::Return(_) => {
+                                            self.pop_scope();
+                                            return Ok(result);
+                                        }
+                                        Value::Break => {
+                                            self.pop_scope();
+                                            break 'outer;
+                                        }
+                                        Value::Continue => break,
+                                        _ => {}
+                                    }
+                                }
+
+                                // At the end of the iteration, update sticky_vals from the current scope
+                                if let Some(vars) = &sticky_vars {
+                                    for name in vars {
+                                        if let Some(val) = self.current_scope().get(name) {
+                                            sticky_vals.insert(name.clone(), val.clone());
+                                        }
+                                    }
+                                }
+
+                                self.pop_scope();
                             }
                             Ok(Value::Unit)
                         }
@@ -1279,10 +1338,7 @@ impl Interpreter {
         mut stmts: IntoIter<Statement>,
     ) -> ControlFlow<Result<Value>, Statement> {
         if let Some(stmt) = stmts.next() {
-            stack.push(Frame::BlockScope1(BlockScope1 {
-                stmts,
-                // last_val: Ok(Value::Unit),
-            }));
+            stack.push(Frame::BlockScope1(BlockScope1 { stmts, last_value }));
             ControlFlow::Continue(stmt)
         } else {
             self.pop_scope();
@@ -1707,30 +1763,37 @@ impl Interpreter {
     }
 
     fn assign_self_property(&mut self, property: &str, value: Value) -> Result<Value> {
-        // Get the current 'self' value from the scope
-        if let Some(mut self_value) = self
-            .scopes
-            .last_mut()
-            .unwrap()
-            .get("self")
-            .map(|v| v.clone())
-        {
-            match &mut self_value {
+        // Get a mutable reference to the 'self' value in the current scope.
+        if let Some(self_value) = self.scopes.last_mut().and_then(|s| s.get_mut("self")) {
+            match self_value {
                 Value::Struct { fields, .. } => {
-                    if fields.contains_key(property) {
-                        fields.insert(property.to_string(), value);
-                        // Update 'self' in the current scope
-                        self.scopes
-                            .last_mut()
-                            .unwrap()
-                            .set("self".to_string(), self_value.clone());
-                        Ok(Value::Unit)
-                    } else {
-                        Err(VeldError::RuntimeError(format!(
-                            "Property '{}' not found on struct",
-                            property
-                        )))
+                    // Mutate the fields directly in place.
+                    let is_data = property == "data";
+                    tracing::debug!(
+                        target: "veld.mutself",
+                        property,
+                        value = ?value,
+                        fields_before = ?fields,
+                        "About to assign property on self"
+                    );
+                    fields.insert(property.to_string(), value.clone());
+                    tracing::debug!(
+                        target: "veld.mutself",
+                        property,
+                        value = ?value,
+                        fields_after = ?fields,
+                        is_data,
+                        "Assigned property on self"
+                    );
+                    // Print the current "self" value after assignment
+                    if let Some(self_value) = self.scopes.last().unwrap().get("self") {
+                        tracing::debug!(
+                            target: "veld.mutself",
+                            self_after_assignment = ?self_value,
+                            "Self after property assignment"
+                        );
                     }
+                    Ok(Value::Unit)
                 }
                 _ => Err(VeldError::RuntimeError(format!(
                     "Cannot assign property '{}' to non-struct self value",
@@ -1868,6 +1931,12 @@ impl Interpreter {
                 .declare(name.clone(), evaluated_value.clone(), var_kind)?;
         }
 
+        tracing::debug!(
+            target: "veld.mutself",
+            "Returning from execute_variable_declaration, assigned_value={:?}, var_name={}",
+            evaluated_value,
+            name
+        );
         Ok(evaluated_value)
     }
 
@@ -2609,6 +2678,7 @@ impl Interpreter {
                                             arg_values.push(value);
                                         }
 
+                                        // DEBUG: Print before/after for mut self
                                         let result = self.call_method_value_with_mutation(
                                             obj_value,
                                             method.clone(),
@@ -4680,29 +4750,24 @@ impl Interpreter {
 
                 // Execute function body
                 let mut result = Value::Unit;
-                for stmt in &body {
-                    result = self.execute_statement(stmt.clone())?;
-                    if matches!(result, Value::Return(_)) {
-                        // Propagate return immediately
+                for stmt in body.into_iter() {
+                    let stmt_result = self.execute_statement(stmt.clone())?;
+                    if matches!(stmt_result, Value::Return(_)) {
+                        result = stmt_result;
                         break;
                     }
+                    result = stmt_result;
                 }
-                // If a return was encountered, propagate it immediately
+
+                self.pop_scope();
                 if matches!(result, Value::Return(_)) {
-                    self.pop_scope();
                     return Ok(result.unwrap_return());
                 }
-
-                // Remove function scope
-                self.pop_scope();
-
-                // For functions without explicit returns, if the last statement produced a value,
-                // consider it the return value
-                if !matches!(result, Value::Return(_)) && !matches!(result, Value::Unit) {
-                    result = Value::Return(Box::new(result));
+                // If the last statement produced a value (not Unit), return it
+                if !matches!(result, Value::Unit) {
+                    return Ok(result);
                 }
-
-                Ok(result.unwrap_return())
+                Ok(Value::Unit)
             }
             _ => Err(VeldError::RuntimeError(format!(
                 "'{}' is not a function",
@@ -4947,15 +5012,26 @@ impl Interpreter {
 
                 // Execute function body
                 let mut result = Value::Unit;
-                for stmt in body {
-                    result = self.execute_statement(stmt.clone())?;
-                    if matches!(result, Value::Return(_)) {
+                for stmt in body.into_iter() {
+                    let stmt_result = self.execute_statement(stmt.clone())?;
+                    if matches!(stmt_result, Value::Return(_)) {
+                        result = stmt_result;
                         break;
                     }
+                    result = stmt_result;
                 }
 
                 self.pop_scope();
-                Ok(result.unwrap_return())
+
+                // If a return was encountered, propagate it immediately
+                if matches!(result, Value::Return(_)) {
+                    return Ok(result.unwrap_return());
+                }
+                // If the last statement produced a value (not Unit), return it
+                if !matches!(result, Value::Unit) {
+                    return Ok(result);
+                }
+                Ok(Value::Unit)
             }
             _ => Err(VeldError::RuntimeError(
                 "Cannot call non-function value".to_string(),
@@ -5127,6 +5203,14 @@ impl Interpreter {
                     }
                     let mut new_elements = elements.clone();
                     new_elements.push(args[0].clone());
+                    tracing::debug!(
+                        target: "veld.mutself",
+                        method = "Array.with",
+                        input = ?elements,
+                        arg = ?args[0],
+                        result = ?new_elements,
+                        "Array.with called"
+                    );
                     return Ok(Value::Array(new_elements));
                 }
                 "take" => {
@@ -5265,9 +5349,10 @@ impl Interpreter {
                         // Check if first parameter is 'mut self'
                         let has_mut_self = params.len() > 0 && params[0].0 == "mut self";
 
-                        // Bind 'self' to the struct instance
+                        // Bind 'self' to the struct instance by moving it.
                         self.current_scope_mut()
-                            .set("self".to_string(), object.clone());
+                            .declare("self".to_string(), object, VarKind::Var)
+                            .unwrap(); // Should not fail in a new scope
 
                         // Check argument count (excluding self)
                         if args.len() != params.len() - 1 {
@@ -5280,19 +5365,69 @@ impl Interpreter {
                         }
 
                         // Bind arguments directly (already evaluated)
-                        for (i, arg) in args.into_iter().enumerate() {
+                        for (i, arg) in args.clone().into_iter().enumerate() {
                             // Start from index 1 to skip self
                             self.current_scope_mut().set(params[i + 1].0.clone(), arg);
                         }
 
+                        // DEBUG: Print self before method body
+                        let self_before = self.scopes.last().unwrap().get("self").clone();
+                        tracing::debug!(
+                            target: "veld.mutself",
+                            method = %method_name,
+                            has_mut_self,
+                            variable_name = ?variable_name,
+                            self_before = ?self_before,
+                            "Entering mut self method"
+                        );
+
+                        // DEBUG: Print argument binding
+                        for (i, arg) in args.iter().enumerate() {
+                            tracing::debug!(
+                                target: "veld.mutself",
+                                method = %method_name,
+                                arg_index = i,
+                                arg_value = ?arg,
+                                param_name = %params[i + 1].0,
+                                "Binding argument to parameter"
+                            );
+                        }
+
                         // Execute method body
                         let mut result = Value::Unit;
-                        for stmt in body {
-                            result = self.execute_statement(stmt)?;
-                            if matches!(result, Value::Return(_)) {
+                        for stmt in body.into_iter() {
+                            let stmt_result = self.execute_statement(stmt.clone())?;
+                            tracing::debug!(
+                                target: "veld.mutself",
+                                "After statement in method body: stmt={:?}, stmt_result={:?}",
+                                stmt,
+                                stmt_result
+                            );
+                            if matches!(stmt_result, Value::Return(_)) {
+                                result = stmt_result;
                                 break;
                             }
+                            result = stmt_result;
                         }
+
+                        // DEBUG: Print self after method body
+                        let self_after = self.scopes.last().unwrap().get("self").clone();
+                        tracing::debug!(
+                            target: "veld.mutself",
+                            method = %method_name,
+                            has_mut_self,
+                            variable_name = ?variable_name,
+                            self_after = ?self_after,
+                            "Exiting mut self method"
+                        );
+
+                        // DEBUG: Print result before return
+                        tracing::debug!(
+                            target: "veld.mutself",
+                            method = %method_name,
+                            result = ?result,
+                            "Result before return or write-back"
+                        );
 
                         // If method has 'mut self' and we have a variable name, update the original variable
                         if has_mut_self {
@@ -5303,22 +5438,72 @@ impl Interpreter {
 
                                 self.pop_scope();
 
-                                // Update the variable in the current scope (after popping the method scope)
+                                // Update the variable in the correct scope
                                 if let Some(updated_value) = updated_self {
-                                    let is_mutable = self.current_scope_mut().is_mutable(&var_name);
-                                    if is_mutable {
-                                        self.current_scope_mut()
-                                            .set(var_name.clone(), updated_value);
-                                    }
+                                    tracing::debug!(
+                                        target: "veld.mutself",
+                                        method = %method_name,
+                                        var_name = %var_name,
+                                        updated_value = ?updated_value,
+                                        "Writing back mutated self to variable"
+                                    );
+                                    self.set_variable(var_name, updated_value)?;
+                                } else {
+                                    tracing::warn!(
+                                        target: "veld.mutself",
+                                        method = %method_name,
+                                        var_name = %var_name,
+                                        "No updated self found to write back"
+                                    );
                                 }
 
-                                return Ok(result.unwrap_return());
+                                tracing::debug!(
+                                    target: "veld.mutself",
+                                    method = %method_name,
+                                    "Popped scope after mut self write-back"
+                                );
+                                tracing::debug!(
+                                    target: "veld.mutself",
+                                    method = %method_name,
+                                    "Returning from mut self method (write-back branch), return_value={:?}",
+                                    result
+                                );
+                                if let Value::Return(val) = result {
+                                    return Ok(*val);
+                                }
+                                tracing::debug!(
+                                    target: "veld.mutself",
+                                    method = %method_name,
+                                    "Returning FINAL from mut self method (write-back branch), final_result={:?}",
+                                    result
+                                );
+                                return Ok(result);
                             }
                         }
 
+                        tracing::debug!(
+                            target: "veld.mutself",
+                            method = %method_name,
+                            "Popped scope after mut self (no write-back)"
+                        );
                         self.pop_scope();
 
-                        Ok(result.unwrap_return())
+                        tracing::debug!(
+                            target: "veld.mutself",
+                            method = %method_name,
+                            "Returning from mut self method (no write-back branch), return_value={:?}",
+                            result
+                        );
+                        if let Value::Return(val) = result {
+                            return Ok(*val);
+                        }
+                        tracing::debug!(
+                            target: "veld.mutself",
+                            method = %method_name,
+                            "Returning FINAL from mut self method (no write-back branch), final_result={:?}",
+                            result
+                        );
+                        return Ok(result);
                     }
                     _ => Err(VeldError::RuntimeError(
                         "Internal error: method is not a function".to_string(),
@@ -5365,16 +5550,26 @@ impl Interpreter {
 
                         // Execute method body
                         let mut result = Value::Unit;
-                        for stmt in body {
-                            result = self.execute_statement(stmt)?;
-                            if matches!(result, Value::Return(_)) {
+                        for stmt in body.into_iter() {
+                            let stmt_result = self.execute_statement(stmt.clone())?;
+                            if matches!(stmt_result, Value::Return(_)) {
+                                result = stmt_result;
                                 break;
                             }
+                            result = stmt_result;
                         }
 
                         self.pop_scope();
 
-                        Ok(result.unwrap_return())
+                        // If a return was encountered, propagate it immediately
+                        if matches!(result, Value::Return(_)) {
+                            return Ok(result.unwrap_return());
+                        }
+                        // If the last statement produced a value (not Unit), return it
+                        if !matches!(result, Value::Unit) {
+                            return Ok(result);
+                        }
+                        Ok(Value::Unit)
                     }
                     _ => Err(VeldError::RuntimeError(
                         "Internal error: method is not a function".to_string(),
@@ -5400,8 +5595,10 @@ impl Interpreter {
                     MethodImpl { params, body, .. } => {
                         self.push_scope();
 
-                        // Bind 'self' to the enum instance
-                        self.current_scope_mut().set("self".to_string(), object);
+                        // Bind 'self' to the enum instance by moving it.
+                        self.current_scope_mut()
+                            .declare("self".to_string(), object, VarKind::Var)
+                            .unwrap(); // Should not fail in a new scope
 
                         // Debug: Show params and args before argument count check
 
@@ -5425,16 +5622,39 @@ impl Interpreter {
 
                         // Execute method body
                         let mut result = Value::Unit;
-                        for stmt in body {
-                            result = self.execute_statement(stmt.clone())?;
-                            if matches!(result, Value::Return(_)) {
+                        for stmt in body.into_iter() {
+                            let stmt_result = self.execute_statement(stmt.clone())?;
+                            if matches!(stmt_result, Value::Return(_)) {
+                                result = stmt_result;
                                 break;
+                            }
+                            result = stmt_result;
+                        }
+
+                        let has_mut_self = params.len() > 0 && params[0].0 == "mut self";
+                        if has_mut_self {
+                            if let Some(var_name) = &variable_name {
+                                let updated_self =
+                                    self.scopes.last().unwrap().get("self").map(|v| v.clone());
+                                self.pop_scope();
+                                if let Some(updated_value) = updated_self {
+                                    self.set_variable(var_name, updated_value)?;
+                                }
+                                if matches!(result, Value::Return(_)) {
+                                    return Ok(result.unwrap_return());
+                                }
+
+                                return Ok(Value::Unit);
                             }
                         }
 
                         self.pop_scope();
 
-                        Ok(result.unwrap_return())
+                        if matches!(result, Value::Return(_)) {
+                            return Ok(result.unwrap_return());
+                        }
+
+                        Ok(Value::Unit)
                     }
                     _ => Err(VeldError::RuntimeError(
                         "Internal error: enum method is not a MethodImpl".to_string(),
@@ -5720,22 +5940,25 @@ impl Interpreter {
 
                 // Execute function body
                 let mut result = Value::Unit;
-                for stmt in &body {
-                    result = self.execute_statement(stmt.clone())?;
-                    if matches!(result, Value::Return(_)) {
+                for stmt in body.into_iter() {
+                    let stmt_result = self.execute_statement(stmt.clone())?;
+                    if matches!(stmt_result, Value::Return(_)) {
+                        result = stmt_result;
                         break;
                     }
+                    result = stmt_result;
                 }
 
                 self.pop_scope();
 
-                // For functions without explicit returns, if the last statement produced a value,
-                // consider it the return value
-                if !matches!(result, Value::Return(_)) && !matches!(result, Value::Unit) {
-                    result = Value::Return(Box::new(result));
+                if matches!(result, Value::Return(_)) {
+                    return Ok(result.unwrap_return());
                 }
-
-                Ok(result.unwrap_return())
+                // If the last statement produced a value (not Unit), return it
+                if !matches!(result, Value::Unit) {
+                    return Ok(result);
+                }
+                Ok(Value::Unit)
             }
             // If you have native functions, add a case here
             // Value::NativeFunction(f) => f(arg_values),
@@ -5754,6 +5977,10 @@ impl Interpreter {
             self.scopes.push(Scope::new(new_level));
         }
         self.scopes.last_mut().unwrap()
+    }
+
+    pub fn current_scope(&self) -> &Scope {
+        self.scopes.last().unwrap()
     }
 
     // Helper function to check if a lambda expression references a given variable name
@@ -5840,6 +6067,18 @@ impl Interpreter {
         // 3. Not found
 
         None
+    }
+
+    fn set_variable(&mut self, name: &str, value: Value) -> Result<()> {
+        for scope in self.scopes.iter_mut().rev() {
+            if scope.vals().contains_key(name) {
+                return scope.assign(name, value);
+            }
+        }
+        Err(VeldError::RuntimeError(format!(
+            "Cannot assign to undefined variable '{}'",
+            name
+        )))
     }
 
     fn execute_plex_declaration(
@@ -5972,20 +6211,32 @@ impl Interpreter {
 
             // Execute all statements in the module
             let mut result = Value::Unit;
-            for stmt in statements.clone() {
-                result = self.execute_statement(stmt)?;
-                if matches!(result, Value::Return(_)) {
+            let mut last_stmt_is_expr = false;
+            let body_len = statements.len();
+            for (i, stmt) in statements.into_iter().enumerate() {
+                let stmt_result = self.execute_statement(stmt.clone())?;
+                if matches!(stmt_result, Value::Return(_)) {
+                    result = stmt_result;
                     break;
+                }
+                if i == body_len - 1 {
+                    if let Statement::ExprStatement(_) = &stmt {
+                        last_stmt_is_expr = true;
+                        result = stmt_result;
+                    } else {
+                        result = stmt_result;
+                    }
                 }
             }
 
-            // Register the module
-            self.module_manager.create_module(&name, statements)?;
+            self.pop_scope();
 
-            // Restore previous context
-            self.push_scope();
-            self.current_module = previous_module;
-
+            if matches!(result, Value::Return(_)) {
+                return Ok(result.unwrap_return());
+            }
+            if last_stmt_is_expr {
+                return Ok(result);
+            }
             Ok(Value::Unit)
         } else {
             // Just a module declaration referencing a file
