@@ -2703,8 +2703,9 @@ impl Interpreter {
                                                         elements.len()
                                                     );
                                                     return Err(VeldError::RuntimeError(format!(
-                                                        "Array index out of bounds: index was {}, but length is {}",
+                                                        r#"Array index out of bounds: index was {}, but length of the elements ("{:?}") is {}"#,
                                                         idx,
+                                                        elements,
                                                         elements.len()
                                                     )));
                                                 }
