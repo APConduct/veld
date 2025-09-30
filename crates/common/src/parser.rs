@@ -560,7 +560,7 @@ impl Parser {
         let mut params = Vec::new();
         let mut return_type_anno: Option<TypeAnnotation> = None;
         let mut is_block_demi = false;
-        let mut is_expr_demi = false;
+        let mut _is_expr_demi = false;
 
         // Handle 'fn' keyword if present
         if self.match_token(&[Token::Fn((0, 0))]) {
@@ -594,7 +594,7 @@ impl Parser {
                 is_block_demi = true;
             } else {
                 is_block_demi = false;
-                is_expr_demi = true;
+                _is_expr_demi = true;
             }
         } else {
             // Handle parameters without 'fn' keyword
@@ -3402,7 +3402,7 @@ impl Parser {
             None
         };
 
-        let mut is_block_lambda = false;
+        let mut _is_block_lambda = false;
         // Expect '=>' for single-expression lambdas and '=> do' or nothing for block lambdas
         if self.match_token(&[Token::FatArrow(ZTUP)]) {
             tracing::debug!("Detected '=>' for single-expression lambda");
