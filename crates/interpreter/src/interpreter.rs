@@ -33,7 +33,7 @@ enum PatternToken {
 }
 
 #[derive(Debug, Clone, Default)]
-struct StructInfo {
+pub struct StructInfo {
     fields: Vec<(String, TypeAnnotation)>,
     generic_params: Vec<GenericArgument>,
 }
@@ -62,6 +62,18 @@ impl StructInfo {
             fields,
             generic_params,
         }
+    }
+
+    pub fn fields(&self) -> &Vec<(String, TypeAnnotation)> {
+        &self.fields
+    }
+
+    pub fn generic_params(&self) -> &Vec<GenericArgument> {
+        &self.generic_params
+    }
+
+    pub fn generic_params_mut(&mut self) -> &mut Vec<GenericArgument> {
+        &mut self.generic_params
     }
 }
 
@@ -375,7 +387,7 @@ impl Interpreter {
 
         if let Some(value) = args.get(0) {
             match self.value_to_string(value) {
-                Ok(s) => Ok(Value::Unit),
+                Ok(_s) => Ok(Value::Unit),
                 Err(e) => Err(e),
             }
         } else {
@@ -2349,24 +2361,6 @@ impl Interpreter {
     }
 }
 
-struct If2 {}
-struct BinOpFrame {}
-struct FunCallFrame {}
-struct PropAccFrame {}
-struct TypeCastFrame {}
-struct MethodCallFrame {}
-struct StructCreateFrame {}
-struct ArrayLiteralFrame {}
-struct IndexAccessFrame {}
-struct EnumVarFrame {}
-struct TupleLiteralFrame {}
-struct TupleAccessFrame {}
-struct BlockExprFrame {}
-struct MatchExprFrame {}
-struct UnOpFrame {}
-
-struct ExprFrame {}
-
 impl Interpreter {
     fn evaluate_expression(&mut self, expr: Expr) -> Result<Value> {
         // let mut stack = Vec::new();
@@ -3345,7 +3339,7 @@ impl Interpreter {
                 }
             }
 
-            Type::Struct { name, fields } => todo!("Handle struct types"),
+            Type::Struct { name: _, fields: _ } => todo!("Handle struct types"),
 
             // Generic types
             Type::Generic { base, type_args } => {
@@ -3599,7 +3593,7 @@ impl Interpreter {
             Expr::BinaryOp {
                 left,
                 operator,
-                right,
+                right: _,
             } => {
                 let new_left = self.substitute_variables_in_expression(left, bindings)?;
                 let new_right = self.substitute_variables_in_expression(expr, bindings)?;
