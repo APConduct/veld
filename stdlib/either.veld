@@ -1,3 +1,8 @@
+#| This module is a scratch/protype for a possible "Either" type in the Veld programming language standard library.
+#| It provides a way to represent a value that can be either of two types.
+#| Note that this implementation is a prototype and may not be suitable for production use
+#| and may not be included as an exported type in the standard library.
+
 pub enum Either<Left, Right>
     Left(Left),
     Right(Right),
@@ -7,15 +12,15 @@ end
 impl<Left, Right> Either<Left, Right>
   pub fn is_left(self) -> bool
     match self
-      Either::Left(_) => true,
-      Either::Right(_) => false,
+      Either.Left(_) => true,
+      Either.Right(_) => false,
     end
   end
 
   pub fn is_right(self) -> bool
     match self
-      Either::Left(_) => false,
-      Either::Right(_) => true,
+      Either.Left(_) => false,
+      Either.Right(_) => true,
     end
   end
 
