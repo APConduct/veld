@@ -199,6 +199,7 @@ fn demonstrate_advanced_features() {
 }
 
 /// Example showing integration with MacroSystem
+#[allow(dead_code)]
 fn demonstrate_macro_system_integration() {
     println!("\n4. Macro System Integration");
     println!("---------------------------");
@@ -228,6 +229,7 @@ fn demonstrate_macro_system_integration() {
 }
 
 /// Show migration strategies for different scenarios
+#[allow(dead_code)]
 fn migration_strategies() {
     println!("\n5. Migration Strategies");
     println!("-----------------------");
@@ -254,6 +256,7 @@ fn migration_strategies() {
 }
 
 /// Example of a real migration scenario
+#[allow(dead_code)]
 fn real_world_migration_example() {
     println!("\n6. Real World Migration");
     println!("-----------------------");
@@ -310,6 +313,7 @@ fn real_world_migration_example() {
     );
 
     // Evolution: Upgrade to declarative for better patterns
+    #[allow(unused_variables)]
     let evolved_log_macro = MacroDefinition::declarative(
         "log".to_string(),
         vec![

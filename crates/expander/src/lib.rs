@@ -705,6 +705,25 @@ impl TemplateExpander {
     }
 }
 
+/// ExpansionContext represents the context for macro expansion.
+/// It contains information about the current state of macro expansion,
+/// including the defined macros, the current expansion depth, the maximum depth,
+/// the hygiene counter, the scoped bindings, and the expansion stack.
+///
+/// # Example:
+/// ```
+/// use veld_expander::ExpansionContext;
+/// use veld_expander::MacroDefinition;
+/// use veld_common::source::NodeId;
+/// let mut context = ExpansionContext::new();
+/// context.define_macro(MacroDefinition::declarative("foo".to_string(), vec![], vec![], NodeId::new())).unwrap();
+/// assert_eq!(context.macros().len(), 1);
+/// assert_eq!(context.expansion_depth(), 0);
+/// assert_eq!(context.max_depth(), 256);
+/// assert_eq!(context.hygiene_counter(), 0);
+/// assert_eq!(context.scoped_bindings().len(), 1);
+/// assert_eq!(context.expansion_stack().len(), 0);
+/// ```
 pub struct ExpansionContext {
     macros: HashMap<String, MacroDefinition>,
     expansion_depth: usize,
@@ -715,6 +734,7 @@ pub struct ExpansionContext {
 }
 
 impl ExpansionContext {
+    /// Creates a new expansion context.
     pub fn new() -> Self {
         Self {
             macros: HashMap::new(),
@@ -726,6 +746,52 @@ impl ExpansionContext {
         }
     }
 
+    /// Returns the current expansion depth.
+    pub fn expansion_depth(&self) -> usize {
+        self.expansion_depth
+    }
+
+    /// Returns a reference to the expansion stack.
+    pub fn expansion_stack(&self) -> &Vec<ExpansionFrame> {
+        &self.expansion_stack
+    }
+
+    /// Returns a mutable reference to the expansion stack.
+    pub fn expansion_stack_mut(&mut self) -> &mut Vec<ExpansionFrame> {
+        &mut self.expansion_stack
+    }
+
+    /// Returns the current hygiene counter.
+    pub fn hygiene_counter(&self) -> u32 {
+        self.hygiene_counter
+    }
+
+    /// Returns a reference to the scoped bindings.
+    pub fn scoped_bindings(&self) -> &Vec<HashMap<String, String>> {
+        &self.scoped_bindings
+    }
+
+    /// Returns a mutable reference to the scoped bindings.
+    pub fn scoped_bindings_mut(&mut self) -> &mut Vec<HashMap<String, String>> {
+        &mut self.scoped_bindings
+    }
+
+    /// Returns a reference to the macros.
+    pub fn macros(&self) -> &HashMap<String, MacroDefinition> {
+        &self.macros
+    }
+
+    /// Returns a mutable reference to the macros.
+    pub fn macros_mut(&mut self) -> &mut HashMap<String, MacroDefinition> {
+        &mut self.macros
+    }
+
+    /// Returns the maximum expansion depth.
+    pub fn max_depth(&self) -> usize {
+        self.max_depth
+    }
+
+    /// Defines a new macro.
     pub fn define_macro(&mut self, def: MacroDefinition) -> Result<(), ExpansionError> {
         if let Some(existing) = self.macros.get(&def.name) {
             return Err(ExpansionError::MacroRedefinition {
@@ -739,10 +805,12 @@ impl ExpansionContext {
         Ok(())
     }
 
+    /// Looks up a macro by name.
     pub fn lookup_macro(&self, name: &str) -> Option<&MacroDefinition> {
         self.macros.get(name)
     }
 
+    /// Enters a new expansion context.
     pub fn enter_expansion(
         &mut self,
         macro_name: String,
@@ -766,11 +834,38 @@ impl ExpansionContext {
         Ok(())
     }
 
+    /// Exits the current expansion context.
     pub fn exit_expansion(&mut self) {
         self.expansion_depth -= 1;
         self.expansion_stack.pop();
     }
 
+    /// Expands a macro
+    ///
+    /// # Example:
+    /// ```
+    /// use veld_expander::ExpansionContext;
+    /// use veld_expander::MacroDefinition;
+    /// use veld_common::ast::Expr;
+    /// use veld_common::source::NodeId;
+    /// use veld_common::ast::Statement;
+    /// use veld_common::ast::Literal;
+    /// let mut expander = ExpansionContext::new();
+    /// // Define a macro first before expanding it
+    /// let macro_def = MacroDefinition::simple(
+    ///     "my_macro".to_string(),
+    ///     vec!["x".to_string(), "y".to_string()],
+    ///     vec![Statement::ExprStatement(Expr::Literal(Literal::Integer(1)))],
+    ///     NodeId::new()
+    /// );
+    /// expander.define_macro(macro_def).unwrap();
+    /// let expanded = expander.expand_macro(
+    ///     "my_macro",
+    ///     &[Expr::Literal(Literal::String("x".to_string())), Expr::Literal(Literal::String("y".to_string()))],
+    ///     NodeId::new(),
+    /// );
+    /// assert_eq!(expanded.unwrap(), vec![Statement::ExprStatement(Expr::Literal(Literal::Integer(1)))]);
+    /// ```
     pub fn expand_macro(
         &mut self,
         name: &str,
@@ -799,7 +894,7 @@ impl ExpansionContext {
                 patterns,
                 templates,
             }) => self.expand_declarative_macro(name, patterns, templates, arguments, call_site),
-            Some(MacroKind::Template { typed, .. }) => self.expand_template_macro(
+            Some(MacroKind::Template { typed: _, .. }) => self.expand_template_macro(
                 name,
                 &macro_def.parameters,
                 &macro_def.body,
@@ -820,6 +915,7 @@ impl ExpansionContext {
         result
     }
 
+    /// Expands a simple macro.
     fn expand_simple_macro(
         &mut self,
         name: &str,

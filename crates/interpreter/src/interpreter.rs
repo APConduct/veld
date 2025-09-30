@@ -4824,11 +4824,11 @@ impl Interpreter {
                     ))),
                 }
             }
-            Value::EnumType { name, methods } => {
+            Value::EnumType { name, methods: _ } => {
                 // Property access on enum type, e.g., Option.None
                 // Look up the enum and variant
                 if let Some(variants) = self.enums.get(name.as_str()) {
-                    if let Some(variant) = variants.iter().find(|v| v.name == property) {
+                    if let Some(_variant) = variants.iter().find(|v| v.name == property) {
                         // Return a value representing the enum variant constructor (no fields)
                         Ok(Value::Enum {
                             enum_name: name.clone(),
@@ -5967,10 +5967,13 @@ impl Interpreter {
     }
 
     // Scope management
-    fn global_scope_mut(&mut self) -> &mut Scope {
+
+    /// Returns a mutable reference to the global scope.
+    pub fn global_scope_mut(&mut self) -> &mut Scope {
         &mut self.scopes[0]
     }
 
+    /// Returns a mutable reference to the current scope.
     pub fn current_scope_mut(&mut self) -> &mut Scope {
         if self.scopes.is_empty() {
             let new_level = self.scopes.len();
@@ -5979,6 +5982,7 @@ impl Interpreter {
         self.scopes.last_mut().unwrap()
     }
 
+    /// Returns a reference to the current scope.
     pub fn current_scope(&self) -> &Scope {
         self.scopes.last().unwrap()
     }
