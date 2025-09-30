@@ -1,0 +1,25 @@
+# Test file for macro expansion integration
+# This file tests that built-in macros are properly expanded before interpretation
+
+fn main() -> i32
+    # Test the vec~ macro
+    let numbers = vec~(1, 2, 3, 4, 5)
+
+    # Test the println~ macro
+    println~("Hello, macro world~")
+
+    # Test the format~ macro
+    let message = format~("The first number is: {}", numbers.get(0))
+    println~(message)
+
+    # Test the debug~ macro
+    let result = debug~(numbers.len())
+
+    # Test the assert~ macro
+    assert~(result == 5)
+
+    # Test the todo~ macro (commented out since it would panic)
+    # todo~("Implement more features")
+
+    result
+end
