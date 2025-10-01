@@ -162,7 +162,7 @@ struct User
     name: str,
 end
 
-impl User: Serializable
+impl User <- Serializable
     fn serialize(self) -> [u8]
         # implementation
     end
@@ -204,7 +204,7 @@ fn old_function() -> i32 42
 
 # Implementation optimization hints
 @optimize(inline)
-impl Vector: Numeric
+impl Vector <- Numeric
     @simd
     fn dot_product(self, other: Vector) -> f64
         # optimized implementation
@@ -281,7 +281,7 @@ fn find<T, U>(haystack: T, needle: U) -> bool
 where
     T: Container<U>,
     U: Equatable
-do
+=> do
     for item in haystack
         if item == needle
             return true
@@ -328,15 +328,15 @@ fn calculate() -> Result<i32, str>
     Ok(y + 5)
 end
 
-# Try-catch like pattern
+# Try-catch like pattern (proposed, not within the current list of veld priorities)
 fn safe_operation()
-    try
+    try~
         risky_function()
-    catch e: IOException
+    catch~ (e: IOException) =>
         handle_io_error(e)
-    catch e: ValueError
+    catch~ (e: ValueError) =>
         handle_value_error(e)
-    finally
+    finally~ () =>
         cleanup()
     end
 end
@@ -360,11 +360,11 @@ fn fetch_data() async -> Data
 end
 
 # Using channels
-let (sender, receiver) = channel::<Message>()
+let (sender, receiver) = channel<Message>()
 
 spawn fn()
     for i in 1..10
-        sender.send(Message{id: i})
+        sender.send(Message(id: i))
     end
 end
 
@@ -374,7 +374,7 @@ end
 
 # Compile-time reflection
 fn generate_fields<T>() -> [str]
-    @reflect(T).fields().map(f => f.name)
+    reflect~(T).fields().map(f => f.name)
 end
 
 # Runtime type checking
@@ -390,14 +390,14 @@ end
 # Code generation
 @comptime
 fn derive_debug(type_name)
-    let type_info = @reflect(type_name)
+    let type_info = reflect~(type_name)
     # Generate Debug implementation
 end
 
 # Custom DSL
-sql~{
+let _ = sql~(
     SELECT users.name, users.email
     FROM users
     WHERE users.active = true
     ORDER BY users.name
-}
+)
