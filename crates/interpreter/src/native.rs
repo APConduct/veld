@@ -53,7 +53,29 @@ impl NativeFunctionRegistry {
 
     // Check if a function exists
     pub fn contains(&self, name: &str) -> bool {
-        self.functions.contains_key(name)
+        self.functions.contains_key(name) || self.static_functions.contains_key(name)
+    }
+
+    // Check if a static function exists
+    pub fn contains_static(&self, name: &str) -> bool {
+        self.static_functions.contains_key(name)
+    }
+
+    // Call a static function
+    pub fn call_static(
+        &self,
+        name: &str,
+        interpreter: &Interpreter,
+        args: Vec<Value>,
+    ) -> Result<Value> {
+        if let Some(handler) = self.static_functions.get(name) {
+            handler(interpreter, args)
+        } else {
+            Err(VeldError::RuntimeError(format!(
+                "Static function '{}' not found",
+                name
+            )))
+        }
     }
 }
 

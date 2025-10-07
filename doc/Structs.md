@@ -19,4 +19,4 @@ In this case, the property names are optional. You can omit them if you want, as
 ```veld
 struct Point(f32, f32)
 ```
-However, note that in this case, the members can only be accessed by their index in the struct definition, meaning our first `f32` will be 'called’ 0, and the second will be 'called' 1 (see <u>tuples</u>).
+However, note that in this case, the members can only be accessed by their index in the struct definition, meaning our first `f32` will be 'called’ 0, and the second will be 'called' 1 (see tuples).

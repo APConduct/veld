@@ -1,0 +1,7 @@
+import std.io.{print, println}
+
+# std.io.print can only take in one argument of type 'str'
+std.io.print("Hi There.")
+print("\n")
+
+std.io.println("Hello from the next line.")

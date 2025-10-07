@@ -1,2 +1,29 @@
 #| IO module for Veld standard library
 #| Provides functions for input and output operations
+
+# These functions are implemented natively in Rust
+# The interpreter will resolve these to their native implementations
+
+# Print function that outputs text without a newline
+pub fn print(text: str) -> ()
+end
+
+# Print function that outputs text with a newline
+pub fn println(text: str) -> ()
+end
+
+# Read a file's contents as a string
+pub fn read_file(path: str) -> str
+end
+
+# Write content to a file
+pub fn write_file(path: str, content: str) -> ()
+end
+
+# Check if a file exists
+pub fn file_exists(path: str) -> bool
+end
+
+# Read a line from standard input
+pub fn read_line() -> str
+end

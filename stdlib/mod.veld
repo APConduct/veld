@@ -2,29 +2,32 @@
 #| that re-exports all the standard modules and their components.
 
 # Core types and behaviors - temporarily commented out until core module is fully implemented
-pub import std.core
+# pub import std.core
 
 # Core algebraic data types
-pub import std.option
-pub import std.result
+# pub import std.option
+# pub import std.result
 
 # Range types for iteration and slicing
-pub import std.range
+# pub import std.range
 
 # Collections
-pub import std.collections
+# pub import std.collections
 
 # String capabilities - temporarily commented out until string module is fully implemented
-pub import std.string
+# pub import std.string
 
 # Numeric capabilities - temporarily commented out until numeric module is fully implemented
 # pub import std.numeric
 
 # Operator kinds
-pub import std.ops
+# pub import std.ops
 
 # Math functions and constants
-pub import std.math
+# pub import std.math
 
 # Dynamic arrays
-pub import std.vec
+# pub import std.vec
+
+# IO module
+pub import std.io

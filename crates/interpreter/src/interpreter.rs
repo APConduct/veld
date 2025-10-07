@@ -369,6 +369,8 @@ impl Interpreter {
             match self.value_to_string(value) {
                 Ok(s) => {
                     print!("{}", s);
+                    use std::io::{self, Write};
+                    io::stdout().flush().unwrap();
                     Ok(Value::Unit)
                 }
                 Err(e) => Err(e),
@@ -382,12 +384,16 @@ impl Interpreter {
 
     fn io_println(&self, args: Vec<Value>) -> Result<Value> {
         if args.is_empty() {
+            println!();
             return Ok(Value::Unit);
         }
 
         if let Some(value) = args.get(0) {
             match self.value_to_string(value) {
-                Ok(_s) => Ok(Value::Unit),
+                Ok(s) => {
+                    println!("{}", s);
+                    Ok(Value::Unit)
+                }
                 Err(e) => Err(e),
             }
         } else {
@@ -2598,6 +2604,43 @@ impl Interpreter {
 
                                 // Check if this is a module function call
                                 if let Value::Module(module) = &obj_value {
+                                    // Special handling for std.io module - redirect to native implementations
+                                    if module.name == "std.io" {
+                                        let native_function_name = format!("std.io.{}", method);
+                                        if self.native_registry.contains(&native_function_name) {
+                                            let mut arg_values = Vec::new();
+                                            for arg in arguments {
+                                                let expr = match arg {
+                                                    Argument::Positional(expr) => expr,
+                                                    Argument::Named { name: _, value } => value,
+                                                };
+                                                let value = self.evaluate_expression(expr)?;
+                                                arg_values.push(value);
+                                            }
+
+                                            let result = if let Some(handler) =
+                                                self.native_registry.get(&native_function_name)
+                                            {
+                                                handler(arg_values)
+                                            } else if self
+                                                .native_registry
+                                                .contains_static(&native_function_name)
+                                            {
+                                                self.native_registry.call_static(
+                                                    &native_function_name,
+                                                    self,
+                                                    arg_values,
+                                                )
+                                            } else {
+                                                return Err(VeldError::RuntimeError(format!(
+                                                    "Native function '{}' not found",
+                                                    native_function_name
+                                                )));
+                                            };
+                                            return result;
+                                        }
+                                    }
+
                                     if let Some(export) = module.exports.get(&method) {
                                         if let veld_common::value::module::ExportedItem::Function(
                                             idx,
@@ -4703,9 +4746,77 @@ impl Interpreter {
         }
 
         // Try to get the function from the current scope
-        let function = self
-            .get_variable(&name)
-            .ok_or_else(|| VeldError::RuntimeError(format!("Undefined function '{}'", name)))?;
+        let function = if let Some(func) = self.get_variable(&name) {
+            func
+        } else {
+            // Check if this is a native function
+            if self.native_registry.contains(&name) {
+                // Call native function directly
+                let result = if let Some(handler) = self.native_registry.get(&name) {
+                    handler(arg_values)
+                } else if self.native_registry.contains_static(&name) {
+                    // Try static functions if regular one not found
+                    self.native_registry.call_static(&name, self, arg_values)
+                } else {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Native function '{}' not found",
+                        name
+                    )));
+                };
+                self.recursion_depth -= 1;
+                return result;
+            } else {
+                return Err(VeldError::RuntimeError(format!(
+                    "Undefined function '{}'",
+                    name
+                )));
+            }
+        };
+
+        // Special handling for std.io module functions - redirect to native implementations
+        if let Value::Function { params, .. } = &function {
+            // Check if this is an imported std.io function with empty body
+            let native_function_name = format!("std.io.{}", name);
+            if self.native_registry.contains(&native_function_name) {
+                // This is a std.io function, call the native implementation instead
+                let result = if let Some(handler) = self.native_registry.get(&native_function_name)
+                {
+                    handler(arg_values)
+                } else if self.native_registry.contains_static(&native_function_name) {
+                    self.native_registry
+                        .call_static(&native_function_name, self, arg_values)
+                } else {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Native function '{}' not found",
+                        native_function_name
+                    )));
+                };
+                self.recursion_depth -= 1;
+                return result;
+            }
+        }
+
+        // Check for other native function redirects (handles imported functions)
+        let potential_native_names = [
+            format!("std.io.{}", name),
+            format!("std.math.{}", name),
+            name.clone(), // Direct native function name
+        ];
+
+        for native_name in &potential_native_names {
+            if self.native_registry.contains(native_name) {
+                let result = if let Some(handler) = self.native_registry.get(native_name) {
+                    handler(arg_values)
+                } else if self.native_registry.contains_static(native_name) {
+                    self.native_registry
+                        .call_static(native_name, self, arg_values)
+                } else {
+                    continue;
+                };
+                self.recursion_depth -= 1;
+                return result;
+            }
+        }
 
         match function {
             Value::Function {
@@ -5049,6 +5160,40 @@ impl Interpreter {
         args: Vec<Value>,
         variable_name: Option<String>,
     ) -> Result<Value> {
+        // Special handling for std.io module method calls - redirect to native implementations
+        if let Value::Module(module) = &object {
+            tracing::debug!(
+                "Method call on module: {} method: {}",
+                module.name,
+                method_name
+            );
+            if module.name == "std.io" {
+                let native_function_name = format!("std.io.{}", method_name);
+                tracing::debug!("Checking for native function: {}", native_function_name);
+                if self.native_registry.contains(&native_function_name) {
+                    tracing::debug!("Found native function: {}", native_function_name);
+                    let result =
+                        if let Some(handler) = self.native_registry.get(&native_function_name) {
+                            tracing::debug!("Calling regular native function");
+                            handler(args)
+                        } else if self.native_registry.contains_static(&native_function_name) {
+                            tracing::debug!("Calling static native function");
+                            self.native_registry
+                                .call_static(&native_function_name, self, args)
+                        } else {
+                            return Err(VeldError::RuntimeError(format!(
+                                "Native function '{}' not found",
+                                native_function_name
+                            )));
+                        };
+                    tracing::debug!("Native function call result: {:?}", result);
+                    return result;
+                } else {
+                    tracing::debug!("Native function not found: {}", native_function_name);
+                }
+            }
+        }
+
         // First check for native methods on built-in types
         let type_name = object.type_of().to_string();
 
@@ -6251,35 +6396,82 @@ impl Interpreter {
         alias: Option<String>,
         is_public: bool,
     ) -> Result<Value> {
-        let module_path_str = path.join(".");
+        let mut actual_path = path.clone();
+        let mut actual_items = items.clone();
 
-        // First, ensure the module is loaded
-        self.module_manager.load_module(&path)?;
+        tracing::debug!("Import resolution: path={:?}, items={:?}", path, items);
+
+        // Check if this might be a single-item import by trying the fallback first
+        if actual_path.len() > 1 && actual_items == vec![ImportItem::All] {
+            tracing::debug!("Checking for single-item import fallback");
+            // Try treating the last component as an item name
+            let mut parent_path = actual_path.clone();
+            let potential_item = parent_path.pop().unwrap();
+
+            tracing::debug!(
+                "Attempting to load parent module {:?} for item '{}'",
+                parent_path,
+                potential_item
+            );
+
+            // Try to load parent module first
+            match self.module_manager.load_module(&parent_path) {
+                Ok(_) => {
+                    tracing::debug!(
+                        "Successfully loaded parent module {:?}, treating '{}' as imported item",
+                        parent_path,
+                        potential_item
+                    );
+                    // Successfully loaded parent module, treat last component as item
+                    actual_path = parent_path;
+                    actual_items = vec![ImportItem::Named(potential_item)];
+                }
+                Err(e) => {
+                    tracing::debug!("Parent module load failed: {:?}, trying original path", e);
+                    // Parent module load failed, try original path
+                    self.module_manager.load_module(&actual_path)?;
+                }
+            }
+        } else {
+            tracing::debug!(
+                "Simple case - loading module as specified: {:?}",
+                actual_path
+            );
+            // Simple case - load module as specified
+            self.module_manager.load_module(&actual_path)?;
+        }
+
+        // Use the adjusted path and items
+        let actual_module_path_str = actual_path.join(".");
 
         // Process imports based on alias or direct imports
         if let Some(alias_name) = alias {
             // Store the module alias -> actual name mapping
             self.imported_modules
-                .insert(alias_name, module_path_str.clone());
+                .insert(alias_name, actual_module_path_str.clone());
         } else {
             // No alias, so we're importing specific items or the entire module
 
             // Get the exports we want
-            let exports = self.module_manager.get_exports(&module_path_str, &items)?;
+            let exports = self
+                .module_manager
+                .get_exports(&actual_module_path_str, &actual_items)?;
 
             // To avoid double borrowing, collect all needed data first
             let module_statements = {
                 let module = self
                     .module_manager
-                    .get_module(&module_path_str)
+                    .get_module(&actual_module_path_str)
                     .ok_or_else(|| VeldError::RuntimeError("Module not found".to_string()))?;
                 module.statements.clone()
             };
 
             // To avoid double execution, track executed modules by name
-            if !self.imported_modules.contains_key(&module_path_str) {
-                self.imported_modules
-                    .insert(module_path_str.clone(), module_path_str.clone());
+            if !self.imported_modules.contains_key(&actual_module_path_str) {
+                self.imported_modules.insert(
+                    actual_module_path_str.clone(),
+                    actual_module_path_str.clone(),
+                );
                 for statement in &module_statements {
                     self.execute_statement(statement.clone())?;
                 }
@@ -6714,7 +6906,9 @@ impl Interpreter {
 
         if is_public {
             let current_module = self.get_current_module().to_string();
-            let exports = self.module_manager.get_exports(&module_path_str, &items)?;
+            let exports = self
+                .module_manager
+                .get_exports(&actual_module_path_str, &actual_items)?;
 
             let module = self
                 .module_manager
