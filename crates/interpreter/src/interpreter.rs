@@ -2572,6 +2572,12 @@ impl Interpreter {
                                     );
                                 }
                                 // Otherwise, treat as regular function call
+                                // Extract function name if callee is an identifier before evaluating
+                                let function_name = if let Expr::Identifier(name) = &*callee {
+                                    Some(name.clone())
+                                } else {
+                                    None
+                                };
                                 let callee_val = self.evaluate_expression(*callee)?;
                                 let mut arg_values = Vec::new();
                                 for arg in arguments {
@@ -2584,7 +2590,11 @@ impl Interpreter {
                                         }
                                     }
                                 }
-                                self.call_function_value(callee_val, arg_values)
+                                self.call_function_value_with_name(
+                                    callee_val,
+                                    arg_values,
+                                    function_name,
+                                )
                             }
 
                             Expr::MethodCall {
@@ -4796,7 +4806,7 @@ impl Interpreter {
             }
         }
 
-        // Check for other native function redirects (handles imported functions)
+        // Check for native function redirects (handles all imported functions)
         let potential_native_names = [
             format!("std.io.{}", name),
             format!("std.math.{}", name),
@@ -4825,6 +4835,31 @@ impl Interpreter {
                 captured_vars,
                 ..
             } => {
+                // Check if this is an imported function with empty body that should redirect to native
+                if body.is_empty() {
+                    let potential_native_names = [
+                        format!("std.io.{}", name),
+                        format!("std.math.{}", name),
+                        name.clone(),
+                    ];
+
+                    for native_name in &potential_native_names {
+                        if self.native_registry.contains(native_name) {
+                            let result =
+                                if let Some(handler) = self.native_registry.get(native_name) {
+                                    handler(arg_values)
+                                } else if self.native_registry.contains_static(native_name) {
+                                    self.native_registry
+                                        .call_static(native_name, self, arg_values)
+                                } else {
+                                    continue;
+                                };
+                            self.recursion_depth -= 1;
+                            return result;
+                        }
+                    }
+                }
+
                 // Create new scope for function
                 self.push_scope();
 
@@ -6045,6 +6080,16 @@ impl Interpreter {
 
     // Call a function value (not just by name), supporting closures, property-accessed functions, etc.
     fn call_function_value(&mut self, func: Value, arg_values: Vec<Value>) -> Result<Value> {
+        self.call_function_value_with_name(func, arg_values, None)
+    }
+
+    // Call a function value with optional name context for better native function resolution
+    fn call_function_value_with_name(
+        &mut self,
+        func: Value,
+        arg_values: Vec<Value>,
+        function_name: Option<String>,
+    ) -> Result<Value> {
         match func {
             Value::Function {
                 params,
@@ -6052,6 +6097,47 @@ impl Interpreter {
                 return_type: _,
                 captured_vars,
             } => {
+                // Check if this is an imported function with empty body that should redirect to native
+                if body.is_empty() {
+                    // Build potential native function names, prioritizing the actual function name
+                    let mut potential_native_names = Vec::new();
+
+                    if let Some(ref name) = function_name {
+                        // Try exact matches first based on the function name
+                        potential_native_names.push(format!("std.io.{}", name));
+                        potential_native_names.push(format!("std.math.{}", name));
+                    }
+
+                    // Add common fallbacks for common standard library functions
+                    potential_native_names.extend([
+                        "std.io.print".to_string(),
+                        "std.io.println".to_string(),
+                        "std.math.sqrt".to_string(),
+                        "std.math.pow".to_string(),
+                        "std.math.sin".to_string(),
+                        "std.math.cos".to_string(),
+                        "std.math.tan".to_string(),
+                        "std.math.abs".to_string(),
+                        "std.math.min".to_string(),
+                        "std.math.max".to_string(),
+                        "std.math.clamp".to_string(),
+                    ]);
+
+                    for native_name in &potential_native_names {
+                        if self.native_registry.contains(native_name) {
+                            let result =
+                                if let Some(handler) = self.native_registry.get(native_name) {
+                                    handler(arg_values)
+                                } else if self.native_registry.contains_static(native_name) {
+                                    self.native_registry
+                                        .call_static(native_name, self, arg_values)
+                                } else {
+                                    continue;
+                                };
+                            return result;
+                        }
+                    }
+                }
                 self.push_scope();
 
                 // Set up captured variables in the new scope
@@ -6399,44 +6485,25 @@ impl Interpreter {
         let mut actual_path = path.clone();
         let mut actual_items = items.clone();
 
-        tracing::debug!("Import resolution: path={:?}, items={:?}", path, items);
-
         // Check if this might be a single-item import by trying the fallback first
         if actual_path.len() > 1 && actual_items == vec![ImportItem::All] {
-            tracing::debug!("Checking for single-item import fallback");
             // Try treating the last component as an item name
             let mut parent_path = actual_path.clone();
             let potential_item = parent_path.pop().unwrap();
 
-            tracing::debug!(
-                "Attempting to load parent module {:?} for item '{}'",
-                parent_path,
-                potential_item
-            );
-
             // Try to load parent module first
             match self.module_manager.load_module(&parent_path) {
                 Ok(_) => {
-                    tracing::debug!(
-                        "Successfully loaded parent module {:?}, treating '{}' as imported item",
-                        parent_path,
-                        potential_item
-                    );
                     // Successfully loaded parent module, treat last component as item
                     actual_path = parent_path;
                     actual_items = vec![ImportItem::Named(potential_item)];
                 }
-                Err(e) => {
-                    tracing::debug!("Parent module load failed: {:?}, trying original path", e);
+                Err(_) => {
                     // Parent module load failed, try original path
                     self.module_manager.load_module(&actual_path)?;
                 }
             }
         } else {
-            tracing::debug!(
-                "Simple case - loading module as specified: {:?}",
-                actual_path
-            );
             // Simple case - load module as specified
             self.module_manager.load_module(&actual_path)?;
         }

@@ -38,10 +38,65 @@ fn string_lit_callback(lex: &mut LLexer<Token>) -> (String, (usize, usize)) {
     let mut content = lex.slice().to_string();
     content.remove(0);
     content.pop();
-    let value = content;
+
+    // Process escape sequences
+    let value = process_escape_sequences(&content);
     let position = word_callback(lex);
 
     (value, position)
+}
+
+fn process_escape_sequences(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some(&next_ch) = chars.peek() {
+                match next_ch {
+                    'n' => {
+                        chars.next(); // consume the 'n'
+                        result.push('\n');
+                    }
+                    't' => {
+                        chars.next(); // consume the 't'
+                        result.push('\t');
+                    }
+                    'r' => {
+                        chars.next(); // consume the 'r'
+                        result.push('\r');
+                    }
+                    '\\' => {
+                        chars.next(); // consume the second '\'
+                        result.push('\\');
+                    }
+                    '"' => {
+                        chars.next(); // consume the '"'
+                        result.push('"');
+                    }
+                    '\'' => {
+                        chars.next(); // consume the '\''
+                        result.push('\'');
+                    }
+                    '0' => {
+                        chars.next(); // consume the '0'
+                        result.push('\0');
+                    }
+                    _ => {
+                        // Unknown escape sequence, keep the backslash and character as-is
+                        result.push(ch);
+                    }
+                }
+            } else {
+                // Backslash at end of string, keep as-is
+                result.push(ch);
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
 }
 
 fn float_lit_callback(lex: &mut LLexer<Token>) -> (f64, (usize, usize)) {
@@ -184,7 +239,7 @@ pub enum Token {
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", identifier_callback)]
     Identifier((String, (usize, usize))),
 
-    #[regex(r#""[^"]*""#, string_lit_callback)]
+    #[regex(r#""(?:[^"\\]|\\.)*""#, string_lit_callback)]
     StringLiteral((String, (usize, usize))),
 
     #[regex(r#"[0-9]+"#, int_lit_callback)]
@@ -1090,5 +1145,46 @@ end
             "Expected {} ",
             tokens[0],
         );
+    }
+
+    #[test]
+    fn test_escape_sequences() {
+        use super::process_escape_sequences;
+
+        // Test basic escape sequences
+        assert_eq!(process_escape_sequences("Hello\\nWorld"), "Hello\nWorld");
+        assert_eq!(
+            process_escape_sequences("Tab\\tSeparated"),
+            "Tab\tSeparated"
+        );
+        assert_eq!(
+            process_escape_sequences("Carriage\\rReturn"),
+            "Carriage\rReturn"
+        );
+        assert_eq!(
+            process_escape_sequences("Escaped\\\\Backslash"),
+            "Escaped\\Backslash"
+        );
+        assert_eq!(process_escape_sequences("Quote\\\"Mark"), "Quote\"Mark");
+        assert_eq!(process_escape_sequences("Single\\'Quote"), "Single'Quote");
+        assert_eq!(process_escape_sequences("Null\\0Char"), "Null\0Char");
+
+        // Test multiple escape sequences
+        assert_eq!(
+            process_escape_sequences("Line1\\nLine2\\tTabbed"),
+            "Line1\nLine2\tTabbed"
+        );
+
+        // Test no escape sequences
+        assert_eq!(process_escape_sequences("NoEscapes"), "NoEscapes");
+
+        // Test backslash at end (should be preserved)
+        assert_eq!(process_escape_sequences("EndWith\\"), "EndWith\\");
+
+        // Test unknown escape sequence (should preserve backslash)
+        assert_eq!(process_escape_sequences("Unknown\\x"), "Unknown\\x");
+
+        // Test empty string
+        assert_eq!(process_escape_sequences(""), "");
     }
 }
