@@ -1,0 +1,23 @@
+#| Simple test to verify generic function imports work correctly
+
+import std.option.{Option, some, none}
+import std.io.{println}
+
+fn main()
+    # Test importing generic some function
+    let str_option = some("hello")
+    println("String option is some: " + str_option.is_some().to_string())
+
+    # Test method calls on generic function results
+    let is_some_result = str_option.is_some()
+    println("Method call worked: " + is_some_result.to_string())
+
+    # Test with numbers
+    let num_option = some(42)
+    let num_is_some = num_option.is_some()
+    println("Number option is some: " + num_is_some.to_string())
+
+    # Test unwrap_or method
+    let unwrapped = str_option.unwrap_or("default")
+    println("Unwrapped: " + unwrapped)
+end

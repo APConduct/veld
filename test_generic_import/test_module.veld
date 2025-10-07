@@ -1,0 +1,13 @@
+#| Test module with generic functions for import testing
+
+pub fn identity<T>(value: T) -> T
+    value
+end
+
+pub fn wrap<T>(value: T) -> Option<T>
+    Option.Some(value)
+end
+
+pub fn double<T>(value: T, func: (T) -> T) -> T
+    func(func(value))
+end

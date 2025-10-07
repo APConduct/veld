@@ -1,0 +1,7 @@
+#| Very basic test to check if imports work at all
+
+import std.io.{println}
+
+fn main()
+    println("Basic import test working!")
+end

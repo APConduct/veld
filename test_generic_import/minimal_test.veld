@@ -1,0 +1,23 @@
+#| Minimal test to verify basic generic function import functionality
+
+import std.option.{Option, some}
+import std.io.{println}
+
+fn main()
+    # Test that imported generic function works
+    println("Creating option value...")
+    let option_value = some("test")
+    println("Option value created")
+
+    # Test that method calls work on the result
+    println("Calling is_some()...")
+    let has_value = option_value.is_some()
+    println("is_some() called")
+
+    # Simple output without string concatenation to avoid type issues
+    if has_value then
+        println("SUCCESS: Generic import working!")
+    else
+        println("FAILED: Generic import not working")
+    end
+end

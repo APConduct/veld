@@ -1,0 +1,31 @@
+#| Test generic functions using direct module access instead of imports
+
+fn main()
+    # First try to access the Option enum to see if it loads the methods
+    let option_type = std.option.Option
+
+    # Test direct module access to generic functions
+    let str_option = std.option.some("hello")
+
+    # Test that method calls work on the result
+    let has_value = str_option.is_some()
+
+    # Use direct access to println as well
+    std.io.println("Testing direct access...")
+
+    if has_value then
+        std.io.println("SUCCESS: Generic function direct access working!")
+    else
+        std.io.println("FAILED: Generic function not working")
+    end
+
+    # Test with numbers too
+    let num_option = std.option.some(42)
+    let num_has_value = num_option.is_some()
+
+    if num_has_value then
+        std.io.println("SUCCESS: Number generic function working!")
+    else
+        std.io.println("FAILED: Number generic function not working")
+    end
+end

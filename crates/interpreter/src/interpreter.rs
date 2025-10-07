@@ -206,6 +206,9 @@ impl Interpreter {
             tracing::warn!("Could not find stdlib directory");
         }
 
+        // Load critical standard library modules with their types and methods
+        self.load_stdlib_module_with_types(&["std", "option"]);
+
         // Initialize native methods for built-in types
         self.initialize_core_capabilities();
         self.initialize_string_capabilities();
@@ -4122,6 +4125,36 @@ impl Interpreter {
                 }
             });
 
+        // --- Register method types for type checker ---
+
+        // to_string method type: (self) -> str
+        let to_string_method_type = Type::Function {
+            params: vec![Type::Any], // self parameter
+            return_type: Box::new(Type::String),
+        };
+
+        // Register to_string for built-in types in type checker
+        self.type_checker.env().add_struct_method(
+            "str",
+            "to_string",
+            to_string_method_type.clone(),
+        );
+        self.type_checker.env().add_struct_method(
+            "i32",
+            "to_string",
+            to_string_method_type.clone(),
+        );
+        self.type_checker.env().add_struct_method(
+            "f64",
+            "to_string",
+            to_string_method_type.clone(),
+        );
+        self.type_checker.env().add_struct_method(
+            "bool",
+            "to_string",
+            to_string_method_type.clone(),
+        );
+
         // --- Implement Sized for collection types ---
 
         // String size (length)
@@ -4183,6 +4216,47 @@ impl Interpreter {
                     ))
                 }
             });
+
+        // --- Register additional method types for type checker ---
+
+        // size method type: (self) -> i32
+        let size_method_type = Type::Function {
+            params: vec![Type::Any], // self parameter
+            return_type: Box::new(Type::I32),
+        };
+
+        // is_empty method type: (self) -> bool
+        let is_empty_method_type = Type::Function {
+            params: vec![Type::Any], // self parameter
+            return_type: Box::new(Type::Bool),
+        };
+
+        // type_name method type: (self) -> str
+        let type_name_method_type = Type::Function {
+            params: vec![Type::Any], // self parameter
+            return_type: Box::new(Type::String),
+        };
+
+        // Register collection methods in type checker
+        self.type_checker
+            .env()
+            .add_struct_method("str", "size", size_method_type.clone());
+        self.type_checker
+            .env()
+            .add_struct_method("str", "is_empty", is_empty_method_type.clone());
+        self.type_checker
+            .env()
+            .add_struct_method("array", "size", size_method_type.clone());
+        self.type_checker.env().add_struct_method(
+            "array",
+            "is_empty",
+            is_empty_method_type.clone(),
+        );
+        self.type_checker.env().add_struct_method(
+            "any",
+            "type_name",
+            type_name_method_type.clone(),
+        );
     }
 
     fn initialize_string_capabilities(&mut self) {
@@ -5074,6 +5148,143 @@ impl Interpreter {
                         let _ = self.module_manager.load_module(&path);
                     }
                     if let Some(submodule) = self.module_manager.get_module(&fq_name) {
+                        // Register enums and their methods from the dynamically loaded module
+                        // This ensures that enum types like Option and their methods are available
+                        for (idx, statement) in submodule.statements.iter().enumerate() {
+                            if let Statement::EnumDeclaration {
+                                name: enum_name,
+                                variants,
+                                ..
+                            } = statement
+                            {
+                                // Register the enum in the runtime
+                                self.enums.insert(enum_name.clone(), variants.clone());
+
+                                // Register the enum in the type environment for type checking
+                                fn convert_ast_enum_variant_to_base(
+                                    ast_variant: &veld_common::ast::EnumVariant,
+                                ) -> veld_common::types::EnumVariant
+                                {
+                                    match &ast_variant.fields {
+                                        None => veld_common::types::EnumVariant::Simple,
+                                        Some(fields) => {
+                                            let tuple_types: Vec<veld_common::types::Type> = fields
+                                                .iter()
+                                                .map(|anno| {
+                                                    veld_common::types::Type::from_annotation(
+                                                        anno, None,
+                                                    )
+                                                    .unwrap_or(veld_common::types::Type::Any)
+                                                })
+                                                .collect();
+                                            veld_common::types::EnumVariant::Tuple(tuple_types)
+                                        }
+                                    }
+                                }
+                                let variant_map: std::collections::HashMap<
+                                    String,
+                                    veld_common::types::EnumVariant,
+                                > = variants
+                                    .iter()
+                                    .map(|v| (v.name.clone(), convert_ast_enum_variant_to_base(v)))
+                                    .collect();
+
+                                self.type_checker.env().add_enum(enum_name, variant_map);
+
+                                // Also register enum methods from implementation blocks
+                                for impl_stmt in &submodule.statements {
+                                    if let Statement::InherentImpl {
+                                        type_name,
+                                        methods,
+                                        generic_params,
+                                        ..
+                                    } = impl_stmt
+                                    {
+                                        if type_name == enum_name {
+                                            // Set up type parameter scope for generic impl blocks
+                                            self.type_checker.env().push_type_param_scope();
+                                            for generic_arg in generic_params {
+                                                let param_name = match &generic_arg.name {
+                                                    Some(name) => name.clone(),
+                                                    None => {
+                                                        if let veld_common::ast::TypeAnnotation::Basic(base_name) =
+                                                            &generic_arg.type_annotation
+                                                        {
+                                                            base_name.clone()
+                                                        } else {
+                                                            "T".to_string()
+                                                        }
+                                                    }
+                                                };
+                                                self.type_checker.env().add_type_param(&param_name);
+                                            }
+
+                                            for method in methods {
+                                                // Set up method-level type parameters
+                                                self.type_checker.env().push_type_param_scope();
+                                                for generic_arg in &method.generic_params {
+                                                    let param_name = match &generic_arg.name {
+                                                        Some(name) => name.clone(),
+                                                        None => {
+                                                            if let veld_common::ast::TypeAnnotation::Basic(base_name) =
+                                                                &generic_arg.type_annotation
+                                                            {
+                                                                base_name.clone()
+                                                            } else {
+                                                                "U".to_string()
+                                                            }
+                                                        }
+                                                    };
+                                                    self.type_checker
+                                                        .env()
+                                                        .add_type_param(&param_name);
+                                                }
+
+                                                let param_types: Vec<veld_common::types::Type> =
+                                                    method
+                                                        .params
+                                                        .iter()
+                                                        .map(|(_, type_annotation)| {
+                                                            self.type_checker
+                                                                .env()
+                                                                .from_annotation(
+                                                                    type_annotation,
+                                                                    None,
+                                                                )
+                                                                .unwrap_or(
+                                                                    veld_common::types::Type::Any,
+                                                                )
+                                                        })
+                                                        .collect();
+                                                let return_type = self
+                                                    .type_checker
+                                                    .env()
+                                                    .from_annotation(&method.return_type, None)
+                                                    .unwrap_or(veld_common::types::Type::Any);
+                                                let function_type =
+                                                    veld_common::types::Type::Function {
+                                                        params: param_types,
+                                                        return_type: Box::new(return_type),
+                                                    };
+
+                                                self.type_checker.env().add_enum_method(
+                                                    type_name,
+                                                    &method.name,
+                                                    function_type,
+                                                );
+
+                                                // Clean up method-level type parameter scope
+                                                self.type_checker.env().pop_type_param_scope();
+                                            }
+
+                                            // Clean up type parameter scope
+                                            self.type_checker.env().pop_type_param_scope();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         Ok(Value::Module(submodule.clone()))
                     } else {
                         Err(VeldError::RuntimeError(format!(
@@ -6546,6 +6757,53 @@ impl Interpreter {
             }
 
             // Process each export and add to current scope
+            // First pass: process enums to ensure types are available for functions
+            for (name, export_item) in &exports {
+                if let ExportedItem::Enum(idx) = export_item {
+                    // To avoid borrow checker issues, clone what we need first
+                    let (enum_name, variants) = if let Statement::EnumDeclaration {
+                        name: enum_name,
+                        variants,
+                        ..
+                    } = &module_statements[*idx]
+                    {
+                        (enum_name.clone(), variants.clone())
+                    } else {
+                        continue;
+                    };
+
+                    self.enums.insert(enum_name.clone(), variants.clone());
+                    // Register the enum in the type environment for type checking
+                    fn convert_ast_enum_variant_to_base(
+                        ast_variant: &EnumVariant,
+                    ) -> veld_common::types::EnumVariant {
+                        match &ast_variant.fields {
+                            None => veld_common::types::EnumVariant::Simple,
+                            Some(fields) => {
+                                // For now, treat all as Tuple (adjust if you support named fields)
+                                let tuple_types: Vec<Type> = fields
+                                    .iter()
+                                    .map(|anno| {
+                                        veld_common::types::Type::from_annotation(anno, None)
+                                            .unwrap_or(veld_common::types::Type::Any)
+                                    })
+                                    .collect();
+                                veld_common::types::EnumVariant::Tuple(tuple_types)
+                            }
+                        }
+                    }
+                    let variant_map: std::collections::HashMap<
+                        String,
+                        veld_common::types::EnumVariant,
+                    > = variants
+                        .iter()
+                        .map(|v| (v.name.clone(), convert_ast_enum_variant_to_base(v)))
+                        .collect();
+                    self.type_checker.env().add_enum(&enum_name, variant_map);
+                }
+            }
+
+            // Second pass: process other exports including functions
             for (name, export_item) in exports {
                 match export_item {
                     ExportedItem::Function(idx) => {
@@ -6553,6 +6811,7 @@ impl Interpreter {
                             params,
                             return_type,
                             body,
+                            generic_params,
                             ..
                         } = &module_statements[idx]
                         {
@@ -6565,19 +6824,46 @@ impl Interpreter {
                             self.current_scope_mut().set(name.clone(), function);
 
                             // Also add function to type environment for type checking
+                            // Set up type parameter scope for generic functions
+                            self.type_checker.env().push_type_param_scope();
+                            for generic_param in generic_params {
+                                let param_name = match &generic_param.name {
+                                    Some(name) => name.clone(),
+                                    None => {
+                                        if let TypeAnnotation::Basic(base_name) =
+                                            &generic_param.type_annotation
+                                        {
+                                            base_name.clone()
+                                        } else {
+                                            "T".to_string()
+                                        }
+                                    }
+                                };
+                                self.type_checker.env().add_type_param(&param_name);
+                            }
+
                             let param_types: Vec<Type> = params
                                 .iter()
                                 .map(|(_, type_annotation)| {
-                                    Type::from_annotation(type_annotation, None)
+                                    self.type_checker
+                                        .env()
+                                        .from_annotation(type_annotation, None)
                                         .unwrap_or(Type::Any)
                                 })
                                 .collect();
-                            let return_type =
-                                Type::from_annotation(return_type, None).unwrap_or(Type::Any);
+                            let resolved_return_type = self
+                                .type_checker
+                                .env()
+                                .from_annotation(return_type, None)
+                                .unwrap_or(Type::Any);
                             let function_type = Type::Function {
                                 params: param_types,
-                                return_type: Box::new(return_type),
+                                return_type: Box::new(resolved_return_type),
                             };
+
+                            // Clean up type parameter scope
+                            self.type_checker.env().pop_type_param_scope();
+
                             self.type_checker.env().define(&name, function_type);
                         }
                     }
@@ -6810,113 +7096,50 @@ impl Interpreter {
                         }
                     }
                     ExportedItem::Enum(idx) => {
-                        // To avoid borrow checker issues, clone what we need first
-                        let (enum_name, variants) = if let Statement::EnumDeclaration {
-                            name: enum_name,
-                            variants,
-                            ..
+                        // Enum already processed in first pass, but we still need to add it to scope
+                        if let Statement::EnumDeclaration {
+                            name: enum_name, ..
                         } = &module_statements[idx]
                         {
-                            (enum_name.clone(), variants.clone())
-                        } else {
-                            continue;
-                        };
+                            // Also register the enum as an identifier in the type environment
+                            // This allows enum types to be used in property access like Option.None
+                            let enum_type = Type::Generic {
+                                base: enum_name.clone(),
+                                type_args: vec![],
+                            };
+                            self.type_checker.env().define(&name, enum_type);
 
-                        self.enums.insert(enum_name.clone(), variants.clone());
-                        // Register the enum in the type environment for type checking
-                        fn convert_ast_enum_variant_to_base(
-                            ast_variant: &EnumVariant,
-                        ) -> veld_common::types::EnumVariant {
-                            match &ast_variant.fields {
-                                None => veld_common::types::EnumVariant::Simple,
-                                Some(fields) => {
-                                    // For now, treat all as Tuple (adjust if you support named fields)
-                                    let tuple_types: Vec<Type> = fields
-                                        .iter()
-                                        .map(|anno| {
-                                            veld_common::types::Type::from_annotation(anno, None)
-                                                .unwrap_or(veld_common::types::Type::Any)
-                                        })
-                                        .collect();
-                                    veld_common::types::EnumVariant::Tuple(tuple_types)
-                                }
-                            }
-                        }
-                        let variant_map: std::collections::HashMap<
-                            String,
-                            veld_common::types::EnumVariant,
-                        > = variants
-                            .iter()
-                            .map(|v| (v.name.clone(), convert_ast_enum_variant_to_base(v)))
-                            .collect();
-                        self.type_checker.env().add_enum(&enum_name, variant_map);
-
-                        // Also register the enum as an identifier in the type environment
-                        // This allows enum types to be used in property access like Option.None
-                        let enum_type = Type::Generic {
-                            base: enum_name.clone(),
-                            type_args: vec![],
-                        };
-                        self.type_checker.env().define(&enum_name, enum_type);
-
-                        // Also add the enum name to the current scope as a "type value"
-                        // This allows Option.None, Option.Some, etc
-                        self.current_scope_mut().set(
-                            enum_name.clone(),
-                            Value::EnumType {
-                                name: enum_name.clone(),
-                                methods: None,
-                            },
-                        );
-                        // Optionally, also add each variant as Option.Variant
-                        for variant in &variants {
-                            let variant_full = format!("{}.{}", enum_name, variant.name);
+                            // Also add the enum name to the current scope as a "type value"
+                            // This allows Option.Some, etc
                             self.current_scope_mut().set(
-                                variant_full,
-                                Value::Unit, // Placeholder, could use a special EnumVariant value
+                                name.clone(),
+                                Value::EnumType {
+                                    name: enum_name.clone(),
+                                    methods: None,
+                                },
                             );
-                        }
 
-                        // Also import any impl blocks for this enum
-                        for (_stmt_idx, stmt) in module_statements.iter().enumerate() {
-                            if let Statement::InherentImpl {
-                                type_name,
-                                methods,
-                                generic_params,
-                                ..
-                            } = stmt
-                            {
-                                if type_name == &enum_name {
-                                    // Execute the impl block to register methods
-                                    self.execute_implementation(
-                                        type_name.clone(),
-                                        methods.clone(),
-                                    )?;
+                            // Also import any impl blocks for this enum
+                            for (_stmt_idx, stmt) in module_statements.iter().enumerate() {
+                                if let Statement::InherentImpl {
+                                    type_name,
+                                    methods,
+                                    generic_params,
+                                    ..
+                                } = stmt
+                                {
+                                    if type_name == enum_name {
+                                        // Execute the impl block to register methods
+                                        self.execute_implementation(
+                                            type_name.clone(),
+                                            methods.clone(),
+                                        )?;
 
-                                    // Also add methods to type environment for type checking
+                                        // Also add methods to type environment for type checking
 
-                                    // Set up type parameter scope for generic impl blocks
-                                    self.type_checker.env().push_type_param_scope();
-                                    for generic_arg in generic_params {
-                                        let param_name = match &generic_arg.name {
-                                            Some(name) => name.clone(),
-                                            None => {
-                                                if let TypeAnnotation::Basic(base_name) =
-                                                    &generic_arg.type_annotation
-                                                {
-                                                    base_name.clone()
-                                                } else {
-                                                    "T".to_string()
-                                                }
-                                            }
-                                        };
-                                        self.type_checker.env().add_type_param(&param_name);
-                                    }
-
-                                    for method in methods {
-                                        // Set up method-level type parameters
+                                        // Set up type parameter scope for generic impl blocks
                                         self.type_checker.env().push_type_param_scope();
-                                        for generic_arg in &method.generic_params {
+                                        for generic_arg in generic_params {
                                             let param_name = match &generic_arg.name {
                                                 Some(name) => name.clone(),
                                                 None => {
@@ -6925,44 +7148,65 @@ impl Interpreter {
                                                     {
                                                         base_name.clone()
                                                     } else {
-                                                        "U".to_string()
+                                                        "T".to_string()
                                                     }
                                                 }
                                             };
                                             self.type_checker.env().add_type_param(&param_name);
                                         }
 
-                                        let param_types: Vec<Type> = method
-                                            .params
-                                            .iter()
-                                            .map(|(_, type_annotation)| {
-                                                self.type_checker
-                                                    .env()
-                                                    .from_annotation(type_annotation, None)
-                                                    .unwrap_or(Type::Any)
-                                            })
-                                            .collect();
-                                        let return_type = self
-                                            .type_checker
-                                            .env()
-                                            .from_annotation(&method.return_type, None)
-                                            .unwrap_or(veld_common::types::Type::Any);
-                                        let function_type = veld_common::types::Type::Function {
-                                            params: param_types,
-                                            return_type: Box::new(return_type),
-                                        };
-                                        self.type_checker.env().add_enum_method(
-                                            type_name,
-                                            &method.name,
-                                            function_type,
-                                        );
+                                        for method in methods {
+                                            // Set up method-level type parameters
+                                            self.type_checker.env().push_type_param_scope();
+                                            for generic_arg in &method.generic_params {
+                                                let param_name = match &generic_arg.name {
+                                                    Some(name) => name.clone(),
+                                                    None => {
+                                                        if let TypeAnnotation::Basic(base_name) =
+                                                            &generic_arg.type_annotation
+                                                        {
+                                                            base_name.clone()
+                                                        } else {
+                                                            "U".to_string()
+                                                        }
+                                                    }
+                                                };
+                                                self.type_checker.env().add_type_param(&param_name);
+                                            }
 
-                                        // Clean up method-level type parameter scope
+                                            let param_types: Vec<Type> = method
+                                                .params
+                                                .iter()
+                                                .map(|(_, type_annotation)| {
+                                                    self.type_checker
+                                                        .env()
+                                                        .from_annotation(type_annotation, None)
+                                                        .unwrap_or(Type::Any)
+                                                })
+                                                .collect();
+                                            let return_type = self
+                                                .type_checker
+                                                .env()
+                                                .from_annotation(&method.return_type, None)
+                                                .unwrap_or(veld_common::types::Type::Any);
+                                            let function_type =
+                                                veld_common::types::Type::Function {
+                                                    params: param_types,
+                                                    return_type: Box::new(return_type),
+                                                };
+                                            self.type_checker.env().add_enum_method(
+                                                type_name,
+                                                &method.name,
+                                                function_type,
+                                            );
+
+                                            // Clean up method-level type parameter scope
+                                            self.type_checker.env().pop_type_param_scope();
+                                        }
+
+                                        // Clean up type parameter scope
                                         self.type_checker.env().pop_type_param_scope();
                                     }
-
-                                    // Clean up type parameter scope
-                                    self.type_checker.env().pop_type_param_scope();
                                 }
                             }
                         }
@@ -6989,6 +7233,144 @@ impl Interpreter {
         }
 
         Ok(Value::Unit)
+    }
+
+    fn load_stdlib_module_with_types(&mut self, path: &[&str]) {
+        let path_vec: Vec<String> = path.iter().map(|s| s.to_string()).collect();
+        let module_name = path_vec.join(".");
+
+        // Load the module
+        if let Err(e) = self.module_manager.load_module(&path_vec) {
+            tracing::warn!("Failed to load stdlib module {}: {}", module_name, e);
+            return;
+        }
+
+        // Get the loaded module
+        if let Some(module) = self.module_manager.get_module(&module_name) {
+            // Register enums and their methods from the module
+            for statement in &module.statements {
+                if let Statement::EnumDeclaration {
+                    name: enum_name,
+                    variants,
+                    ..
+                } = statement
+                {
+                    // Register the enum in the runtime
+                    self.enums.insert(enum_name.clone(), variants.clone());
+
+                    // Register the enum in the type environment for type checking
+                    fn convert_ast_enum_variant_to_base(
+                        ast_variant: &veld_common::ast::EnumVariant,
+                    ) -> veld_common::types::EnumVariant {
+                        match &ast_variant.fields {
+                            None => veld_common::types::EnumVariant::Simple,
+                            Some(fields) => {
+                                let tuple_types: Vec<veld_common::types::Type> = fields
+                                    .iter()
+                                    .map(|anno| {
+                                        veld_common::types::Type::from_annotation(anno, None)
+                                            .unwrap_or(veld_common::types::Type::Any)
+                                    })
+                                    .collect();
+                                veld_common::types::EnumVariant::Tuple(tuple_types)
+                            }
+                        }
+                    }
+                    let variant_map: std::collections::HashMap<
+                        String,
+                        veld_common::types::EnumVariant,
+                    > = variants
+                        .iter()
+                        .map(|v| (v.name.clone(), convert_ast_enum_variant_to_base(v)))
+                        .collect();
+                    self.type_checker.env().add_enum(enum_name, variant_map);
+
+                    // Also register enum methods from implementation blocks
+                    for impl_stmt in &module.statements {
+                        if let Statement::InherentImpl {
+                            type_name,
+                            methods,
+                            generic_params,
+                            ..
+                        } = impl_stmt
+                        {
+                            if type_name == enum_name {
+                                // Set up type parameter scope for generic impl blocks
+                                self.type_checker.env().push_type_param_scope();
+                                for generic_arg in generic_params {
+                                    let param_name = match &generic_arg.name {
+                                        Some(name) => name.clone(),
+                                        None => {
+                                            if let veld_common::ast::TypeAnnotation::Basic(
+                                                base_name,
+                                            ) = &generic_arg.type_annotation
+                                            {
+                                                base_name.clone()
+                                            } else {
+                                                "T".to_string()
+                                            }
+                                        }
+                                    };
+                                    self.type_checker.env().add_type_param(&param_name);
+                                }
+
+                                for method in methods {
+                                    // Set up method-level type parameters
+                                    self.type_checker.env().push_type_param_scope();
+                                    for generic_arg in &method.generic_params {
+                                        let param_name = match &generic_arg.name {
+                                            Some(name) => name.clone(),
+                                            None => {
+                                                if let veld_common::ast::TypeAnnotation::Basic(
+                                                    base_name,
+                                                ) = &generic_arg.type_annotation
+                                                {
+                                                    base_name.clone()
+                                                } else {
+                                                    "U".to_string()
+                                                }
+                                            }
+                                        };
+                                        self.type_checker.env().add_type_param(&param_name);
+                                    }
+
+                                    let param_types: Vec<veld_common::types::Type> = method
+                                        .params
+                                        .iter()
+                                        .map(|(_, type_annotation)| {
+                                            self.type_checker
+                                                .env()
+                                                .from_annotation(type_annotation, None)
+                                                .unwrap_or(veld_common::types::Type::Any)
+                                        })
+                                        .collect();
+                                    let return_type = self
+                                        .type_checker
+                                        .env()
+                                        .from_annotation(&method.return_type, None)
+                                        .unwrap_or(veld_common::types::Type::Any);
+                                    let function_type = veld_common::types::Type::Function {
+                                        params: param_types,
+                                        return_type: Box::new(return_type),
+                                    };
+                                    self.type_checker.env().add_enum_method(
+                                        type_name,
+                                        &method.name,
+                                        function_type,
+                                    );
+
+                                    // Clean up method-level type parameter scope
+                                    self.type_checker.env().pop_type_param_scope();
+                                }
+
+                                // Clean up type parameter scope
+                                self.type_checker.env().pop_type_param_scope();
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn initialize_operator_kinds(&mut self) -> Result<()> {

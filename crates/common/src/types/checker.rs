@@ -2658,6 +2658,91 @@ impl TypeChecker {
                 }
             }
 
+            // Handle primitive types with methods
+            Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::I8
+            | Type::I16
+            | Type::Char => {
+                let type_name = match &obj_type {
+                    Type::Bool => "bool",
+                    Type::I32 => "i32",
+                    Type::I64 => "i64",
+                    Type::F32 => "f32",
+                    Type::F64 => "f64",
+                    Type::U8 => "u8",
+                    Type::U16 => "u16",
+                    Type::U32 => "u32",
+                    Type::U64 => "u64",
+                    Type::I8 => "i8",
+                    Type::I16 => "i16",
+                    Type::Char => "char",
+                    _ => unreachable!(),
+                };
+
+                // Look up method in struct_methods (where primitive type methods are registered)
+                let method_type = {
+                    if let Some(methods) = self.env.struct_methods().get(type_name) {
+                        methods.get(method).cloned()
+                    } else {
+                        None
+                    }
+                };
+
+                match method_type {
+                    Some(method_type) => {
+                        match method_type {
+                            Type::Function {
+                                params,
+                                return_type,
+                            } => {
+                                let params = params.clone();
+                                let return_type = *return_type;
+
+                                // First param is self
+                                if params.len() - 1 != args.len() {
+                                    return Err(VeldError::TypeError(format!(
+                                        "Method {} expects {} arguments, got {}",
+                                        method,
+                                        params.len() - 1,
+                                        args.len()
+                                    )));
+                                }
+
+                                // Check argument types (skip first param which is self)
+                                for (i, arg) in args.iter().enumerate() {
+                                    let arg_expr = match arg {
+                                        Argument::Positional(expr) => expr,
+                                        Argument::Named { name: _, value } => value,
+                                    };
+
+                                    let arg_type = self.infer_expression_type(arg_expr)?;
+                                    self.env.add_constraint(arg_type, params[i + 1].clone());
+                                }
+
+                                self.env.solve_constraints()?;
+                                Ok(return_type)
+                            }
+                            _ => Err(VeldError::TypeError(format!(
+                                "{}.{} is not a method",
+                                type_name, method
+                            ))),
+                        }
+                    }
+                    None => Err(VeldError::TypeError(format!(
+                        "Method {} not found on {}",
+                        method, type_name
+                    ))),
+                }
+            }
+
             _ => Err(VeldError::TypeError(format!(
                 "Type {} does not have methods",
                 obj_type
