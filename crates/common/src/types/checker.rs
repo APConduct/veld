@@ -1669,6 +1669,11 @@ impl TypeChecker {
         let _span = tracing::span!(tracing::Level::INFO, "infer_binary_op_type", left = ?left, op = ?op, right = ?right);
         let _enter = _span.enter();
 
+        // Handle pipe operator specially to avoid premature type checking of the right side
+        if matches!(op, BinaryOperator::Pipe) {
+            return self.infer_pipe_type(left, right);
+        }
+
         let left_type = self.infer_expression_type(left)?;
         let right_type = self.infer_expression_type(right)?;
 
@@ -1748,134 +1753,8 @@ impl TypeChecker {
                 Ok(Type::Bool)
             }
             BinaryOperator::Pipe => {
-                // For the pipeline operator: left |> right
-
-                match right {
-                    // Case 1: Function call - left |> func(args)
-                    Expr::FunctionCall { name, arguments } => {
-                        // For function calls, we create a new function call with left as first arg
-                        let left_expr = left.clone();
-                        let mut new_args = vec![Argument::Positional(left_expr)];
-                        for arg in arguments {
-                            new_args.push(arg.clone());
-                        }
-
-                        // Infer the type of the function
-                        let func_type = self.env.get(name).ok_or_else(|| {
-                            VeldError::TypeError(format!("Undefined function: {}", name))
-                        })?;
-
-                        match func_type {
-                            Type::Function {
-                                params,
-                                return_type,
-                            } => {
-                                // Check that the function takes enough arguments
-                                if params.len() < new_args.len() {
-                                    return Err(VeldError::TypeError(format!(
-                                        "Function {} takes {} arguments, but {} were provided",
-                                        name,
-                                        params.len(),
-                                        new_args.len()
-                                    )));
-                                }
-
-                                // Check argument types
-                                for (i, arg) in new_args.iter().enumerate() {
-                                    let arg_expr = match arg {
-                                        Argument::Positional(expr) => expr,
-                                        Argument::Named { name: _, value } => value,
-                                    };
-
-                                    let arg_type = self.infer_expression_type(arg_expr)?;
-                                    self.env.add_constraint(arg_type, params[i].clone());
-                                }
-
-                                self.env.solve_constraints()?;
-                                Ok(*return_type.clone())
-                            }
-                            _ => Err(VeldError::TypeError(format!("{} is not a function", name))),
-                        }
-                    }
-
-                    // Case 2: Method call - left |> obj.method(args)
-                    Expr::MethodCall {
-                        object,
-                        method,
-                        arguments,
-                    } => {
-                        // For method calls, we need to create a new arguments list
-                        let left_expr = left.clone();
-                        let mut new_args = vec![Argument::Positional(left_expr)];
-                        for arg in arguments {
-                            new_args.push(arg.clone());
-                        }
-
-                        // Use infer_method_call_type directly with the modified arguments
-                        self.infer_method_call_type(object, method, &new_args)
-                    }
-
-                    // Case 3: Simple identifier - left |> func
-                    Expr::Identifier(name) => {
-                        // For a simple function name, check that it can accept the left type
-                        let func_type = self.env.get(name).ok_or_else(|| {
-                            VeldError::TypeError(format!("Undefined function: {}", name))
-                        })?;
-
-                        match func_type {
-                            Type::Function {
-                                params,
-                                return_type,
-                            } => {
-                                // Check that the function takes at least one argument
-                                if params.is_empty() {
-                                    return Err(VeldError::TypeError(format!(
-                                        "Function {} takes no arguments",
-                                        name
-                                    )));
-                                }
-
-                                // Check that the left type is compatible with the first parameter
-                                let first_param_type = &params[0];
-                                self.env
-                                    .add_constraint(left_type.clone(), first_param_type.clone());
-                                self.env.solve_constraints()?;
-
-                                Ok(*return_type.clone())
-                            }
-                            _ => Err(VeldError::TypeError(format!("{} is not a function", name))),
-                        }
-                    }
-
-                    // Case 4: Other expressions
-                    _ => {
-                        // For other expressions, check that right_type is a function that can accept left_type
-                        match &right_type {
-                            Type::Function {
-                                params,
-                                return_type,
-                            } => {
-                                if params.is_empty() {
-                                    return Err(VeldError::TypeError(
-                                        "Cannot pipe into a function that takes no arguments"
-                                            .to_string(),
-                                    ));
-                                }
-
-                                let first_param_type = &params[0];
-                                self.env
-                                    .add_constraint(left_type.clone(), first_param_type.clone());
-                                self.env.solve_constraints()?;
-
-                                Ok(*return_type.clone())
-                            }
-                            _ => Err(VeldError::TypeError(format!(
-                                "Cannot pipe into non-function value of type {}",
-                                right_type
-                            ))),
-                        }
-                    }
-                }
+                // This should never be reached since pipe is handled earlier
+                unreachable!("Pipe operator should be handled by infer_pipe_type")
             }
         }
     }
@@ -3555,6 +3434,233 @@ impl TypeChecker {
             }
         }
         false
+    }
+
+    fn infer_pipe_type(&mut self, left: &Expr, right: &Expr) -> Result<Type> {
+        let left_type = self.infer_expression_type(left)?;
+
+        match right {
+            // Case 1: Function call - left |> func(args)
+            Expr::FunctionCall { name, arguments } => {
+                // For function calls, we create a new function call with left as first arg
+                let left_expr = left.clone();
+                let mut new_args = vec![Argument::Positional(left_expr)];
+                for arg in arguments {
+                    new_args.push(arg.clone());
+                }
+
+                // Infer the type of the function
+                let func_type = self
+                    .env
+                    .get(name)
+                    .ok_or_else(|| VeldError::TypeError(format!("Undefined function: {}", name)))?;
+
+                match func_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        // Check that the function takes enough arguments
+                        if params.len() < new_args.len() {
+                            return Err(VeldError::TypeError(format!(
+                                "Function {} takes {} arguments, but {} were provided",
+                                name,
+                                params.len(),
+                                new_args.len()
+                            )));
+                        }
+
+                        // Check argument types
+                        for (i, arg) in new_args.iter().enumerate() {
+                            let arg_expr = match arg {
+                                Argument::Positional(expr) => expr,
+                                Argument::Named { name: _, value } => value,
+                            };
+
+                            let arg_type = self.infer_expression_type(arg_expr)?;
+                            self.env.add_constraint(arg_type, params[i].clone());
+                        }
+
+                        self.env.solve_constraints()?;
+                        Ok(*return_type.clone())
+                    }
+                    _ => Err(VeldError::TypeError(format!("{} is not a function", name))),
+                }
+            }
+
+            // Case 1b: General call - left |> func(args) where func is an expression
+            Expr::Call { callee, arguments } => {
+                // For Call expressions, we need to handle the case where callee is an Identifier
+                match &**callee {
+                    Expr::Identifier(name) => {
+                        // This is equivalent to FunctionCall case
+                        let left_expr = left.clone();
+                        let mut new_args = vec![Argument::Positional(left_expr)];
+                        for arg in arguments {
+                            new_args.push(arg.clone());
+                        }
+
+                        // Infer the type of the function
+                        let func_type = self.env.get(name).ok_or_else(|| {
+                            VeldError::TypeError(format!("Undefined function: {}", name))
+                        })?;
+
+                        match func_type {
+                            Type::Function {
+                                params,
+                                return_type,
+                            } => {
+                                // Check that the function takes enough arguments
+                                if params.len() < new_args.len() {
+                                    return Err(VeldError::TypeError(format!(
+                                        "Function {} takes {} arguments, but {} were provided",
+                                        name,
+                                        params.len(),
+                                        new_args.len()
+                                    )));
+                                }
+
+                                // Check argument types
+                                for (i, arg) in new_args.iter().enumerate() {
+                                    let arg_expr = match arg {
+                                        Argument::Positional(expr) => expr,
+                                        Argument::Named { name: _, value } => value,
+                                    };
+
+                                    let arg_type = self.infer_expression_type(arg_expr)?;
+                                    self.env.add_constraint(arg_type, params[i].clone());
+                                }
+
+                                self.env.solve_constraints()?;
+                                Ok(*return_type.clone())
+                            }
+                            _ => Err(VeldError::TypeError(format!("{} is not a function", name))),
+                        }
+                    }
+                    _ => {
+                        // For more complex callees, fall back to the general case
+                        let callee_type = self.infer_expression_type(callee)?;
+                        match &callee_type {
+                            Type::Function {
+                                params,
+                                return_type,
+                            } => {
+                                // Check that we have the right number of arguments (including the piped value)
+                                let total_args = arguments.len() + 1; // +1 for the piped value
+                                if params.len() != total_args {
+                                    return Err(VeldError::TypeError(format!(
+                                        "Function takes {} arguments, but {} were provided (including piped value)",
+                                        params.len(),
+                                        total_args
+                                    )));
+                                }
+
+                                // Check that the left type is compatible with the first parameter
+                                let first_param_type = &params[0];
+                                self.env
+                                    .add_constraint(left_type.clone(), first_param_type.clone());
+
+                                // Check the remaining argument types
+                                for (i, arg) in arguments.iter().enumerate() {
+                                    let arg_expr = match arg {
+                                        Argument::Positional(expr) => expr,
+                                        Argument::Named { name: _, value } => value,
+                                    };
+
+                                    let arg_type = self.infer_expression_type(arg_expr)?;
+                                    self.env.add_constraint(arg_type, params[i + 1].clone());
+                                }
+
+                                self.env.solve_constraints()?;
+                                Ok(*return_type.clone())
+                            }
+                            _ => Err(VeldError::TypeError(
+                                "Cannot pipe into non-function expression".to_string(),
+                            )),
+                        }
+                    }
+                }
+            }
+
+            // Case 2: Method call - left |> obj.method(args)
+            Expr::MethodCall {
+                object,
+                method,
+                arguments,
+            } => {
+                // For method calls, we need to create a new arguments list
+                let left_expr = left.clone();
+                let mut new_args = vec![Argument::Positional(left_expr)];
+                for arg in arguments {
+                    new_args.push(arg.clone());
+                }
+
+                // Use infer_method_call_type directly with the modified arguments
+                self.infer_method_call_type(object, method, &new_args)
+            }
+
+            // Case 3: Simple identifier - left |> func
+            Expr::Identifier(name) => {
+                // For a simple function name, check that it can accept the left type
+                let func_type = self
+                    .env
+                    .get(name)
+                    .ok_or_else(|| VeldError::TypeError(format!("Undefined function: {}", name)))?;
+
+                match func_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        // Check that the function takes at least one argument
+                        if params.is_empty() {
+                            return Err(VeldError::TypeError(format!(
+                                "Function {} takes no arguments",
+                                name
+                            )));
+                        }
+
+                        // Check that the left type is compatible with the first parameter
+                        let first_param_type = &params[0];
+                        self.env
+                            .add_constraint(left_type.clone(), first_param_type.clone());
+                        self.env.solve_constraints()?;
+
+                        Ok(*return_type.clone())
+                    }
+                    _ => Err(VeldError::TypeError(format!("{} is not a function", name))),
+                }
+            }
+
+            // Case 4: Other expressions
+            _ => {
+                // For other expressions, check that right_type is a function that can accept left_type
+                let right_type = self.infer_expression_type(right)?;
+                match &right_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        if params.is_empty() {
+                            return Err(VeldError::TypeError(
+                                "Cannot pipe into a function that takes no arguments".to_string(),
+                            ));
+                        }
+
+                        let first_param_type = &params[0];
+                        self.env
+                            .add_constraint(left_type.clone(), first_param_type.clone());
+                        self.env.solve_constraints()?;
+
+                        Ok(*return_type.clone())
+                    }
+                    _ => Err(VeldError::TypeError(format!(
+                        "Cannot pipe into non-function value of type {}",
+                        right_type
+                    ))),
+                }
+            }
+        }
     }
 
     fn try_resolve_operator(
