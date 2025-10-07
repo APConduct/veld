@@ -1,7 +1,8 @@
 import std.io.{print, println}
 
 # std.io.print can only take in one argument of type 'str'
-std.io.print("Hi There.")
+std.io.print("Hi " + "There.")
 print("\n")
 
 std.io.println("Hello from the next line.")
+println("It is " + true.to_string() + " that 42 is the meaning of life.")

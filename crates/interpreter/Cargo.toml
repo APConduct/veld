@@ -13,3 +13,4 @@ tracing = "0.1"            # For tracing support
 tracing-subscriber = "0.3" # For tracing subscriber
 tracing-indicatif = "0.3.13"
 colored = "2.0"
+veld-expander = {path = "../expander"}
