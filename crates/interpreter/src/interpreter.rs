@@ -6210,6 +6210,13 @@ impl Interpreter {
             return Ok(result);
         }
 
+        // Handle string concatenation before numeric conversion
+        if matches!(operator, BinaryOperator::Add) {
+            if let (Value::String(a), Value::String(b)) = (&left, &right) {
+                return Ok(Value::String(a.clone() + b));
+            }
+        }
+
         let left_numeric = self.to_numeric_value(left.clone())?;
         let right_numeric = self.to_numeric_value(right.clone())?;
 
