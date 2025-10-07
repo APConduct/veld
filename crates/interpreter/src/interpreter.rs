@@ -5828,7 +5828,8 @@ impl Interpreter {
                             return Ok(result.unwrap_return());
                         }
 
-                        Ok(Value::Unit)
+                        // Return the actual result instead of Unit
+                        Ok(result)
                     }
                     _ => Err(VeldError::RuntimeError(
                         "Internal error: enum method is not a MethodImpl".to_string(),
