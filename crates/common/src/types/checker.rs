@@ -3417,6 +3417,87 @@ impl TypeChecker {
                     Ok(Type::Module(full_path))
                 }
             }
+            Type::EnumType(enum_name) => {
+                // Handle enum variant access like Option.None
+                let enum_name_to_check = enum_name.clone();
+
+                // Try to find the enum in the environment
+                let enum_variants = if let Some(variants) = self.env.enums.get(&enum_name_to_check)
+                {
+                    variants.clone()
+                } else if let Some(variants) = self.env.enums.get(
+                    enum_name_to_check
+                        .split('.')
+                        .last()
+                        .unwrap_or(&enum_name_to_check),
+                ) {
+                    variants.clone()
+                } else {
+                    return Err(VeldError::TypeError(format!(
+                        "Unknown enum type: {}",
+                        enum_name
+                    )));
+                };
+
+                // Check if the property name corresponds to a variant
+                if let Some(variant) = enum_variants.get(property) {
+                    match variant {
+                        EnumVariant::Simple => {
+                            // Simple variant like None - return the enum type
+                            if enum_name_to_check.contains("Option") {
+                                Ok(Type::Generic {
+                                    base: "Option".to_string(),
+                                    type_args: vec![Type::Any], // Default to Any for now
+                                })
+                            } else {
+                                Ok(Type::Generic {
+                                    base: enum_name_to_check
+                                        .split('.')
+                                        .last()
+                                        .unwrap_or(&enum_name_to_check)
+                                        .to_string(),
+                                    type_args: vec![],
+                                })
+                            }
+                        }
+                        EnumVariant::Tuple(_field_types) => {
+                            // Tuple variant like Some - this should be accessed as a constructor call
+                            // For property access, we return a function type that represents the constructor
+                            // This will be handled properly in method call inference
+                            Ok(Type::Function {
+                                params: vec![], // Will be filled in by method call inference
+                                return_type: Box::new(Type::Generic {
+                                    base: enum_name_to_check
+                                        .split('.')
+                                        .last()
+                                        .unwrap_or(&enum_name_to_check)
+                                        .to_string(),
+                                    type_args: vec![Type::Any],
+                                }),
+                            })
+                        }
+                        EnumVariant::Struct(_fields) => {
+                            // Struct variant - return a constructor function type
+                            Ok(Type::Function {
+                                params: vec![], // Will be filled in by method call inference
+                                return_type: Box::new(Type::Generic {
+                                    base: enum_name_to_check
+                                        .split('.')
+                                        .last()
+                                        .unwrap_or(&enum_name_to_check)
+                                        .to_string(),
+                                    type_args: vec![],
+                                }),
+                            })
+                        }
+                    }
+                } else {
+                    Err(VeldError::TypeError(format!(
+                        "Enum {} has no variant {}",
+                        enum_name, property
+                    )))
+                }
+            }
             _ => Err(VeldError::TypeError(format!(
                 "Cannot access property {} of non-struct type {}",
                 property, object_type

@@ -6071,11 +6071,18 @@ impl Interpreter {
             }
             // For enum instance methods
             (Value::Enum { enum_name, .. }, _) => {
-                // Get the method from enum_methods
+                // Get the method from enum_methods - try qualified name first, then simple name
                 let method = self
                     .enum_methods
                     .get(enum_name)
                     .and_then(|methods| methods.get(&method_name))
+                    .or_else(|| {
+                        // If qualified name lookup fails, try simple name
+                        let simple_name = enum_name.split('.').last().unwrap_or(enum_name);
+                        self.enum_methods
+                            .get(simple_name)
+                            .and_then(|methods| methods.get(&method_name))
+                    })
                     .cloned()
                     .ok_or_else(|| {
                         VeldError::RuntimeError(format!(
@@ -6153,6 +6160,70 @@ impl Interpreter {
                     _ => Err(VeldError::RuntimeError(
                         "Internal error: enum method is not a MethodImpl".to_string(),
                     )),
+                }
+            }
+
+            // Handle enum constructor calls like Option.Some(42) or Option.None
+            (Value::EnumType { name, .. }, _) => {
+                // Extract the simple enum name from qualified name like "std.option.Option" -> "Option"
+                let enum_name_to_check = name.split('.').last().unwrap_or(name).to_string();
+
+                // Check if we have the enum registered
+                let enum_variants = if let Some(variants) = self.enums.get(name) {
+                    variants.clone()
+                } else if let Some(variants) = self.enums.get(&enum_name_to_check) {
+                    variants.clone()
+                } else {
+                    return Err(VeldError::RuntimeError(format!(
+                        "Unknown enum type: {}",
+                        name
+                    )));
+                };
+
+                // Find the variant by name from the Vec<EnumVariant>
+                if let Some(variant) = enum_variants.iter().find(|v| v.name == method_name) {
+                    match &variant.fields {
+                        None => {
+                            // Simple variant like None - should take no arguments
+                            if !args.is_empty() {
+                                return Err(VeldError::RuntimeError(format!(
+                                    "Enum variant {} takes no arguments, got {}",
+                                    method_name,
+                                    args.len()
+                                )));
+                            }
+
+                            // Create enum instance
+                            Ok(Value::Enum {
+                                enum_name: enum_name_to_check,
+                                variant_name: method_name,
+                                fields: vec![],
+                            })
+                        }
+                        Some(field_types) => {
+                            // Tuple variant like Some(T) - check argument count
+                            if field_types.len() != args.len() {
+                                return Err(VeldError::RuntimeError(format!(
+                                    "Enum variant {} expects {} arguments, got {}",
+                                    method_name,
+                                    field_types.len(),
+                                    args.len()
+                                )));
+                            }
+
+                            // Create enum instance with field values
+                            Ok(Value::Enum {
+                                enum_name: enum_name_to_check,
+                                variant_name: method_name,
+                                fields: args,
+                            })
+                        }
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(format!(
+                        "Enum {} has no variant {}",
+                        name, method_name
+                    )))
                 }
             }
 
