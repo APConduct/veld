@@ -1,0 +1,40 @@
+# Test conditional to_string method availability on Option<T>
+# Option<T>.to_string() should only be available if T has to_string()
+
+import std.option.{Option, some, none}
+
+fn main()
+    std.io.println("=== Testing Option<T> conditional to_string ===")
+
+    # Test 1: Option<i32> - should work (i32 has to_string)
+    std.io.println("\n--- Test 1: Option<i32> with to_string ---")
+    let int_option = some(42)
+    let int_str = int_option.to_string()
+    std.io.println("Option<i32>.to_string(): " + int_str)
+
+    let none_int: Option<i32> = none()
+    let none_str = none_int.to_string()
+    std.io.println("Option<i32>(None).to_string(): " + none_str)
+
+    # Test 2: Option<str> - should work (str has to_string)
+    std.io.println("\n--- Test 2: Option<str> with to_string ---")
+    let str_option = some("hello")
+    let str_str = str_option.to_string()
+    std.io.println("Option<str>.to_string(): " + str_str)
+
+    # Test 3: Option<bool> - should work (bool has to_string)
+    std.io.println("\n--- Test 3: Option<bool> with to_string ---")
+    let bool_option = some(true)
+    let bool_str = bool_option.to_string()
+    std.io.println("Option<bool>.to_string(): " + bool_str)
+
+    # Test 4: Nested Option<Option<i32>> - should work if inner Option<i32> has to_string
+    std.io.println("\n--- Test 4: Nested Option<Option<i32>> ---")
+    let nested_option = some(some(99))
+    let nested_str = nested_option.to_string()
+    std.io.println("Option<Option<i32>>.to_string(): " + nested_str)
+
+    std.io.println("\n✅ All conditional to_string tests completed!")
+end
+
+main()

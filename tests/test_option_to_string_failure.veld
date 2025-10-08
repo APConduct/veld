@@ -1,0 +1,33 @@
+# Test that Option<T>.to_string() fails when T doesn't implement to_string()
+# This demonstrates the conditional method availability feature
+
+# Define a custom struct without to_string method
+struct CustomType
+    pub value: i32,
+end
+
+# No impl block for CustomType - so it doesn't have to_string
+
+fn main()
+    std.io.println("=== Testing Option<T> to_string failure cases ===")
+
+    # Test 1: First show that basic types work
+    std.io.println("\n--- Test 1: Successful cases ---")
+    let int_option = std.option.Option.Some(42)
+    let int_str = int_option.to_string()
+    std.io.println("Option<i32>.to_string(): " + int_str)
+
+    # Test 2: Try to use Option<CustomType>.to_string() - should fail
+    std.io.println("\n--- Test 2: Failure case - CustomType has no to_string ---")
+    let custom = CustomType(value: 123)
+    let custom_option = std.option.Option.Some(custom)
+
+    std.io.println("About to try calling to_string on Option<CustomType>...")
+    # This should fail with a type error because CustomType doesn't implement to_string
+    let custom_str = custom_option.to_string()
+    std.io.println("Option<CustomType>.to_string(): " + custom_str)
+
+    std.io.println("\n✅ This line should not be reached if the test works correctly!")
+end
+
+main()

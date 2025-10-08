@@ -90,6 +90,27 @@ impl<T> Option<T>
         end
     end
 
+    #| Convert the option to a string representation
+    #| This method is only available if T implements to_string()
+    #| Returns "Some(value_string)" for Some(value) where value_string is value.to_string()
+    #| Returns "None" for None
+    #| # Example:
+    #| ```
+    #| let opt = Option.Some(42)
+    #| let str_repr = opt.to_string()  # str_repr will be "Some(42)"
+    #| ```
+    #| # Example:
+    #| ```
+    #| let opt = Option.None
+    #| let str_repr = opt.to_string()  # str_repr will be "None"
+    #| ```
+    pub fn to_string(self) -> str
+        match self
+            Option.Some(value) => "Some(" + value.to_string() + ")",
+            Option.None => "None",
+        end
+    end
+
     # Return true if the option does not contain a value
     pub fn is_none(self) -> bool
         match self

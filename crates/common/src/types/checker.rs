@@ -2365,6 +2365,35 @@ impl TypeChecker {
                                 } else if base_name == "Option" && concrete_type_args.len() >= 1 {
                                     substitutions
                                         .insert("T".to_string(), concrete_type_args[0].clone());
+
+                                    // Special handling for Option<T>.to_string() - only available if T has to_string
+                                    if method == "to_string" {
+                                        // Solve constraints first to resolve type variables
+                                        self.env.solve_constraints()?;
+                                        let resolved_inner_type =
+                                            self.env.apply_substitutions(&concrete_type_args[0]);
+
+                                        // For now, allow to_string if the inner type is still a type variable
+                                        // (this means inference is incomplete but we'll allow it to proceed)
+                                        // or if it's a concrete type that has to_string
+                                        match &resolved_inner_type {
+                                            Type::TypeVar(_) | Type::TypeParam(_) => {
+                                                // Allow to_string on unresolved types for now
+                                                // The actual runtime check will happen during execution
+                                            }
+                                            _ => {
+                                                if !self
+                                                    .type_has_to_string_method(&resolved_inner_type)
+                                                {
+                                                    return Err(VeldError::TypeError(format!(
+                                                        "Option<{}>.to_string() is not available because {} does not implement to_string()",
+                                                        self.type_to_string(&resolved_inner_type),
+                                                        self.type_to_string(&resolved_inner_type)
+                                                    )));
+                                                }
+                                            }
+                                        }
+                                    }
                                 } else if base_name == "Vec" && concrete_type_args.len() >= 1 {
                                     substitutions
                                         .insert("T".to_string(), concrete_type_args[0].clone());
@@ -4237,7 +4266,7 @@ impl TypeChecker {
 
             Type::String => {
                 // Indexing into string gives single character string
-                Ok(Type::String)
+                return Ok(Type::String);
             }
 
             _ => Err(VeldError::TypeError(format!(
@@ -4247,6 +4276,140 @@ impl TypeChecker {
         }
     }
 
+    /// Check if a type has a to_string method available
+    fn type_has_to_string_method(&self, type_: &Type) -> bool {
+        match type_ {
+            // Primitive types that have built-in to_string methods
+            Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::I8
+            | Type::I16
+            | Type::Char
+            | Type::String => true,
+
+            // Check if struct/enum has to_string method registered
+            Type::Struct { name, .. } => {
+                if let Some(methods) = self.env.struct_methods().get(name) {
+                    methods.contains_key("to_string")
+                } else {
+                    false
+                }
+            }
+
+            Type::Enum { name, .. } => {
+                if let Some(methods) = self.env.get_enum_methods(name) {
+                    methods.contains_key("to_string")
+                } else {
+                    false
+                }
+            }
+
+            // Generic types - recursively check if they have to_string
+            Type::Generic { base, type_args } => {
+                // Check if the base type has to_string method registered
+                let base_has_to_string = if let Some(methods) = self.env.struct_methods().get(base)
+                {
+                    methods.contains_key("to_string")
+                } else if let Some(methods) = self.env.get_enum_methods(base) {
+                    methods.contains_key("to_string")
+                } else {
+                    false
+                };
+
+                // For Option<T>, to_string is conditionally available
+                if base == "Option" && type_args.len() >= 1 {
+                    base_has_to_string && self.type_has_to_string_method(&type_args[0])
+                } else {
+                    base_has_to_string
+                }
+            }
+
+            // Arrays, type variables, and other types don't have to_string by default
+            _ => false,
+        }
+    }
+
+    /// Convert a type to a string representation for error messages
+    fn type_to_string(&self, type_: &Type) -> String {
+        match type_ {
+            Type::Bool => "bool".to_string(),
+            Type::I32 => "i32".to_string(),
+            Type::I64 => "i64".to_string(),
+            Type::F32 => "f32".to_string(),
+            Type::F64 => "f64".to_string(),
+            Type::U8 => "u8".to_string(),
+            Type::U16 => "u16".to_string(),
+            Type::U32 => "u32".to_string(),
+            Type::U64 => "u64".to_string(),
+            Type::I8 => "i8".to_string(),
+            Type::I16 => "i16".to_string(),
+            Type::Char => "char".to_string(),
+            Type::String => "str".to_string(),
+            Type::Unit => "()".to_string(),
+            Type::Any => "any".to_string(),
+            Type::IntegerLiteral(val) => format!("{}", val),
+            Type::FloatLiteral(val) => format!("{}", val),
+            Type::Number => "number".to_string(),
+            Type::Struct { name, .. } => name.clone(),
+            Type::Enum { name, .. } => name.clone(),
+            Type::Generic { base, type_args } => {
+                if type_args.is_empty() {
+                    base.clone()
+                } else {
+                    let args_str = type_args
+                        .iter()
+                        .map(|t| self.type_to_string(t))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{}<{}>", base, args_str)
+                }
+            }
+            Type::Array(elem_type) => format!("[{}]", self.type_to_string(elem_type)),
+            Type::Function {
+                params,
+                return_type,
+            } => {
+                let params_str = params
+                    .iter()
+                    .map(|t| self.type_to_string(t))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("({}) -> {}", params_str, self.type_to_string(return_type))
+            }
+            Type::TypeVar(id) => format!("T{}", id),
+            Type::TypeParam(name) => name.clone(),
+            Type::StructType(name) => format!("Type<{}>", name),
+            Type::EnumType(name) => format!("Type<{}>", name),
+            Type::Module(name) => format!("Module<{}>", name),
+            Type::Record { fields } => {
+                let fields_str = fields
+                    .iter()
+                    .map(|(name, ty)| format!("{}: {}", name, self.type_to_string(ty)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{{ {} }}", fields_str)
+            }
+            Type::Tuple(types) => {
+                let types_str = types
+                    .iter()
+                    .map(|t| self.type_to_string(t))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("({})", types_str)
+            }
+            Type::KindSelf(name) => format!("Self<{}>", name),
+        }
+    }
+}
+
+impl TypeChecker {
     pub fn get_implementations_for_type(
         &self,
         type_name: &str,
