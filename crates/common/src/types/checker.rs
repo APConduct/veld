@@ -2877,6 +2877,166 @@ impl TypeChecker {
                 }
             }
 
+            Type::TypeVar(_) => {
+                // For type variables, we need to use constraint-based resolution
+                // Look for types that have the requested method and constrain the type variable
+
+                // First, collect all enum methods to avoid borrowing issues
+                let enum_methods: Vec<(String, String, Type)> = {
+                    let mut methods = Vec::new();
+                    for (enum_name, _variants) in &self.env.enums {
+                        if let Some(enum_method_map) = self.env.get_enum_methods(enum_name) {
+                            if let Some(method_type) = enum_method_map.get(method) {
+                                methods.push((
+                                    enum_name.clone(),
+                                    method.to_string(),
+                                    method_type.clone(),
+                                ));
+                            }
+                        }
+                    }
+                    methods
+                };
+
+                // Try enum methods first
+                for (enum_name, _method_name, method_type) in enum_methods {
+                    let fresh_type_var = self.env.fresh_type_var();
+                    let enum_generic_type = Type::Generic {
+                        base: enum_name
+                            .split('.')
+                            .last()
+                            .unwrap_or(&enum_name)
+                            .to_string(),
+                        type_args: vec![fresh_type_var],
+                    };
+
+                    // Add constraint to unify the object type with the enum type
+                    self.env.add_constraint(obj_type.clone(), enum_generic_type);
+
+                    // Infer the method call return type
+                    match method_type {
+                        Type::Function {
+                            params,
+                            return_type,
+                        } => {
+                            // Check argument count (excluding self)
+                            if params.len() - 1 != args.len() {
+                                return Err(VeldError::TypeError(format!(
+                                    "Method {} expects {} arguments, got {}",
+                                    method,
+                                    params.len() - 1,
+                                    args.len()
+                                )));
+                            }
+
+                            // Infer argument types and add constraints
+                            for (i, arg) in args.iter().enumerate() {
+                                let arg_expr = match arg {
+                                    Argument::Positional(expr) => expr,
+                                    Argument::Named { name: _, value } => value,
+                                };
+                                let arg_type = self.infer_expression_type(arg_expr)?;
+                                if i + 1 < params.len() {
+                                    self.env.add_constraint(arg_type, params[i + 1].clone());
+                                }
+                            }
+
+                            // Solve constraints after adding them
+                            self.env.solve_constraints()?;
+                            let resolved_return_type = self.env.apply_substitutions(&return_type);
+
+                            return Ok(resolved_return_type);
+                        }
+                        _ => {
+                            return Err(VeldError::TypeError(format!(
+                                "Invalid method type for {}",
+                                method
+                            )));
+                        }
+                    }
+                }
+
+                // Collect struct methods to avoid borrowing issues
+                let struct_methods: Vec<(String, Type)> = {
+                    let mut methods = Vec::new();
+                    for (struct_name, method_map) in self.env.struct_methods() {
+                        if let Some(method_type) = method_map.get(method) {
+                            methods.push((struct_name.clone(), method_type.clone()));
+                        }
+                    }
+                    methods
+                };
+
+                // Try struct methods
+                for (struct_name, method_type) in struct_methods {
+                    let struct_fields = self.env.structs().get(&struct_name).cloned();
+                    let fresh_type_var = self.env.fresh_type_var();
+
+                    let struct_type = if let Some(fields) = struct_fields {
+                        Type::Struct {
+                            name: struct_name.clone(),
+                            fields,
+                        }
+                    } else {
+                        Type::Generic {
+                            base: struct_name,
+                            type_args: vec![fresh_type_var],
+                        }
+                    };
+
+                    // Add constraint to unify the object type with the struct type
+                    self.env.add_constraint(obj_type.clone(), struct_type);
+
+                    // Infer the method call return type
+                    match method_type {
+                        Type::Function {
+                            params,
+                            return_type,
+                        } => {
+                            // Check argument count (excluding self)
+                            if params.len() - 1 != args.len() {
+                                return Err(VeldError::TypeError(format!(
+                                    "Method {} expects {} arguments, got {}",
+                                    method,
+                                    params.len() - 1,
+                                    args.len()
+                                )));
+                            }
+
+                            // Infer argument types and add constraints
+                            for (i, arg) in args.iter().enumerate() {
+                                let arg_expr = match arg {
+                                    Argument::Positional(expr) => expr,
+                                    Argument::Named { name: _, value } => value,
+                                };
+                                let arg_type = self.infer_expression_type(arg_expr)?;
+                                if i + 1 < params.len() {
+                                    self.env.add_constraint(arg_type, params[i + 1].clone());
+                                }
+                            }
+
+                            // Solve constraints after adding them
+                            self.env.solve_constraints()?;
+                            let resolved_return_type = self.env.apply_substitutions(&return_type);
+
+                            return Ok(resolved_return_type);
+                        }
+                        _ => {
+                            return Err(VeldError::TypeError(format!(
+                                "Invalid method type for {}",
+                                method
+                            )));
+                        }
+                    }
+                }
+
+                // If no method found, this is an error
+                Err(VeldError::TypeError(format!(
+                    "No type found with method {} for type variable",
+                    method
+                )))
+            }
+
             _ => Err(VeldError::TypeError(format!(
                 "Type {} does not have methods",
                 obj_type
