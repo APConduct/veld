@@ -1,0 +1,59 @@
+# Test Complex Constraint Solver Cases
+# This file tests the more complex scenarios that might be failing
+
+fn main()
+    std.io.println("=== Testing Complex Constraint Solver Cases ===")
+
+    # Test 1: Variable reassignment with different Option types
+    std.io.println("\n--- Test 1: Variable reassignment ---")
+
+    let mut maybe_num = std.option.Option.None
+    maybe_num = std.option.Option.Some(100)
+    let unwrapped2 = maybe_num.unwrap_or(0)
+    std.io.println("Reassigned result: " + unwrapped2.to_string())
+
+    # Test 2: Vec type inference from mixed operations
+    std.io.println("\n--- Test 2: Vec type inference ---")
+
+    let mut vec = std.vec.Vec.new()
+    vec.push(1)
+    vec.push(2)
+
+    let first = vec.get(0)
+    let first_unwrapped = first.unwrap_or(0)
+    std.io.println("Vec first element: " + first_unwrapped.to_string())
+
+    # Test 3: Nested generic type unification
+    std.io.println("\n--- Test 3: Nested generic types ---")
+
+    let mut options_vec = std.vec.Vec.new()
+    options_vec.push(std.option.Option.Some(10))
+    options_vec.push(std.option.Option.None)
+
+    let first_opt = options_vec.get(0).unwrap_or(std.option.Option.None)
+    let first_val = first_opt.unwrap_or(0)
+    std.io.println("Nested generic result: " + first_val.to_string())
+
+    # Test 4: Complex conditional with unification
+    std.io.println("\n--- Test 4: Complex conditional ---")
+
+    let condition = true
+    let complex_result = if condition
+        then if true then std.option.Option.Some(77) else std.option.Option.None end
+        else std.option.Option.Some(88)
+    end
+
+    let complex_unwrapped = complex_result.unwrap_or(0)
+    std.io.println("Complex conditional result: " + complex_unwrapped.to_string())
+
+    # Test 5: Method chaining
+    std.io.println("\n--- Test 5: Method chaining ---")
+
+    let chained = std.option.Option.None
+        .unwrap_or(25)
+    std.io.println("Method chaining result: " + chained.to_string())
+
+    std.io.println("\n✅ Complex constraint solver tests completed!")
+end
+
+main()
