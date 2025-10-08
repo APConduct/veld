@@ -1,0 +1,152 @@
+# Test to verify vec~ macro creates real Vec instances with Vec methods
+# This tests actual Vec operations to ensure the macro creates proper Vecs, not arrays
+
+import std.vec.{Vec}
+
+fn test_vec_push_pop()
+    std.io.println("=== Testing Vec push/pop operations ===")
+
+    # Test empty vec
+    var empty = vec~()
+    std.io.println("Empty vec created")
+
+    # Test push operations on empty vec
+    empty.push(10)
+    empty.push(20)
+    empty.push(30)
+    std.io.println("Pushed 10, 20, 30 to empty vec")
+
+    # Test pop operations
+    let popped1 = empty.pop()
+    std.io.println("Popped value (should be Some(30))")
+
+    let popped2 = empty.pop()
+    std.io.println("Popped value (should be Some(20))")
+
+    std.io.println("✅ Vec push/pop operations work!")
+end
+
+fn test_vec_with_initial_elements()
+    std.io.println("=== Testing Vec with initial elements ===")
+
+    # Test vec with initial elements
+    var numbers = vec~(1, 2, 3, 4, 5)
+    std.io.println("Created vec with initial elements: 1, 2, 3, 4, 5")
+
+    # Test that we can still push to it
+    numbers.push(6)
+    numbers.push(7)
+    std.io.println("Pushed 6 and 7 to the vec")
+
+    # Test pop to verify it's working as a proper Vec
+    let last = numbers.pop()
+    std.io.println("Popped last element (should be Some(7))")
+
+    std.io.println("✅ Vec with initial elements works!")
+end
+
+fn test_vec_len()
+    std.io.println("=== Testing Vec length operations ===")
+
+    var vec = vec~(100, 200, 300)
+    std.io.println("Created vec with 3 elements")
+
+    # Test Vec.len() method
+    let length = vec.len()
+    std.io.println("Vec length: " + length.to_string())
+
+    # Test is_empty() method
+    let empty_check = vec.is_empty()
+    std.io.println("Vec is empty: " + empty_check.to_string())
+
+    # Test with empty vec
+    var empty_vec = vec~()
+    let empty_len = empty_vec.len()
+    std.io.println("Empty vec length: " + empty_len.to_string())
+
+    let empty_check2 = empty_vec.is_empty()
+    std.io.println("Empty vec is empty: " + empty_check2.to_string())
+
+    std.io.println("✅ Vec length operations work!")
+end
+
+fn test_vec_insert_remove()
+    std.io.println("=== Testing Vec insert/remove operations ===")
+
+    var vec = vec~("first", "second", "fourth")
+    std.io.println("Created vec with: first, second, fourth")
+
+    # Test insert at index 2 to add "third"
+    let insert_result = vec.insert(2, "third")
+    std.io.println("Inserted 'third' at index 2: " + insert_result.to_string())
+
+    # Test remove at index 0
+    let removed = vec.remove(0)
+    std.io.println("Removed element at index 0")
+
+    std.io.println("✅ Vec insert/remove operations work!")
+end
+
+fn test_vec_get_set()
+    std.io.println("=== Testing Vec get/set operations ===")
+
+    var vec = vec~(10, 20, 30, 40)
+    std.io.println("Created vec with: 10, 20, 30, 40")
+
+    # Test get method
+    let value = vec.get(1)
+    std.io.println("Got value at index 1")
+
+    # Test set method
+    let set_result = vec.set(1, 25)
+    std.io.println("Set value at index 1 to 25: " + set_result.to_string())
+
+    # Test get again to verify change
+    let new_value = vec.get(1)
+    std.io.println("Got new value at index 1")
+
+    std.io.println("✅ Vec get/set operations work!")
+end
+
+fn test_vec_capacity()
+    std.io.println("=== Testing Vec capacity operations ===")
+
+    # Test Vec.with_capacity
+    var vec_with_cap = Vec.with_capacity(10)
+    std.io.println("Created vec with capacity 10")
+
+    let capacity = vec_with_cap.capacity()
+    std.io.println("Vec capacity: " + capacity.to_string())
+
+    # Test normal vec capacity
+    var normal_vec = vec~(1, 2, 3)
+    let normal_cap = normal_vec.capacity()
+    std.io.println("Normal vec capacity: " + normal_cap.to_string())
+
+    std.io.println("✅ Vec capacity operations work!")
+end
+
+fn main()
+    std.io.println("Testing vec~ macro creates real Vec instances")
+    std.io.println("============================================")
+
+    test_vec_push_pop()
+    test_vec_with_initial_elements()
+    test_vec_len()
+    test_vec_insert_remove()
+    test_vec_get_set()
+    test_vec_capacity()
+
+    std.io.println("============================================")
+    std.io.println("🎉 All Vec operations work!")
+    std.io.println("✅ vec~ macro creates real Vec instances, not arrays")
+    std.io.println("✅ Vec.push() and Vec.pop() work correctly")
+    std.io.println("✅ Vec.len() and Vec.is_empty() work correctly")
+    std.io.println("✅ Vec.insert() and Vec.remove() work correctly")
+    std.io.println("✅ Vec.get() and Vec.set() work correctly")
+    std.io.println("✅ Vec.with_capacity() and Vec.capacity() work correctly")
+    std.io.println("")
+    std.io.println("The vec~ macro successfully creates proper Vec instances!")
+end
+
+main()

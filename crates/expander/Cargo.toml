@@ -10,6 +10,7 @@ categories = ["compilers", "development-tools"]
 
 [dependencies]
 veld-common = { path = "../common" }
+tracing = "0.1"
 
 [dev-dependencies]
 criterion = "0.5"

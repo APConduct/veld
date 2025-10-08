@@ -90,6 +90,7 @@ pub enum Type {
 
     KindSelf(String),
     Module(String),
+    StructType(String), // Represents a struct type that can have static methods called on it
 }
 
 impl Type {
@@ -300,6 +301,7 @@ impl std::fmt::Display for Type {
             Type::Number => write!(f, "number"),
 
             Type::KindSelf(name) => write!(f, "{}", name),
+            Type::StructType(name) => write!(f, "struct type: {}", name),
         }
     }
 }

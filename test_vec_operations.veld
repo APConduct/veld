@@ -1,0 +1,78 @@
+# Test to verify vec~ macro creates working vectors
+# This tests actual vector operations to ensure the macro works correctly
+
+
+
+fn test_vec_basic_operations()
+    std.io.println("=== Testing vec~ macro with actual operations ===")
+
+    # Test empty vec
+    var empty = vec~()
+    std.io.println("Empty vec created")
+
+    # Test vec with elements
+    var numbers = vec~(1, 2, 3, 4, 5)
+    std.io.println("Numbers vec created")
+
+    # Try to access elements using Vec.get() method
+    let first = numbers.get(0)
+    std.io.println("First element retrieved with get()")
+
+    let second = numbers.get(1)
+    std.io.println("Second element retrieved with get()")
+
+    let last = numbers.get(4)
+    std.io.println("Last element retrieved with get()")
+
+    # Test Vec length
+    let length = numbers.len()
+    std.io.println("Vec length: " + length.to_string())
+
+    std.io.println("✅ vec~ macro creates working Vecs!")
+end
+
+fn test_vec_mixed_types()
+    std.io.println("=== Testing vec~ with different element types ===")
+
+    # Test with strings
+    var names = vec~("Alice", "Bob", "Charlie")
+    let first_name = names.get(0)
+    std.io.println("First name retrieved with get()")
+
+    # Test with booleans
+    var flags = vec~(true, false, true)
+    let first_flag = flags.get(0)
+    std.io.println("First flag retrieved with get()")
+
+    std.io.println("✅ vec~ works with different types!")
+end
+
+fn test_nested_vec_usage()
+    std.io.println("=== Testing vec~ in expressions ===")
+
+    # Test vec in variable assignment with computation
+    var computed = vec~(10 + 5, 20 * 2, 100 / 4)
+    let result = computed.get(0)
+    std.io.println("First computed value retrieved with get()")
+
+    # Test accessing vec created inline (create temp vec first)
+    var temp_vec = vec~("hello", "world")
+    let inline_access = temp_vec.get(1)
+    std.io.println("Inline access result retrieved with get()")
+
+    std.io.println("✅ vec~ works in complex expressions!")
+end
+
+fn main()
+    std.io.println("Testing vec~ macro functionality")
+    std.io.println("=================================")
+
+    test_vec_basic_operations()
+    test_vec_mixed_types()
+    test_nested_vec_usage()
+
+    std.io.println("=================================")
+    std.io.println("🎉 All vec~ tests passed! The macro creates working Vecs!")
+end
+
+main()

@@ -12,6 +12,7 @@ pub fn expand_macros_in_ast(
         let stmts = expand_macros_in_statement(stmt, macro_system)?;
         expanded_statements.extend(stmts);
     }
+
     Ok(AST {
         statements: expanded_statements,
         source_map: ast.source_map,
@@ -328,7 +329,7 @@ fn expand_macros_in_statement_children(
         } => {
             // Register the macro with the macro system
             // For now, we'll just pass through the declaration
-            // In the future, you might want to register user-defined macros
+            // In the future, we might want to register user-defined macros
             Ok(vec![MacroDeclaration {
                 name,
                 patterns,
@@ -391,7 +392,7 @@ fn expand_macros_in_statement_children(
             is_public,
             generic_params,
         }]),
-        MacroInvocation { name, arguments } => {
+        MacroInvocation { name, arguments: _ } => {
             // MacroInvocation should be handled by the macro system's preprocess_statement
             // If we reach here, it means the macro wasn't expanded, so we treat it as an error
             Err(ExpansionError::MacroNotFound {

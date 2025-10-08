@@ -2368,11 +2368,16 @@ impl TypeChecker {
                                 }
 
                                 // First param is self
-                                if params.len() - 1 != args.len() {
+                                let expected_args = if params.len() > 0 {
+                                    params.len() - 1
+                                } else {
+                                    0
+                                };
+                                if expected_args != args.len() {
                                     return Err(VeldError::TypeError(format!(
                                         "Method {} expects {} arguments, got {}",
                                         method,
-                                        params.len() - 1,
+                                        expected_args,
                                         args.len()
                                     )));
                                 }
@@ -2491,6 +2496,83 @@ impl TypeChecker {
             }
 
             Type::String => self.infer_string_method_call_type(method, args),
+
+            Type::StructType(struct_name) => {
+                // Handle static method calls on struct types like Vec.new()
+                let method_type = {
+                    if let Some(methods) = self.env.struct_methods().get(struct_name) {
+                        methods.get(method).cloned()
+                    } else {
+                        None
+                    }
+                };
+
+                match method_type {
+                    Some(method_type) => {
+                        match method_type {
+                            Type::Function {
+                                params,
+                                return_type,
+                            } => {
+                                // Clone params and return_type to avoid borrow issues
+                                let params = params.clone();
+                                let return_type = *return_type;
+
+                                // For static methods, no self parameter, so all params must match args
+                                let expected_args = if params.len() > 0 {
+                                    params.len() - 1 // Skip self parameter for static methods
+                                } else {
+                                    0
+                                };
+
+                                if expected_args != args.len() {
+                                    return Err(VeldError::TypeError(format!(
+                                        "Static method {} expects {} arguments, got {}",
+                                        method,
+                                        expected_args,
+                                        args.len()
+                                    )));
+                                }
+
+                                // Check argument types (skip first param which is self)
+                                for (i, arg) in args.iter().enumerate() {
+                                    let arg_expr = match arg {
+                                        Argument::Positional(expr) => expr,
+                                        Argument::Named { name: _, value } => value,
+                                    };
+
+                                    let arg_type = self.infer_expression_type(arg_expr)?;
+                                    if i + 1 < params.len() {
+                                        self.env.add_constraint(arg_type, params[i + 1].clone());
+                                    }
+                                }
+
+                                self.env.solve_constraints()?;
+
+                                // For generic constructors like Vec.new(), substitute generic types
+                                match return_type {
+                                    Type::Generic { base, .. } if base == "Vec" => {
+                                        // Return Vec<T> where T is inferred from context or defaults to Any
+                                        Ok(Type::Generic {
+                                            base: "Vec".to_string(),
+                                            type_args: vec![Type::Any], // TODO: Better generic inference
+                                        })
+                                    }
+                                    _ => Ok(return_type),
+                                }
+                            }
+                            _ => Err(VeldError::TypeError(format!(
+                                "{}.{} is not a static method",
+                                struct_name, method
+                            ))),
+                        }
+                    }
+                    None => Err(VeldError::TypeError(format!(
+                        "Static method {} not found on {}",
+                        method, struct_name
+                    ))),
+                }
+            }
 
             Type::Module(module_path) => {
                 // Handle module function calls like std.option.some(69)
@@ -2900,7 +2982,7 @@ impl TypeChecker {
         let _enter = _span.enter();
 
         match method {
-            "to_upper" | "to_lower" | "trim" | "trim_start" | "trim_end" => {
+            "to_upper" | "to_lower" | "trim" | "trim_start" | "trim_end" | "to_string" => {
                 if !args.is_empty() {
                     return Err(VeldError::TypeError(format!(
                         "{}() takes no arguments",
@@ -3194,9 +3276,20 @@ impl TypeChecker {
                 ))),
             },
             Type::Module(module_name) => {
-                // For module access like std.option, return another module type
-                // This allows chaining like std.option.some
-                Ok(Type::Module(format!("{}.{}", module_name, property)))
+                // Check if we're accessing a struct from a module
+                // e.g., std.vec.Vec should return Type::StructType("std.vec.Vec")
+                let full_path = format!("{}.{}", module_name, property);
+
+                // Check if this is a known struct in the environment
+                if self.env.structs().contains_key(&full_path)
+                    || self.env.structs().contains_key(property)
+                {
+                    Ok(Type::StructType(full_path))
+                } else {
+                    // For other module access like std.vec, return another module type
+                    // This allows chaining like std.vec.Vec
+                    Ok(Type::Module(full_path))
+                }
             }
             _ => Err(VeldError::TypeError(format!(
                 "Cannot access property {} of non-struct type {}",

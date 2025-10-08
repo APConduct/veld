@@ -89,7 +89,7 @@ fn run_file(filename: &str) -> Result<()> {
         Ok(ast) => {
             // Run the interpreter if parsing succeeds
             let mut interpreter = Interpreter::new("../..");
-            match interpreter.interpret(ast.statements) {
+            match interpreter.interpret_ast(ast) {
                 Ok(result) => {
                     #[cfg(debug_assertions)]
                     tracing::info!(

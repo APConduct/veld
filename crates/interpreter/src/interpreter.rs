@@ -1,3 +1,4 @@
+use crate::expand_macros::expand_macros_in_ast;
 use crate::native::{NativeFunctionRegistry, NativeMethodRegistry};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -13,6 +14,7 @@ use veld_common::ast::{
 use veld_common::types::Type;
 use veld_common::types::checker::TypeChecker;
 use veld_common::value::module::{ExportedItem, ModuleManager};
+use veld_expander::MacroSystem;
 
 use veld_common::value::numeric::{FloatValue, IntegerValue, NumericValue};
 use veld_error::{Result, VeldError};
@@ -120,8 +122,12 @@ impl Interpreter {
     }
 
     pub fn interpret_ast(&mut self, ast: veld_common::ast::AST) -> Result<Value> {
-        // TODO: Add features/logic only available at the AST level
-        self.interpret(ast.statements)
+        // Expand macros in the AST before interpretation
+        let mut macro_system = MacroSystem::new();
+        let expanded_ast = expand_macros_in_ast(ast, &mut macro_system)
+            .map_err(|e| VeldError::RuntimeError(format!("Macro expansion failed: {:?}", e)))?;
+
+        self.interpret(expanded_ast.statements)
     }
 
     pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<Value> {
@@ -208,6 +214,7 @@ impl Interpreter {
 
         // Load critical standard library modules with their types and methods
         self.load_stdlib_module_with_types(&["std", "option"]);
+        self.load_stdlib_module_with_types(&["std", "vec"]);
 
         // Initialize native methods for built-in types
         self.initialize_core_capabilities();
@@ -5184,10 +5191,12 @@ impl Interpreter {
                             }
                         }
                         veld_common::value::module::ExportedItem::Struct(idx) => {
-                            Err(VeldError::RuntimeError(format!(
-                                "Struct '{}' exported from module '{}' is not directly accessible yet (implement struct resolution here)",
-                                property, module.name
-                            )))
+                            // Return a StructType value that can be used for static method calls
+                            let qualified_name = format!("{}.{}", module.name, property);
+                            Ok(Value::StructType {
+                                name: qualified_name,
+                                methods: None,
+                            })
                         }
                         ExportedItem::Variable(idx) => Err(VeldError::RuntimeError(format!(
                             "Variable '{}' exported from module '{}' is not directly accessible yet (implement variable resolution here)",
@@ -7327,6 +7336,360 @@ impl Interpreter {
 
         // Get the loaded module
         if let Some(module) = self.module_manager.get_module(&module_name) {
+            // Register structs and their methods from the module
+            for statement in &module.statements {
+                if let Statement::StructDeclaration {
+                    name: struct_name,
+                    fields,
+                    generic_params: _,
+                    ..
+                } = statement
+                {
+                    // Create fully qualified struct name (e.g., "std.vec.Vec")
+                    let qualified_name = format!("{}.{}", module_name, struct_name);
+                    tracing::debug!(
+                        "Registering struct: {} with qualified name: {}",
+                        struct_name,
+                        qualified_name
+                    );
+
+                    // Register the struct in the runtime
+                    self.structs.insert(qualified_name.clone(), fields.clone());
+
+                    // Also register with simple name for struct construction (e.g., Vec(...))
+                    self.structs.insert(struct_name.clone(), fields.clone());
+
+                    // Convert StructField to HashMap<String, Type> for type checker
+                    let mut field_types = HashMap::new();
+                    for field in fields {
+                        let field_type = self
+                            .type_checker
+                            .env()
+                            .from_annotation(&field.type_annotation, None)
+                            .unwrap_or(Type::Any);
+                        field_types.insert(field.name.clone(), field_type);
+                    }
+
+                    // Register struct in type checker environment with qualified name
+                    self.type_checker
+                        .env()
+                        .add_struct(&qualified_name, field_types.clone());
+                    tracing::debug!("Struct {} registered in type environment", qualified_name);
+
+                    // Also register with simple name for generic type annotations like Vec<T>
+                    self.type_checker
+                        .env()
+                        .add_struct(&struct_name, field_types);
+                    tracing::debug!(
+                        "Struct {} registered in type environment with simple name",
+                        struct_name
+                    );
+
+                    // Register struct methods from inherent implementation blocks
+                    for impl_stmt in &module.statements {
+                        if let Statement::InherentImpl {
+                            type_name,
+                            methods,
+                            generic_params,
+                            ..
+                        } = impl_stmt
+                        {
+                            if type_name == struct_name {
+                                // Set up type parameter scope for generic impl blocks
+                                self.type_checker.env().push_type_param_scope();
+                                for generic_arg in generic_params {
+                                    let param_name = match &generic_arg.name {
+                                        Some(name) => name.clone(),
+                                        None => {
+                                            if let veld_common::ast::TypeAnnotation::Basic(
+                                                base_name,
+                                            ) = &generic_arg.type_annotation
+                                            {
+                                                base_name.clone()
+                                            } else {
+                                                "T".to_string()
+                                            }
+                                        }
+                                    };
+                                    self.type_checker.env().add_type_param(&param_name);
+                                }
+
+                                for method in methods {
+                                    // Set up method-level type parameters
+                                    self.type_checker.env().push_type_param_scope();
+                                    for generic_arg in &method.generic_params {
+                                        let param_name = match &generic_arg.name {
+                                            Some(name) => name.clone(),
+                                            None => {
+                                                if let veld_common::ast::TypeAnnotation::Basic(
+                                                    base_name,
+                                                ) = &generic_arg.type_annotation
+                                                {
+                                                    base_name.clone()
+                                                } else {
+                                                    "U".to_string()
+                                                }
+                                            }
+                                        };
+                                        self.type_checker.env().add_type_param(&param_name);
+                                    }
+
+                                    let param_types: Vec<veld_common::types::Type> = method
+                                        .params
+                                        .iter()
+                                        .map(|(_, type_annotation)| {
+                                            self.type_checker
+                                                .env()
+                                                .from_annotation(type_annotation, None)
+                                                .unwrap_or(veld_common::types::Type::Any)
+                                        })
+                                        .collect();
+                                    let return_type = self
+                                        .type_checker
+                                        .env()
+                                        .from_annotation(&method.return_type, None)
+                                        .unwrap_or(veld_common::types::Type::Any);
+                                    tracing::debug!(
+                                        "Method {}.{} return type annotation: {:?} -> converted to: {:?}",
+                                        qualified_name,
+                                        method.name,
+                                        method.return_type,
+                                        return_type
+                                    );
+                                    let function_type = veld_common::types::Type::Function {
+                                        params: param_types,
+                                        return_type: Box::new(return_type),
+                                    };
+
+                                    // Register method with qualified struct name
+                                    self.type_checker.env().add_struct_method(
+                                        &qualified_name,
+                                        &method.name,
+                                        function_type.clone(),
+                                    );
+                                    tracing::debug!(
+                                        "Registered method {}.{} with type: {:?}",
+                                        qualified_name,
+                                        method.name,
+                                        function_type
+                                    );
+
+                                    // Also register with simple name for consistency
+                                    self.type_checker.env().add_struct_method(
+                                        &struct_name,
+                                        &method.name,
+                                        function_type.clone(),
+                                    );
+
+                                    // Register method in runtime struct_methods for actual execution
+                                    if !self.struct_methods.contains_key(&qualified_name) {
+                                        self.struct_methods
+                                            .insert(qualified_name.clone(), HashMap::new());
+                                    }
+                                    if let Some(runtime_methods) =
+                                        self.struct_methods.get_mut(&qualified_name)
+                                    {
+                                        // Convert the method to a runtime Value::Function
+                                        let runtime_method = Value::Function {
+                                            params: method.params.clone(),
+                                            body: method.body.clone(),
+                                            return_type: method.return_type.clone(),
+                                            captured_vars: HashMap::new(),
+                                        };
+                                        runtime_methods.insert(method.name.clone(), runtime_method);
+                                        tracing::debug!(
+                                            "Registered runtime method {}.{} for execution",
+                                            qualified_name,
+                                            method.name
+                                        );
+                                    }
+
+                                    // Also register with simple name for runtime lookup
+                                    if !self.struct_methods.contains_key(struct_name) {
+                                        self.struct_methods
+                                            .insert(struct_name.clone(), HashMap::new());
+                                    }
+                                    if let Some(runtime_methods) =
+                                        self.struct_methods.get_mut(struct_name)
+                                    {
+                                        let runtime_method = Value::Function {
+                                            params: method.params.clone(),
+                                            body: method.body.clone(),
+                                            return_type: method.return_type.clone(),
+                                            captured_vars: HashMap::new(),
+                                        };
+                                        runtime_methods.insert(method.name.clone(), runtime_method);
+                                    }
+
+                                    // Clean up method-level type parameter scope
+                                    self.type_checker.env().pop_type_param_scope();
+                                }
+
+                                // Clean up type parameter scope
+                                self.type_checker.env().pop_type_param_scope();
+                            }
+                        }
+                    }
+
+                    // Register methods from trait implementations for this struct
+                    for trait_impl_stmt in &module.statements {
+                        if let Statement::Implementation {
+                            type_name: impl_type_name,
+                            kind_name,
+                            methods: trait_methods,
+                            generic_args: trait_generic_args,
+                        } = trait_impl_stmt
+                        {
+                            tracing::debug!(
+                                "Found trait implementation: {} for type {} (looking for {})",
+                                kind_name.as_ref().unwrap_or(&"<none>".to_string()),
+                                impl_type_name,
+                                struct_name
+                            );
+                            if impl_type_name == struct_name {
+                                tracing::debug!(
+                                    "Processing trait implementation {} for struct {}",
+                                    kind_name.as_ref().unwrap_or(&"<none>".to_string()),
+                                    struct_name
+                                );
+                                // Set up type parameter scope for generic trait impl blocks
+                                self.type_checker.env().push_type_param_scope();
+                                for generic_arg in trait_generic_args {
+                                    let param_name = match &generic_arg.name {
+                                        Some(name) => name.clone(),
+                                        None => {
+                                            if let veld_common::ast::TypeAnnotation::Basic(
+                                                base_name,
+                                            ) = &generic_arg.type_annotation
+                                            {
+                                                base_name.clone()
+                                            } else {
+                                                "T".to_string()
+                                            }
+                                        }
+                                    };
+                                    self.type_checker.env().add_type_param(&param_name);
+                                }
+
+                                for method in trait_methods {
+                                    // Set up method-level type parameters
+                                    self.type_checker.env().push_type_param_scope();
+                                    for generic_arg in &method.generic_params {
+                                        let param_name = match &generic_arg.name {
+                                            Some(name) => name.clone(),
+                                            None => {
+                                                if let veld_common::ast::TypeAnnotation::Basic(
+                                                    base_name,
+                                                ) = &generic_arg.type_annotation
+                                                {
+                                                    base_name.clone()
+                                                } else {
+                                                    "U".to_string()
+                                                }
+                                            }
+                                        };
+                                        self.type_checker.env().add_type_param(&param_name);
+                                    }
+
+                                    let param_types: Vec<veld_common::types::Type> = method
+                                        .params
+                                        .iter()
+                                        .map(|(_, type_annotation)| {
+                                            self.type_checker
+                                                .env()
+                                                .from_annotation(type_annotation, None)
+                                                .unwrap_or(veld_common::types::Type::Any)
+                                        })
+                                        .collect();
+                                    let return_type = self
+                                        .type_checker
+                                        .env()
+                                        .from_annotation(&method.return_type, None)
+                                        .unwrap_or(veld_common::types::Type::Any);
+                                    tracing::debug!(
+                                        "Trait method {}.{} return type annotation: {:?} -> converted to: {:?}",
+                                        qualified_name,
+                                        method.name,
+                                        method.return_type,
+                                        return_type
+                                    );
+                                    let function_type = veld_common::types::Type::Function {
+                                        params: param_types,
+                                        return_type: Box::new(return_type),
+                                    };
+
+                                    // Register trait method with qualified struct name
+                                    self.type_checker.env().add_struct_method(
+                                        &qualified_name,
+                                        &method.name,
+                                        function_type.clone(),
+                                    );
+                                    tracing::debug!(
+                                        "Registered trait method {}.{} with type: {:?}",
+                                        qualified_name,
+                                        method.name,
+                                        function_type
+                                    );
+
+                                    // Also register with simple name for consistency
+                                    self.type_checker.env().add_struct_method(
+                                        &struct_name,
+                                        &method.name,
+                                        function_type.clone(),
+                                    );
+
+                                    // Register trait method in runtime struct_methods for actual execution
+                                    if !self.struct_methods.contains_key(&qualified_name) {
+                                        self.struct_methods
+                                            .insert(qualified_name.clone(), HashMap::new());
+                                    }
+                                    if let Some(runtime_methods) =
+                                        self.struct_methods.get_mut(&qualified_name)
+                                    {
+                                        // Convert the method to a runtime Value::Function
+                                        let runtime_method = Value::Function {
+                                            params: method.params.clone(),
+                                            body: method.body.clone(),
+                                            return_type: method.return_type.clone(),
+                                            captured_vars: HashMap::new(),
+                                        };
+                                        runtime_methods.insert(method.name.clone(), runtime_method);
+                                        tracing::debug!(
+                                            "Registered runtime trait method {}.{} for execution",
+                                            qualified_name,
+                                            method.name
+                                        );
+                                    }
+
+                                    // Also register with simple name for runtime lookup
+                                    if !self.struct_methods.contains_key(struct_name) {
+                                        self.struct_methods
+                                            .insert(struct_name.clone(), HashMap::new());
+                                    }
+                                    if let Some(runtime_methods) =
+                                        self.struct_methods.get_mut(struct_name)
+                                    {
+                                        let runtime_method = Value::Function {
+                                            params: method.params.clone(),
+                                            body: method.body.clone(),
+                                            return_type: method.return_type.clone(),
+                                            captured_vars: HashMap::new(),
+                                        };
+                                        runtime_methods.insert(method.name.clone(), runtime_method);
+                                    }
+
+                                    // Clean up method-level type parameter scope
+                                    self.type_checker.env().pop_type_param_scope();
+                                }
+
+                                // Clean up type parameter scope
+                                self.type_checker.env().pop_type_param_scope();
+                            }
+                        }
+                    }
+                }
+            }
+
             // Register enums and their methods from the module
             for statement in &module.statements {
                 if let Statement::EnumDeclaration {

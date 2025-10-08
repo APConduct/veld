@@ -292,40 +292,176 @@ impl MacroSystem {
 
 fn expand_vec_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>, ExpansionError> {
     if args.is_empty() {
-        // vec~() -> Vec.new()
-        Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
-            name: "Vec.new".to_string(),
+        // vec~() -> std.vec.Vec.new()
+        Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::PropertyAccess {
+                    object: Box::new(Expr::Identifier("std".to_string())),
+                    property: "vec".to_string(),
+                }),
+                property: "Vec".to_string(),
+            }),
+            method: "new".to_string(),
             arguments: vec![],
         })])
     } else {
-        // vec!(a, b, c) -> [a, b, c]
-        Ok(vec![Statement::ExprStatement(Expr::ArrayLiteral(
-            args.to_vec(),
-        ))])
+        // vec~(a, b, c) -> { let v = std.vec.Vec.new(); v.push(a); v.push(b); v.push(c); v }
+        let mut statements = Vec::new();
+
+        // Create a new Vec
+        let vec_creation = Statement::VariableDeclaration {
+            name: "__vec".to_string(),
+            var_kind: veld_common::ast::VarKind::Var,
+            type_annotation: None,
+            value: Box::new(Expr::MethodCall {
+                object: Box::new(Expr::PropertyAccess {
+                    object: Box::new(Expr::PropertyAccess {
+                        object: Box::new(Expr::Identifier("std".to_string())),
+                        property: "vec".to_string(),
+                    }),
+                    property: "Vec".to_string(),
+                }),
+                method: "new".to_string(),
+                arguments: vec![],
+            }),
+            is_public: false,
+        };
+        statements.push(vec_creation);
+
+        // Push each argument to the vec
+        for arg in args {
+            let push_call = Statement::ExprStatement(Expr::MethodCall {
+                object: Box::new(Expr::Identifier("__vec".to_string())),
+                method: "push".to_string(),
+                arguments: vec![veld_common::ast::Argument::Positional(arg.clone())],
+            });
+            statements.push(push_call);
+        }
+
+        // Return the vec in a block expression
+        Ok(vec![Statement::ExprStatement(Expr::BlockExpression {
+            statements,
+            final_expr: Some(Box::new(Expr::Identifier("__vec".to_string()))),
+        })])
     }
 }
 
-fn expand_format_macro(
-    args: &[Expr],
-    _call_site: NodeId,
-) -> Result<Vec<Statement>, ExpansionError> {
+fn expand_format_macro(args: &[Expr], call_site: NodeId) -> Result<Vec<Statement>, ExpansionError> {
     if args.is_empty() {
         return Err(ExpansionError::ArgumentCountMismatch {
             macro_name: "format".to_string(),
             expected: 1,
             got: 0,
-            call_site: _call_site,
+            call_site,
         });
     }
 
-    // format!("Hello {}", name) -> format("Hello {}", name)
-    Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
-        name: "format".to_string(),
-        arguments: args
-            .iter()
-            .map(|arg| veld_common::ast::Argument::Positional(arg.clone()))
-            .collect(),
-    })])
+    // Get the format string
+    let format_str = match &args[0] {
+        Expr::Literal(veld_common::ast::Literal::String(s)) => s,
+        _ => {
+            return Err(ExpansionError::InvalidArgumentType {
+                macro_name: "format".to_string(),
+                param_name: "format_string".to_string(),
+                expected: "string literal".to_string(),
+                got: "expression".to_string(),
+                call_site,
+            });
+        }
+    };
+
+    let format_args = &args[1..];
+
+    // Count the number of {} placeholders
+    let placeholder_count = format_str.matches("{}").count();
+
+    // Validate argument count matches placeholder count
+    if placeholder_count != format_args.len() {
+        return Err(ExpansionError::ArgumentCountMismatch {
+            macro_name: "format".to_string(),
+            expected: placeholder_count,
+            got: format_args.len(),
+            call_site,
+        });
+    }
+
+    // If no placeholders, just return the format string
+    if placeholder_count == 0 {
+        return Ok(vec![Statement::ExprStatement(Expr::Literal(
+            veld_common::ast::Literal::String(format_str.clone()),
+        ))]);
+    }
+
+    // Build the concatenated expression
+    let mut result_expr = None;
+    let mut current_pos = 0;
+    let mut arg_index = 0;
+
+    for (i, _) in format_str.match_indices("{}") {
+        // Add the string part before this placeholder
+        if i > current_pos {
+            let str_part = format_str[current_pos..i].to_string();
+            let str_literal = Expr::Literal(veld_common::ast::Literal::String(str_part));
+
+            result_expr = Some(match result_expr {
+                None => str_literal,
+                Some(existing) => Expr::BinaryOp {
+                    left: Box::new(existing),
+                    operator: veld_common::ast::BinaryOperator::Add,
+                    right: Box::new(str_literal),
+                },
+            });
+        }
+
+        // Add the argument - handle strings specially
+        if arg_index < format_args.len() {
+            let arg_expr = match &format_args[arg_index] {
+                // String literals can be used directly
+                Expr::Literal(veld_common::ast::Literal::String(_)) => {
+                    format_args[arg_index].clone()
+                }
+                // For all other expressions (including identifiers), call to_string
+                // This ensures proper type conversion at runtime
+                _ => Expr::MethodCall {
+                    object: Box::new(format_args[arg_index].clone()),
+                    method: "to_string".to_string(),
+                    arguments: vec![],
+                },
+            };
+
+            result_expr = Some(match result_expr {
+                None => arg_expr,
+                Some(existing) => Expr::BinaryOp {
+                    left: Box::new(existing),
+                    operator: veld_common::ast::BinaryOperator::Add,
+                    right: Box::new(arg_expr),
+                },
+            });
+
+            arg_index += 1;
+        }
+
+        current_pos = i + 2; // Skip the "{}"
+    }
+
+    // Add any remaining string after the last placeholder
+    if current_pos < format_str.len() {
+        let str_part = format_str[current_pos..].to_string();
+        let str_literal = Expr::Literal(veld_common::ast::Literal::String(str_part));
+
+        result_expr = Some(match result_expr {
+            None => str_literal,
+            Some(existing) => Expr::BinaryOp {
+                left: Box::new(existing),
+                operator: veld_common::ast::BinaryOperator::Add,
+                right: Box::new(str_literal),
+            },
+        });
+    }
+
+    let final_expr = result_expr.expect("Should have at least one placeholder or remaining string");
+
+    Ok(vec![Statement::ExprStatement(final_expr)])
 }
 
 fn expand_println_macro(
@@ -333,17 +469,25 @@ fn expand_println_macro(
     _call_site: NodeId,
 ) -> Result<Vec<Statement>, ExpansionError> {
     if args.is_empty() {
-        // println!() -> println("")
-        Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
-            name: "println".to_string(),
+        // println!() -> std.io.println("")
+        Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::Identifier("std".to_string())),
+                property: "io".to_string(),
+            }),
+            method: "println".to_string(),
             arguments: vec![veld_common::ast::Argument::Positional(Expr::Literal(
                 veld_common::ast::Literal::String("".to_string()),
             ))],
         })])
     } else if args.len() == 1 {
-        // println!(expr) -> println(expr)
-        Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
-            name: "println".to_string(),
+        // println!(expr) -> std.io.println(expr)
+        Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::Identifier("std".to_string())),
+                property: "io".to_string(),
+            }),
+            method: "println".to_string(),
             arguments: vec![veld_common::ast::Argument::Positional(args[0].clone())],
         })])
     } else {
@@ -356,8 +500,12 @@ fn expand_println_macro(
                 .collect(),
         };
 
-        Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
-            name: "println".to_string(),
+        Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::Identifier("std".to_string())),
+                property: "io".to_string(),
+            }),
+            method: "println".to_string(),
             arguments: vec![veld_common::ast::Argument::Positional(format_call)],
         })])
     }
@@ -385,14 +533,15 @@ fn expand_debug_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement
             value: Box::new(expr.clone()),
             is_public: false,
         },
-        Statement::ExprStatement(Expr::FunctionCall {
-            name: "println".to_string(),
-            arguments: vec![
-                veld_common::ast::Argument::Positional(Expr::Literal(
-                    veld_common::ast::Literal::String("DEBUG: {}".to_string()),
-                )),
-                veld_common::ast::Argument::Positional(Expr::Identifier(var_name.clone())),
-            ],
+        Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::Identifier("std".to_string())),
+                property: "io".to_string(),
+            }),
+            method: "println".to_string(),
+            arguments: vec![veld_common::ast::Argument::Positional(Expr::Literal(
+                veld_common::ast::Literal::String(format!("DEBUG: {}", var_name)),
+            ))],
         }),
     ];
 
@@ -427,8 +576,12 @@ fn expand_assert_macro(args: &[Expr], call_site: NodeId) -> Result<Vec<Statement
             operator: veld_common::ast::UnaryOperator::Not,
             operand: Box::new(condition.clone()),
         },
-        then_branch: vec![Statement::ExprStatement(Expr::FunctionCall {
-            name: "panic".to_string(),
+        then_branch: vec![Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::Identifier("std".to_string())),
+                property: "io".to_string(),
+            }),
+            method: "println".to_string(),
             arguments: vec![veld_common::ast::Argument::Positional(message)],
         })],
         else_branch: None,
@@ -444,9 +597,13 @@ fn expand_todo_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>
         args[0].clone()
     };
 
-    // todo!() -> panic!("TODO: not yet implemented")
-    Ok(vec![Statement::ExprStatement(Expr::FunctionCall {
-        name: "panic".to_string(),
+    // todo!() -> std.io.println("TODO: not yet implemented")
+    Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+        object: Box::new(Expr::PropertyAccess {
+            object: Box::new(Expr::Identifier("std".to_string())),
+            property: "io".to_string(),
+        }),
+        method: "println".to_string(),
         arguments: vec![veld_common::ast::Argument::Positional(message)],
     })])
 }
@@ -465,10 +622,17 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         match &result[0] {
-            Statement::ExprStatement(Expr::FunctionCall { name, .. }) => {
-                assert_eq!(name, "Vec.new");
+            Statement::ExprStatement(Expr::MethodCall { object, method, .. }) => {
+                assert_eq!(method, "new");
+                // Verify it's calling std.vec.Vec.new
+                match object.as_ref() {
+                    Expr::PropertyAccess { property, .. } => {
+                        assert_eq!(property, "Vec");
+                    }
+                    _ => panic!("Expected property access to Vec"),
+                }
             }
-            _ => panic!("Expected function call"),
+            _ => panic!("Expected method call to Vec.new"),
         }
     }
 
@@ -487,10 +651,35 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         match &result[0] {
-            Statement::ExprStatement(Expr::ArrayLiteral(elements)) => {
-                assert_eq!(elements.len(), 3);
+            Statement::ExprStatement(Expr::BlockExpression {
+                statements,
+                final_expr,
+            }) => {
+                // Should have: vec creation + 3 push calls
+                assert_eq!(statements.len(), 4);
+
+                // First statement should be Vec creation
+                match &statements[0] {
+                    Statement::VariableDeclaration { name, .. } => {
+                        assert_eq!(name, "__vec");
+                    }
+                    _ => panic!("Expected variable declaration for Vec"),
+                }
+
+                // Next 3 statements should be push calls
+                for i in 1..4 {
+                    match &statements[i] {
+                        Statement::ExprStatement(Expr::MethodCall { method, .. }) => {
+                            assert_eq!(method, "push");
+                        }
+                        _ => panic!("Expected push method call"),
+                    }
+                }
+
+                // Final expression should return the vec
+                assert!(final_expr.is_some());
             }
-            _ => panic!("Expected array literal"),
+            _ => panic!("Expected block expression"),
         }
     }
 
@@ -508,11 +697,11 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         match &result[0] {
-            Statement::ExprStatement(Expr::FunctionCall { name, arguments }) => {
-                assert_eq!(name, "format");
-                assert_eq!(arguments.len(), 2);
+            Statement::ExprStatement(Expr::BinaryOp { .. }) => {
+                // The format macro expands to concatenation expressions
+                // for string interpolation with {} placeholders
             }
-            _ => panic!("Expected function call"),
+            _ => panic!("Expected binary operation for string concatenation"),
         }
     }
 
@@ -527,10 +716,10 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         match &result[0] {
-            Statement::ExprStatement(Expr::FunctionCall { name, .. }) => {
-                assert_eq!(name, "println");
+            Statement::ExprStatement(Expr::MethodCall { method, .. }) => {
+                assert_eq!(method, "println");
             }
-            _ => panic!("Expected function call"),
+            _ => panic!("Expected method call"),
         }
     }
 

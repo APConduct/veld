@@ -1,0 +1,99 @@
+# Comprehensive macro integration test for Veld language
+# This test verifies that the macro system is properly integrated into the interpreter
+
+fn test_vec_macro()
+    std.io.println("=== Testing vec~ macro ===")
+
+    # Test empty vec
+    let empty = vec~()
+    std.io.println("Empty vec macro executed successfully")
+
+    # Test vec with single element
+    let single = vec~(42)
+    std.io.println("Single element vec macro executed successfully")
+
+    # Test vec with multiple elements
+    let numbers = vec~(1, 2, 3, 4, 5)
+    std.io.println("Multiple element vec macro executed successfully")
+    std.io.println("Numbers array: " + numbers.to_string())
+
+    std.io.println("vec~ macro tests completed successfully")
+end
+
+fn test_println_macro()
+    std.io.println("=== Testing println~ macro ===")
+
+    # Test basic println macro
+    println~("This message is from the println~ macro!")
+
+    # Test println with simple formatting (if supported)
+    let value = 42
+    println~("The answer is 42")
+
+    std.io.println("println~ macro tests completed successfully")
+end
+
+fn test_debug_macro()
+    std.io.println("=== Testing debug~ macro ===")
+
+    let debug_value = 42
+    let result = debug_value * 2
+
+    # Test debug macro - should print variable name and value
+    debug~(debug_value)
+    debug~(result)
+
+    std.io.println("debug~ macro tests completed successfully")
+end
+
+fn test_assert_macro()
+    std.io.println("=== Testing assert~ macro ===")
+
+    # Test basic assertions that should pass
+    assert~(true)
+    assert~(5 > 3)
+    assert~(2 + 2 == 4)
+
+    # Test assertion with expressions
+    let x = 10
+    assert~(x > 5)
+    assert~(x == 10)
+
+    std.io.println("assert~ macro tests completed successfully")
+end
+
+fn test_macro_expansion_integration()
+    std.io.println("=== Testing macro expansion integration ===")
+
+    # Test that macros are expanded before type checking
+    let arr1 = vec~(1, 2, 3)
+    let arr2 = vec~("hello", "world")
+
+    std.io.println("Arrays created with vec~ macro:")
+    std.io.println("Integer array: " + arr1.to_string())
+    std.io.println("String array: " + arr2.to_string())
+
+    # Test nested macro usage
+    debug~(vec~(10, 20, 30))
+
+    std.io.println("Macro expansion integration tests completed successfully")
+end
+
+fn test_builtin_macros()
+    std.io.println("Starting comprehensive macro integration tests")
+    std.io.println("==================================================")
+
+    test_vec_macro()
+    test_println_macro()
+    test_debug_macro()
+    test_assert_macro()
+    test_macro_expansion_integration()
+
+    std.io.println("==================================================")
+    std.io.println("All macro integration tests completed successfully!")
+    std.io.println("The macro system is properly integrated into the Veld interpreter.")
+end
+
+fn main()
+    test_builtin_macros()
+end
