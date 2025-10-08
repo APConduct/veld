@@ -1,0 +1,33 @@
+
+struct Verbose
+    foo: bool
+    bar: bool
+end
+
+struct ParenStyle(foo: bool, bar: bool)
+
+# struct TupleStyle(bool, bool)
+
+# enum VerboseColor
+#     Red
+#     Green
+#     Blue
+# end
+
+# enum ParenStyleColor(Red, Green, Blue)
+
+# enum ColorWithInners
+#     Red(u8)
+#     Green(u8)
+#     Blue(u8)
+# end
+
+# enum ColorNamedInners
+#     Red(hex: u8)
+#     Green(hex: u8)
+#     Blue(hex: u8)
+# end
+
+# enum ParenColorWithInners(Red(u8), Green(u8), Blue(u8))
+
+# enum ParenColorNamedInners(Red(hex: u8), Green(hex: u8), Blue(hex: u8))

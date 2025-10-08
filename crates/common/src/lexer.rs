@@ -46,6 +46,18 @@ fn string_lit_callback(lex: &mut LLexer<Token>) -> (String, (usize, usize)) {
     (value, position)
 }
 
+fn char_lit_callback(lex: &mut LLexer<Token>) -> (String, (usize, usize)) {
+    let mut content = lex.slice().to_string();
+    content.remove(0);
+    content.pop();
+
+    // Process escape sequences
+    let value = process_escape_sequences(&content);
+    let position = word_callback(lex);
+
+    (value, position)
+}
+
 fn process_escape_sequences(s: &str) -> String {
     let mut result = String::new();
     let mut chars = s.chars().peekable();
@@ -242,6 +254,9 @@ pub enum Token {
     #[regex(r#""(?:[^"\\]|\\.)*""#, string_lit_callback)]
     StringLiteral((String, (usize, usize))),
 
+    #[regex(r#"'(?:[^'\\]|\\.)'"#, char_lit_callback)]
+    CharLiteral((String, (usize, usize))),
+
     #[regex(r#"[0-9]+"#, int_lit_callback)]
     IntegerLiteral((i64, (usize, usize))),
 
@@ -360,6 +375,8 @@ impl Display for Token {
             Token::Bang((x, y)) => write!(f, "! at {},{}", x, y),
             Token::Identifier(s) => write!(f, "{} at {},{}", s.0, s.1.0, s.1.1),
             Token::StringLiteral(s) => write!(f, "\"{}\" at {},{}", s.0, s.1.0, s.1.1),
+            Token::CharLiteral(c) => write!(f, "'{}' at {},{}", c.0, c.1.0, c.1.1),
+
             Token::IntegerLiteral(n) => write!(f, "{} at ({}, {})", n.0, n.1.0, n.1.1),
             Token::FloatLiteral(n) => write!(f, "{} at {},{}", n.0, n.1.0, n.1.1),
             Token::If((x, y)) => write!(f, "if at {},{}", x, y),
@@ -475,10 +492,11 @@ impl Token {
             Token::Async((x, y)) => Some((*x, *y)),
             Token::Await((x, y)) => Some((*x, *y)),
             Token::Spawn((x, y)) => Some((*x, *y)),
-            Token::Identifier(_) => None,
-            Token::StringLiteral(_) => None,
-            Token::IntegerLiteral(_) => None,
-            Token::FloatLiteral(_) => None,
+            Token::Identifier((_, (x, y))) => Some((*x, *y)),
+            Token::StringLiteral((_, (x, y))) => Some((*x, *y)),
+            Token::IntegerLiteral((_, (x, y))) => Some((*x, *y)),
+            Token::FloatLiteral((_, (x, y))) => Some((*x, *y)),
+            Token::CharLiteral((_, (x, y))) => Some((*x, *y)),
         }
     }
 
@@ -816,6 +834,10 @@ impl Token {
                 line: word.1.0 as u32,
                 column: word.1.1 as u32,
             },
+            Token::CharLiteral(c) => Position {
+                line: c.1.0 as u32,
+                column: c.1.1 as u32,
+            },
             Token::IntegerLiteral(int) => Position {
                 line: int.1.0 as u32,
                 column: int.1.1 as u32,
@@ -995,9 +1017,15 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Result<Token, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner
-            .next()
-            .map(|result| result.map_err(|_| "Invalid token".to_string()))
+        self.inner.next().map(|result| {
+            result.map_err(|_| {
+                format!(
+                    "Invalid token at line {}, column {}",
+                    self.inner.extras.0,
+                    self.inner.span().start - self.inner.extras.1
+                )
+            })
+        })
     }
 }
 

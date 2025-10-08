@@ -1,0 +1,37 @@
+let boolean: bool = true
+
+let a_char: char = 'a'
+
+let unsigned8: u8 = 100
+
+let unsigned16: u16 = 10000
+
+let unsigned32: u32 = 1000000000
+
+let unsigned64: u64 = 1000000000000000000
+
+let signed8: i8 = -100
+
+let signed16: i16 = -10000
+
+let signed32: i32 = -1000000000
+
+let signed64: i64 = -1000000000000000000
+
+let float32: f32 = 3.1415926535897932384626433832795
+
+let float64: f64 = 3.1415926535897932384626433832795
+
+std.io.println("Calling to_string on basic types")
+std.io.println("boolean: " + boolean.to_string())
+std.io.println("a_char: " + a_char.to_string())
+std.io.println("unsigned8: " + unsigned8.to_string())
+std.io.println("unsigned16: " + unsigned16.to_string())
+std.io.println("unsigned32: " + unsigned32.to_string())
+std.io.println("unsigned64: " + unsigned64.to_string())
+std.io.println("signed8: " + signed8.to_string())
+std.io.println("signed16: " + signed16.to_string())
+std.io.println("signed32: " + signed32.to_string())
+std.io.println("signed64: " + signed64.to_string())
+std.io.println("float32: " + float32.to_string())
+std.io.println("float64: " + float64.to_string())

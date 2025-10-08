@@ -30,6 +30,10 @@ pub struct Parser {
     // context: ParseContext<'static>,
 }
 
+fn char_rep_to_lit(s: String) -> char {
+    s.chars().next().unwrap()
+}
+
 impl Parser {
     pub fn get_current_position(&self) -> Position {
         let last_token_pos = self.tokens.last().expect("No tokens").source_pos();
@@ -3123,6 +3127,10 @@ impl Parser {
             Token::StringLiteral(s) => {
                 self.advance();
                 Expr::Literal(Literal::String(s.0))
+            }
+            Token::CharLiteral(c) => {
+                self.advance();
+                Expr::Literal(Literal::Char(char_rep_to_lit(c.0)))
             }
             Token::True(_) => {
                 self.advance();

@@ -917,30 +917,47 @@ impl TypeChecker {
             let specified_type = self.env.from_annotation(anno, None)?;
             tracing::debug!("Variable '{}' specified type: {:?}", name, specified_type);
 
-            // For arrays, be extra strict about type checking
-            if let (Type::Array(expected_elem), Type::Array(actual_elem)) =
+            // Special handling for integer literals that fit in target type
+            if let Some(literal_value) = self.extract_integer_literal_value(value) {
+                if self.literal_fits_in_type(literal_value, &specified_type) {
+                    // Allow the literal to be coerced to the target type
+                    self.env
+                        .add_constraint(specified_type.clone(), specified_type.clone());
+                    specified_type
+                } else {
+                    return Err(VeldError::TypeError(format!(
+                        "Integer literal {} does not fit in type {}",
+                        literal_value, specified_type
+                    )));
+                }
+            } else if let (Type::Array(expected_elem), Type::Array(actual_elem)) =
                 (&specified_type, &value_type)
             {
+                // For arrays, be extra strict about type checking
                 if !self.types_compatible(actual_elem, expected_elem) {
                     return Err(VeldError::TypeError(format!(
                         "Type mismatch for variable '{}': expected array of {}, got array of {}",
                         name, expected_elem, actual_elem
                     )));
                 }
+                self.env
+                    .add_constraint(value_type.clone(), specified_type.clone());
+                specified_type
             } else if let Some(coerced_type) = self.try_coerce_type(&value_type, &specified_type) {
                 // Use the coerced type for safe widening conversions
                 self.env
                     .add_constraint(coerced_type.clone(), specified_type.clone());
+                specified_type
             } else if !self.types_compatible(&value_type, &specified_type) {
                 return Err(VeldError::TypeError(format!(
                     "Type mismatch for variable '{}': expected {}, got {}",
                     name, specified_type, value_type
                 )));
+            } else {
+                self.env
+                    .add_constraint(value_type.clone(), specified_type.clone());
+                specified_type
             }
-
-            self.env
-                .add_constraint(value_type.clone(), specified_type.clone());
-            specified_type
         } else {
             value_type
         };
@@ -1930,6 +1947,42 @@ impl TypeChecker {
                 })
             }
             _ => None,
+        }
+    }
+
+    /// Extract the integer value from an expression if it's an integer literal or negated integer literal
+    fn extract_integer_literal_value(&self, expr: &Expr) -> Option<i64> {
+        match expr {
+            // Direct integer literal
+            Expr::Literal(Literal::Integer(value)) => Some(*value),
+            // Negated integer literal
+            Expr::UnaryOp {
+                operator: UnaryOperator::Negate,
+                operand,
+            } => {
+                if let Expr::Literal(Literal::Integer(value)) = &**operand {
+                    Some(-value)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Check if an integer literal value fits within a target type's range
+    fn literal_fits_in_type(&self, literal_value: i64, target_type: &Type) -> bool {
+        match target_type {
+            Type::I8 => literal_value >= i8::MIN as i64 && literal_value <= i8::MAX as i64,
+            Type::I16 => literal_value >= i16::MIN as i64 && literal_value <= i16::MAX as i64,
+            Type::I32 => literal_value >= i32::MIN as i64 && literal_value <= i32::MAX as i64,
+            Type::I64 => true, // i64 can hold any literal value we parse
+            Type::U8 => literal_value >= 0 && literal_value <= u8::MAX as i64,
+            Type::U16 => literal_value >= 0 && literal_value <= u16::MAX as i64,
+            Type::U32 => literal_value >= 0 && literal_value <= u32::MAX as i64,
+            Type::U64 => literal_value >= 0, // Assuming our literals are positive or within i64 range
+            Type::F32 | Type::F64 => true, // Floats can represent most integer values (with potential precision loss)
+            _ => false,                    // Non-numeric types can't hold integer literals
         }
     }
 
