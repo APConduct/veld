@@ -1,0 +1,47 @@
+# Debug the exact issue from the complex constraint test
+# Let's isolate where the "Type T does not have methods" error occurs
+
+fn main()
+    std.io.println("=== Debugging Type T Issue ===")
+
+    # Test 1: Simple case that works
+    std.io.println("\n--- Test 1: Simple case ---")
+    let mut vec1 = std.vec.Vec.new()
+    vec1.push(1)
+    let first1 = vec1.get(0)
+    let unwrapped1 = first1.unwrap_or(0)
+    std.io.println("Simple case result: " + unwrapped1.to_string())
+
+    # Test 2: Variable reassignment (from complex test)
+    std.io.println("\n--- Test 2: Variable reassignment ---")
+    let mut maybe_num = std.option.Option.None
+    maybe_num = std.option.Option.Some(100)
+    let unwrapped2 = maybe_num.unwrap_or(0)
+    std.io.println("Reassigned result: " + unwrapped2.to_string())
+
+    # Test 3: Vec with separate variable binding (from complex test)
+    std.io.println("\n--- Test 3: Vec with separate binding ---")
+    let mut vec = std.vec.Vec.new()
+    vec.push(1)
+    vec.push(2)
+    let first = vec.get(0)
+    let first_unwrapped = first.unwrap_or(0)
+    std.io.println("Vec first element: " + first_unwrapped.to_string())
+
+    # Test 4: Nested generics (from complex test)
+    std.io.println("\n--- Test 4: Nested generics ---")
+    let mut options_vec = std.vec.Vec.new()
+    std.io.println("Created options_vec")
+    options_vec.push(std.option.Option.Some(10))
+    std.io.println("Pushed Option.Some(10)")
+    let first_opt = options_vec.get(0)
+    std.io.println("Called options_vec.get(0)")
+    let unwrapped_opt = first_opt.unwrap_or(std.option.Option.None)
+    std.io.println("Unwrapped option from vec")
+    let first_val = unwrapped_opt.unwrap_or(0)
+    std.io.println("Nested generic result: " + first_val.to_string())
+
+    std.io.println("\n✅ Debug tests completed!")
+end
+
+main()

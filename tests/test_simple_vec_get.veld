@@ -1,0 +1,22 @@
+# Simple test to debug Vec.get() type inference
+
+fn main()
+    std.io.println("=== Testing Simple Vec.get() ===")
+
+    # Create a vec and push some integers
+    let mut vec = std.vec.Vec.new()
+    vec.push(42)
+    vec.push(100)
+
+    std.io.println("Vec created with elements")
+
+    # Try to get the first element
+    let first = vec.get(0)
+    std.io.println("Called vec.get(0)")
+
+    # Try to unwrap it
+    let unwrapped = first.unwrap_or(0)
+    std.io.println("Unwrapped: " + unwrapped.to_string())
+end
+
+main()

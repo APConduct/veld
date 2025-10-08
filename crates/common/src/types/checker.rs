@@ -2365,6 +2365,9 @@ impl TypeChecker {
                                 } else if base_name == "Option" && concrete_type_args.len() >= 1 {
                                     substitutions
                                         .insert("T".to_string(), concrete_type_args[0].clone());
+                                } else if base_name == "Vec" && concrete_type_args.len() >= 1 {
+                                    substitutions
+                                        .insert("T".to_string(), concrete_type_args[0].clone());
                                 }
 
                                 // First param is self
