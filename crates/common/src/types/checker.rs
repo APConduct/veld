@@ -2555,7 +2555,7 @@ impl TypeChecker {
                                         // Return Vec<T> where T is inferred from context or defaults to Any
                                         Ok(Type::Generic {
                                             base: "Vec".to_string(),
-                                            type_args: vec![Type::Any], // TODO: Better generic inference
+                                            type_args: vec![self.env.fresh_type_var()], // Use fresh type variable for better inference
                                         })
                                     }
                                     _ => Ok(return_type),
@@ -2617,7 +2617,7 @@ impl TypeChecker {
                         // Return Option<Any> since we can't infer the type parameter
                         Ok(Type::Generic {
                             base: "Option".to_string(),
-                            type_args: vec![Type::Any],
+                            type_args: vec![self.env.fresh_type_var()],
                         })
                     }
                     "std.result.ok" => {
@@ -2639,7 +2639,7 @@ impl TypeChecker {
                         // Return Result<T, Any> where T is the argument type
                         Ok(Type::Generic {
                             base: "Result".to_string(),
-                            type_args: vec![arg_type, Type::Any],
+                            type_args: vec![arg_type, self.env.fresh_type_var()],
                         })
                     }
                     "std.result.err" => {
@@ -2661,7 +2661,7 @@ impl TypeChecker {
                         // Return Result<Any, E> where E is the argument type
                         Ok(Type::Generic {
                             base: "Result".to_string(),
-                            type_args: vec![Type::Any, arg_type],
+                            type_args: vec![self.env.fresh_type_var(), arg_type],
                         })
                     }
                     _ => {
@@ -2797,7 +2797,7 @@ impl TypeChecker {
                             if enum_name_to_check.contains("Option") {
                                 Ok(Type::Generic {
                                     base: "Option".to_string(),
-                                    type_args: vec![Type::Any], // Default to Any for now
+                                    type_args: vec![self.env.fresh_type_var()], // Use fresh type variable for better inference
                                 })
                             } else {
                                 Ok(Type::Generic {
@@ -3447,7 +3447,7 @@ impl TypeChecker {
                             if enum_name_to_check.contains("Option") {
                                 Ok(Type::Generic {
                                     base: "Option".to_string(),
-                                    type_args: vec![Type::Any], // Default to Any for now
+                                    type_args: vec![self.env.fresh_type_var()], // Use fresh type variable for better inference
                                 })
                             } else {
                                 Ok(Type::Generic {
@@ -3472,7 +3472,7 @@ impl TypeChecker {
                                         .last()
                                         .unwrap_or(&enum_name_to_check)
                                         .to_string(),
-                                    type_args: vec![Type::Any],
+                                    type_args: vec![self.env.fresh_type_var()],
                                 }),
                             })
                         }
