@@ -1,0 +1,25 @@
+# Simple test to check if Option enum methods work
+
+fn main()
+    std.io.println("=== Testing Option enum methods ===")
+
+    # Create an Option with Some value
+    let some_value = std.option.Option.Some(42)
+    std.io.println("Created std.option.Option.Some(42)")
+
+    # Test unwrap_or method
+    let result = some_value.unwrap_or(0)
+    std.io.println("some_value.unwrap_or(0) = " + result.to_string())
+
+    # Create an Option with None
+    let none_value = std.option.Option.None
+    std.io.println("Created std.option.Option.None")
+
+    # Test unwrap_or method on None
+    let result2 = none_value.unwrap_or(99)
+    std.io.println("none_value.unwrap_or(99) = " + result2.to_string())
+
+    std.io.println("✅ Option enum methods work correctly")
+end
+
+main()

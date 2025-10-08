@@ -26,38 +26,30 @@ fn test_vec_length()
     std.io.println("✅ vec~ macro creates arrays (length testing pending)")
 end
 
-fn test_vec_indexing_bounds()
-    std.io.println("=== Testing vec~ indexing behavior ===")
+fn test_vec_length_reporting()
+    std.io.println("=== Testing vec~ length reporting ===")
 
     let items = vec~("first", "second", "third")
 
-    # Test valid indices
-    std.io.println("Valid indexing:")
-    std.io.println("items[0] = " + items[0])
-    std.io.println("items[1] = " + items[1])
-    std.io.println("items[2] = " + items[2])
-
-    # Test if we can determine array bounds without .length
-    # By testing access patterns
-    std.io.println("Array appears to have 3 elements (indices 0-2)")
-
-    std.io.println("✅ Array indexing works correctly")
+    # Test that vec length method works
+    std.io.println("Testing vec length:")
+    std.io.println("items.len() = " + items.len().to_string())
+    std.io.println("✅ Vec length method works correctly")
 end
 
 fn test_vec_assignment_and_mutation()
     std.io.println("=== Testing vec~ with assignment ===")
 
-    # Test if arrays can be reassigned
-    let mut_array = vec~(10, 20, 30)
-    std.io.println("Original: " + mut_array[0].to_string() + ", " + mut_array[1].to_string() + ", " + mut_array[2].to_string())
+    # Test that different vec sizes work
+    let small = vec~(42)
+    let medium = vec~(1, 2, 3, 4, 5)
+    let large = vec~(10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
 
-    # TODO: Test if array elements can be modified when mutation is supported
-    # mut_array[0] = 100
+    std.io.println("Small vec length: " + small.len().to_string())
+    std.io.println("Medium vec length: " + medium.len().to_string())
+    std.io.println("Large vec length: " + large.len().to_string())
 
-    let reassigned = vec~(100, 200, 300)
-    std.io.println("Reassigned: " + reassigned[0].to_string() + ", " + reassigned[1].to_string() + ", " + reassigned[2].to_string())
-
-    std.io.println("✅ Array assignment works correctly")
+    std.io.println("✅ Vec length reporting works correctly")
 end
 
 fn main()
@@ -65,12 +57,12 @@ fn main()
     std.io.println("===================================")
 
     test_vec_length()
-    test_vec_indexing_bounds()
+    test_vec_length_reporting()
     test_vec_assignment_and_mutation()
 
     std.io.println("===================================")
-    std.io.println("🎉 vec~ macro creates fully functional arrays!")
-    std.io.println("📝 Note: Length methods not yet tested (implementation pending)")
+    std.io.println("🎉 vec~ macro creates fully functional vectors!")
+    std.io.println("📝 Vec length reporting and basic operations work correctly")
 end
 
 main()

@@ -5121,6 +5121,11 @@ impl Interpreter {
             Value::EnumType { name, methods: _ } => {
                 // Property access on enum type, e.g., Option.None
                 // Look up the enum and variant
+                tracing::debug!(
+                    "Looking up enum '{}' for variant access to '{}'",
+                    name,
+                    property
+                );
                 if let Some(variants) = self.enums.get(name.as_str()) {
                     if let Some(_variant) = variants.iter().find(|v| v.name == property) {
                         // Return a value representing the enum variant constructor (no fields)
@@ -5137,6 +5142,11 @@ impl Interpreter {
                         )))
                     }
                 } else {
+                    tracing::debug!(
+                        "Enum '{}' not found in runtime enums. Available enums: {:?}",
+                        name,
+                        self.enums.keys().collect::<Vec<_>>()
+                    );
                     Err(VeldError::RuntimeError(format!(
                         "Enum '{}' not found",
                         name
@@ -5164,9 +5174,21 @@ impl Interpreter {
             }
             Value::Module(module) => {
                 // Debug: Show module exports when looking up property
+                tracing::debug!(
+                    "Looking up property '{}' in module '{}' with exports: {:?}",
+                    property,
+                    module.name,
+                    module.exports.keys().collect::<Vec<_>>()
+                );
 
                 // Try to resolve as an exported item first
                 if let Some(export) = module.exports.get(property) {
+                    tracing::debug!(
+                        "Found export '{}' in module '{}' with type: {:?}",
+                        property,
+                        module.name,
+                        export
+                    );
                     match export {
                         ExportedItem::Function(idx) => {
                             // Look up the function statement in module.statements
@@ -5206,10 +5228,14 @@ impl Interpreter {
                             "Kind '{}' exported from module '{}' is not directly accessible yet (implement kind resolution here)",
                             property, module.name
                         ))),
-                        ExportedItem::Enum(idx) => Err(VeldError::RuntimeError(format!(
-                            "Enum '{}' exported from module '{}' is not directly accessible yet (implement enum resolution here)",
-                            property, module.name
-                        ))),
+                        ExportedItem::Enum(idx) => {
+                            // Return an EnumType value that can be used for variant access
+                            let qualified_name = format!("{}.{}", module.name, property);
+                            Ok(Value::EnumType {
+                                name: qualified_name,
+                                methods: None,
+                            })
+                        }
                         ExportedItem::Module(submod_name) => {
                             if let Some(submodule) = self.module_manager.get_module(submod_name) {
                                 Ok(Value::Module(submodule.clone()))
@@ -7698,8 +7724,22 @@ impl Interpreter {
                     ..
                 } = statement
                 {
-                    // Register the enum in the runtime
+                    // Register the enum in the runtime with qualified name
+                    let qualified_enum_name = format!("{}.{}", module_name, enum_name);
+                    self.enums
+                        .insert(qualified_enum_name.clone(), variants.clone());
+                    tracing::debug!(
+                        "Registered enum '{}' in runtime with {} variants",
+                        qualified_enum_name,
+                        variants.len()
+                    );
+
+                    // Also register with simple name for backwards compatibility
                     self.enums.insert(enum_name.clone(), variants.clone());
+                    tracing::debug!(
+                        "Registered enum '{}' in runtime with simple name",
+                        enum_name
+                    );
 
                     // Register the enum in the type environment for type checking
                     fn convert_ast_enum_variant_to_base(
@@ -7808,6 +7848,24 @@ impl Interpreter {
 
                                 // Clean up type parameter scope
                                 self.type_checker.env().pop_type_param_scope();
+
+                                // Also register enum methods in runtime for actual execution
+                                for method in methods {
+                                    // Register enum method in runtime enum_methods
+                                    if !self.enum_methods.contains_key(enum_name) {
+                                        self.enum_methods.insert(enum_name.clone(), HashMap::new());
+                                    }
+                                    if let Some(runtime_methods) =
+                                        self.enum_methods.get_mut(enum_name)
+                                    {
+                                        runtime_methods.insert(method.name.clone(), method.clone());
+                                        tracing::debug!(
+                                            "Registered runtime enum method {}.{} for execution",
+                                            enum_name,
+                                            method.name
+                                        );
+                                    }
+                                }
                             }
                         }
                     }

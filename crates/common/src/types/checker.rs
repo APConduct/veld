@@ -2757,6 +2757,126 @@ impl TypeChecker {
                 }
             }
 
+            Type::EnumType(enum_name) => {
+                // Handle enum constructor calls like Option.Some(42) or Option.None
+                // Check if this is an enum variant (constructor)
+                let enum_name_to_check = enum_name.clone();
+
+                // Try to find the enum in the environment
+                let enum_variants = if let Some(variants) = self.env.enums.get(&enum_name_to_check)
+                {
+                    variants.clone()
+                } else if let Some(variants) = self.env.enums.get(
+                    enum_name_to_check
+                        .split('.')
+                        .last()
+                        .unwrap_or(&enum_name_to_check),
+                ) {
+                    variants.clone()
+                } else {
+                    return Err(VeldError::TypeError(format!(
+                        "Unknown enum type: {}",
+                        enum_name
+                    )));
+                };
+
+                // Check if the method name corresponds to a variant
+                if let Some(variant) = enum_variants.get(method) {
+                    match variant {
+                        EnumVariant::Simple => {
+                            // Simple variant like None - should take no arguments
+                            if !args.is_empty() {
+                                return Err(VeldError::TypeError(format!(
+                                    "Enum variant {} takes no arguments, got {}",
+                                    method,
+                                    args.len()
+                                )));
+                            }
+
+                            // Return the enum type - use Generic form for type parameters
+                            if enum_name_to_check.contains("Option") {
+                                Ok(Type::Generic {
+                                    base: "Option".to_string(),
+                                    type_args: vec![Type::Any], // Default to Any for now
+                                })
+                            } else {
+                                Ok(Type::Generic {
+                                    base: enum_name_to_check
+                                        .split('.')
+                                        .last()
+                                        .unwrap_or(&enum_name_to_check)
+                                        .to_string(),
+                                    type_args: vec![],
+                                })
+                            }
+                        }
+                        EnumVariant::Tuple(field_types) => {
+                            // Tuple variant like Some(T) - check argument count and types
+                            if field_types.len() != args.len() {
+                                return Err(VeldError::TypeError(format!(
+                                    "Enum variant {} expects {} arguments, got {}",
+                                    method,
+                                    field_types.len(),
+                                    args.len()
+                                )));
+                            }
+
+                            // Infer the type parameter from the arguments
+                            let mut inferred_type_args = Vec::new();
+                            for (i, arg) in args.iter().enumerate() {
+                                let arg_expr = match arg {
+                                    Argument::Positional(expr) => expr,
+                                    Argument::Named { name: _, value } => value,
+                                };
+
+                                let arg_type = self.infer_expression_type(arg_expr)?;
+
+                                // For Option.Some(value), we infer Option<type_of_value>
+                                if i == 0 && enum_name_to_check.contains("Option") {
+                                    inferred_type_args.push(arg_type);
+                                } else {
+                                    // For other enums, we might need more sophisticated inference
+                                    inferred_type_args.push(arg_type);
+                                }
+                            }
+
+                            // Return the properly typed enum
+                            if enum_name_to_check.contains("Option") {
+                                Ok(Type::Generic {
+                                    base: "Option".to_string(),
+                                    type_args: inferred_type_args,
+                                })
+                            } else {
+                                Ok(Type::Generic {
+                                    base: enum_name_to_check
+                                        .split('.')
+                                        .last()
+                                        .unwrap_or(&enum_name_to_check)
+                                        .to_string(),
+                                    type_args: inferred_type_args,
+                                })
+                            }
+                        }
+                        EnumVariant::Struct(_fields) => {
+                            // Struct variant - more complex, for now return a generic type
+                            Ok(Type::Generic {
+                                base: enum_name_to_check
+                                    .split('.')
+                                    .last()
+                                    .unwrap_or(&enum_name_to_check)
+                                    .to_string(),
+                                type_args: vec![],
+                            })
+                        }
+                    }
+                } else {
+                    Err(VeldError::TypeError(format!(
+                        "Enum {} has no variant {}",
+                        enum_name, method
+                    )))
+                }
+            }
+
             _ => Err(VeldError::TypeError(format!(
                 "Type {} does not have methods",
                 obj_type
@@ -3285,6 +3405,12 @@ impl TypeChecker {
                     || self.env.structs().contains_key(property)
                 {
                     Ok(Type::StructType(full_path))
+                }
+                // Check if this is a known enum in the environment
+                else if self.env.enums.contains_key(&full_path)
+                    || self.env.enums.contains_key(property)
+                {
+                    Ok(Type::EnumType(full_path))
                 } else {
                     // For other module access like std.vec, return another module type
                     // This allows chaining like std.vec.Vec
