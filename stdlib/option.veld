@@ -90,8 +90,24 @@ impl<T> Option<T>
         end
     end
 
+
+
+    # Return true if the option does not contain a value
+    pub fn is_none(self) -> bool
+        match self
+            Option.Some(_) => false,
+            Option.None => true,
+        end
+    end
+end
+
+# TODO: Implement ToString for Option<T> when T implements ToString
+# This should use: impl<T> Option<T> <- ToString where T: ToString
+# Currently the where clause syntax is parsed but not enforced by the type checker.
+# The implementation below will work for any T, but should only be available when T: ToString
+impl<T> Option<T> <- ToString
     #| Convert the option to a string representation
-    #| This method is only available if T implements to_string()
+    #| This method is only available if T implements ToString
     #| Returns "Some(value_string)" for Some(value) where value_string is value.to_string()
     #| Returns "None" for None
     #| # Example:
@@ -108,14 +124,6 @@ impl<T> Option<T>
         match self
             Option.Some(value) => "Some(" + value.to_string() + ")",
             Option.None => "None",
-        end
-    end
-
-    # Return true if the option does not contain a value
-    pub fn is_none(self) -> bool
-        match self
-            Option.Some(_) => false,
-            Option.None => true,
         end
     end
 end

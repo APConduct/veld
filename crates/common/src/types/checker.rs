@@ -4550,8 +4550,20 @@ impl TypeChecker {
             kind_name,
             methods,
             generic_args,
+            where_clause,
         } = stmt
         {
+            // TODO: Implement where clause constraint validation
+            // Need to:
+            // 1. Parse and validate each constraint in where_clause
+            // 2. Check that type parameters in constraints match generic_args
+            // 3. Verify that the type being implemented actually satisfies the constraints
+            // 4. Store constraints with the implementation for later method resolution
+            if let Some(_where_clause) = where_clause {
+                // For now, we ignore where clauses but they should be validated here
+                tracing::warn!("Where clauses are parsed but not yet enforced in type checking");
+            }
+
             if let Some(kind_name) = kind_name {
                 let kind = match self.env.kinds().get(kind_name) {
                     Some(k) => k.clone(),

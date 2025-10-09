@@ -321,6 +321,8 @@ pub struct ImplementationInfo {
     kind_name: String,
     generic_args: Vec<GenericArgument>,
     methods: HashMap<String, Type>,
+    // TODO: Add where clause constraints to track conditional implementations
+    // where_clause: Option<WhereClause>,
 }
 
 impl ImplementationInfo {
@@ -1032,6 +1034,7 @@ impl TypeEnvironment {
             kind_name: kind_name.to_string(),
             generic_args,
             methods,
+            // TODO: Pass and store where clause when adding implementations
         };
         self.implementations
             .entry(type_name.to_string())
@@ -1055,6 +1058,8 @@ impl TypeEnvironment {
             return impls
                 .iter()
                 .find(|impl_info| impl_info.kind_name == kind_name);
+            // TODO: When where clauses are implemented, also check that
+            // the concrete types satisfy the where clause constraints
         }
         None
     }
@@ -1066,6 +1071,8 @@ impl TypeEnvironment {
         method_name: &str,
     ) -> Option<&Type> {
         if let Some(impl_info) = self.find_implementation(type_name, kind_name) {
+            // TODO: Before returning method, validate that where clause constraints
+            // are satisfied for the specific type arguments being used
             if let Some(method) = impl_info.methods.get(method_name) {
                 return Some(method);
             }

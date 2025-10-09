@@ -261,6 +261,7 @@ fn expand_macros_in_statement_children(
             kind_name,
             methods,
             generic_args,
+            where_clause: _,
         } => {
             let methods = methods
                 .into_iter()
@@ -281,6 +282,7 @@ fn expand_macros_in_statement_children(
                 kind_name,
                 methods,
                 generic_args,
+                where_clause: None,
             }])
         }
         InherentImpl {

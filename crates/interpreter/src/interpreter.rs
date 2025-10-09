@@ -1136,6 +1136,7 @@ impl Interpreter {
                             kind_name: _,
                             methods,
                             generic_args: _,
+                            where_clause: _,
                         } => self.execute_implementation(type_name, methods),
 
                         Statement::InherentImpl {
@@ -6104,6 +6105,11 @@ impl Interpreter {
             }
             // For enum instance methods
             (Value::Enum { enum_name, .. }, _) => {
+                // TODO: When where clauses are fully implemented, need to check here
+                // that any where clause constraints are satisfied before allowing
+                // method calls. For example, Option<T>.to_string() should only be
+                // callable when T implements ToString.
+
                 // Get the method from enum_methods - try qualified name first, then simple name
                 let method = self
                     .enum_methods
@@ -6807,6 +6813,11 @@ impl Interpreter {
                 // Check if the enum names are compatible
                 let enum_simple_name = enum_name.split('.').last().unwrap_or(enum_name);
                 if enum_simple_name == base {
+                    // TODO: When where clauses are fully implemented, need to validate
+                    // that the type arguments in target_type satisfy any where clause
+                    // constraints on the enum's methods (e.g., Option<T>.to_string()
+                    // should only be available when T: ToString)
+
                     // Return the same enum value but it's now considered to have the target type
                     Ok(value.clone())
                 } else {
@@ -7689,6 +7700,7 @@ impl Interpreter {
                             kind_name,
                             methods: trait_methods,
                             generic_args: trait_generic_args,
+                            where_clause: _,
                         } = trait_impl_stmt
                         {
                             tracing::debug!(

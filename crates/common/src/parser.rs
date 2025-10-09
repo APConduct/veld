@@ -6,7 +6,7 @@ use super::ast::{AST, UnaryOperator};
 use super::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
     MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
-    StructMethod, TypeAnnotation, VarKind,
+    StructMethod, TypeAnnotation, TypeConstraint, VarKind, WhereClause,
 };
 use super::lexer::{Lexer, Token};
 use super::source::{NodeId, ParseContext, Position, SourceMap};
@@ -1360,6 +1360,45 @@ impl Parser {
     //     }
     // }
 
+    fn parse_where_clause(&mut self) -> Result<Option<WhereClause>> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_where_clause");
+        let _enter = _span.enter();
+
+        // TODO: Complete where clause implementation
+        // Currently parses basic "where T: Kind" syntax but needs:
+        // 1. Support for multiple constraints per type param (T: Kind1 + Kind2)
+        // 2. Support for associated type constraints (T: Iterator<Item = U>)
+        // 3. Integration with type checker for constraint validation
+        // 4. Error handling for malformed constraints
+
+        if !self.match_token(&[Token::Where(ZTUP)]) {
+            return Ok(None);
+        }
+
+        let mut constraints = Vec::new();
+
+        loop {
+            let type_param = self.consume_identifier("Expected type parameter in where clause")?;
+            self.consume(&Token::Colon(ZTUP), "Expected ':' after type parameter")?;
+
+            let mut bounds = Vec::new();
+            bounds.push(self.consume_identifier("Expected kind name after ':'")?);
+
+            // Handle multiple bounds separated by '+'
+            while self.match_token(&[Token::Plus(ZTUP)]) {
+                bounds.push(self.consume_identifier("Expected kind name after '+'")?);
+            }
+
+            constraints.push(TypeConstraint { type_param, bounds });
+
+            if !self.match_token(&[Token::Comma(ZTUP)]) {
+                break;
+            }
+        }
+
+        Ok(Some(WhereClause { constraints }))
+    }
+
     fn parse_implementation_methods(
         &mut self,
         type_name: String,
@@ -1434,23 +1473,27 @@ impl Parser {
                 if self.match_token(&[Token::LeftArrow(ZTUP)]) {
                     let kind_name = Some(self.consume_identifier("Expected kind name after '<-'")?);
                     let generic_args = self.parse_generic_args_if_present()?;
+                    let where_clause = self.parse_where_clause()?;
                     let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
                     Ok(Statement::Implementation {
                         type_name,
                         kind_name,
                         methods,
                         generic_args,
+                        where_clause,
                     })
                 } else if self.match_token(&[Token::For(ZTUP)]) {
                     // impl KindName for TypeName
                     let kind_name = Some(type_name.clone());
                     let type_name = self.consume_identifier("Expected type name after 'for'")?;
+                    let where_clause = self.parse_where_clause()?;
                     let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
                     Ok(Statement::Implementation {
                         type_name,
                         kind_name,
                         methods,
                         generic_args: generic_params,
+                        where_clause,
                     })
                 } else {
                     // Inherent impl block
@@ -1471,12 +1514,14 @@ impl Parser {
                 let generic_args = self.parse_generic_args_if_present()?;
                 self.consume(&Token::For(ZTUP), "Expected 'for' after kind name")?;
                 let type_name = self.consume_identifier("Expected type name after 'for'")?;
+                let where_clause = self.parse_where_clause()?;
                 let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
                 Ok(Statement::Implementation {
                     type_name,
                     kind_name: Some(kind_name),
                     methods,
                     generic_args,
+                    where_clause,
                 })
             }
         };

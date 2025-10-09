@@ -91,6 +91,17 @@ pub enum TypeAnnotation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct WhereClause {
+    pub constraints: Vec<TypeConstraint>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeConstraint {
+    pub type_param: String,
+    pub bounds: Vec<String>, // Kind names that the type parameter must implement
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum UnaryOperator {
     Negate, // For -x
     Not,    // For !x or not x
@@ -449,6 +460,7 @@ pub enum Statement {
         kind_name: Option<String>,
         methods: Vec<MethodImpl>,
         generic_args: Vec<GenericArgument>,
+        where_clause: Option<WhereClause>,
     },
 
     ModuleDeclaration {
