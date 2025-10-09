@@ -1491,7 +1491,7 @@ impl Interpreter {
             }
             let struct_method_map = self.struct_methods.get_mut(&type_name).unwrap();
 
-            for method in methods {
+            for method in &methods {
                 // Convert MethodImpl to Value::Function for struct methods
                 let function = Value::Function {
                     params: method.params.clone(),
@@ -1500,6 +1500,12 @@ impl Interpreter {
                     captured_vars: HashMap::new(),
                 };
                 struct_method_map.insert(method.name.clone(), function);
+
+                // Also register in type checker
+                let method_type = self.type_checker.method_to_type(&method)?;
+                self.type_checker
+                    .env()
+                    .add_struct_method(&type_name, &method.name, method_type);
             }
         } else if is_enum {
             // Register methods for enum type - get or create the method map
@@ -1520,7 +1526,7 @@ impl Interpreter {
             }
             let struct_method_map = self.struct_methods.get_mut(&type_name).unwrap();
 
-            for method in methods {
+            for method in &methods {
                 // Convert MethodImpl to Value::Function for struct methods
                 let function = Value::Function {
                     params: method.params.clone(),
@@ -1529,6 +1535,12 @@ impl Interpreter {
                     captured_vars: HashMap::new(),
                 };
                 struct_method_map.insert(method.name.clone(), function);
+
+                // Also register in type checker
+                let method_type = self.type_checker.method_to_type(&method)?;
+                self.type_checker
+                    .env()
+                    .add_struct_method(&type_name, &method.name, method_type);
             }
         }
 
@@ -1544,7 +1556,21 @@ impl Interpreter {
     ) -> Result<Value> {
         // Register the struct type
         if generic_params.is_empty() {
-            self.structs.insert(name.clone(), fields);
+            self.structs.insert(name.clone(), fields.clone());
+
+            // Also register in type checker
+            let field_map: HashMap<String, Type> = fields
+                .iter()
+                .map(|f| {
+                    let field_type = self
+                        .type_checker
+                        .env()
+                        .from_annotation(&f.type_annotation, None)
+                        .unwrap_or(Type::Any);
+                    (f.name.clone(), field_type)
+                })
+                .collect();
+            self.type_checker.env().add_struct(&name, field_map);
         } else {
             let struct_info = StructInfo {
                 fields: fields
@@ -1561,18 +1587,25 @@ impl Interpreter {
         if !methods.is_empty() {
             let mut method_map = HashMap::new();
 
-            for method in methods {
+            for method in &methods {
+                // Register in runtime
                 let method_value = Value::Function {
-                    params: method.params,
-                    body: method.body,
-                    return_type: method.return_type,
+                    params: method.params.clone(),
+                    body: method.body.clone(),
+                    return_type: method.return_type.clone(),
                     captured_vars: HashMap::new(), // No captured vars for struct methods
                 };
 
-                method_map.insert(method.name, method_value);
+                method_map.insert(method.name.clone(), method_value);
+
+                // Also register in type checker
+                let method_type = self.type_checker.struct_method_to_type(&method)?;
+                self.type_checker
+                    .env()
+                    .add_struct_method(&name, &method.name, method_type);
             }
 
-            self.struct_methods.insert(name, method_map);
+            self.struct_methods.insert(name.clone(), method_map);
         }
 
         Ok(Value::Unit)
@@ -6762,6 +6795,27 @@ impl Interpreter {
     /// Attempt to safely coerce a value to match the target type through safe widening
     fn try_safe_coerce_value(&self, value: &Value, target_type: &Type) -> Result<Value> {
         match (value, target_type) {
+            // Enum coercion - handle cases like None being coerced to Option<i32>
+            (
+                Value::Enum {
+                    enum_name,
+                    variant_name,
+                    fields,
+                },
+                Type::Generic { base, type_args },
+            ) => {
+                // Check if the enum names are compatible
+                let enum_simple_name = enum_name.split('.').last().unwrap_or(enum_name);
+                if enum_simple_name == base {
+                    // Return the same enum value but it's now considered to have the target type
+                    Ok(value.clone())
+                } else {
+                    Err(VeldError::RuntimeError(format!(
+                        "Cannot coerce enum {} to {}",
+                        enum_name, base
+                    )))
+                }
+            }
             // Record coercion - coerce each field if possible
             (
                 Value::Record(actual_fields),

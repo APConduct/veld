@@ -1,0 +1,30 @@
+# Simple test to debug struct method registration
+# This test isolates the issue with custom struct methods
+
+struct CustomType
+    pub value: i32,
+end
+
+impl CustomType
+    pub fn to_string(self) -> str
+        "CustomType(" + self.value.to_string() + ")"
+    end
+end
+
+fn main()
+    std.io.println("=== Debugging Struct Method Registration ===")
+
+    # Test 1: Create the struct
+    std.io.println("\n--- Test 1: Creating CustomType ---")
+    let custom = CustomType(value: 123)
+    std.io.println("CustomType created successfully")
+
+    # Test 2: Try to call to_string directly on struct
+    std.io.println("\n--- Test 2: Calling to_string on CustomType ---")
+    let custom_str = custom.to_string()
+    std.io.println("CustomType.to_string(): " + custom_str)
+
+    std.io.println("\n✅ Struct method registration test completed!")
+end
+
+main()

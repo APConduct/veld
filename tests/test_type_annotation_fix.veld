@@ -1,0 +1,69 @@
+# Test type annotation fixes with generic types
+# This test demonstrates and verifies fixes for type annotation issues
+
+# Define a simple struct for testing
+struct Point
+    pub x: i32,
+    pub y: i32,
+end
+
+impl Point
+    pub fn to_string(self) -> str
+        "Point(" + self.x.to_string() + "," + self.y.to_string() + ")"
+    end
+end
+
+fn main()
+    std.io.println("=== Testing Type Annotation Fixes ===")
+
+    # Test 1: Basic Option type annotation (should work)
+    std.io.println("\n--- Test 1: Basic Option type annotations ---")
+    let some_int: Option<i32> = std.option.Option.Some(42)
+    let some_str: Option<str> = std.option.Option.Some("hello")
+
+    std.io.println("Option<i32> Some: " + some_int.unwrap_or(0).to_string())
+    std.io.println("Option<str> Some: " + some_str.unwrap_or("default"))
+
+    # Test 2: None with type annotations (the problematic case)
+    std.io.println("\n--- Test 2: None with type annotations ---")
+    # This should work after our fix
+    let none_int: Option<i32> = std.option.Option.None
+    let none_str: Option<str> = std.option.Option.None
+
+    std.io.println("Option<i32> None: " + none_int.unwrap_or(99).to_string())
+    std.io.println("Option<str> None: " + none_str.unwrap_or("empty"))
+
+    # Test 3: Vec type annotations
+    std.io.println("\n--- Test 3: Vec type annotations ---")
+    var empty_vec: Vec<i32> = std.vec.Vec.new()
+    # Add elements to verify type
+    empty_vec.push(1)
+    empty_vec.push(2)
+
+    let first = empty_vec.get(0).unwrap_or(0)
+    std.io.println("Vec<i32> first: " + first.to_string())
+
+    # Test 4: Nested generic type annotations
+    std.io.println("\n--- Test 4: Nested generic type annotations ---")
+    var nested: Vec<Option<i32>> = std.vec.Vec.new()
+    nested.push(std.option.Option.Some(123))
+    nested.push(std.option.Option.None)
+
+    let first_nested = nested.get(0).unwrap_or(std.option.Option.None)
+    let value = first_nested.unwrap_or(456)
+    std.io.println("Nested Vec<Option<i32>> value: " + value.to_string())
+
+    # Test 5: Option with custom types (using our fixed struct methods)
+    std.io.println("\n--- Test 5: Option with custom types ---")
+
+    let point_option: Option<Point> = std.option.Option.Some(Point(x: 10, y: 20))
+    let point_none: Option<Point> = std.option.Option.None
+
+    # These should work with our conditional to_string implementation
+    std.io.println("Option<Point> Some: " + point_option.to_string())
+    std.io.println("Option<Point> None: " + point_none.to_string())
+
+    std.io.println("\n✅ All type annotation tests completed!")
+end
+
+main()

@@ -215,7 +215,7 @@ impl TypeChecker {
         }
     }
 
-    fn method_to_type(&mut self, method: &MethodImpl) -> Result<Type> {
+    pub fn method_to_type(&mut self, method: &MethodImpl) -> Result<Type> {
         let _span = tracing::span!(tracing::Level::INFO, "Checking method type");
         let _guard = _span.enter();
 
@@ -399,6 +399,22 @@ impl TypeChecker {
         match stmt {
             Statement::KindDeclaration { .. } => self.type_check_kind_declaration(stmt),
             Statement::Implementation { .. } => self.type_check_implementation(stmt),
+            Statement::InherentImpl {
+                type_name, methods, ..
+            } => {
+                // Handle inherent impl blocks (user-defined struct methods)
+                for method in methods {
+                    let method_type = self.method_to_type(method)?;
+                    let struct_methods = self
+                        .env
+                        .struct_methods_mut()
+                        .entry(type_name.clone())
+                        .or_insert_with(HashMap::new);
+
+                    struct_methods.insert(method.name.clone(), method_type);
+                }
+                Ok(())
+            }
             Statement::PlexDeclaration {
                 name,
                 type_annotation,
