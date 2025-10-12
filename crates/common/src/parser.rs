@@ -2260,6 +2260,71 @@ impl Parser {
         result
     }
 
+    fn parse_match_expression(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_match_expression");
+        let _span = _span.enter();
+
+        let value = self.expression(ctx)?;
+        let mut arms = Vec::new();
+        while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+            let pattern = self.parse_match_pattern(ctx)?;
+
+            let gaurd = if self.match_token(&[Token::Where(ZTUP)]) {
+                Some(self.expression(ctx)?)
+            } else {
+                None
+            };
+
+            self.consume(&Token::FatArrow(ZTUP), "Expected '=>' after match pattern")?;
+            let body = if self.match_token(&[Token::Do(ZTUP)]) {
+                // Parse statements until 'end', allowing a final expression before 'end'
+                let mut statements = Vec::new();
+                let mut final_expr = None;
+                while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+                    // If the next token can start an expression and the following token is 'end',
+                    // treat it as a final expression, not a statement.
+                    if self.is_start_of_expression()
+                        && self.tokens.get(self.current + 1) == Some(&Token::End(ZTUP))
+                    {
+                        final_expr = Some(Box::new(self.expression(ctx)?));
+                        break;
+                    }
+                    if let Ok(stmt) = self.statement(ctx) {
+                        statements.push(stmt);
+                    } else {
+                        // Only try to parse a final expression if the next token can start an expression
+                        if !self.check(&Token::End(ZTUP)) && self.is_start_of_expression() {
+                            final_expr = Some(Box::new(self.expression(ctx)?));
+                        }
+                        break;
+                    }
+                }
+
+                self.consume(&Token::End(ZTUP), "Expected 'end' after match arm block")?;
+                Expr::BlockExpression {
+                    statements,
+                    final_expr,
+                }
+            } else {
+                self.expression(ctx)?
+            };
+
+            arms.push(MatchArm {
+                pat: pattern,
+                gaurd,
+                body,
+            });
+
+            self.match_token(&[Token::Comma(ZTUP)]);
+        }
+
+        self.consume(&Token::End(ZTUP), "Expected 'end' after match expression")?;
+        Ok(Expr::Match {
+            value: Box::new(value),
+            arms,
+        })
+    }
+
     fn if_statement(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "if_statement");
         let _span = _span.enter();
@@ -3114,6 +3179,11 @@ impl Parser {
         if self.match_token(&[Token::If(ZTUP)]) {
             // Parse if expression: if condition then expr [else expr] end
             return self.parse_if_expression(ctx);
+        }
+
+        if self.match_token(&[Token::Match(ZTUP)]) {
+            // Parse match expression: match expr pattern => expr ... end
+            return self.parse_match_expression(ctx);
         }
 
         if self.match_token(&[Token::LParen(ZTUP)]) {

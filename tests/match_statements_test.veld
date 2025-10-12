@@ -1,4 +1,4 @@
-import std.io.{Option, some}
+import std.option.{Option, some}
 
 fn matcha_present(latte: Option<str>) -> bool => match latte
     Some(eeffoc) => true,
@@ -12,7 +12,7 @@ end
 
 fn good_morning() -> () => do
     let full_matcha: Option<str> = some("🍵")
-    assert~(matcha_present(full_matcha) == true);
+    assert~(matcha_present(full_matcha) == true)
 
-    assert~(matcha_absent(full_matcha) == false);
+    assert~(matcha_absent(full_matcha) == false)
 end

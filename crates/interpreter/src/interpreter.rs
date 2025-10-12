@@ -750,6 +750,22 @@ impl Interpreter {
                     self.collect_free_variables_expr(end_expr, bound_vars, free_vars);
                 }
             }
+            Expr::Match { value, arms } => {
+                // Collect free variables from the matched value
+                self.collect_free_variables_expr(value, bound_vars, free_vars);
+
+                // Collect free variables from each match arm
+                for arm in arms {
+                    // TODO: Handle pattern bindings in arm.pat to update bound_vars
+                    // For now, just collect from the arm body
+                    self.collect_free_variables_expr(&arm.body, bound_vars, free_vars);
+
+                    // Collect from guard expression if present
+                    if let Some(guard) = &arm.gaurd {
+                        self.collect_free_variables_expr(guard, bound_vars, free_vars);
+                    }
+                }
+            }
         }
     }
 
@@ -3222,6 +3238,7 @@ impl Interpreter {
                                 inclusive,
                             } => self.evaluate_range(start, end, inclusive),
                             Expr::Record { fields } => self.eval_record_fields(fields),
+                            Expr::Match { value, arms } => self.execute_match(*value, arms),
                         }
                     }
                 })

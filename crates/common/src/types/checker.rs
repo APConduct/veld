@@ -1549,6 +1549,27 @@ impl TypeChecker {
                     fields: field_types,
                 })
             }
+            Expr::Match { value, arms } => {
+                // Infer the type of the matched value
+                let _value_type = self.infer_expression_type(value)?;
+
+                // All match arms should have the same return type
+                if arms.is_empty() {
+                    return Ok(Type::Unit);
+                }
+
+                // Infer the type of the first arm's body
+                let first_arm_type = self.infer_expression_type(&arms[0].body)?;
+
+                // Check that all other arms have the same type
+                for arm in &arms[1..] {
+                    let arm_type = self.infer_expression_type(&arm.body)?;
+                    self.env.add_constraint(first_arm_type.clone(), arm_type);
+                }
+
+                self.env.solve_constraints()?;
+                Ok(self.env.apply_substitutions(&first_arm_type))
+            }
         };
         if let Ok(ref t) = result {
             tracing::debug!("Final inferred type for expression: {:?} -> {:?}", expr, t);

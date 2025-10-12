@@ -210,6 +210,10 @@ pub enum Expr {
         end: Option<Box<Expr>>,
         inclusive: bool,
     },
+    Match {
+        value: Box<Expr>,
+        arms: Vec<MatchArm>,
+    },
 }
 
 impl Expr {
