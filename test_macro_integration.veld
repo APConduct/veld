@@ -76,8 +76,8 @@ fn test_macro_expansion_integration()
     std.io.println("Integer array popped value: " + vec1.pop().unwrap_or(0).to_string())
     std.io.println("String array popped value: " + vec2.pop().unwrap_or("").to_string())
     # TODO: implement conditional ToString conformity for Vec and Option
-    # std.io.println("Integer array: " + arr1.to_string())
-    # std.io.println("String array: " + arr2.to_string())
+    # std.io.println("Integer array: " + vec1.to_string())
+    # std.io.println("String array: " + vec2.to_string())
 
     # Test nested macro usage
     debug~(vec~(10, 20, 30))
