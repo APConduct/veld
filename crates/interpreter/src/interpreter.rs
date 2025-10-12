@@ -5123,7 +5123,7 @@ impl Interpreter {
         };
 
         // Special handling for std.io module functions - redirect to native implementations
-        if let Value::Function { params, .. } = &function {
+        if let Value::Function { params: _, .. } = &function {
             // Check if this is an imported std.io function with empty body
             let native_function_name = format!("std.io.{}", name);
             if self.native_registry.contains(&native_function_name) {
@@ -5443,7 +5443,7 @@ impl Interpreter {
                     if let Some(submodule) = self.module_manager.get_module(&fq_name) {
                         // Register enums and their methods from the dynamically loaded module
                         // This ensures that enum types like Option and their methods are available
-                        for (idx, statement) in submodule.statements.iter().enumerate() {
+                        for (_idx, statement) in submodule.statements.iter().enumerate() {
                             if let Statement::EnumDeclaration {
                                 name: enum_name,
                                 variants,
@@ -7046,7 +7046,7 @@ impl Interpreter {
     ) -> Result<Value> {
         if let Some(statements) = body {
             // Save current module name
-            let previous_module = self.current_module.clone();
+            let _previous_module = self.current_module.clone();
             self.current_module = name.clone();
 
             // Create new scope for module

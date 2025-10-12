@@ -8,7 +8,7 @@ let s: str = "hello"
 let b: bool = true
 
 # Unit type (similar to void/nil but type-safe)
-let unit_value: () = ()
+let unit_value: () = println~()
 
 # Function returning unit (proc)
 fn log_message(msg: str) -> ()
@@ -65,7 +65,7 @@ let max = if a > b then a else b end
 if user.is_admin() then
     grant_access()
     log_access()
-else if user.has_permission("read")
+else if user.has_permission("read") then
     grant_read_only()
 else
     deny_access()
@@ -73,28 +73,28 @@ end
 
 # Pattern matching with guards
 match value
-    Person{name, age} where age >= 18 => handle_adult(name)
-    Person{name, age} => handle_minor(name, age)
+    Person(name, age) where age >= 18 => handle_adult(name)
+    Person(name, age) => handle_minor(name, age)
     _ => handle_unknown()
 end
 
 # While loop
-while connection.is_active()
+while connection.is_active() do
     process_next_message()
 end
 
 # For loop (iteration)
-for item in collection
+for item in collection do
     process(item)
 end
 
 # For loop with index
-for item, index in collection.with_index()
+for (item, index) in collection.with_index() do
     println~("Item {} at index {}", item, index)
 end
 
 # Infinite loop
-for
+while true do
     if should_exit() then
         break
     end
@@ -102,7 +102,7 @@ for
 end
 
 # For with range
-for i in 0..10
+for i in 0..10 do
     println~("{}", i)  # Prints 0 to 9
 end
 ```
