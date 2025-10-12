@@ -1,7 +1,7 @@
 import std.vec.{Vec}
 
 # Test the fixed Vec implementation with push operations
-let vec = Vec.new()
+var vec = Vec.new()
 vec.push(1)
 vec.push(2)
 vec.push(3)
