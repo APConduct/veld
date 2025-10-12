@@ -460,18 +460,21 @@ fn expand_macros_in_expr(
             params,
             body,
             return_type,
+            generic_params,
         } => {
             let body = Box::new(expand_macros_in_expr(*body, macro_system)?);
             Ok(Expr::Lambda {
                 params,
                 body,
                 return_type,
+                generic_params,
             })
         }
         Expr::BlockLambda {
             params,
             body,
             return_type,
+            generic_params,
         } => {
             let body = body
                 .into_iter()
@@ -484,6 +487,7 @@ fn expand_macros_in_expr(
                 params,
                 body,
                 return_type,
+                generic_params,
             })
         }
         Expr::BinaryOp {

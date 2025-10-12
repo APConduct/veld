@@ -133,6 +133,7 @@ pub enum Expr {
         params: Vec<(String, Option<TypeAnnotation>)>,
         body: Vec<Statement>,
         return_type: Option<TypeAnnotation>,
+        generic_params: Vec<GenericArgument>,
     },
     Literal(Literal),
     Identifier(String),
@@ -154,6 +155,7 @@ pub enum Expr {
         params: Vec<(String, Option<TypeAnnotation>)>,
         body: Box<Expr>,
         return_type: Option<TypeAnnotation>,
+        generic_params: Vec<GenericArgument>,
     },
     /// General function/method call: callee can be any Expr (including PropertyAccess)
     Call {

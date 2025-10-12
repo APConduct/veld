@@ -1,0 +1,19 @@
+# fn non_lambda_add<T>(x: T, y: T) => x + y
+
+let add_two_spiffy_fn = fn<T>(x: T, y: T) -> T
+    x + y
+end
+
+let add_two_expr_fn = fn<T>(x: T, y: T) -> T => x + y
+
+let add_two_expr_fn_block = fn<T>(x: T, y: T) -> T => do
+    x + y
+end
+
+let add_two_gen = <T>(x: T, y: T) -> T => x + y
+
+let add_two_gen_block = <T>(x: T, y: T) -> T => do
+    x + y
+end
+
+let add_two_gen_inferred = (x, y) => x + y

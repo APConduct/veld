@@ -519,6 +519,7 @@ impl Parser {
                 // If the last statement is an expression, make it an implicit return
                 if self.check(&Token::End(ZTUP)) {
                     if let Statement::ExprStatement(expr) = stmt {
+                        tracing::info!("Implicit return in function_declaration_with_visibility");
                         if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
                             if let Some(inferred_type) = self.infer_lambda_return_type(&expr) {
                                 return_type = inferred_type;
@@ -565,9 +566,21 @@ impl Parser {
         let mut return_type_anno: Option<TypeAnnotation> = None;
         let mut is_block_demi = false;
         let mut _is_expr_demi = false;
+        let mut generic_params = Vec::new();
 
         // Handle 'fn' keyword if present
         if self.match_token(&[Token::Fn((0, 0))]) {
+            // Parse optional generic parameters after 'fn'
+            generic_params = self
+                .parse_generic_args_if_present()
+                .expect("Failed to parse generic parameters");
+
+            tracing::debug!(
+                "After parsing generic params, current token: {:?}, generic_params.len(): {}",
+                self.peek(),
+                generic_params.len()
+            );
+
             self.consume(&Token::LParen(ZTUP), "Expected '(' after 'fn'")?;
 
             if !self.check(&Token::RParen(ZTUP)) {
@@ -600,8 +613,46 @@ impl Parser {
                 is_block_demi = false;
                 _is_expr_demi = true;
             }
+        } else if self.check(&Token::Less(ZTUP)) {
+            // Handle generic lambda shorthand <T>(...) => syntax
+            generic_params = self.parse_generic_args_if_present()?;
+
+            // Now expect parameter list
+            if self.check(&Token::LParen(ZTUP)) {
+                self.advance(); // Consume '('
+
+                // Check for empty parameter list: () =>
+                if self.match_token(&[Token::RParen(ZTUP)]) {
+                    // Leave params empty
+                } else {
+                    // Multiple parameters
+                    loop {
+                        let param_name = self.consume_identifier("Expected parameter name")?;
+                        let type_annotation = if self.match_token(&[Token::Colon(ZTUP)]) {
+                            Some(self.parse_type()?)
+                        } else {
+                            None
+                        };
+                        params.push((param_name, type_annotation));
+
+                        if !self.match_token(&[Token::Comma(ZTUP)]) {
+                            break;
+                        }
+                    }
+                    self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
+                }
+
+                // Optional return type annotation
+                if self.match_token(&[Token::Arrow(ZTUP)]) {
+                    return_type_anno = Some(self.parse_type()?);
+                }
+            } else {
+                return Err(VeldError::ParserError(
+                    "Expected '(' after generic parameters in lambda".to_string(),
+                ));
+            }
         } else {
-            // Handle parameters without 'fn' keyword
+            // Handle parameters without 'fn' keyword or generics
             if self.check(&Token::LParen(ZTUP)) {
                 self.advance(); // Consume '('
 
@@ -635,7 +686,7 @@ impl Parser {
         // Handle different lambda body syntaxes
         if is_block_demi {
             // fn() body end syntax (no =>)
-            return self.parse_block_demi_lambda(params, return_type_anno, ctx);
+            return self.parse_block_demi_lambda(params, return_type_anno, generic_params, ctx);
         } else {
             // Expect fat arrow for other lambda forms
             self.consume(
@@ -645,7 +696,7 @@ impl Parser {
 
             // Check for block syntax with `do`
             if self.match_token(&[Token::Do(ZTUP)]) {
-                return self.parse_block_lambda(params, return_type_anno, ctx);
+                return self.parse_block_lambda(params, return_type_anno, generic_params, ctx);
             }
 
             // Single expression lambda
@@ -663,6 +714,7 @@ impl Parser {
                 params,
                 body: Box::new(expr),
                 return_type: inferred_return_type,
+                generic_params,
             })
         }
     }
@@ -672,6 +724,7 @@ impl Parser {
         &mut self,
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
+        generic_params: Vec<GenericArgument>,
         ctx: &mut Option<&mut ParseContext>,
     ) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_block_demi_lambda");
@@ -708,6 +761,7 @@ impl Parser {
             params,
             body,
             return_type,
+            generic_params,
         })
     }
 
@@ -716,6 +770,7 @@ impl Parser {
         &mut self,
         params: Vec<(String, Option<TypeAnnotation>)>,
         return_type_anno: Option<TypeAnnotation>,
+        generic_params: Vec<GenericArgument>,
         ctx: &mut Option<&mut ParseContext>,
     ) -> Result<Expr> {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_block_lambda");
@@ -749,6 +804,7 @@ impl Parser {
             params,
             body,
             return_type,
+            generic_params,
         })
     }
 
@@ -1240,6 +1296,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_generic_args_if_present");
         let _span = _span.enter();
 
+        tracing::debug!("parse_generic_args_if_present");
+
         let mut generic_args = Vec::new();
 
         if !self.match_token(&[Token::Less(ZTUP)]) {
@@ -1267,6 +1325,10 @@ impl Parser {
 
                     generic_args.push(GenericArgument::with_constraints(
                         TypeAnnotation::Basic(param_name),
+                        // TypeAnnotation::Generic {
+                        //     base: param_name,
+                        //     type_args: Vec::new(),
+                        // },
                         constraints,
                     ));
                 }
@@ -1277,7 +1339,10 @@ impl Parser {
                 }
                 // Simple type parameter with no constraints
                 else {
-                    generic_args.push(GenericArgument::new(TypeAnnotation::Basic(param_name)));
+                    generic_args.push(GenericArgument::new(TypeAnnotation::Generic {
+                        base: param_name,
+                        type_args: Vec::new(),
+                    }));
                 }
 
                 if !self.match_token(&[Token::Comma(ZTUP)]) {
@@ -2682,8 +2747,23 @@ impl Parser {
         }
 
         if self.check(&Token::Fn((0, 0))) {
-            // Look ahead to see if this is fn(...) => or fn(...) -> ... => pattern
+            // Look ahead to see if this is fn<...>(...) => or fn(...) => or fn(...) -> ... => pattern
             let mut i = self.current + 1;
+
+            // Skip over potential generic parameters <...>
+            if i < self.tokens.len() && self.tokens[i] == Token::Less(ZTUP) {
+                let mut angle_depth = 1;
+                i += 1;
+
+                while i < self.tokens.len() && angle_depth > 0 {
+                    match &self.tokens[i] {
+                        Token::Less(_) => angle_depth += 1,
+                        Token::Greater(_) => angle_depth -= 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+            }
 
             // Skip to opening paren
             if i < self.tokens.len() && self.tokens[i] == Token::LParen(ZTUP) {
@@ -2755,6 +2835,58 @@ impl Parser {
 
             return i < self.tokens.len() && self.tokens[i] == Token::FatArrow(ZTUP);
         }
+
+        // Check for <T>(...) => pattern (generic lambda shorthand)
+        if self.check(&Token::Less(ZTUP)) {
+            let mut i = self.current + 1;
+            let mut angle_depth = 1;
+
+            // Skip over generic parameters
+            while i < self.tokens.len() && angle_depth > 0 {
+                match &self.tokens[i] {
+                    Token::Less(_) => angle_depth += 1,
+                    Token::Greater(_) => angle_depth -= 1,
+                    _ => {}
+                }
+                i += 1;
+            }
+
+            // Check for (...) => pattern after generic parameters
+            if i < self.tokens.len() && self.tokens[i] == Token::LParen(ZTUP) {
+                let mut paren_depth = 1;
+                i += 1;
+
+                while i < self.tokens.len() && paren_depth > 0 {
+                    match &self.tokens[i] {
+                        Token::LParen(_) => paren_depth += 1,
+                        Token::RParen(_) => paren_depth -= 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+
+                // Check for optional return type annotation
+                if i < self.tokens.len() && self.tokens[i] == Token::Arrow(ZTUP) {
+                    // Skip over return type to look for =>
+                    i += 1;
+                    while i < self.tokens.len() {
+                        if self.tokens[i] == Token::FatArrow(ZTUP) {
+                            return true;
+                        }
+                        if matches!(
+                            self.tokens[i],
+                            Token::Do(_) | Token::End(_) | Token::Semicolon(_)
+                        ) {
+                            break;
+                        }
+                        i += 1;
+                    }
+                } else if i < self.tokens.len() && self.tokens[i] == Token::FatArrow(ZTUP) {
+                    return true;
+                }
+            }
+        }
+
         false
     }
 
@@ -3493,6 +3625,9 @@ impl Parser {
         let _enter = _span.enter();
 
         let start = self.get_current_position();
+        let generic_params = self
+            .parse_generic_args_if_present()
+            .expect("Failed to parse generic parameters");
 
         // Parse parameters
         self.consume(&Token::LParen(ZTUP), "Expected '(' after 'fn'")?;
@@ -3546,6 +3681,7 @@ impl Parser {
             params,
             body: Box::new(body),
             return_type,
+            generic_params,
         })
     }
 

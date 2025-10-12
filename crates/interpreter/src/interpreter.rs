@@ -596,6 +596,7 @@ impl Interpreter {
                 params,
                 body,
                 return_type: _,
+                generic_params: _,
             } => {
                 let mut lambda_bound = bound_vars.clone();
                 for (param_name, _) in params {
@@ -607,6 +608,7 @@ impl Interpreter {
                 params,
                 body,
                 return_type: _,
+                generic_params: _,
             } => {
                 let mut lambda_bound = bound_vars.clone();
                 for (param_name, _) in params {
@@ -2590,11 +2592,13 @@ impl Interpreter {
                                 params,
                                 body,
                                 return_type,
+                                generic_params: _,
                             } => Ok(self.create_block_lambda(params, body, return_type)),
                             Expr::Lambda {
                                 params,
                                 body,
                                 return_type,
+                                generic_params: _,
                             } => Ok(self.create_lambda(params, body, return_type)),
                             Expr::IfExpression {
                                 condition,

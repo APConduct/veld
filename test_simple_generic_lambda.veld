@@ -1,0 +1,3 @@
+let simple_fn = fn<T>(x: T) -> T
+    x
+end

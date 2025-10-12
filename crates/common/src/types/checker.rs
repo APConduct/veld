@@ -1286,6 +1286,7 @@ impl TypeChecker {
                 params,
                 body,
                 return_type,
+                generic_params: _,
             } => self.infer_block_lambda_type(params, body, return_type.as_ref()),
             Expr::Literal(lit) => {
                 let ty = self.infer_literal_type(lit)?;
@@ -1309,12 +1310,14 @@ impl TypeChecker {
                 params,
                 body,
                 return_type,
+                generic_params,
             } => {
                 tracing::debug!(
                     "Inferring lambda type with return_type hint: {:?}",
                     return_type
                 );
-                let inferred = self.infer_lambda_type(params, body, return_type.as_ref())?;
+                let inferred =
+                    self.infer_lambda_type(params, body, return_type.as_ref(), generic_params)?;
                 tracing::debug!("Inferred lambda type: {:?}", inferred);
                 Ok(inferred)
             }
@@ -2501,6 +2504,7 @@ impl TypeChecker {
         params: &[(String, Option<TypeAnnotation>)],
         body: &Expr,
         return_type_anno: Option<&TypeAnnotation>,
+        generic_params: &Vec<GenericArgument>,
     ) -> Result<Type> {
         let _span = tracing::span!(tracing::Level::DEBUG, "infer_lambda_type", params = ?params, body = ?body, return_type_anno = ?return_type_anno);
         let _enter = _span.enter();
@@ -2518,13 +2522,20 @@ impl TypeChecker {
 
         for (name, type_anno) in params {
             let param_type = if let Some(anno) = type_anno {
-                self.env.from_annotation(anno, None)?
+                let param_type = self.env.from_annotation(anno, None)?;
+                if !generic_params.is_empty() {
+                    tracing::debug!("Lambda parameter {} type: {:?}", name, param_type);
+                }
+                param_types.push(param_type.clone());
+                self.env.define(name, param_type.clone());
+                param_type
             } else {
-                self.env.fresh_type_var()
+                let param_type = self.env.fresh_type_var();
+                param_types.push(param_type.clone());
+                self.env.define(name, param_type.clone());
+                param_type
             };
             tracing::debug!("Lambda parameter {} type: {:?}", name, param_type);
-            param_types.push(param_type.clone());
-            self.env.define(name, param_type);
         }
 
         tracing::debug!(
@@ -3935,7 +3946,10 @@ impl TypeChecker {
                         )))
                     }
                 } else {
-                    Err(VeldError::TypeError(format!("Unknown type: {}", base)))
+                    Err(VeldError::TypeError(format!(
+                        "Unknown type while inferring property access: {}",
+                        base
+                    )))
                 }
             }
             Type::Enum { name, variants } => {

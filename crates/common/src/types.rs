@@ -137,8 +137,11 @@ impl Type {
                     "u16" => Ok(Type::U16),
                     "i8" => Ok(Type::I8),
                     "i16" => Ok(Type::I16),
-                    // "any" => Ok(Type::Any),
-                    _ => Err(VeldError::TypeError(format!("Unknown type: {}", name))),
+                    // name => Ok(Type::TypeParam(name.to_string())),
+                    _ => Err(VeldError::TypeError(format!(
+                        "Unknown type from annotation: {}",
+                        name
+                    ))),
                 }
             }
             TypeAnnotation::Function {
@@ -641,7 +644,11 @@ impl TypeEnvironment {
                 return true;
             }
         }
-        tracing::debug!("Type param '{}' NOT found in any scope", name);
+        tracing::debug!(
+            "Type param '{}' NOT found in any scope, instead found : {:?}",
+            name,
+            self.type_params
+        );
         false
     }
 
@@ -694,6 +701,7 @@ impl TypeEnvironment {
 
                 // Check for type aliases first
                 if let Some(alias_type) = self.resolve_type_alias(name) {
+                    tracing::debug!("Resolved type alias {} to {}", name, alias_type);
                     return Ok(alias_type);
                 }
 
@@ -733,8 +741,14 @@ impl TypeEnvironment {
                         name: name.to_string(),
                         variants: self.enums.get(name).unwrap().clone(),
                     }),
+                    name if self.generic_type_aliases.contains_key(name) => {
+                        Ok(self.generic_type_aliases.get(name).unwrap().0.clone())
+                    }
                     name if self.kinds.contains_key(name) => Ok(Type::KindSelf(name.to_string())),
-                    _ => Err(VeldError::TypeError(format!("Unknown type: {}", name))),
+                    _ => Err(VeldError::TypeError(format!(
+                        "Unknown type for str in from_annotation: {}",
+                        name
+                    ))),
                 }
             }
             TypeAnnotation::Function {
