@@ -1,0 +1,50 @@
+# Comprehensive test for generic lambda typechecking fixes
+# This test verifies that the constraint system correctly handles:
+# 1. Multiple calls to the same generic function with different types
+# 2. Multi-parameter generic functions
+# 3. Nested generic function calls
+# 4. Mixed generic and non-generic function calls
+
+# Test 1: Single type parameter with different concrete types
+let identity = fn<T>(x: T) -> T => x
+
+let int_identity = identity(42)
+let string_identity = identity("hello")
+let bool_identity = identity(true)
+let float_identity = identity(3.14)
+
+# Test 2: Multi-parameter generic functions
+let choose_first = fn<T, U>(first: T, second: U) -> T => first
+let choose_second = fn<T, U>(first: T, second: U) -> U => second
+
+let choice_int_str = choose_first(100, "world")
+let choice_str_int = choose_first("hello", 999)
+let choice_bool_float = choose_first(false, 2.71)
+
+let second_int_str = choose_second(100, "world")
+let second_str_int = choose_second("hello", 999)
+let second_bool_float = choose_second(false, 2.71)
+
+# Test 3: Generic functions with arithmetic (should work with proper types)
+let add_ints = fn<T>(x: T, y: T) -> T => x + y
+let int_sum = add_ints(10, 20)
+let float_sum = add_ints(1.5, 2.5)
+
+# Test 4: Nested generic function calls
+let nested_result = identity(choose_first(identity(42), identity("test")))
+
+# Test 5: Mixed generic and regular functions
+let regular_add = fn(x: i32, y: i32) -> i32 => x + y
+let mixed_result1 = identity(regular_add(5, 10))
+let mixed_result2 = regular_add(identity(7), identity(8))
+
+# Test 6: Generic functions in variables and reassignment
+let generic_func = identity
+let reassign_test1 = generic_func(123)
+let reassign_test2 = generic_func("reassigned")
+
+# Test 7: Same generic called multiple times in same expression
+let multi_call = identity(identity(identity(42)))
+
+# Return final result to verify everything compiled successfully
+int_identity

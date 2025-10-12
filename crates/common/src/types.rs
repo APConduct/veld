@@ -930,10 +930,6 @@ impl TypeEnvironment {
         Ok(())
     }
 
-    pub fn clear_constraints(&mut self) {
-        self.constraints.clear();
-    }
-
     pub fn unify(&mut self, t1: Type, t2: Type) -> Result<()> {
         let t1 = self.apply_substitutions(&t1);
         let t2 = self.apply_substitutions(&t2);

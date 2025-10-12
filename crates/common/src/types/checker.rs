@@ -1214,13 +1214,11 @@ impl TypeChecker {
             for param in generic_params {
                 let param_name = match &param.name {
                     Some(name) => name.clone(),
-                    None => {
-                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
-                            base_name.clone()
-                        } else {
-                            "T".to_string()
-                        }
-                    }
+                    None => match &param.type_annotation {
+                        TypeAnnotation::Basic(base_name) => base_name.clone(),
+                        TypeAnnotation::Generic { base, .. } => base.clone(),
+                        _ => "T".to_string(),
+                    },
                 };
                 self.env.add_type_param(&param_name);
             }
@@ -1230,18 +1228,24 @@ impl TypeChecker {
 
         let mut param_types = Vec::new();
         for (name, type_anno) in params {
-            let param_type = if let Some(anno) = type_anno {
-                let mut param_type = self.env.from_annotation(anno, None)?;
-                // If this is a type parameter, substitute with a fresh type variable
-                if let Type::TypeParam(_) = &param_type {
-                    param_type = self.env.fresh_type_var();
-                }
-                param_type
+            if let Some(anno) = type_anno {
+                let param_type = self.env.from_annotation(anno, None)?;
+                param_types.push(param_type.clone());
+                // For generic functions, substitute TypeParams with fresh TypeVars for local inference
+                let local_param_type = if has_generic_params {
+                    match &param_type {
+                        Type::TypeParam(_) => self.env.fresh_type_var(),
+                        _ => param_type.clone(),
+                    }
+                } else {
+                    param_type.clone()
+                };
+                self.env.define(name, local_param_type);
             } else {
-                self.env.fresh_type_var()
-            };
-            param_types.push(param_type.clone());
-            self.env.define(name, param_type);
+                let param_type = self.env.fresh_type_var();
+                param_types.push(param_type.clone());
+                self.env.define(name, param_type.clone());
+            }
         }
 
         // Type check all statements in the body first
@@ -1258,12 +1262,17 @@ impl TypeChecker {
         };
 
         let return_type = if let Some(anno) = return_type_anno {
-            let mut rt = self.env.from_annotation(anno, None)?;
-            // If this is a type parameter, substitute with a fresh type variable
-            if let Type::TypeParam(_) = &rt {
-                rt = self.env.fresh_type_var();
-            }
-            self.env.add_constraint(body_type, rt.clone());
+            let rt = self.env.from_annotation(anno, None)?;
+            // For generic functions, substitute TypeParams with fresh TypeVars for local constraints
+            let local_return_type = if has_generic_params {
+                match &rt {
+                    Type::TypeParam(_) => self.env.fresh_type_var(),
+                    _ => rt.clone(),
+                }
+            } else {
+                rt.clone()
+            };
+            self.env.add_constraint(body_type, local_return_type);
             rt
         } else {
             body_type
@@ -1277,24 +1286,19 @@ impl TypeChecker {
         }
 
         if has_generic_params {
-            // For generic functions, don't solve constraints during creation
-            // to preserve the generic structure
+            // For generic functions, preserve TypeParam placeholders in the stored signature
             let final_return_type = return_type;
             let final_param_types = param_types;
 
-            // Clear constraints to isolate generic function from global constraint system
-            self.env.clear_constraints();
             let generic_param_names: Vec<String> = generic_params
                 .iter()
                 .map(|param| match &param.name {
                     Some(name) => name.clone(),
-                    None => {
-                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
-                            base_name.clone()
-                        } else {
-                            "T".to_string()
-                        }
-                    }
+                    None => match &param.type_annotation {
+                        TypeAnnotation::Basic(base_name) => base_name.clone(),
+                        TypeAnnotation::Generic { base, .. } => base.clone(),
+                        _ => "T".to_string(),
+                    },
                 })
                 .collect();
 
@@ -2647,13 +2651,11 @@ impl TypeChecker {
             for param in generic_params {
                 let param_name = match &param.name {
                     Some(name) => name.clone(),
-                    None => {
-                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
-                            base_name.clone()
-                        } else {
-                            "T".to_string()
-                        }
-                    }
+                    None => match &param.type_annotation {
+                        TypeAnnotation::Basic(base_name) => base_name.clone(),
+                        TypeAnnotation::Generic { base, .. } => base.clone(),
+                        _ => "T".to_string(),
+                    },
                 };
                 self.env.add_type_param(&param_name);
             }
@@ -2672,16 +2674,21 @@ impl TypeChecker {
 
         for (name, type_anno) in params {
             let param_type = if let Some(anno) = type_anno {
-                let mut param_type = self.env.from_annotation(anno, None)?;
-                // If this is a type parameter, substitute with a fresh type variable
-                if let Type::TypeParam(_) = &param_type {
-                    param_type = self.env.fresh_type_var();
-                }
+                let param_type = self.env.from_annotation(anno, None)?;
                 if !generic_params.is_empty() {
                     tracing::debug!("Lambda parameter {} type: {:?}", name, param_type);
                 }
                 param_types.push(param_type.clone());
-                self.env.define(name, param_type.clone());
+                // For generic functions, substitute TypeParams with fresh TypeVars for local inference
+                let local_param_type = if has_generic_params {
+                    match &param_type {
+                        Type::TypeParam(_) => self.env.fresh_type_var(),
+                        _ => param_type.clone(),
+                    }
+                } else {
+                    param_type.clone()
+                };
+                self.env.define(name, local_param_type.clone());
                 param_type
             } else {
                 let param_type = self.env.fresh_type_var();
@@ -2703,13 +2710,19 @@ impl TypeChecker {
         tracing::debug!("Lambda body type after substitution: {:?}", body_type);
 
         let return_type = if let Some(anno) = return_type_anno {
-            let mut rt = self.env.from_annotation(anno, None)?;
-            // If this is a type parameter, substitute with a fresh type variable
-            if let Type::TypeParam(_) = &rt {
-                rt = self.env.fresh_type_var();
-            }
+            let rt = self.env.from_annotation(anno, None)?;
             tracing::debug!("Using explicit return type: {:?}", rt);
-            self.env.add_constraint(body_type.clone(), rt.clone());
+            // For generic functions, substitute TypeParams with fresh TypeVars for local constraints
+            let local_return_type = if has_generic_params {
+                match &rt {
+                    Type::TypeParam(_) => self.env.fresh_type_var(),
+                    _ => rt.clone(),
+                }
+            } else {
+                rt.clone()
+            };
+            self.env
+                .add_constraint(body_type.clone(), local_return_type);
             rt
         } else {
             tracing::debug!("Using inferred return type: {:?}", body_type);
@@ -2724,24 +2737,19 @@ impl TypeChecker {
         }
 
         if has_generic_params {
-            // For generic functions, don't solve constraints during creation
-            // to preserve the generic structure
+            // For generic functions, preserve TypeParam placeholders in the stored signature
             let final_return_type = return_type;
             let final_param_types = param_types;
 
-            // Clear constraints to isolate generic function from global constraint system
-            self.env.clear_constraints();
             let generic_param_names: Vec<String> = generic_params
                 .iter()
                 .map(|param| match &param.name {
                     Some(name) => name.clone(),
-                    None => {
-                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
-                            base_name.clone()
-                        } else {
-                            "T".to_string()
-                        }
-                    }
+                    None => match &param.type_annotation {
+                        TypeAnnotation::Basic(base_name) => base_name.clone(),
+                        TypeAnnotation::Generic { base, .. } => base.clone(),
+                        _ => "T".to_string(),
+                    },
                 })
                 .collect();
 

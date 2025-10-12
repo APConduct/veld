@@ -1,0 +1,11 @@
+# Test calling the same generic function with different types - simplified version
+
+# Define generic identity function
+let identity = fn<T>(x: T) -> T => x
+
+# Call identity with different types - each should get fresh instantiation
+let int_result = identity(42)
+let string_result = identity("hello")
+
+# Return one result to verify it works
+int_result

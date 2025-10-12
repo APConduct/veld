@@ -1,0 +1,8 @@
+# Test multi-parameter generic function to isolate the "U" type parameter issue
+
+# Test generic function with multiple parameters
+let choose_first = fn<T, U>(first: T, second: U) -> T => first
+
+let choice1 = choose_first(100, "world")
+
+choice1
