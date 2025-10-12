@@ -226,6 +226,11 @@ impl Interpreter {
         self.register_math_functions();
         self.register_io_functions();
         let _ = self.initialize_operator_kinds();
+
+        // Ensure all type parameter scopes are cleaned up after stdlib initialization
+        while self.type_checker.env().has_type_param_scopes() {
+            self.type_checker.env().pop_type_param_scope();
+        }
     }
 
     fn register_math_functions(&mut self) {
@@ -1135,15 +1140,17 @@ impl Interpreter {
                             type_name,
                             kind_name: _,
                             methods,
-                            generic_args: _,
+                            generic_args,
                             where_clause: _,
-                        } => self.execute_implementation(type_name, methods),
+                        } => self.execute_trait_implementation(type_name, generic_args, methods),
 
                         Statement::InherentImpl {
                             type_name,
-                            generic_params: _,
+                            generic_params,
                             methods,
-                        } => self.execute_implementation(type_name, methods),
+                        } => {
+                            self.execute_inherent_implementation(type_name, generic_params, methods)
+                        }
 
                         Statement::PlexDeclaration {
                             name,
@@ -1473,6 +1480,82 @@ impl Interpreter {
         // Convert the result back to an expression for assignment
         let result_expr = self.value_to_expr(result)?;
         Ok(self.execute_assignment(name, Box::new(result_expr)))
+    }
+
+    fn execute_inherent_implementation(
+        &mut self,
+        type_name: String,
+        generic_params: Vec<GenericArgument>,
+        methods: Vec<MethodImpl>,
+    ) -> Result<Value> {
+        // Set up type parameter scope for generic impl blocks
+        let has_generics = !generic_params.is_empty();
+        if has_generics {
+            tracing::debug!("Setting up type parameter scope for InherentImpl");
+            self.type_checker.env().push_type_param_scope();
+            for param in &generic_params {
+                let param_name = match &param.name {
+                    Some(name) => name.clone(),
+                    None => {
+                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                            base_name.clone()
+                        } else {
+                            "T".to_string()
+                        }
+                    }
+                };
+                tracing::debug!("Adding type parameter to scope: {}", param_name);
+                self.type_checker.env().add_type_param(&param_name);
+            }
+        }
+
+        let result = self.execute_implementation(type_name, methods);
+
+        // Clean up type parameter scope
+        if has_generics {
+            tracing::debug!("Cleaning up type parameter scope for InherentImpl");
+            self.type_checker.env().pop_type_param_scope();
+        }
+
+        result
+    }
+
+    fn execute_trait_implementation(
+        &mut self,
+        type_name: String,
+        generic_args: Vec<GenericArgument>,
+        methods: Vec<MethodImpl>,
+    ) -> Result<Value> {
+        // Set up type parameter scope for generic trait impl blocks
+        let has_generics = !generic_args.is_empty();
+        if has_generics {
+            tracing::debug!("Setting up type parameter scope for trait Implementation");
+            self.type_checker.env().push_type_param_scope();
+            for param in &generic_args {
+                let param_name = match &param.name {
+                    Some(name) => name.clone(),
+                    None => {
+                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                            base_name.clone()
+                        } else {
+                            "T".to_string()
+                        }
+                    }
+                };
+                tracing::debug!("Adding type parameter to scope: {}", param_name);
+                self.type_checker.env().add_type_param(&param_name);
+            }
+        }
+
+        let result = self.execute_implementation(type_name, methods);
+
+        // Clean up type parameter scope
+        if has_generics {
+            tracing::debug!("Cleaning up type parameter scope for trait Implementation");
+            self.type_checker.env().pop_type_param_scope();
+        }
+
+        result
     }
 
     fn execute_implementation(
@@ -7503,7 +7586,7 @@ impl Interpreter {
                 if let Statement::StructDeclaration {
                     name: struct_name,
                     fields,
-                    generic_params: _,
+                    generic_params,
                     ..
                 } = statement
                 {
@@ -7521,15 +7604,58 @@ impl Interpreter {
                     // Also register with simple name for struct construction (e.g., Vec(...))
                     self.structs.insert(struct_name.clone(), fields.clone());
 
+                    // Set up type parameter scope for struct fields processing
+                    let has_generics = !generic_params.is_empty();
+                    let mut shared_type_substitutions = std::collections::HashMap::new();
+
+                    if has_generics {
+                        self.type_checker.env().push_type_param_scope();
+
+                        // Create shared type variable substitutions for this generic struct
+                        for param in generic_params {
+                            let param_name = match &param.name {
+                                Some(name) => name.clone(),
+                                None => {
+                                    if let veld_common::ast::TypeAnnotation::Basic(base_name) =
+                                        &param.type_annotation
+                                    {
+                                        base_name.clone()
+                                    } else {
+                                        "T".to_string()
+                                    }
+                                }
+                            };
+                            self.type_checker.env().add_type_param(&param_name);
+
+                            // Create a shared type variable for this parameter
+                            shared_type_substitutions
+                                .insert(param_name, self.type_checker.env().fresh_type_var());
+                        }
+                    }
+
                     // Convert StructField to HashMap<String, Type> for type checker
                     let mut field_types = HashMap::new();
                     for field in fields {
-                        let field_type = self
+                        let mut field_type = self
                             .type_checker
                             .env()
                             .from_annotation(&field.type_annotation, None)
                             .unwrap_or(Type::Any);
+
+                        // Use shared type variable substitutions
+                        if has_generics && !shared_type_substitutions.is_empty() {
+                            field_type = self
+                                .type_checker
+                                .env()
+                                .substitute_type_params(&field_type, &shared_type_substitutions);
+                        }
+
                         field_types.insert(field.name.clone(), field_type);
+                    }
+
+                    // Pop type parameter scope if we pushed one
+                    if has_generics {
+                        self.type_checker.env().pop_type_param_scope();
                     }
 
                     // Register struct in type checker environment with qualified name
@@ -7618,10 +7744,100 @@ impl Interpreter {
                                         method.return_type,
                                         return_type
                                     );
-                                    let function_type = veld_common::types::Type::Function {
+                                    let mut function_type = veld_common::types::Type::Function {
                                         params: param_types,
                                         return_type: Box::new(return_type),
                                     };
+
+                                    // Instantiate any TypeParam with fresh type variables
+                                    fn collect_type_params(
+                                        ty: &veld_common::types::Type,
+                                        substitutions: &mut std::collections::HashMap<
+                                            String,
+                                            veld_common::types::Type,
+                                        >,
+                                        env: &mut veld_common::types::TypeEnvironment,
+                                    ) {
+                                        match ty {
+                                            veld_common::types::Type::TypeParam(name) => {
+                                                if !substitutions.contains_key(name) {
+                                                    substitutions
+                                                        .insert(name.clone(), env.fresh_type_var());
+                                                }
+                                            }
+                                            veld_common::types::Type::Function {
+                                                params,
+                                                return_type,
+                                            } => {
+                                                for param in params {
+                                                    collect_type_params(param, substitutions, env);
+                                                }
+                                                collect_type_params(
+                                                    return_type,
+                                                    substitutions,
+                                                    env,
+                                                );
+                                            }
+                                            veld_common::types::Type::Generic {
+                                                type_args, ..
+                                            } => {
+                                                for arg in type_args {
+                                                    collect_type_params(arg, substitutions, env);
+                                                }
+                                            }
+                                            veld_common::types::Type::Array(elem) => {
+                                                collect_type_params(elem, substitutions, env);
+                                            }
+                                            veld_common::types::Type::Tuple(types) => {
+                                                for t in types {
+                                                    collect_type_params(t, substitutions, env);
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+
+                                    let mut type_param_substitutions =
+                                        std::collections::HashMap::new();
+                                    collect_type_params(
+                                        &function_type,
+                                        &mut type_param_substitutions,
+                                        self.type_checker.env(),
+                                    );
+
+                                    if !type_param_substitutions.is_empty() {
+                                        // Merge with shared substitutions from struct-level generics
+                                        let mut merged_substitutions =
+                                            shared_type_substitutions.clone();
+                                        merged_substitutions.extend(type_param_substitutions);
+
+                                        function_type =
+                                            self.type_checker.env().substitute_type_params(
+                                                &function_type,
+                                                &merged_substitutions,
+                                            );
+                                        tracing::debug!(
+                                            "Instantiated type parameters for method {}.{}: {:?} -> {:?}",
+                                            qualified_name,
+                                            method.name,
+                                            merged_substitutions,
+                                            function_type
+                                        );
+                                    } else if has_generics {
+                                        // Use only shared substitutions if no method-level generics
+                                        function_type =
+                                            self.type_checker.env().substitute_type_params(
+                                                &function_type,
+                                                &shared_type_substitutions,
+                                            );
+                                        tracing::debug!(
+                                            "Used shared type parameters for method {}.{}: {:?} -> {:?}",
+                                            qualified_name,
+                                            method.name,
+                                            shared_type_substitutions,
+                                            function_type
+                                        );
+                                    }
 
                                     // Register method with qualified struct name
                                     self.type_checker.env().add_struct_method(
@@ -7776,10 +7992,100 @@ impl Interpreter {
                                         method.return_type,
                                         return_type
                                     );
-                                    let function_type = veld_common::types::Type::Function {
+                                    let mut function_type = veld_common::types::Type::Function {
                                         params: param_types,
                                         return_type: Box::new(return_type),
                                     };
+
+                                    // Instantiate any TypeParam with fresh type variables
+                                    fn collect_type_params(
+                                        ty: &veld_common::types::Type,
+                                        substitutions: &mut std::collections::HashMap<
+                                            String,
+                                            veld_common::types::Type,
+                                        >,
+                                        env: &mut veld_common::types::TypeEnvironment,
+                                    ) {
+                                        match ty {
+                                            veld_common::types::Type::TypeParam(name) => {
+                                                if !substitutions.contains_key(name) {
+                                                    substitutions
+                                                        .insert(name.clone(), env.fresh_type_var());
+                                                }
+                                            }
+                                            veld_common::types::Type::Function {
+                                                params,
+                                                return_type,
+                                            } => {
+                                                for param in params {
+                                                    collect_type_params(param, substitutions, env);
+                                                }
+                                                collect_type_params(
+                                                    return_type,
+                                                    substitutions,
+                                                    env,
+                                                );
+                                            }
+                                            veld_common::types::Type::Generic {
+                                                type_args, ..
+                                            } => {
+                                                for arg in type_args {
+                                                    collect_type_params(arg, substitutions, env);
+                                                }
+                                            }
+                                            veld_common::types::Type::Array(elem) => {
+                                                collect_type_params(elem, substitutions, env);
+                                            }
+                                            veld_common::types::Type::Tuple(types) => {
+                                                for t in types {
+                                                    collect_type_params(t, substitutions, env);
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+
+                                    let mut type_param_substitutions =
+                                        std::collections::HashMap::new();
+                                    collect_type_params(
+                                        &function_type,
+                                        &mut type_param_substitutions,
+                                        self.type_checker.env(),
+                                    );
+
+                                    if !type_param_substitutions.is_empty() {
+                                        // Merge with shared substitutions from struct-level generics
+                                        let mut merged_substitutions =
+                                            shared_type_substitutions.clone();
+                                        merged_substitutions.extend(type_param_substitutions);
+
+                                        function_type =
+                                            self.type_checker.env().substitute_type_params(
+                                                &function_type,
+                                                &merged_substitutions,
+                                            );
+                                        tracing::debug!(
+                                            "Instantiated type parameters for trait method {}.{}: {:?} -> {:?}",
+                                            qualified_name,
+                                            method.name,
+                                            merged_substitutions,
+                                            function_type
+                                        );
+                                    } else if has_generics {
+                                        // Use only shared substitutions if no method-level generics
+                                        function_type =
+                                            self.type_checker.env().substitute_type_params(
+                                                &function_type,
+                                                &shared_type_substitutions,
+                                            );
+                                        tracing::debug!(
+                                            "Used shared type parameters for trait method {}.{}: {:?} -> {:?}",
+                                            qualified_name,
+                                            method.name,
+                                            shared_type_substitutions,
+                                            function_type
+                                        );
+                                    }
 
                                     // Register trait method with qualified struct name
                                     self.type_checker.env().add_struct_method(

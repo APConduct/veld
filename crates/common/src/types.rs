@@ -596,6 +596,10 @@ impl TypeEnvironment {
         }
     }
 
+    pub fn has_type_param_scopes(&self) -> bool {
+        !self.type_params.is_empty()
+    }
+
     pub fn add_type_param(&mut self, name: &str) {
         if let Some(scope) = self.type_params.last_mut() {
             scope.insert(name.to_string());

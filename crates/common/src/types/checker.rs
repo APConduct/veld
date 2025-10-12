@@ -1383,6 +1383,123 @@ impl TypeChecker {
                             )));
                         }
 
+                        // Check if this is a generic function by looking for TypeParam in the signature
+                        let mut type_param_substitutions = std::collections::HashMap::new();
+
+                        // Collect all TypeParam names and create fresh type variables for them
+                        fn collect_type_params(
+                            ty: &Type,
+                            substitutions: &mut std::collections::HashMap<String, Type>,
+                            env: &mut TypeEnvironment,
+                        ) {
+                            match ty {
+                                Type::TypeParam(name) => {
+                                    if !substitutions.contains_key(name) {
+                                        substitutions.insert(name.clone(), env.fresh_type_var());
+                                    }
+                                }
+                                Type::Function {
+                                    params,
+                                    return_type,
+                                } => {
+                                    for param in params {
+                                        collect_type_params(param, substitutions, env);
+                                    }
+                                    collect_type_params(return_type, substitutions, env);
+                                }
+                                Type::Generic { type_args, .. } => {
+                                    for arg in type_args {
+                                        collect_type_params(arg, substitutions, env);
+                                    }
+                                }
+                                Type::Array(elem) => {
+                                    collect_type_params(elem, substitutions, env);
+                                }
+                                Type::Tuple(types) => {
+                                    for t in types {
+                                        collect_type_params(t, substitutions, env);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+
+                        // Collect type parameters from the entire function signature
+                        for param in &params {
+                            collect_type_params(
+                                param,
+                                &mut type_param_substitutions,
+                                &mut self.env,
+                            );
+                        }
+                        collect_type_params(
+                            &return_type,
+                            &mut type_param_substitutions,
+                            &mut self.env,
+                        );
+
+                        let is_generic = !type_param_substitutions.is_empty();
+
+                        // Substitute TypeParam with fresh type variables
+                        fn substitute_type_params(
+                            ty: &Type,
+                            substitutions: &std::collections::HashMap<String, Type>,
+                        ) -> Type {
+                            match ty {
+                                Type::TypeParam(name) => substitutions
+                                    .get(name)
+                                    .cloned()
+                                    .unwrap_or_else(|| ty.clone()),
+                                Type::Function {
+                                    params,
+                                    return_type,
+                                } => Type::Function {
+                                    params: params
+                                        .iter()
+                                        .map(|p| substitute_type_params(p, substitutions))
+                                        .collect(),
+                                    return_type: Box::new(substitute_type_params(
+                                        return_type,
+                                        substitutions,
+                                    )),
+                                },
+                                Type::Generic { base, type_args } => Type::Generic {
+                                    base: base.clone(),
+                                    type_args: type_args
+                                        .iter()
+                                        .map(|arg| substitute_type_params(arg, substitutions))
+                                        .collect(),
+                                },
+                                Type::Array(elem) => Type::Array(Box::new(substitute_type_params(
+                                    elem,
+                                    substitutions,
+                                ))),
+                                Type::Tuple(types) => Type::Tuple(
+                                    types
+                                        .iter()
+                                        .map(|t| substitute_type_params(t, substitutions))
+                                        .collect(),
+                                ),
+                                _ => ty.clone(),
+                            }
+                        }
+
+                        let instantiated_params: Vec<Type> = if is_generic {
+                            params
+                                .iter()
+                                .map(|p| substitute_type_params(p, &type_param_substitutions))
+                                .collect()
+                        } else {
+                            params
+                        };
+
+                        let instantiated_return_type = if is_generic {
+                            substitute_type_params(&return_type, &type_param_substitutions)
+                        } else {
+                            *return_type
+                        };
+
+                        // Now proceed with normal constraint solving using the instantiated types
                         for (i, arg) in arguments.iter().enumerate() {
                             let arg_expr = match arg {
                                 Argument::Positional(expr) => expr,
@@ -1390,11 +1507,14 @@ impl TypeChecker {
                             };
 
                             let arg_type = self.infer_expression_type(arg_expr)?;
-                            self.env.add_constraint(arg_type, params[i].clone());
+                            self.env
+                                .add_constraint(arg_type, instantiated_params[i].clone());
                         }
 
                         self.env.solve_constraints()?;
-                        Ok(*return_type)
+                        let final_return_type =
+                            self.env.apply_substitutions(&instantiated_return_type);
+                        Ok(final_return_type)
                     }
                     _ => {
                         // Try to treat as function call by identifier name
@@ -2087,6 +2207,139 @@ impl TypeChecker {
                     )));
                 }
 
+                // Check if this is a generic function by looking for TypeParam in the signature
+                let mut type_param_substitutions = std::collections::HashMap::new();
+                let mut is_generic = false;
+
+                tracing::debug!(
+                    "Function call to '{}' with signature: params={:?}, return_type={:?}",
+                    name,
+                    params,
+                    return_type
+                );
+
+                // Collect all TypeParam names and create fresh type variables for them
+                fn collect_type_params(
+                    ty: &Type,
+                    substitutions: &mut std::collections::HashMap<String, Type>,
+                    env: &mut TypeEnvironment,
+                ) {
+                    match ty {
+                        Type::TypeParam(name) => {
+                            if !substitutions.contains_key(name) {
+                                substitutions.insert(name.clone(), env.fresh_type_var());
+                            }
+                        }
+                        Type::Function {
+                            params,
+                            return_type,
+                        } => {
+                            for param in params {
+                                collect_type_params(param, substitutions, env);
+                            }
+                            collect_type_params(return_type, substitutions, env);
+                        }
+                        Type::Generic { type_args, .. } => {
+                            for arg in type_args {
+                                collect_type_params(arg, substitutions, env);
+                            }
+                        }
+                        Type::Array(elem) => {
+                            collect_type_params(elem, substitutions, env);
+                        }
+                        Type::Tuple(types) => {
+                            for t in types {
+                                collect_type_params(t, substitutions, env);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Collect type parameters from the entire function signature
+                for param in &params {
+                    collect_type_params(param, &mut type_param_substitutions, &mut self.env);
+                }
+                collect_type_params(&return_type, &mut type_param_substitutions, &mut self.env);
+
+                is_generic = !type_param_substitutions.is_empty();
+
+                if is_generic {
+                    tracing::debug!(
+                        "Detected generic function '{}' with type parameters: {:?}",
+                        name,
+                        type_param_substitutions
+                    );
+                }
+
+                // Substitute TypeParam with fresh type variables
+                fn substitute_type_params(
+                    ty: &Type,
+                    substitutions: &std::collections::HashMap<String, Type>,
+                ) -> Type {
+                    match ty {
+                        Type::TypeParam(name) => substitutions
+                            .get(name)
+                            .cloned()
+                            .unwrap_or_else(|| ty.clone()),
+                        Type::Function {
+                            params,
+                            return_type,
+                        } => Type::Function {
+                            params: params
+                                .iter()
+                                .map(|p| substitute_type_params(p, substitutions))
+                                .collect(),
+                            return_type: Box::new(substitute_type_params(
+                                return_type,
+                                substitutions,
+                            )),
+                        },
+                        Type::Generic { base, type_args } => Type::Generic {
+                            base: base.clone(),
+                            type_args: type_args
+                                .iter()
+                                .map(|arg| substitute_type_params(arg, substitutions))
+                                .collect(),
+                        },
+                        Type::Array(elem) => {
+                            Type::Array(Box::new(substitute_type_params(elem, substitutions)))
+                        }
+                        Type::Tuple(types) => Type::Tuple(
+                            types
+                                .iter()
+                                .map(|t| substitute_type_params(t, substitutions))
+                                .collect(),
+                        ),
+                        _ => ty.clone(),
+                    }
+                }
+
+                let instantiated_params: Vec<Type> = if is_generic {
+                    let inst_params = params
+                        .iter()
+                        .map(|p| substitute_type_params(p, &type_param_substitutions))
+                        .collect();
+                    tracing::debug!("Instantiated params: {:?} -> {:?}", params, inst_params);
+                    inst_params
+                } else {
+                    params
+                };
+
+                let instantiated_return_type = if is_generic {
+                    let inst_return =
+                        substitute_type_params(&return_type, &type_param_substitutions);
+                    tracing::debug!(
+                        "Instantiated return type: {:?} -> {:?}",
+                        return_type,
+                        inst_return
+                    );
+                    inst_return
+                } else {
+                    *return_type
+                };
+
+                // Now proceed with normal constraint solving using the instantiated types
                 for (i, arg) in args.iter().enumerate() {
                     let arg_expr = match arg {
                         Argument::Positional(expr) => expr,
@@ -2094,10 +2347,13 @@ impl TypeChecker {
                     };
 
                     let arg_type = self.infer_expression_type(arg_expr)?;
-                    self.env.add_constraint(arg_type, params[i].clone());
+                    self.env
+                        .add_constraint(arg_type, instantiated_params[i].clone());
                 }
                 self.env.solve_constraints()?;
-                Ok(*return_type)
+                let final_return_type = self.env.apply_substitutions(&instantiated_return_type);
+                tracing::debug!("Final return type for '{}': {:?}", name, final_return_type);
+                Ok(final_return_type)
             }
             Type::TypeVar(_) => {
                 // Handle type variables that should be constrained to function types
@@ -2272,7 +2528,8 @@ impl TypeChecker {
                                 }
 
                                 self.env.solve_constraints()?;
-                                Ok(return_type)
+                                let final_return_type = self.env.apply_substitutions(&return_type);
+                                Ok(final_return_type)
                             }
                             _ => Err(VeldError::TypeError(format!(
                                 "{}.{} is not a method",
@@ -2332,7 +2589,8 @@ impl TypeChecker {
                                 }
 
                                 self.env.solve_constraints()?;
-                                Ok(return_type)
+                                let final_return_type = self.env.apply_substitutions(&return_type);
+                                Ok(final_return_type)
                             }
                             _ => Err(VeldError::TypeError(format!(
                                 "{}.{} is not a method",
@@ -2790,7 +3048,8 @@ impl TypeChecker {
                                 }
 
                                 self.env.solve_constraints()?;
-                                Ok(return_type)
+                                let final_return_type = self.env.apply_substitutions(&return_type);
+                                Ok(final_return_type)
                             }
                             _ => Err(VeldError::TypeError(format!(
                                 "{}.{} is not a method",
@@ -4043,7 +4302,8 @@ impl TypeChecker {
                         }
 
                         self.env.solve_constraints()?;
-                        Ok(*return_type.clone())
+                        let final_return_type = self.env.apply_substitutions(&return_type);
+                        Ok(final_return_type)
                     }
                     _ => Err(VeldError::TypeError(format!("{} is not a function", name))),
                 }
@@ -4093,7 +4353,8 @@ impl TypeChecker {
                                 }
 
                                 self.env.solve_constraints()?;
-                                Ok(*return_type.clone())
+                                let final_return_type = self.env.apply_substitutions(&return_type);
+                                Ok(final_return_type)
                             }
                             _ => Err(VeldError::TypeError(format!("{} is not a function", name))),
                         }
@@ -4133,7 +4394,8 @@ impl TypeChecker {
                                 }
 
                                 self.env.solve_constraints()?;
-                                Ok(*return_type.clone())
+                                let final_return_type = self.env.apply_substitutions(&return_type);
+                                Ok(final_return_type)
                             }
                             _ => Err(VeldError::TypeError(
                                 "Cannot pipe into non-function expression".to_string(),
