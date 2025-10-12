@@ -1585,11 +1585,19 @@ impl Interpreter {
                 };
                 struct_method_map.insert(method.name.clone(), function);
 
-                // Also register in type checker
-                let method_type = self.type_checker.method_to_type(&method)?;
-                self.type_checker
+                // Only register in type checker if not already registered (avoid re-processing during execution)
+                if !self
+                    .type_checker
                     .env()
-                    .add_struct_method(&type_name, &method.name, method_type);
+                    .has_struct_method(&type_name, &method.name)
+                {
+                    let method_type = self.type_checker.method_to_type(&method)?;
+                    self.type_checker.env().add_struct_method(
+                        &type_name,
+                        &method.name,
+                        method_type,
+                    );
+                }
             }
         } else if is_enum {
             // Register methods for enum type - get or create the method map
@@ -1620,11 +1628,19 @@ impl Interpreter {
                 };
                 struct_method_map.insert(method.name.clone(), function);
 
-                // Also register in type checker
-                let method_type = self.type_checker.method_to_type(&method)?;
-                self.type_checker
+                // Only register in type checker if not already registered (avoid re-processing during execution)
+                if !self
+                    .type_checker
                     .env()
-                    .add_struct_method(&type_name, &method.name, method_type);
+                    .has_struct_method(&type_name, &method.name)
+                {
+                    let method_type = self.type_checker.method_to_type(&method)?;
+                    self.type_checker.env().add_struct_method(
+                        &type_name,
+                        &method.name,
+                        method_type,
+                    );
+                }
             }
         }
 
@@ -7636,11 +7652,23 @@ impl Interpreter {
                     // Convert StructField to HashMap<String, Type> for type checker
                     let mut field_types = HashMap::new();
                     for field in fields {
-                        let mut field_type = self
+                        let mut field_type = match self
                             .type_checker
                             .env()
                             .from_annotation(&field.type_annotation, None)
-                            .unwrap_or(Type::Any);
+                        {
+                            Ok(ty) => ty,
+                            Err(e) => {
+                                tracing::error!(
+                                    "Failed to resolve field type annotation {:?} for struct {}: {}",
+                                    field.type_annotation,
+                                    struct_name,
+                                    e
+                                );
+                                // For now, fall back to Any type instead of failing
+                                Type::Any
+                            }
+                        };
 
                         // Use shared type variable substitutions
                         if has_generics && !shared_type_substitutions.is_empty() {
@@ -7726,17 +7754,41 @@ impl Interpreter {
                                         .params
                                         .iter()
                                         .map(|(_, type_annotation)| {
-                                            self.type_checker
+                                            match self.type_checker
                                                 .env()
                                                 .from_annotation(type_annotation, None)
-                                                .unwrap_or(veld_common::types::Type::Any)
+                                            {
+                                                Ok(ty) => ty,
+                                                Err(e) => {
+                                                    tracing::error!(
+                                                        "Failed to resolve parameter type annotation {:?} for method {}.{}: {}",
+                                                        type_annotation,
+                                                        qualified_name,
+                                                        method.name,
+                                                        e
+                                                    );
+                                                    veld_common::types::Type::Any
+                                                }
+                                            }
                                         })
                                         .collect();
-                                    let return_type = self
+                                    let return_type = match self
                                         .type_checker
                                         .env()
                                         .from_annotation(&method.return_type, None)
-                                        .unwrap_or(veld_common::types::Type::Any);
+                                    {
+                                        Ok(ty) => ty,
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "Failed to resolve return type annotation {:?} for method {}.{}: {}",
+                                                method.return_type,
+                                                qualified_name,
+                                                method.name,
+                                                e
+                                            );
+                                            veld_common::types::Type::Any
+                                        }
+                                    };
                                     tracing::debug!(
                                         "Method {}.{} return type annotation: {:?} -> converted to: {:?}",
                                         qualified_name,
@@ -7974,17 +8026,41 @@ impl Interpreter {
                                         .params
                                         .iter()
                                         .map(|(_, type_annotation)| {
-                                            self.type_checker
+                                            match self.type_checker
                                                 .env()
                                                 .from_annotation(type_annotation, None)
-                                                .unwrap_or(veld_common::types::Type::Any)
+                                            {
+                                                Ok(ty) => ty,
+                                                Err(e) => {
+                                                    tracing::error!(
+                                                        "Failed to resolve parameter type annotation {:?} for trait method {}.{}: {}",
+                                                        type_annotation,
+                                                        qualified_name,
+                                                        method.name,
+                                                        e
+                                                    );
+                                                    veld_common::types::Type::Any
+                                                }
+                                            }
                                         })
                                         .collect();
-                                    let return_type = self
+                                    let return_type = match self
                                         .type_checker
                                         .env()
                                         .from_annotation(&method.return_type, None)
-                                        .unwrap_or(veld_common::types::Type::Any);
+                                    {
+                                        Ok(ty) => ty,
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "Failed to resolve return type annotation {:?} for trait method {}.{}: {}",
+                                                method.return_type,
+                                                qualified_name,
+                                                method.name,
+                                                e
+                                            );
+                                            veld_common::types::Type::Any
+                                        }
+                                    };
                                     tracing::debug!(
                                         "Trait method {}.{} return type annotation: {:?} -> converted to: {:?}",
                                         qualified_name,

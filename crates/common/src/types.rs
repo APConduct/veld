@@ -532,6 +532,14 @@ impl TypeEnvironment {
         methods.insert(method_name.to_string(), method_type);
     }
 
+    pub fn has_struct_method(&self, struct_name: &str, method_name: &str) -> bool {
+        if let Some(methods) = self.struct_methods.get(struct_name) {
+            methods.contains_key(method_name)
+        } else {
+            false
+        }
+    }
+
     pub fn add_type_alias(&mut self, name: &str, ty: Type) {
         self.type_aliases.insert(name.to_string(), ty);
     }
@@ -588,6 +596,10 @@ impl TypeEnvironment {
 
     pub fn push_type_param_scope(&mut self) {
         self.type_params.push(HashSet::new());
+        tracing::debug!(
+            "Pushed new type param scope. Total scopes: {}",
+            self.type_params.len()
+        );
     }
 
     pub fn pop_type_param_scope(&mut self) {
@@ -603,15 +615,33 @@ impl TypeEnvironment {
     pub fn add_type_param(&mut self, name: &str) {
         if let Some(scope) = self.type_params.last_mut() {
             scope.insert(name.to_string());
+            tracing::debug!(
+                "Added type param '{}' to scope. Current scopes: {:?}",
+                name,
+                self.type_params
+            );
+        } else {
+            tracing::error!(
+                "Failed to add type param '{}' - no type param scope available! Current scopes: {:?}",
+                name,
+                self.type_params
+            );
         }
     }
 
     pub fn is_type_param_in_scope(&self, name: &str) -> bool {
+        tracing::debug!(
+            "Checking if type param '{}' is in scope. Current scopes: {:?}",
+            name,
+            self.type_params
+        );
         for scope in self.type_params.iter().rev() {
             if scope.contains(name) {
+                tracing::debug!("Found type param '{}' in scope", name);
                 return true;
             }
         }
+        tracing::debug!("Type param '{}' NOT found in any scope", name);
         false
     }
 
