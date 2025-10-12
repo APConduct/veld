@@ -5,7 +5,7 @@ fn test_vec_macro()
     std.io.println("=== Testing vec~ macro ===")
 
     # Test empty vec
-    var empty = vec~()
+    var empty = vec~() # whoops
     std.io.println("Empty vec macro executed successfully")
 
     # Test vec with single element
