@@ -58,6 +58,12 @@ pub enum Type {
         return_type: Box<Type>,
     },
 
+    GenericFunction {
+        generic_params: Vec<String>,
+        params: Vec<Type>,
+        return_type: Box<Type>,
+    },
+
     Struct {
         name: String,
         fields: HashMap<String, Type>,
@@ -245,6 +251,27 @@ impl std::fmt::Display for Type {
                 return_type,
             } => {
                 write!(f, "fn(")?;
+                for (i, param) in params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", param)?;
+                }
+                write!(f, ") -> {}", return_type)
+            }
+            Type::GenericFunction {
+                generic_params,
+                params,
+                return_type,
+            } => {
+                write!(f, "fn<")?;
+                for (i, param) in generic_params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", param)?;
+                }
+                write!(f, ">(")?;
                 for (i, param) in params.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
@@ -903,6 +930,10 @@ impl TypeEnvironment {
         Ok(())
     }
 
+    pub fn clear_constraints(&mut self) {
+        self.constraints.clear();
+    }
+
     pub fn unify(&mut self, t1: Type, t2: Type) -> Result<()> {
         let t1 = self.apply_substitutions(&t1);
         let t2 = self.apply_substitutions(&t2);
@@ -1146,12 +1177,32 @@ impl TypeEnvironment {
                 if p1.len() != p2.len() {
                     return false;
                 }
-                for (params1, param2) in p1.iter().zip(p2.iter()) {
-                    if !self.types_match(params1, param2) {
+                for (param1, param2) in p1.iter().zip(p2.iter()) {
+                    if !self.types_match(param1, param2) {
                         return false;
                     }
                 }
                 self.types_match(r1, r2)
+            }
+            (
+                Type::GenericFunction {
+                    generic_params: g1,
+                    params: p1,
+                    return_type: r1,
+                },
+                Type::GenericFunction {
+                    generic_params: g2,
+                    params: p2,
+                    return_type: r2,
+                },
+            ) => {
+                g1 == g2
+                    && p1.len() == p2.len()
+                    && p1
+                        .iter()
+                        .zip(p2.iter())
+                        .all(|(param1, param2)| self.types_match(param1, param2))
+                    && self.types_match(r1, r2)
             }
             (Type::Generic { base: b1, .. }, Type::Generic { base: b2, .. }) => b1 == b2,
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,

@@ -1,0 +1,12 @@
+# Test calling the same generic function twice with the same type
+# This should work to verify basic generic instantiation
+
+# Define generic identity function
+let identity = fn<T>(x: T) -> T => x
+
+# Call identity twice with integers - same type
+let result1 = identity(42)
+let result2 = identity(100)
+
+# Return one result to verify it works
+result1

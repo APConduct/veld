@@ -1276,18 +1276,48 @@ impl TypeChecker {
             self.env.pop_type_param_scope();
         }
 
-        self.env.solve_constraints()?;
+        if has_generic_params {
+            // For generic functions, don't solve constraints during creation
+            // to preserve the generic structure
+            let final_return_type = return_type;
+            let final_param_types = param_types;
 
-        let final_return_type = self.env.apply_substitutions(&return_type);
-        let final_param_types = param_types
-            .iter()
-            .map(|t| self.env.apply_substitutions(t))
-            .collect();
+            // Clear constraints to isolate generic function from global constraint system
+            self.env.clear_constraints();
+            let generic_param_names: Vec<String> = generic_params
+                .iter()
+                .map(|param| match &param.name {
+                    Some(name) => name.clone(),
+                    None => {
+                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                            base_name.clone()
+                        } else {
+                            "T".to_string()
+                        }
+                    }
+                })
+                .collect();
 
-        Ok(Type::Function {
-            params: final_param_types,
-            return_type: Box::new(final_return_type),
-        })
+            Ok(Type::GenericFunction {
+                generic_params: generic_param_names,
+                params: final_param_types,
+                return_type: Box::new(final_return_type),
+            })
+        } else {
+            // For non-generic functions, solve constraints normally
+            self.env.solve_constraints()?;
+
+            let final_return_type = self.env.apply_substitutions(&return_type);
+            let final_param_types = param_types
+                .iter()
+                .map(|t| self.env.apply_substitutions(t))
+                .collect::<Vec<_>>();
+
+            Ok(Type::Function {
+                params: final_param_types,
+                return_type: Box::new(final_return_type),
+            })
+        }
     }
 
     pub fn infer_expression_type(&mut self, expr: &Expr) -> Result<Type> {
@@ -2332,6 +2362,72 @@ impl TypeChecker {
             .get(name)
             .ok_or_else(|| VeldError::TypeError(format!("Undefined function: {}", name)))?;
         match func_type {
+            Type::GenericFunction {
+                generic_params,
+                params,
+                return_type,
+            } => {
+                if params.len() != args.len() {
+                    return Err(VeldError::TypeError(format!(
+                        "Function {} takes {} arguments, but {} were provided",
+                        name,
+                        params.len(),
+                        args.len()
+                    )));
+                }
+
+                tracing::debug!(
+                    "Generic function call to '{}' with generic params: {:?}",
+                    name,
+                    generic_params
+                );
+
+                // Create fresh type variables for each generic parameter
+                let mut substitutions = std::collections::HashMap::new();
+                for generic_param in &generic_params {
+                    substitutions.insert(generic_param.clone(), self.env.fresh_type_var());
+                }
+
+                tracing::debug!(
+                    "Created fresh instantiation for '{}': {:?}",
+                    name,
+                    substitutions
+                );
+
+                // Substitute generic parameters with fresh type variables
+                let instantiated_params: Vec<Type> = params
+                    .iter()
+                    .map(|p| self.substitute_type_params(p, &substitutions))
+                    .collect();
+                let instantiated_return_type =
+                    self.substitute_type_params(&return_type, &substitutions);
+
+                tracing::debug!(
+                    "Instantiated function type: params={:?}, return={:?}",
+                    instantiated_params,
+                    instantiated_return_type
+                );
+
+                // Now proceed with normal constraint solving using the instantiated types
+                for (i, arg) in args.iter().enumerate() {
+                    let arg_expr = match arg {
+                        Argument::Positional(expr) => expr,
+                        Argument::Named { name: _, value } => value,
+                    };
+
+                    let arg_type = self.infer_expression_type(arg_expr)?;
+                    self.env
+                        .add_constraint(arg_type, instantiated_params[i].clone());
+                }
+                self.env.solve_constraints()?;
+                let final_return_type = self.env.apply_substitutions(&instantiated_return_type);
+                tracing::debug!(
+                    "Final return type for generic '{}': {:?}",
+                    name,
+                    final_return_type
+                );
+                Ok(final_return_type)
+            }
             Type::Function {
                 params,
                 return_type,
@@ -2627,24 +2723,61 @@ impl TypeChecker {
             self.env.pop_type_param_scope();
         }
 
-        self.env.solve_constraints()?;
+        if has_generic_params {
+            // For generic functions, don't solve constraints during creation
+            // to preserve the generic structure
+            let final_return_type = return_type;
+            let final_param_types = param_types;
 
-        let final_return_type = self.env.apply_substitutions(&return_type);
-        let final_param_types = param_types
-            .iter()
-            .map(|t| self.env.apply_substitutions(t))
-            .collect::<Vec<_>>();
+            // Clear constraints to isolate generic function from global constraint system
+            self.env.clear_constraints();
+            let generic_param_names: Vec<String> = generic_params
+                .iter()
+                .map(|param| match &param.name {
+                    Some(name) => name.clone(),
+                    None => {
+                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                            base_name.clone()
+                        } else {
+                            "T".to_string()
+                        }
+                    }
+                })
+                .collect();
 
-        tracing::debug!(
-            "Final lambda type: fn({:?}) -> {:?}",
-            final_param_types,
-            final_return_type
-        );
+            tracing::debug!(
+                "Final generic lambda type: fn<{:?}>({:?}) -> {:?}",
+                generic_param_names,
+                final_param_types,
+                final_return_type
+            );
 
-        Ok(Type::Function {
-            params: final_param_types,
-            return_type: Box::new(final_return_type),
-        })
+            Ok(Type::GenericFunction {
+                generic_params: generic_param_names,
+                params: final_param_types,
+                return_type: Box::new(final_return_type),
+            })
+        } else {
+            // For non-generic functions, solve constraints normally
+            self.env.solve_constraints()?;
+
+            let final_return_type = self.env.apply_substitutions(&return_type);
+            let final_param_types = param_types
+                .iter()
+                .map(|t| self.env.apply_substitutions(t))
+                .collect::<Vec<_>>();
+
+            tracing::debug!(
+                "Final lambda type: fn({:?}) -> {:?}",
+                final_param_types,
+                final_return_type
+            );
+
+            Ok(Type::Function {
+                params: final_param_types,
+                return_type: Box::new(final_return_type),
+            })
+        }
     }
 
     fn infer_method_call_type(
@@ -4766,6 +4899,18 @@ impl TypeChecker {
                     .map(|arg| self.substitute_type_params(arg, substitutions))
                     .collect(),
             },
+            Type::GenericFunction {
+                generic_params,
+                params,
+                return_type,
+            } => Type::GenericFunction {
+                generic_params: generic_params.clone(),
+                params: params
+                    .iter()
+                    .map(|p| self.substitute_type_params(p, substitutions))
+                    .collect(),
+                return_type: Box::new(self.substitute_type_params(return_type, substitutions)),
+            },
             _ => ty.clone(),
         }
     }
@@ -4899,6 +5044,9 @@ impl TypeChecker {
                 format!("({})", types_str)
             }
             Type::KindSelf(name) => format!("Self<{}>", name),
+            Type::GenericFunction { generic_params, .. } => {
+                format!("fn<{}>(...)", generic_params.join(", "))
+            }
         }
     }
 }

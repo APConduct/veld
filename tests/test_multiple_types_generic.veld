@@ -1,0 +1,28 @@
+# Test calling the same generic function with different types
+# This should now work with our improved constraint system!
+
+# Define generic identity function
+let identity = fn<T>(x: T) -> T => x
+
+# Define generic addition function
+let add = fn<T>(x: T, y: T) -> T => x + y
+
+# Call identity with different types - each should get fresh instantiation
+let int_result = identity(42)
+let string_result = identity("hello")
+let bool_result = identity(true)
+let float_result = identity(3.14)
+
+# Call add with different types
+let int_sum = add(10, 20)
+let float_sum = add(1.5, 2.5)
+
+# Test generic function with multiple parameters
+let choose_first = fn<T, U>(first: T, second: U) -> T => first
+
+let choice1 = choose_first(100, "world")
+let choice2 = choose_first("hello", 999)
+let choice3 = choose_first(true, 3.14)
+
+# Return one result to verify it works
+int_result
