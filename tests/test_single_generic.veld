@@ -1,0 +1,7 @@
+# Test a single generic lambda to isolate the infinite type issue
+
+let identity = fn<T>(x: T) -> T => x
+
+let result = identity(42)
+
+result

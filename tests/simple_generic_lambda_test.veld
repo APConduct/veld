@@ -1,0 +1,17 @@
+# Simple generic lambda test without operators
+
+let identity = fn<T>(x: T) -> T
+    x
+end
+
+let identity_expr = fn<T>(x: T) -> T => x
+
+let identity_shorthand = <T>(x: T) -> T => x
+
+# Test with concrete types
+let result1 = identity(42)
+let result2 = identity_expr("hello")
+let result3 = identity_shorthand(true)
+
+# Return a result to verify it works
+result1

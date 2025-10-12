@@ -1,0 +1,14 @@
+# Simple Generic Lambda Test to Debug Issues
+
+# Test 1: Basic identity function
+let identity = fn<T>(x: T) -> T => x
+
+# Test 2: Simple addition
+let add = fn<T>(x: T, y: T) -> T => x + y
+
+# Test actual calls
+let test1 = identity(42)
+let test2 = add(5, 3)
+
+# Return one result
+test2

@@ -1,0 +1,65 @@
+# Comprehensive Generic Lambda Tests
+# This file tests various generic lambda scenarios to ensure robust implementation
+
+# Test 1: Basic identity functions with different syntaxes
+let identity_fn = fn<T>(x: T) -> T
+    x
+end
+
+let identity_expr = fn<T>(x: T) -> T => x
+
+let identity_shorthand = <T>(x: T) -> T => x
+
+# Test 2: Generic arithmetic operations
+let add_generic = fn<T>(x: T, y: T) -> T => x + y
+let subtract_generic = fn<T>(x: T, y: T) -> T => x - y
+let multiply_generic = fn<T>(x: T, y: T) -> T => x * y
+
+# Test 3: Generic lambdas with multiple type parameters
+let pair_fn = fn<T, U>(first: T, second: U) -> T
+    first
+end
+
+# Test 4: Generic lambdas in block form with complex logic
+let max_generic = fn<T>(a: T, b: T) -> T
+    if a > b then
+        a
+    else
+        b
+    end
+end
+
+# Test 5: Generic lambda with conditional logic
+let conditional_fn = fn<T>(condition: bool, if_true: T, if_false: T) -> T
+    if condition then
+        if_true
+    else
+        if_false
+    end
+end
+
+# Test calls with different types
+
+# Integer tests
+let result1 = identity_fn(42)
+let result2 = add_generic(10, 5)
+let result3 = multiply_generic(3, 4)
+let result4 = max_generic(8, 12)
+
+# String tests (if strings support +)
+let result5 = identity_expr("hello")
+
+# Boolean tests
+let result6 = identity_shorthand(true)
+
+# Float tests
+let result7 = add_generic(3.14, 2.86)
+
+# Test with pair function (different types)
+let result8 = pair_fn(100, "world")
+
+# Test conditional function
+let result9 = conditional_fn(true, 42, 0)
+
+# Return final result to verify everything worked
+result9

@@ -1202,16 +1202,41 @@ impl TypeChecker {
         params: &[(String, Option<TypeAnnotation>)],
         body: &[Statement],
         return_type_anno: Option<&TypeAnnotation>,
+        generic_params: &Vec<GenericArgument>,
     ) -> Result<Type> {
         let _span = tracing::span!(Level::DEBUG, "Infer block lambda type");
         let _enter = _span.enter();
+
+        // Handle generic parameters
+        let has_generic_params = !generic_params.is_empty();
+        if has_generic_params {
+            self.env.push_type_param_scope();
+            for param in generic_params {
+                let param_name = match &param.name {
+                    Some(name) => name.clone(),
+                    None => {
+                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                            base_name.clone()
+                        } else {
+                            "T".to_string()
+                        }
+                    }
+                };
+                self.env.add_type_param(&param_name);
+            }
+        }
 
         self.env.push_scope();
 
         let mut param_types = Vec::new();
         for (name, type_anno) in params {
             let param_type = if let Some(anno) = type_anno {
-                self.env.from_annotation(anno, None)?
+                let mut param_type = self.env.from_annotation(anno, None)?;
+                // If this is a type parameter, substitute with a fresh type variable
+                if let Type::TypeParam(_) = &param_type {
+                    param_type = self.env.fresh_type_var();
+                }
+                param_type
             } else {
                 self.env.fresh_type_var()
             };
@@ -1233,7 +1258,11 @@ impl TypeChecker {
         };
 
         let return_type = if let Some(anno) = return_type_anno {
-            let rt = self.env.from_annotation(anno, None)?;
+            let mut rt = self.env.from_annotation(anno, None)?;
+            // If this is a type parameter, substitute with a fresh type variable
+            if let Type::TypeParam(_) = &rt {
+                rt = self.env.fresh_type_var();
+            }
             self.env.add_constraint(body_type, rt.clone());
             rt
         } else {
@@ -1241,6 +1270,12 @@ impl TypeChecker {
         };
 
         self.env.pop_scope();
+
+        // Pop type parameter scope if we pushed one
+        if has_generic_params {
+            self.env.pop_type_param_scope();
+        }
+
         self.env.solve_constraints()?;
 
         let final_return_type = self.env.apply_substitutions(&return_type);
@@ -1286,8 +1321,8 @@ impl TypeChecker {
                 params,
                 body,
                 return_type,
-                generic_params: _,
-            } => self.infer_block_lambda_type(params, body, return_type.as_ref()),
+                generic_params,
+            } => self.infer_block_lambda_type(params, body, return_type.as_ref(), generic_params),
             Expr::Literal(lit) => {
                 let ty = self.infer_literal_type(lit)?;
                 tracing::debug!("Inferred literal type: {:?} for {:?}", ty, lit);
@@ -2509,6 +2544,25 @@ impl TypeChecker {
         let _span = tracing::span!(tracing::Level::DEBUG, "infer_lambda_type", params = ?params, body = ?body, return_type_anno = ?return_type_anno);
         let _enter = _span.enter();
 
+        // Handle generic parameters
+        let has_generic_params = !generic_params.is_empty();
+        if has_generic_params {
+            self.env.push_type_param_scope();
+            for param in generic_params {
+                let param_name = match &param.name {
+                    Some(name) => name.clone(),
+                    None => {
+                        if let TypeAnnotation::Basic(base_name) = &param.type_annotation {
+                            base_name.clone()
+                        } else {
+                            "T".to_string()
+                        }
+                    }
+                };
+                self.env.add_type_param(&param_name);
+            }
+        }
+
         tracing::debug!(
             "Lambda type inference starting at scope depth: {}",
             self.env.scope_depth()
@@ -2522,7 +2576,11 @@ impl TypeChecker {
 
         for (name, type_anno) in params {
             let param_type = if let Some(anno) = type_anno {
-                let param_type = self.env.from_annotation(anno, None)?;
+                let mut param_type = self.env.from_annotation(anno, None)?;
+                // If this is a type parameter, substitute with a fresh type variable
+                if let Type::TypeParam(_) = &param_type {
+                    param_type = self.env.fresh_type_var();
+                }
                 if !generic_params.is_empty() {
                     tracing::debug!("Lambda parameter {} type: {:?}", name, param_type);
                 }
@@ -2549,7 +2607,11 @@ impl TypeChecker {
         tracing::debug!("Lambda body type after substitution: {:?}", body_type);
 
         let return_type = if let Some(anno) = return_type_anno {
-            let rt = self.env.from_annotation(anno, None)?;
+            let mut rt = self.env.from_annotation(anno, None)?;
+            // If this is a type parameter, substitute with a fresh type variable
+            if let Type::TypeParam(_) = &rt {
+                rt = self.env.fresh_type_var();
+            }
             tracing::debug!("Using explicit return type: {:?}", rt);
             self.env.add_constraint(body_type.clone(), rt.clone());
             rt
@@ -2559,6 +2621,12 @@ impl TypeChecker {
         };
 
         self.env.pop_scope();
+
+        // Pop type parameter scope if we pushed one
+        if has_generic_params {
+            self.env.pop_type_param_scope();
+        }
+
         self.env.solve_constraints()?;
 
         let final_return_type = self.env.apply_substitutions(&return_type);
@@ -4665,6 +4733,40 @@ impl TypeChecker {
                 "Cannot index into type: {}",
                 obj_type
             ))),
+        }
+    }
+
+    fn substitute_type_params(
+        &self,
+        ty: &Type,
+        substitutions: &std::collections::HashMap<String, Type>,
+    ) -> Type {
+        match ty {
+            Type::TypeParam(name) => substitutions
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| ty.clone()),
+            Type::Array(elem_type) => Type::Array(Box::new(
+                self.substitute_type_params(elem_type, substitutions),
+            )),
+            Type::Function {
+                params,
+                return_type,
+            } => Type::Function {
+                params: params
+                    .iter()
+                    .map(|p| self.substitute_type_params(p, substitutions))
+                    .collect(),
+                return_type: Box::new(self.substitute_type_params(return_type, substitutions)),
+            },
+            Type::Generic { base, type_args } => Type::Generic {
+                base: base.clone(),
+                type_args: type_args
+                    .iter()
+                    .map(|arg| self.substitute_type_params(arg, substitutions))
+                    .collect(),
+            },
+            _ => ty.clone(),
         }
     }
 

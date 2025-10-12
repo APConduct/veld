@@ -1,0 +1,63 @@
+# Comprehensive test for all generic lambda syntaxes in Veld
+# This test verifies that all supported generic lambda forms work correctly
+
+# Test 1: Block form with explicit generic parameter
+let identity_block = fn<T>(x: T) -> T
+    x
+end
+
+# Test 2: Expression form with explicit generic parameter
+let identity_expr = fn<T>(x: T) -> T => x
+
+# Test 3: Shorthand form with generic parameter
+let identity_short = <T>(x: T) -> T => x
+
+# Test 4: Block form with generic parameter (no explicit return type)
+let identity_inferred = fn<T>(x: T)
+    x
+end
+
+# Test 5: Generic addition function (tests constraint solving)
+let add_generic = fn<T>(x: T, y: T) -> T => x + y
+
+# Test 6: Generic comparison function
+let max_generic = fn<T>(a: T, b: T) -> T
+    if a > b then
+        a
+    else
+        b
+    end
+end
+
+# Test 7: Generic lambda with multiple parameters of same type
+let combine_three = fn<T>(a: T, b: T, c: T) -> T => a
+
+# Test calls to verify all syntaxes work
+
+# Test identity functions with integers
+let result1 = identity_block(42)
+let result2 = identity_expr(100)
+let result3 = identity_short(999)
+let result4 = identity_inferred(77)
+
+# Test identity functions with more integers
+let result5 = identity_block(200)
+let result6 = identity_expr(300)
+
+# Test identity functions with more integers
+let result7 = identity_short(400)
+let result8 = identity_inferred(500)
+
+# Test arithmetic operations
+let result9 = add_generic(10, 20)
+let result10 = add_generic(15, 25)
+
+# Test comparison operations
+let result11 = max_generic(5, 8)
+let result12 = max_generic(100, 50)
+
+# Test multiple parameter function
+let result13 = combine_three(1, 2, 3)
+
+# Return one of the results to verify execution
+result9

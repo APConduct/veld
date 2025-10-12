@@ -1,0 +1,9 @@
+# Test calling a generic addition lambda
+
+let add_two = fn<T>(x: T, y: T) -> T => x + y
+
+# Try calling it with integers
+let result = add_two(5, 3)
+
+# Return the result
+result
