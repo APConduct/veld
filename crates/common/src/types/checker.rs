@@ -1,8 +1,8 @@
 use tracing::Level;
 
 use super::super::ast::{
-    Argument, BinaryOperator, Expr, GenericArgument, Literal, MethodImpl, Statement, StructMethod,
-    TypeAnnotation, UnaryOperator, VarKind,
+    Argument, BinaryOperator, Expr, GenericArgument, Literal, MatchPattern, MethodImpl, Statement,
+    StructMethod, TypeAnnotation, UnaryOperator, VarKind,
 };
 use super::super::types::VarInfo;
 use super::super::types::{EnumVariant, ImplementationInfo, Type, Type::TypeVar, TypeEnvironment};
@@ -1551,30 +1551,109 @@ impl TypeChecker {
             }
             Expr::Match { value, arms } => {
                 // Infer the type of the matched value
-                let _value_type = self.infer_expression_type(value)?;
+                let value_type = self.infer_expression_type(value)?;
 
                 // All match arms should have the same return type
                 if arms.is_empty() {
                     return Ok(Type::Unit);
                 }
 
-                // Infer the type of the first arm's body
-                let first_arm_type = self.infer_expression_type(&arms[0].body)?;
+                let mut arm_types = Vec::new();
 
-                // Check that all other arms have the same type
-                for arm in &arms[1..] {
+                // Type check each arm with pattern bindings in scope
+                for arm in arms {
+                    // Push a new scope for pattern bindings
+                    self.env.push_scope();
+
+                    // Extract pattern bindings and add them to the type environment
+                    self.add_pattern_bindings_to_env(&arm.pat, &value_type)?;
+
+                    // Type check the arm body with bindings in scope
                     let arm_type = self.infer_expression_type(&arm.body)?;
-                    self.env.add_constraint(first_arm_type.clone(), arm_type);
+                    arm_types.push(arm_type);
+
+                    // Pop the pattern binding scope
+                    self.env.pop_scope();
                 }
 
-                self.env.solve_constraints()?;
-                Ok(self.env.apply_substitutions(&first_arm_type))
+                // All arms should have the same type
+                if let Some(first_type) = arm_types.first() {
+                    for arm_type in &arm_types[1..] {
+                        self.env
+                            .add_constraint(first_type.clone(), arm_type.clone());
+                    }
+
+                    self.env.solve_constraints()?;
+                    Ok(self.env.apply_substitutions(first_type))
+                } else {
+                    Ok(Type::Unit)
+                }
             }
         };
         if let Ok(ref t) = result {
             tracing::debug!("Final inferred type for expression: {:?} -> {:?}", expr, t);
         }
         result
+    }
+
+    fn add_pattern_bindings_to_env(
+        &mut self,
+        pattern: &MatchPattern,
+        matched_type: &Type,
+    ) -> Result<()> {
+        match pattern {
+            MatchPattern::Wildcard => {
+                // Wildcard patterns don't bind any variables
+                Ok(())
+            }
+            MatchPattern::Literal(_) => {
+                // Literal patterns don't bind any variables
+                Ok(())
+            }
+            MatchPattern::Identifier(name) => {
+                // Simple identifier binds the whole matched value
+                self.env.define(name, matched_type.clone());
+                Ok(())
+            }
+            MatchPattern::Struct { name: _, fields } => {
+                // For enum/struct patterns, we need to extract field types
+                // For now, we'll infer the field types as fresh type variables
+                // TODO: Improve this to use actual enum variant field types
+                for (field_name, field_pattern) in fields {
+                    if let Some(nested_pattern) = field_pattern {
+                        // Nested pattern - recursively add bindings
+                        let field_type = self.env.fresh_type_var();
+                        self.add_pattern_bindings_to_env(nested_pattern, &field_type)?;
+                    } else {
+                        // Simple binding - create a fresh type variable for the field
+                        let field_type = self.env.fresh_type_var();
+                        self.env.define(field_name, field_type);
+                    }
+                }
+                Ok(())
+            }
+            MatchPattern::Enum {
+                name: _,
+                variant: _,
+                fields,
+            } => {
+                // For enum patterns, handle field bindings similar to struct patterns
+                // For now, we'll infer the field types as fresh type variables
+                // TODO: Improve this to use actual enum variant field types
+                for (field_name, field_pattern) in fields {
+                    if let Some(nested_pattern) = field_pattern {
+                        // Nested pattern - recursively add bindings
+                        let field_type = self.env.fresh_type_var();
+                        self.add_pattern_bindings_to_env(nested_pattern, &field_type)?;
+                    } else {
+                        // Simple binding - create a fresh type variable for the field
+                        let field_type = self.env.fresh_type_var();
+                        self.env.define(field_name, field_type);
+                    }
+                }
+                Ok(())
+            }
+        }
     }
 
     fn is_valid_cast(&self, from: &Type, to: &Type) -> bool {

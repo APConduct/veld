@@ -1,0 +1,18 @@
+import std.option.{Option, some}
+import std.io.{println}
+
+fn test_simple() -> str => do
+    let val = some("test")
+    let result = match val
+        Option.Some(x) => x,
+        Option.None => "none",
+    end
+    result
+end
+
+fn main() -> () => do
+    let result = test_simple()
+    println(result)
+end
+
+main()

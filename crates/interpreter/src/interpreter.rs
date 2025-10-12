@@ -1410,17 +1410,32 @@ impl Interpreter {
 
     fn execute_match(&mut self, value: Expr, arms: Vec<MatchArm>) -> Result<Value> {
         let match_value = self.evaluate_expression(value)?.unwrap_return();
+        tracing::debug!(
+            "execute_match: matching value {:?} against {} arms",
+            match_value,
+            arms.len()
+        );
 
-        for arm in arms {
+        for (arm_index, arm) in arms.iter().enumerate() {
+            tracing::debug!(
+                "execute_match: trying arm {} with pattern {:?}",
+                arm_index,
+                arm.pat
+            );
             if let Some(bindings) = self.pattern_matches(&arm.pat, &match_value)? {
-                if let Some(guard) = arm.gaurd {
+                tracing::debug!(
+                    "execute_match: arm {} matched with bindings: {:?}",
+                    arm_index,
+                    bindings
+                );
+                if let Some(guard) = &arm.gaurd {
                     self.push_scope();
 
                     for (name, val) in &bindings {
                         self.current_scope_mut().set(name.clone(), val.clone());
                     }
 
-                    let guard_result = self.evaluate_expression(guard)?.unwrap_return();
+                    let guard_result = self.evaluate_expression(guard.clone())?.unwrap_return();
                     let guard_passed = self.is_truthy(guard_result);
 
                     self.pop_scope();
@@ -1436,7 +1451,7 @@ impl Interpreter {
                     self.current_scope_mut().set(name, val)
                 }
 
-                let result = self.evaluate_expression(arm.body)?.unwrap_return();
+                let result = self.evaluate_expression(arm.body.clone())?.unwrap_return();
 
                 self.pop_scope();
                 return Ok(result);
@@ -2383,7 +2398,17 @@ impl Interpreter {
                 } = value
                 {
                     let expected_name = format!("{}.{}", enum_name, variant_name);
-                    if name != &expected_name {
+                    tracing::debug!(
+                        "Pattern matching: pattern name='{}', expected_name='{}', enum_name='{}', variant_name='{}'",
+                        name,
+                        expected_name,
+                        enum_name,
+                        variant_name
+                    );
+
+                    // Support both qualified (Option.Some) and unqualified (Some) patterns
+                    if name != &expected_name && name != variant_name {
+                        tracing::debug!("Pattern name mismatch, returning None");
                         return Ok(None); // Wrong enum variant
                     }
 
@@ -2400,12 +2425,18 @@ impl Interpreter {
                                     return Ok(None); // Field did not match
                                 }
                             } else {
+                                tracing::debug!(
+                                    "Binding variable '{}' to value: {:?}",
+                                    field_name,
+                                    field_value
+                                );
                                 all_bindings.insert(field_name.clone(), field_value.clone());
                             }
                         } else {
                             return Ok(None);
                         }
                     }
+                    tracing::debug!("Pattern matched successfully, bindings: {:?}", all_bindings);
                     Ok(Some(all_bindings))
                 } else if let Value::Struct {
                     name: value_name,
