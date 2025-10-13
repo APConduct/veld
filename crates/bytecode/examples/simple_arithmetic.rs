@@ -55,10 +55,8 @@ fn example_function_call() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Function Call Example ===");
 
     // Create main chunk that calls a native function
-    let mut main_chunk = ChunkBuilder::new()
+    let main_chunk = ChunkBuilder::new()
         .with_name("main".to_string())
-        .constant(BytecodeValue::Integer(10))
-        .constant(BytecodeValue::Integer(20))
         .constant(BytecodeValue::NativeFunction {
             name: "add".to_string(),
             arity: 2,
@@ -80,9 +78,11 @@ fn example_function_call() -> Result<(), Box<dyn std::error::Error>> {
                 }
             },
         })
-        .instruction(Instruction::LoadConstant(0), 1) // Load 10
-        .instruction(Instruction::LoadConstant(1), 1) // Load 20
-        .instruction(Instruction::LoadConstant(2), 1) // Load function
+        .constant(BytecodeValue::Integer(10))
+        .constant(BytecodeValue::Integer(20))
+        .instruction(Instruction::LoadConstant(0), 1) // Load function
+        .instruction(Instruction::LoadConstant(1), 1) // Load 10
+        .instruction(Instruction::LoadConstant(2), 1) // Load 20
         .instruction(Instruction::Call(2), 1) // Call with 2 args
         .instruction(Instruction::Halt, 1)
         .build();
@@ -121,9 +121,9 @@ fn example_control_flow() -> Result<(), Box<dyn std::error::Error>> {
         .instruction(Instruction::LoadConstant(0), 1) // Load 5
         .instruction(Instruction::LoadConstant(1), 1) // Load 3
         .instruction(Instruction::Greater, 1) // 5 > 3
-        .instruction(Instruction::PopJumpIfFalse(3), 1) // Jump to else if false (3 instructions forward)
+        .instruction(Instruction::PopJumpIfFalse(2), 1) // Jump to else if false (2 instructions forward)
         .instruction(Instruction::LoadConstant(2), 2) // Load 42 (then branch)
-        .instruction(Instruction::Jump(2), 2) // Jump over else (2 instructions forward)
+        .instruction(Instruction::Jump(1), 2) // Jump over else (1 instruction forward)
         .instruction(Instruction::LoadConstant(3), 3) // Load 0 (else branch)
         .instruction(Instruction::Halt, 4)
         .build();
@@ -152,17 +152,17 @@ fn example_control_flow() -> Result<(), Box<dyn std::error::Error>> {
 fn example_array_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Array Operations Example ===");
 
-    // Create array [1, 2, 3] and access element at index 1
+    // Create array [10, 20, 30] and access element at index 1
     let chunk = ChunkBuilder::new()
         .with_name("arrays".to_string())
-        .constant(BytecodeValue::Integer(1))
-        .constant(BytecodeValue::Integer(2))
-        .constant(BytecodeValue::Integer(3))
+        .constant(BytecodeValue::Integer(10))
+        .constant(BytecodeValue::Integer(20))
+        .constant(BytecodeValue::Integer(30))
         .constant(BytecodeValue::Integer(1)) // index
-        .instruction(Instruction::LoadConstant(0), 1) // Load 1
-        .instruction(Instruction::LoadConstant(1), 1) // Load 2
-        .instruction(Instruction::LoadConstant(2), 1) // Load 3
-        .instruction(Instruction::NewArray(3), 1) // Create array [1, 2, 3]
+        .instruction(Instruction::LoadConstant(0), 1) // Load 10
+        .instruction(Instruction::LoadConstant(1), 1) // Load 20
+        .instruction(Instruction::LoadConstant(2), 1) // Load 30
+        .instruction(Instruction::NewArray(3), 1) // Create array [10, 20, 30]
         .instruction(Instruction::Duplicate, 1) // Duplicate array for indexing
         .instruction(Instruction::LoadConstant(3), 1) // Load index 1
         .instruction(Instruction::GetIndex, 1) // Get element at index 1
