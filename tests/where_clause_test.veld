@@ -1,0 +1,17 @@
+pub struct Foo<T>
+    pub t: T
+end
+
+# Conditional implementation with where clause - demonstrates parsing
+impl<T> Foo<T> <- std.ToString where T: std.ToString
+    pub fn to_string(self) -> str
+        return "conditional: " + self.t.to_string()
+    end
+end
+
+pub fn main()
+    let foo = Foo<str>(t: "hello")
+    assert~(foo.to_string() == "hello")
+end
+
+main()
