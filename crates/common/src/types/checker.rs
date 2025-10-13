@@ -2930,20 +2930,61 @@ impl TypeChecker {
                 let base_name = base.clone();
                 let concrete_type_args = type_args.clone();
 
-                // First try struct methods, then enum methods, then trait implementations
+                // DEBUG: Log method lookup details
+                tracing::debug!(
+                    "Looking up method {} on generic type {} with args {:?}",
+                    method,
+                    base_name,
+                    concrete_type_args
+                );
+
+                // First try trait implementations, then struct methods, then enum methods
                 let method_type = {
-                    if let Some(methods) = self.env.struct_methods().get(&base_name) {
-                        methods.get(method).cloned()
-                    } else if let Some(methods) = self.env.get_enum_methods(&base_name) {
-                        methods.get(method).cloned()
-                    } else if let Some(implementations) =
-                        self.env.get_implementations_for_type(&base_name)
+                    if let Some(implementations) = self.env.get_implementations_for_type(&base_name)
                     {
-                        // Check trait implementations for the method
-                        implementations
+                        // Check trait implementations for the method first
+                        if let Some(method_type) = implementations
                             .iter()
                             .find_map(|impl_info| impl_info.methods.get(method).cloned())
+                        {
+                            tracing::debug!(
+                                "Found method {} in trait implementations: {:?}",
+                                method,
+                                method_type
+                            );
+                            Some(method_type)
+                        } else {
+                            tracing::debug!(
+                                "Method {} not found in {} trait implementations",
+                                method,
+                                implementations.len()
+                            );
+                            None
+                        }
+                    } else if let Some(methods) = self.env.struct_methods().get(&base_name) {
+                        if let Some(method_type) = methods.get(method).cloned() {
+                            tracing::debug!(
+                                "Found method {} in struct_methods: {:?}",
+                                method,
+                                method_type
+                            );
+                            Some(method_type)
+                        } else {
+                            None
+                        }
+                    } else if let Some(methods) = self.env.get_enum_methods(&base_name) {
+                        if let Some(method_type) = methods.get(method).cloned() {
+                            tracing::debug!(
+                                "Found method {} in enum_methods: {:?}",
+                                method,
+                                method_type
+                            );
+                            Some(method_type)
+                        } else {
+                            None
+                        }
                     } else {
+                        tracing::debug!("No implementations found for type {}", base_name);
                         None
                     }
                 };
@@ -3102,9 +3143,42 @@ impl TypeChecker {
                                         .env
                                         .substitute_type_params(expected_param, &substitutions);
 
+                                    // DEBUG: Log unification details
+                                    tracing::debug!(
+                                        "Method call unification: method={}, arg_index={}, arg_type={:?}, expected_param={:?}, substitutions={:?}, substituted_expected={:?}",
+                                        method,
+                                        i,
+                                        arg_type,
+                                        expected_param,
+                                        substitutions,
+                                        substituted_expected
+                                    );
+
                                     // For function types, we already handled the unification above
                                     if !matches!(arg_expr, Expr::Lambda { .. }) {
-                                        self.env.unify(arg_type, substituted_expected)?;
+                                        match self
+                                            .env
+                                            .unify(arg_type.clone(), substituted_expected.clone())
+                                        {
+                                            Ok(()) => {
+                                                tracing::debug!(
+                                                    "Unification successful for method {} arg {}",
+                                                    method,
+                                                    i
+                                                );
+                                            }
+                                            Err(e) => {
+                                                tracing::error!(
+                                                    "Unification failed for method {} arg {}: arg_type={:?}, substituted_expected={:?}, error={:?}",
+                                                    method,
+                                                    i,
+                                                    arg_type,
+                                                    substituted_expected,
+                                                    e
+                                                );
+                                                return Err(e);
+                                            }
+                                        }
                                     }
                                 }
 
@@ -5216,11 +5290,23 @@ impl TypeChecker {
                     }
                 };
 
+                // Push generic arguments into type parameter scope
+                self.env.push_type_param_scope();
+                for generic_arg in generic_args {
+                    // Extract type name from the generic argument
+                    if let TypeAnnotation::Basic(type_name) = &generic_arg.type_annotation {
+                        self.env.add_type_param(type_name);
+                    }
+                }
+
                 let mut impl_method_types = HashMap::new();
                 for method in methods {
                     let method_type = self.method_to_type(method)?;
                     impl_method_types.insert(method.name.clone(), method_type);
                 }
+
+                // Pop the type parameter scope after processing methods
+                self.env.pop_type_param_scope();
 
                 for (method_name, required_type) in &kind.methods {
                     if let Some(impl_type) = impl_method_types.get(method_name) {
@@ -5238,10 +5324,7 @@ impl TypeChecker {
 
                 self.env.solve_constraints()?;
 
-                let processed_methods = methods
-                    .iter()
-                    .map(|m| (m.name.clone(), self.method_to_type(m).unwrap()))
-                    .collect();
+                let processed_methods = impl_method_types.clone();
 
                 self.env.add_implementation(
                     type_name,
@@ -5250,6 +5333,15 @@ impl TypeChecker {
                     processed_methods,
                 );
             } else {
+                // Push generic arguments into type parameter scope for inherent impl blocks too
+                self.env.push_type_param_scope();
+                for generic_arg in generic_args {
+                    // Extract type name from the generic argument
+                    if let TypeAnnotation::Basic(type_name) = &generic_arg.type_annotation {
+                        self.env.add_type_param(type_name);
+                    }
+                }
+
                 for method in methods {
                     let method_type = self.method_to_type(method)?;
                     let struct_methods = self
@@ -5260,6 +5352,9 @@ impl TypeChecker {
 
                     struct_methods.insert(method.name.clone(), method_type);
                 }
+
+                // Pop the type parameter scope after processing methods
+                self.env.pop_type_param_scope();
             }
         }
         Ok(())

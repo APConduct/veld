@@ -1,0 +1,43 @@
+# Step by step debugging of the type resolution issue
+
+fn main()
+    std.io.println("=== Step by Step Type Resolution Debug ===")
+
+    # Step 1: Simple i32 case (should work)
+    std.io.println("\n--- Step 1: Vec<i32> (baseline) ---")
+    var vec_i32: Vec<i32> = std.vec.Vec.new()
+    vec_i32.push(42)
+    std.io.println("✅ Vec<i32>.push(42) works")
+
+    # Step 2: Create Option<i32> value separately
+    std.io.println("\n--- Step 2: Create Option<i32> value ---")
+    let opt: Option<i32> = std.option.Option.Some(100)
+    std.io.println("✅ Option<i32> value created")
+
+    # Step 3: Vec<Option<i32>> creation (no push yet)
+    std.io.println("\n--- Step 3: Vec<Option<i32>> creation ---")
+    var vec_opt: Vec<Option<i32>> = std.vec.Vec.new()
+    std.io.println("✅ Vec<Option<i32>> created")
+
+    # Step 4: Other Vec methods on Vec<Option<i32>> (to test trait methods work)
+    std.io.println("\n--- Step 4: Test other methods on Vec<Option<i32>> ---")
+    let len = vec_opt.len()
+    std.io.println("✅ Vec<Option<i32>>.len() = " + len.to_string())
+    let empty = vec_opt.is_empty()
+    std.io.println("✅ Vec<Option<i32>>.is_empty() = " + empty.to_string())
+
+    # Step 5: Test Vec<Option<i32>> with different Option types
+    std.io.println("\n--- Step 5: Different Option types ---")
+    let opt_str: Option<str> = std.option.Option.Some("hello")
+    var vec_opt_str: Vec<Option<str>> = std.vec.Vec.new()
+    std.io.println("✅ Vec<Option<str>> created")
+
+    # Step 6: The actual problematic case - push to Vec<Option<i32>>
+    std.io.println("\n--- Step 6: Push to Vec<Option<i32>> (this should fail) ---")
+    vec_opt.push(opt)
+    std.io.println("✅ Vec<Option<i32>>.push(pre_created_option) works")
+
+    std.io.println("\n🎉 All steps completed successfully!")
+end
+
+main()

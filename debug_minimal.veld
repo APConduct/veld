@@ -1,0 +1,13 @@
+# Minimal reproduction of the Vec<Option<i32>> push issue
+
+fn main()
+    # This should work - simple Vec<i32>
+    var simple: Vec<i32> = std.vec.Vec.new()
+    simple.push(42)
+
+    # This should fail with "Cannot unify Option<i32> with i32"
+    var complex: Vec<Option<i32>> = std.vec.Vec.new()
+    complex.push(std.option.Option.Some(100))
+end
+
+main()

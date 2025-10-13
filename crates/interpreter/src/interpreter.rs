@@ -1156,11 +1156,16 @@ impl Interpreter {
                         } => self.execute_struct_declaration(name, fields, methods, generic_params),
                         Statement::Implementation {
                             type_name,
-                            kind_name: _,
+                            kind_name,
                             methods,
                             generic_args,
                             where_clause: _,
-                        } => self.execute_trait_implementation(type_name, generic_args, methods),
+                        } => self.execute_trait_implementation(
+                            type_name,
+                            kind_name,
+                            generic_args,
+                            methods,
+                        ),
 
                         Statement::InherentImpl {
                             type_name,
@@ -1542,7 +1547,21 @@ impl Interpreter {
             }
         }
 
-        let result = self.execute_implementation(type_name, methods);
+        let result = self.execute_implementation(type_name.clone(), methods.clone());
+
+        // Register methods in type checker while type parameters are in scope
+        for method in &methods {
+            if !self
+                .type_checker
+                .env()
+                .has_struct_method(&type_name, &method.name)
+            {
+                let method_type = self.type_checker.method_to_type(&method)?;
+                self.type_checker
+                    .env()
+                    .add_struct_method(&type_name, &method.name, method_type);
+            }
+        }
 
         // Clean up type parameter scope
         if has_generics {
@@ -1556,6 +1575,7 @@ impl Interpreter {
     fn execute_trait_implementation(
         &mut self,
         type_name: String,
+        kind_name: Option<String>,
         generic_args: Vec<GenericArgument>,
         methods: Vec<MethodImpl>,
     ) -> Result<Value> {
@@ -1580,7 +1600,65 @@ impl Interpreter {
             }
         }
 
-        let result = self.execute_implementation(type_name, methods);
+        let result = self.execute_implementation(type_name.clone(), methods.clone());
+
+        // Register methods in type checker while type parameters are in scope
+        tracing::debug!(
+            "Registering trait implementation: type_name={}, kind_name={:?}, methods={:?}",
+            type_name,
+            kind_name,
+            methods.iter().map(|m| &m.name).collect::<Vec<_>>()
+        );
+
+        if let Some(kind_name) = &kind_name {
+            tracing::debug!(
+                "Processing trait implementation {} for type {}",
+                kind_name,
+                type_name
+            );
+            // This is a trait implementation - register as implementation
+            let mut impl_method_types = HashMap::new();
+            for method in &methods {
+                let method_type = self.type_checker.method_to_type(&method)?;
+                tracing::debug!("Method {} has type {:?}", method.name, method_type);
+                impl_method_types.insert(method.name.clone(), method_type);
+            }
+
+            tracing::debug!(
+                "Adding implementation {} for type {} with {} methods",
+                kind_name,
+                type_name,
+                impl_method_types.len()
+            );
+            self.type_checker.env().add_implementation(
+                &type_name,
+                kind_name,
+                generic_args.clone(),
+                impl_method_types,
+            );
+        } else {
+            tracing::debug!("Processing inherent implementation for type {}", type_name);
+            // This is an inherent implementation - register in struct_methods
+            for method in &methods {
+                if !self
+                    .type_checker
+                    .env()
+                    .has_struct_method(&type_name, &method.name)
+                {
+                    let method_type = self.type_checker.method_to_type(&method)?;
+                    tracing::debug!(
+                        "Adding struct method {} with type {:?}",
+                        method.name,
+                        method_type
+                    );
+                    self.type_checker.env().add_struct_method(
+                        &type_name,
+                        &method.name,
+                        method_type,
+                    );
+                }
+            }
+        }
 
         // Clean up type parameter scope
         if has_generics {
@@ -1618,19 +1696,7 @@ impl Interpreter {
                 };
                 struct_method_map.insert(method.name.clone(), function);
 
-                // Only register in type checker if not already registered (avoid re-processing during execution)
-                if !self
-                    .type_checker
-                    .env()
-                    .has_struct_method(&type_name, &method.name)
-                {
-                    let method_type = self.type_checker.method_to_type(&method)?;
-                    self.type_checker.env().add_struct_method(
-                        &type_name,
-                        &method.name,
-                        method_type,
-                    );
-                }
+                // Type checker registration is handled by the caller to ensure proper type parameter scope
             }
         } else if is_enum {
             // Register methods for enum type - get or create the method map
@@ -1667,12 +1733,7 @@ impl Interpreter {
                     .env()
                     .has_struct_method(&type_name, &method.name)
                 {
-                    let method_type = self.type_checker.method_to_type(&method)?;
-                    self.type_checker.env().add_struct_method(
-                        &type_name,
-                        &method.name,
-                        method_type,
-                    );
+                    // Type checker registration is handled by the caller to ensure proper type parameter scope
                 }
             }
         }
@@ -8125,95 +8186,13 @@ impl Interpreter {
                                         return_type: Box::new(return_type),
                                     };
 
-                                    // Instantiate any TypeParam with fresh type variables
-                                    fn collect_type_params(
-                                        ty: &veld_common::types::Type,
-                                        substitutions: &mut std::collections::HashMap<
-                                            String,
-                                            veld_common::types::Type,
-                                        >,
-                                        env: &mut veld_common::types::TypeEnvironment,
-                                    ) {
-                                        match ty {
-                                            veld_common::types::Type::TypeParam(name) => {
-                                                if !substitutions.contains_key(name) {
-                                                    substitutions
-                                                        .insert(name.clone(), env.fresh_type_var());
-                                                }
-                                            }
-                                            veld_common::types::Type::Function {
-                                                params,
-                                                return_type,
-                                            } => {
-                                                for param in params {
-                                                    collect_type_params(param, substitutions, env);
-                                                }
-                                                collect_type_params(
-                                                    return_type,
-                                                    substitutions,
-                                                    env,
-                                                );
-                                            }
-                                            veld_common::types::Type::Generic {
-                                                type_args, ..
-                                            } => {
-                                                for arg in type_args {
-                                                    collect_type_params(arg, substitutions, env);
-                                                }
-                                            }
-                                            veld_common::types::Type::Array(elem) => {
-                                                collect_type_params(elem, substitutions, env);
-                                            }
-                                            veld_common::types::Type::Tuple(types) => {
-                                                for t in types {
-                                                    collect_type_params(t, substitutions, env);
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-
-                                    let mut type_param_substitutions =
-                                        std::collections::HashMap::new();
-                                    collect_type_params(
-                                        &function_type,
-                                        &mut type_param_substitutions,
-                                        self.type_checker.env(),
+                                    // For trait implementations, keep TypeParam as-is to allow proper substitution during method resolution
+                                    tracing::debug!(
+                                        "Trait method {}.{} type: {:?} (keeping TypeParam for proper substitution)",
+                                        qualified_name,
+                                        method.name,
+                                        function_type
                                     );
-
-                                    if !type_param_substitutions.is_empty() {
-                                        // Merge with shared substitutions from struct-level generics
-                                        let mut merged_substitutions =
-                                            shared_type_substitutions.clone();
-                                        merged_substitutions.extend(type_param_substitutions);
-
-                                        function_type =
-                                            self.type_checker.env().substitute_type_params(
-                                                &function_type,
-                                                &merged_substitutions,
-                                            );
-                                        tracing::debug!(
-                                            "Instantiated type parameters for trait method {}.{}: {:?} -> {:?}",
-                                            qualified_name,
-                                            method.name,
-                                            merged_substitutions,
-                                            function_type
-                                        );
-                                    } else if has_generics {
-                                        // Use only shared substitutions if no method-level generics
-                                        function_type =
-                                            self.type_checker.env().substitute_type_params(
-                                                &function_type,
-                                                &shared_type_substitutions,
-                                            );
-                                        tracing::debug!(
-                                            "Used shared type parameters for trait method {}.{}: {:?} -> {:?}",
-                                            qualified_name,
-                                            method.name,
-                                            shared_type_substitutions,
-                                            function_type
-                                        );
-                                    }
 
                                     // Register trait method with qualified struct name
                                     self.type_checker.env().add_struct_method(
