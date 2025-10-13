@@ -1,4 +1,4 @@
-// use inkwell::*;
+use inkwell::*;
 
 pub fn hello() {
     println!("Hello, world!");
@@ -10,6 +10,7 @@ mod tests {
     fn it_works() {
         assert_eq!(2 + 2, 4);
     }
+    use inkwell::context::Context;
 
     // inkwell usage example
     #[test]
