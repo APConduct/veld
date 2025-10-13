@@ -7,7 +7,7 @@ use crate::{parser::MacroParser, ExpansionContext, ExpansionError, MacroDefiniti
 /// Integration point for the macro system with the Veld interpreter/compiler
 pub struct MacroSystem {
     expansion_context: ExpansionContext,
-    builtin_macros: HashMap<String, BuiltinMacro>,
+    pub builtin_macros: HashMap<String, BuiltinMacro>,
 }
 
 /// Represents a built-in macro implemented in Rust

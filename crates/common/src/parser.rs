@@ -2306,7 +2306,7 @@ impl Parser {
 
             arms.push(MatchArm {
                 pat: pattern,
-                gaurd,
+                guard: gaurd,
                 body,
             });
 
@@ -2376,7 +2376,7 @@ impl Parser {
 
             arms.push(MatchArm {
                 pat: pattern,
-                gaurd,
+                guard: gaurd,
                 body,
             });
 
