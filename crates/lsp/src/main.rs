@@ -15,7 +15,7 @@ struct TextDocument {
     version: i32,
 }
 
-struct LSPServer {
+pub struct LSPServer {
     documents: HashMap<String, TextDocument>,
     next_id: i32,
 }
@@ -28,7 +28,11 @@ impl LSPServer {
         }
     }
 
-    fn get_next_id(&mut self) -> i32 {
+    pub fn url(&self) -> String {
+        format!("https://localhost:{}", self.next_id)
+    }
+
+    pub fn get_next_id(&mut self) -> i32 {
         let id = self.next_id;
         self.next_id += 1;
         id
@@ -276,7 +280,7 @@ fn handle_message(
                         .get("uri")
                         .and_then(|u| u.as_str())
                         .unwrap_or("");
-                    if let Some(doc) = server.documents.get(uri) {
+                    if let Some(_doc) = server.documents.get(uri) {
                         if let Some(position) = params.get("position") {
                             let line = position.get("line").and_then(|l| l.as_i64()).unwrap_or(0);
                             let character = position

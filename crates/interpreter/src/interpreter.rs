@@ -676,7 +676,7 @@ impl Interpreter {
                     self.collect_free_variables_expr(expr, bound_vars, free_vars);
                 }
             }
-            Expr::Record { fields } => todo!("Implement record field collection"),
+            Expr::Record { fields: _fields } => todo!("Implement record field collection"),
             Expr::ArrayLiteral(exprs) => {
                 for expr in exprs {
                     self.collect_free_variables_expr(expr, bound_vars, free_vars);
@@ -690,7 +690,7 @@ impl Interpreter {
                 enum_name: _,
                 variant_name: _,
                 fields,
-                type_args,
+                type_args: _,
             } => {
                 for expr in fields {
                     self.collect_free_variables_expr(expr, bound_vars, free_vars);
@@ -1233,7 +1233,7 @@ impl Interpreter {
                         }
                         Statement::While { condition, body } => {
                             // Save the parent scope index
-                            let parent_scope_index = self.scopes.len() - 1;
+                            let _parent_scope_index = self.scopes.len() - 1;
 
                             // Track sticky variables and their values
                             let mut sticky_vars: Option<Vec<String>> = None;
@@ -2564,7 +2564,7 @@ impl Interpreter {
         // let mut stack = Vec::new();
         let mut action: ControlFlow<Result<Value>, Expr> = ControlFlow::Continue(expr.to_owned());
         loop {
-            action = 'cont: {
+            action = '_cont: {
                 ControlFlow::Break(match action {
                     ControlFlow::Break(result) => {
                         // If we hit a break, return the result for now
@@ -5257,7 +5257,7 @@ impl Interpreter {
 
     fn get_property(&mut self, object: Value, property: &str) -> Result<Value> {
         match &object {
-            Value::Struct { name, fields } => {
+            Value::Struct { name: _, fields } => {
                 if let Some(value) = fields.get(property) {
                     Ok(value.clone())
                 } else {
@@ -5405,15 +5405,15 @@ impl Interpreter {
                                 methods: None,
                             })
                         }
-                        ExportedItem::Variable(idx) => Err(VeldError::RuntimeError(format!(
+                        ExportedItem::Variable(_idx) => Err(VeldError::RuntimeError(format!(
                             "Variable '{}' exported from module '{}' is not directly accessible yet (implement variable resolution here)",
                             property, module.name
                         ))),
-                        ExportedItem::Kind(idx) => Err(VeldError::RuntimeError(format!(
+                        ExportedItem::Kind(_idx) => Err(VeldError::RuntimeError(format!(
                             "Kind '{}' exported from module '{}' is not directly accessible yet (implement kind resolution here)",
                             property, module.name
                         ))),
-                        ExportedItem::Enum(idx) => {
+                        ExportedItem::Enum(_idx) => {
                             // Return an EnumType value that can be used for variant access
                             let qualified_name = format!("{}.{}", module.name, property);
                             Ok(Value::EnumType {
@@ -5590,7 +5590,7 @@ impl Interpreter {
             Value::Enum {
                 enum_name,
                 variant_name,
-                fields,
+                fields: _,
             } => {
                 let enum_instance = object.clone(); // Now works, because object is not moved
 
@@ -6867,7 +6867,7 @@ impl Interpreter {
 
     fn get_variable(&self, name: &str) -> Option<Value> {
         // 1. Check local scopes (from innermost to outermost)
-        for (i, scope) in self.scopes.iter().rev().enumerate() {
+        for (_i, scope) in self.scopes.iter().rev().enumerate() {
             if let Some(val) = scope.get(name) {
                 return Some(val);
             }
@@ -6956,10 +6956,10 @@ impl Interpreter {
             (
                 Value::Enum {
                     enum_name,
-                    variant_name,
-                    fields,
+                    variant_name: _,
+                    fields: _,
                 },
-                Type::Generic { base, type_args },
+                Type::Generic { base, type_args: _ },
             ) => {
                 // Check if the enum names are compatible
                 let enum_simple_name = enum_name.split('.').last().unwrap_or(enum_name);
@@ -7160,7 +7160,7 @@ impl Interpreter {
 
             // Process each export and add to current scope
             // First pass: process enums to ensure types are available for functions
-            for (name, export_item) in &exports {
+            for (_name, export_item) in &exports {
                 if let ExportedItem::Enum(idx) = export_item {
                     // To avoid borrow checker issues, clone what we need first
                     let (enum_name, variants) = if let Statement::EnumDeclaration {

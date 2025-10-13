@@ -2447,7 +2447,7 @@ impl TypeChecker {
 
                 // Check if this is a generic function by looking for TypeParam in the signature
                 let mut type_param_substitutions = std::collections::HashMap::new();
-                let mut is_generic = false;
+                let mut _is_generic = false;
 
                 tracing::debug!(
                     "Function call to '{}' with signature: params={:?}, return_type={:?}",
@@ -2500,9 +2500,9 @@ impl TypeChecker {
                 }
                 collect_type_params(&return_type, &mut type_param_substitutions, &mut self.env);
 
-                is_generic = !type_param_substitutions.is_empty();
+                _is_generic = !type_param_substitutions.is_empty();
 
-                if is_generic {
+                if _is_generic {
                     tracing::debug!(
                         "Detected generic function '{}' with type parameters: {:?}",
                         name,
@@ -2553,7 +2553,7 @@ impl TypeChecker {
                     }
                 }
 
-                let instantiated_params: Vec<Type> = if is_generic {
+                let instantiated_params: Vec<Type> = if _is_generic {
                     let inst_params = params
                         .iter()
                         .map(|p| substitute_type_params(p, &type_param_substitutions))
@@ -2564,7 +2564,7 @@ impl TypeChecker {
                     params
                 };
 
-                let instantiated_return_type = if is_generic {
+                let instantiated_return_type = if _is_generic {
                     let inst_return =
                         substitute_type_params(&return_type, &type_param_substitutions);
                     tracing::debug!(
