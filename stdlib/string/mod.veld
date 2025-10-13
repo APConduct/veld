@@ -18,6 +18,7 @@ pub kind Searchable
     fn starts_with(self, prefix: str) -> bool
     fn ends_with(self, suffix: str) -> bool
     fn index_of(self, substring: str) -> i32  # TODO: define/implement a usize type
+    # fn char_at(self, index: i32) -> Option<char>
 end
 
 # String manipulation

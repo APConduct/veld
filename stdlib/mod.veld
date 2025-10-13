@@ -29,8 +29,10 @@ pub import std.math
 # Dynamic arrays
 pub import std.vec
 
+# pub type Vec = std.
+
 # IO module
-pub import std.io
+pub import std.io # as io
 
 # String representation capability
 pub kind ToString
@@ -39,4 +41,9 @@ end
 
 pub fn noop() -> ()
     # do nothing 🖕😊🖕
+end
+
+pub kind Iterator
+    # type Item
+    # next(mut self) -> Option<Self.Item>
 end

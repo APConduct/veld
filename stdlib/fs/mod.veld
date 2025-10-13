@@ -1,0 +1,7 @@
+
+
+# @Compiler.Builtin
+# pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> std.io.Result<()>
+# end
+
+pub struct File end
