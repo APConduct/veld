@@ -1519,6 +1519,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "veld-bytecode"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror",
+ "tracing",
+ "veld-common",
+ "veld-error",
+]
+
+[[package]]
 name = "veld-common"
 version = "0.1.4"
 dependencies = [
