@@ -4,19 +4,19 @@
 fn main() -> ()
     println~("str: {}", "hello world")
     println~("i32: {}", 42)
-    println~("i64: {}", 1234567890123) # TODO: test type suffixes when supported
-    # println~("u32: {}", 1234567890u32) # TODO: type suffixes not supported
-    # println~("u64: {}", 1234567890123u64) # TODO: type suffixes not supported
-    # println~("i8: {}", -128i8) # TODO: type suffixes not supported
-    # println~("u8: {}", 255u8) # TODO: type suffixes not supported
-    # println~("i16: {}", -32768i16) # TODO: type suffixes not supported
-    # println~("u16: {}", 65535u16) # TODO: type suffixes not supported
-    # println~("f32: {}", 3.14159f32) # TODO: type suffixes not supported
+    println~("i64: {}", 1234567890123)
+    # println~("u32: {}", 1234567890 as u32) # TODO: type suffixes not supported
+    # println~("u64: {}", 1234567890123 as u64)
+    # println~("i8: {}", -128 as i8)
+    # println~("u8: {}", 255 as u8) # TODO: type suffixes not supported
+    # println~("i16: {}", -32768 as i16) # TODO: type suffixes not supported
+    # println~("u16: {}", 65535 as u16) # TODO: type suffixes not supported
+    # println~("f32: {}", 3.14159 as f32) # TODO: type suffixes not supported
     println~("f64: {}", 2.7182818284)
     println~("bool true: {}", true)
     println~("bool false: {}", false)
-    # println~("char: {}", 'A') # TODO: char literal syntax not supported
-    println~("unit: {}", ())
+    # println~("char: {}", 'A')
+    println~("unit: {}", "()", std.noop())
     println~("array: {}", [1, 2, 3, 4])
     println~("option some: {}", std.option.Option.Some(99))
     println~("option none: {}", std.option.Option.None)

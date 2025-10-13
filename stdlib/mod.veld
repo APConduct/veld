@@ -24,10 +24,19 @@
 # pub import std.ops
 
 # Math functions and constants
-# pub import std.math
+pub import std.math
 
 # Dynamic arrays
-# pub import std.vec
+pub import std.vec
 
 # IO module
 pub import std.io
+
+# String representation capability
+pub kind ToString
+    fn to_string(self) -> str
+end
+
+pub fn noop() -> ()
+    # do nothing 🖕😊🖕
+end

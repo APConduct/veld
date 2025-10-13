@@ -1,6 +1,6 @@
 #| Numeric operations and behaviors
 
-import std.core.{ToString}
+import std.ToString
 
 # Common numeric operations
 pub kind Numeric

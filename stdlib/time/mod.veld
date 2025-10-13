@@ -51,18 +51,21 @@ pub struct Time
     end
 
     # Get hour component (0-23)
+    # @Compiler.Builtin
     pub fn hour(self) -> i32
         # Native implementation provided by interpreter
         0
     end
 
     # Get minute component (0-59)
+    # @Compiler.Builtin
     pub fn minute(self) -> i32
         # Native implementation provided by interpreter
         0
     end
 
     # Get second component (0-59)
+    # @Compiler.Builtin
     pub fn second(self) -> i32
         # Native implementation provided by interpreter
         0
@@ -70,17 +73,20 @@ pub struct Time
 end
 
 # Sleep for the specified number of milliseconds
+# @Compiler.Builtin
 pub fn sleep(milliseconds: i32) -> ()
     # Native implementation provided by interpreter
 end
 
 # Create a Time from year, month, day, hour, minute, second
+# @Compiler.Builtin
 pub fn datetime(year: i32, month: i32, day: i32, hour: i32, minute: i32, second: i32) -> Time
     # Native implementation provided by interpreter
     Time(seconds: 0, nanos: 0)
 end
 
 # Parse a string into a Time using the specified format
+# @Compiler.Builtin
 pub fn parse_time(time_str: str, format_str: str) -> Option<Time>
     # Native implementation provided by interpreter
     Option.None

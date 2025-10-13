@@ -5,10 +5,10 @@ pub kind Value
     fn type_name(self) -> str  # Returns the type name as a string
 end
 
-# String representation capability
-pub kind ToString
-    fn to_string(self) -> str
-end
+# # String representation capability
+# pub kind ToString
+#     fn to_string(self) -> str
+# end
 
 # Collection-like behavior for anything with a size
 pub kind Sized
