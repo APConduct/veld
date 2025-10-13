@@ -1,0 +1,36 @@
+# Debug method signature resolution for Vec.push
+
+fn main()
+    std.io.println("=== Debug Method Signature Resolution ===")
+
+    # Test 1: Simple type that should work
+    std.io.println("\n--- Test 1: Simple Vec<i32> ---")
+    var int_vec: Vec<i32> = std.vec.Vec.new()
+    int_vec.push(42)
+    std.io.println("Vec<i32>.push(i32) works")
+
+    # Test 2: Explicit Option<i32> creation
+    std.io.println("\n--- Test 2: Explicit Option creation ---")
+    let opt_value: Option<i32> = std.option.Option.Some(123)
+    std.io.println("Option<i32> creation works")
+
+    # Test 3: Vec<Option<i32>> creation (no push yet)
+    std.io.println("\n--- Test 3: Vec<Option<i32>> creation ---")
+    var option_vec: Vec<Option<i32>> = std.vec.Vec.new()
+    std.io.println("Vec<Option<i32>> creation works")
+
+    # Test 4: Manual assignment first
+    std.io.println("\n--- Test 4: Manual assignment ---")
+    let temp_option: Option<i32> = std.option.Option.Some(456)
+    option_vec.push(temp_option)
+    std.io.println("Vec<Option<i32>>.push(temp_option) works")
+
+    # Test 5: Direct push (this is where the error should occur)
+    std.io.println("\n--- Test 5: Direct push (problematic) ---")
+    option_vec.push(std.option.Option.Some(789))
+    std.io.println("Vec<Option<i32>>.push(Option.Some(789)) works")
+
+    std.io.println("\n✅ All method signature tests passed!")
+end
+
+main()
