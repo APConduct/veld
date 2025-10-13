@@ -22,3 +22,4 @@ ratatui = "0.29.0"
 "veld-common" = { path = "../common" } # Path to your common library
 "veld-error" = { path = "../error" }   # Path to your AST library
 "veld-repl" = { path = "../repl" }
+"veld-compiler" = { path = "../compiler/inkveld" }

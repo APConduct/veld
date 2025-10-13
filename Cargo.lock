@@ -1513,6 +1513,7 @@ dependencies = [
  "tracing-indicatif",
  "tracing-subscriber 0.3.19",
  "veld-common",
+ "veld-compiler",
  "veld-error",
  "veld-interpreter",
  "veld-repl",
