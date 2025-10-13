@@ -16,10 +16,28 @@ fn test_vec_macro_basic() {
         Statement::ExprStatement(Expr::MethodCall { object, method, .. }) => {
             assert_eq!(method, "new");
             match object.as_ref() {
-                Expr::Identifier(name) => {
-                    assert_eq!(name, "Vec");
+                Expr::PropertyAccess {
+                    object: inner_obj,
+                    property,
+                } => {
+                    assert_eq!(property, "Vec");
+                    match inner_obj.as_ref() {
+                        Expr::PropertyAccess {
+                            object: std_obj,
+                            property: vec_prop,
+                        } => {
+                            assert_eq!(vec_prop, "vec");
+                            match std_obj.as_ref() {
+                                Expr::Identifier(name) => {
+                                    assert_eq!(name, "std");
+                                }
+                                _ => panic!("Expected std identifier"),
+                            }
+                        }
+                        _ => panic!("Expected std.vec property access"),
+                    }
                 }
-                _ => panic!("Expected Vec identifier"),
+                _ => panic!("Expected std.vec.Vec property access"),
             }
         }
         _ => panic!("Expected Vec.new method call"),
