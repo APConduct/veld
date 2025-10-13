@@ -1520,6 +1520,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "veld-bytecode"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror",
+ "tracing",
+ "veld-common",
+ "veld-error",
+]
+
+[[package]]
 name = "veld-common"
 version = "0.1.4"
 dependencies = [
@@ -1561,6 +1572,7 @@ version = "0.1.3"
 dependencies = [
  "colored 2.2.0",
  "logos 0.15.1",
+ "serde",
  "thiserror",
  "tracing",
  "tracing-indicatif",

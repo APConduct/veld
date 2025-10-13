@@ -22,6 +22,13 @@ pub enum VeldError {
 
     #[error("Native function error: {0}")]
     Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+
+    #[error("Compile error: {message}")]
+    CompileError {
+        message: String,
+        line: Option<usize>,
+        column: Option<usize>,
+    },
 }
 
 pub struct ErrorContext {

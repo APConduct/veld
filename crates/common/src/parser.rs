@@ -1339,10 +1339,7 @@ impl Parser {
                 }
                 // Simple type parameter with no constraints
                 else {
-                    generic_args.push(GenericArgument::new(TypeAnnotation::Generic {
-                        base: param_name,
-                        type_args: Vec::new(),
-                    }));
+                    generic_args.push(GenericArgument::new(TypeAnnotation::Basic(param_name)));
                 }
 
                 if !self.match_token(&[Token::Comma(ZTUP)]) {

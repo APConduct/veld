@@ -1,0 +1,26 @@
+# Minimal test to debug type unification issue
+
+fn main()
+    std.io.println("=== Debug Type Unification Issue ===")
+
+    # Test 1: Simple Option assignment without type annotation
+    std.io.println("\n--- Test 1: No type annotation ---")
+    let some_val = std.option.Option.Some(42)
+    let none_val = std.option.Option.None
+    std.io.println("some_val created")
+    std.io.println("none_val created")
+
+    # Test 2: Type annotation on Some - this should work
+    std.io.println("\n--- Test 2: Type annotation on Some ---")
+    let some_int: Option<i32> = std.option.Option.Some(42)
+    std.io.println("some_int with type annotation created")
+
+    # Test 3: Type annotation on None - this is the problematic case
+    std.io.println("\n--- Test 3: Type annotation on None (problematic) ---")
+    let none_int: Option<i32> = std.option.Option.None
+    std.io.println("none_int with type annotation created")
+
+    std.io.println("\n✅ All tests passed!")
+end
+
+main()

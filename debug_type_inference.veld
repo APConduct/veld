@@ -1,0 +1,34 @@
+# Debug type inference specifically to isolate where the issue occurs
+
+fn main()
+    std.io.println("=== Debugging Type Inference ===")
+
+    # Test 1: Simple i32 variable (baseline)
+    std.io.println("\n--- Test 1: Simple i32 variable ---")
+    let x: i32 = 42
+    std.io.println("i32 variable works")
+
+    # Test 2: Simple Vec<i32> variable
+    std.io.println("\n--- Test 2: Simple Vec<i32> variable ---")
+    let v1: Vec<i32> = std.vec.Vec.new()
+    std.io.println("Vec<i32> variable works")
+
+    # Test 3: Simple Option<i32> variable
+    std.io.println("\n--- Test 3: Simple Option<i32> variable ---")
+    let opt1: Option<i32> = std.option.Option.Some(100)
+    std.io.println("Option<i32> variable works")
+
+    # Test 4: Vec<Option<i32>> variable creation ONLY
+    std.io.println("\n--- Test 4: Vec<Option<i32>> variable creation ---")
+    let v2: Vec<Option<i32>> = std.vec.Vec.new()
+    std.io.println("Vec<Option<i32>> variable works")
+
+    # Test 5: Check if the issue is with the type annotation parsing
+    std.io.println("\n--- Test 5: Different nested generic types ---")
+    # let v3: Vec<str> = std.vec.Vec.new()
+    # std.io.println("Vec<str> variable works")
+
+    std.io.println("\n✅ Type inference tests completed!")
+end
+
+main()

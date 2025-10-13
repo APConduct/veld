@@ -1,0 +1,41 @@
+# Test specifically nested generic types to isolate the unification bug
+
+fn main()
+    std.io.println("=== Testing Nested Generic Types ===")
+
+    # Test 1: Simple Vec<i32> (should work)
+    std.io.println("\n--- Test 1: Vec<i32> ---")
+    var simple_vec: Vec<i32> = std.vec.Vec.new()
+    simple_vec.push(42)
+    std.io.println("Vec<i32>.push(i32) works")
+
+    # Test 2: Create Option<i32> separately (should work)
+    std.io.println("\n--- Test 2: Option<i32> creation ---")
+    let opt: Option<i32> = std.option.Option.Some(123)
+    std.io.println("Option<i32> creation works")
+
+    # Test 3: Vec<Option<i32>> creation without push (should work)
+    std.io.println("\n--- Test 3: Vec<Option<i32>> creation ---")
+    var nested_vec: Vec<Option<i32>> = std.vec.Vec.new()
+    std.io.println("Vec<Option<i32>> creation works")
+
+    # Test 4: Push pre-created Option to Vec<Option<i32>> (should work)
+    std.io.println("\n--- Test 4: Push pre-created Option ---")
+    let another_opt: Option<i32> = std.option.Option.Some(456)
+    nested_vec.push(another_opt)
+    std.io.println("Vec<Option<i32>>.push(pre_created_option) works")
+
+    # Test 5: Direct push of Option.Some() - this might fail
+    std.io.println("\n--- Test 5: Direct push Option.Some() (problematic?) ---")
+    nested_vec.push(std.option.Option.Some(789))
+    std.io.println("Vec<Option<i32>>.push(Option.Some(789)) works")
+
+    # Test 6: Direct push of Option.None - this might also fail
+    std.io.println("\n--- Test 6: Direct push Option.None ---")
+    nested_vec.push(std.option.Option.None)
+    std.io.println("Vec<Option<i32>>.push(Option.None) works")
+
+    std.io.println("\n✅ All nested generic tests passed!")
+end
+
+main()

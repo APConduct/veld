@@ -14,3 +14,4 @@ tracing-subscriber = "0.3" # For tracing subscriber
 tracing-indicatif = "0.3.13"
 colored = "2.0"
 veld-expander = {path = "../expander"}
+serde = { version = "1.0", features = ["derive"] }

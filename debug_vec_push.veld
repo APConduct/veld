@@ -1,0 +1,28 @@
+# Focused test to debug Vec.push with Option types
+
+fn main()
+    std.io.println("=== Debug Vec.push with Option types ===")
+
+    # Test 1: Simple Vec<i32> push - this should work
+    std.io.println("\n--- Test 1: Vec<i32> push ---")
+    var simple_vec: Vec<i32> = std.vec.Vec.new()
+    simple_vec.push(42)
+    std.io.println("Vec<i32> push successful")
+
+    # Test 2: Vec<Option<i32>> push with Some - this is the problematic case
+    std.io.println("\n--- Test 2: Vec<Option<i32>> push with Some ---")
+    var option_vec: Vec<Option<i32>> = std.vec.Vec.new()
+
+    # This line should work but might be causing the unification error
+    option_vec.push(std.option.Option.Some(123))
+    std.io.println("Vec<Option<i32>> push with Some successful")
+
+    # Test 3: Vec<Option<i32>> push with None
+    std.io.println("\n--- Test 3: Vec<Option<i32>> push with None ---")
+    option_vec.push(std.option.Option.None)
+    std.io.println("Vec<Option<i32>> push with None successful")
+
+    std.io.println("\n✅ All Vec.push tests passed!")
+end
+
+main()
