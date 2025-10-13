@@ -763,7 +763,7 @@ impl Interpreter {
                     self.collect_free_variables_expr(&arm.body, bound_vars, free_vars);
 
                     // Collect from guard expression if present
-                    if let Some(guard) = &arm.gaurd {
+                    if let Some(guard) = &arm.guard {
                         self.collect_free_variables_expr(guard, bound_vars, free_vars);
                     }
                 }
@@ -1430,7 +1430,7 @@ impl Interpreter {
                     arm_index,
                     bindings
                 );
-                if let Some(guard) = &arm.gaurd {
+                if let Some(guard) = &arm.guard {
                     self.push_scope();
 
                     for (name, val) in &bindings {

@@ -1,0 +1,169 @@
+// Example usage of custom macros in Veld
+
+// Define a simple struct
+struct Person {
+    name: String,
+    age: i32,
+    email: String,
+}
+
+// Use the getters_setters! macro to generate getter and setter methods
+impl Person {
+    // This macro call will generate:
+    // - get_name(&self) -> &String
+    // - set_name(&mut self, value: String)
+    // - get_age(&self) -> &i32
+    // - set_age(&mut self, value: i32)
+    // - get_email(&self) -> &String
+    // - set_email(&mut self, value: String)
+    getters_setters!(name: String, age: i32, email: String);
+
+    // Constructor
+    fn new(name: String, age: i32, email: String) -> Person {
+        Person { name, age, email }
+    }
+}
+
+// Define another struct for builder pattern example
+struct Config {
+    host: String,
+    port: i32,
+    debug: bool,
+    timeout: i32,
+}
+
+impl Config {
+    // Use with_fields! macro to generate builder methods
+    // This will generate:
+    // - with_host(mut self, host: String) -> Self
+    // - with_port(mut self, port: i32) -> Self
+    // - with_debug(mut self, debug: bool) -> Self
+    // - with_timeout(mut self, timeout: i32) -> Self
+    with_fields!(host: String, port: i32, debug: bool, timeout: i32);
+
+    fn new() -> Config {
+        Config {
+            host: "localhost".to_string(),
+            port: 8080,
+            debug: false,
+            timeout: 30,
+        }
+    }
+}
+
+// Example function demonstrating macro usage
+fn demo_macros() {
+    // Create a person and use generated getters/setters
+    let mut person = Person::new("Alice".to_string(), 25, "alice@example.com".to_string());
+
+    println!("Original name: {}", person.get_name());
+    person.set_age(26);
+    println!("Updated age: {}", person.get_age());
+
+    // Use builder pattern with generated methods
+    let config = Config::new()
+        .with_host("production.example.com".to_string())
+        .with_port(443)
+        .with_debug(true)
+        .with_timeout(60);
+
+    println!("Config host: {}", config.host);
+
+    // Use repeat! macro for repetitive tasks
+    println!("Initializing system...");
+    repeat!(3, println!("Loading module..."));
+    println!("System ready!");
+
+    // Another repeat example with different statement
+    repeat!(5, {
+        let x = std.random.next_int();
+        println!("Random number: {}", x);
+    });
+}
+
+// Example of combining macros with regular code
+struct Database {
+    connection_string: String,
+    max_connections: i32,
+    timeout: i32,
+    retry_count: i32,
+}
+
+impl Database {
+    // Generate getters and setters for configuration
+    getters_setters!(
+        connection_string: String,
+        max_connections: i32,
+        timeout: i32,
+        retry_count: i32
+    );
+
+    // Generate builder methods
+    with_fields!(
+        connection_string: String,
+        max_connections: i32,
+        timeout: i32,
+        retry_count: i32
+    );
+
+    fn new() -> Database {
+        Database {
+            connection_string: "".to_string(),
+            max_connections: 10,
+            timeout: 30,
+            retry_count: 3,
+        }
+    }
+
+    // Custom method that uses the generated getters
+    fn is_valid_config(&self) -> bool {
+        !self.get_connection_string().is_empty() &&
+        *self.get_max_connections() > 0 &&
+        *self.get_timeout() > 0 &&
+        *self.get_retry_count() >= 0
+    }
+
+    fn connect(&self) {
+        if !self.is_valid_config() {
+            println!("Invalid database configuration!");
+            return;
+        }
+
+        println!("Connecting to database...");
+        repeat!(self.get_retry_count(), {
+            println!("Attempting connection...");
+            // Connection logic would go here
+        });
+    }
+}
+
+// Example showing macro usage in different contexts
+fn advanced_examples() {
+    // Create database with builder pattern
+    let db = Database::new()
+        .with_connection_string("postgresql://localhost:5432/mydb".to_string())
+        .with_max_connections(50)
+        .with_timeout(60)
+        .with_retry_count(5);
+
+    db.connect();
+
+    // Demonstrate that getters return references
+    let connection_str_ref = db.get_connection_string();
+    println!("Connection string length: {}", connection_str_ref.len());
+
+    // Use repeat for batch operations
+    println!("Processing batch operations:");
+    repeat!(10, {
+        // Simulate batch processing
+        println!("Processing item...");
+    });
+}
+
+// Main function to run examples
+fn main() {
+    println!("=== Macro Usage Examples ===");
+    demo_macros();
+    println!("\n=== Advanced Examples ===");
+    advanced_examples();
+}

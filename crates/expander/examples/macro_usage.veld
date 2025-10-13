@@ -1,7 +1,7 @@
 #| Examples of using Veld's macro system
 #| This file demonstrates various macro patterns and usage
 
-# 1. Simple declarative macro - vec! style
+# 1. Simple declarative macro - vec~ style
 macro~ vec
     () => Vec.new(),
     ($elem:expr) => do
@@ -55,7 +55,7 @@ macro~ html
         element
     end,
     (<$tag:ident $($attr:ident=$value:expr)* />) => do
-        let element = HtmlElement::new(stringify!($tag))
+        let element = HtmlElement::new(stringify~($tag))
         $(element.set_attribute(stringify!($attr), $value))*
         element
     end

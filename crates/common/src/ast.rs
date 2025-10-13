@@ -1,5 +1,8 @@
 use super::source::SourceMap;
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display, Formatter},
+};
 use veld_error::VeldError;
 
 pub struct AST {
@@ -53,17 +56,43 @@ pub enum Literal {
     Unit, // unit value: ()
 }
 
-// #[derive(Debug, Clone)]
-// pub enum Tuple {
-//     Empty,
-//     Single(Literal),
-//     Pair(Literal, Literal),
-// }
+impl Display for Literal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::Integer(i) => write!(f, "{}", i),
+            Literal::Char(c) => write!(f, "'{}'", c),
+            Literal::Float(ff) => write!(f, "{}", ff),
+            Literal::String(s) => write!(f, "\"{}\"", s),
+            Literal::Boolean(b) => write!(f, "{}", b),
+            Literal::Unit => write!(f, "()"),
+        }
+    }
+}
+
+impl Display for VarKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VarKind::Let => write!(f, "let"),
+            VarKind::Var => write!(f, "var"),
+            VarKind::Const => write!(f, "const"),
+            VarKind::LetMut => write!(f, "let mut"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Argument {
     Positional(Expr),
     Named { name: String, value: Expr },
+}
+
+impl Display for Argument {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Argument::Positional(expr) => write!(f, "{}", expr),
+            Argument::Named { name, value } => write!(f, "{} = {}", name, value),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -95,10 +124,29 @@ pub struct WhereClause {
     pub constraints: Vec<TypeConstraint>,
 }
 
+impl Display for WhereClause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "where ")?;
+        for (i, constraint) in self.constraints.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", constraint)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeConstraint {
     pub type_param: String,
     pub bounds: Vec<String>, // Kind names that the type parameter must implement
+}
+
+impl Display for TypeConstraint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.type_param, self.bounds.join(" + "))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,7 +156,7 @@ pub enum UnaryOperator {
 }
 
 impl Display for UnaryOperator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let op = match self {
             UnaryOperator::Negate => "-",
             UnaryOperator::Not => "!",
@@ -218,6 +266,38 @@ pub enum Expr {
     },
 }
 
+impl Display for Expr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expr::IfExpression {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                write!(f, "if ")?;
+                Display::fmt(condition, f)?;
+                write!(f, " {{")?;
+                Display::fmt(then_expr, f)?;
+                if let Some(else_expr) = else_expr {
+                    write!(f, " }} else {{")?;
+                    Display::fmt(else_expr, f)?;
+                }
+                write!(f, " }}")
+            }
+            Expr::Match { value, arms } => {
+                write!(f, "match ")?;
+                Display::fmt(value, f)?;
+                write!(f, " {{")?;
+                for arm in arms {
+                    Display::fmt(arm, f)?;
+                }
+                write!(f, " }}")
+            }
+            _ => write!(f, "unknown expression"),
+        }
+    }
+}
+
 impl Expr {
     pub fn is_record(&self) -> bool {
         matches!(self, Expr::Record { .. })
@@ -272,7 +352,7 @@ pub enum BinaryOperator {
 }
 
 impl Display for BinaryOperator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let op = match self {
             BinaryOperator::Add => "+",
             BinaryOperator::Subtract => "-",
@@ -533,8 +613,14 @@ pub enum Statement {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchArm {
     pub pat: MatchPattern,
-    pub gaurd: Option<Expr>,
+    pub guard: Option<Expr>,
     pub body: Expr,
+}
+
+impl std::fmt::Display for MatchArm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} => {}", self.pat, self.body)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -551,6 +637,40 @@ pub enum MatchPattern {
         fields: Vec<(String, Option<Box<MatchPattern>>)>,
     },
     Wildcard,
+}
+
+impl std::fmt::Display for MatchPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MatchPattern::Literal(lit) => write!(f, "{}", lit),
+            MatchPattern::Identifier(id) => write!(f, "{}", id),
+            MatchPattern::Struct { name, fields } => {
+                write!(f, "{} {{", name)?;
+                for (field, pat) in fields {
+                    write!(f, " {}:", field)?;
+                    if let Some(pat) = pat {
+                        write!(f, " {}", pat)?;
+                    }
+                }
+                write!(f, " }}")
+            }
+            MatchPattern::Enum {
+                name,
+                variant,
+                fields,
+            } => {
+                write!(f, "{}::{} {{", name, variant)?;
+                for (field, pat) in fields {
+                    write!(f, " {}:", field)?;
+                    if let Some(pat) = pat {
+                        write!(f, " {}", pat)?;
+                    }
+                }
+                write!(f, " }}")
+            }
+            MatchPattern::Wildcard => write!(f, "_"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1549,6 +1549,7 @@ name = "veld-expander"
 version = "0.1.4"
 dependencies = [
  "criterion",
+ "paste",
  "tracing",
  "veld-common",
 ]

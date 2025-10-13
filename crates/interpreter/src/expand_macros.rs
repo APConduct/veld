@@ -316,8 +316,8 @@ fn expand_macros_in_statement_children(
                 .into_iter()
                 .map(|mut arm| {
                     arm.body = expand_macros_in_expr(arm.body, macro_system)?;
-                    if let Some(guard) = arm.gaurd {
-                        arm.gaurd = Some(expand_macros_in_expr(guard, macro_system)?);
+                    if let Some(guard) = arm.guard {
+                        arm.guard = Some(expand_macros_in_expr(guard, macro_system)?);
                     }
                     Ok(arm)
                 })
