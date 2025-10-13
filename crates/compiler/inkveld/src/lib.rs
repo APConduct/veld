@@ -7,16 +7,19 @@
 //! - Basic optimizations
 //! - Memory management
 
-use llvm_sys::LLVMIntPredicate;
 use llvm_sys::analysis::*;
 use llvm_sys::bit_writer::*;
 use llvm_sys::core::*;
 use llvm_sys::execution_engine::*;
 use llvm_sys::prelude::*;
 use llvm_sys::target::*;
+use llvm_sys::LLVMIntPredicate;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::ptr;
+
+// Use existing Veld type system
+use veld_common::types::Type;
 
 /// Initialize LLVM targets and execution engine
 pub fn initialize_llvm() {
@@ -28,37 +31,31 @@ pub fn initialize_llvm() {
     }
 }
 
-/// Veld type system representation
-#[derive(Debug, Clone, PartialEq)]
-pub enum VeldType {
-    I32,
-    I64,
-    F32,
-    F64,
-    Bool,
-    String,
-    Unit,
-    Function {
-        params: Vec<VeldType>,
-        return_type: Box<VeldType>,
-    },
-    Generic(String),
-    Array(Box<VeldType>),
+/// Extension trait to add LLVM conversion to existing Veld Type system
+pub trait TypeToLLVM {
+    /// Convert Veld type to LLVM type
+    fn to_llvm_type(&self, context: LLVMContextRef) -> LLVMTypeRef;
 }
 
-impl VeldType {
-    /// Convert Veld type to LLVM type
-    pub fn to_llvm_type(&self, context: LLVMContextRef) -> LLVMTypeRef {
+impl TypeToLLVM for Type {
+    fn to_llvm_type(&self, context: LLVMContextRef) -> LLVMTypeRef {
         unsafe {
             match self {
-                VeldType::I32 => LLVMInt32TypeInContext(context),
-                VeldType::I64 => LLVMInt64TypeInContext(context),
-                VeldType::F32 => LLVMFloatTypeInContext(context),
-                VeldType::F64 => LLVMDoubleTypeInContext(context),
-                VeldType::Bool => LLVMInt1TypeInContext(context),
-                VeldType::String => LLVMPointerType(LLVMInt8TypeInContext(context), 0),
-                VeldType::Unit => LLVMVoidTypeInContext(context),
-                VeldType::Function {
+                Type::I32 => LLVMInt32TypeInContext(context),
+                Type::I64 => LLVMInt64TypeInContext(context),
+                Type::F32 => LLVMFloatTypeInContext(context),
+                Type::F64 => LLVMDoubleTypeInContext(context),
+                Type::Bool => LLVMInt1TypeInContext(context),
+                Type::String => LLVMPointerType(LLVMInt8TypeInContext(context), 0),
+                Type::Unit => LLVMVoidTypeInContext(context),
+                Type::Char => LLVMInt8TypeInContext(context),
+                Type::U32 => LLVMInt32TypeInContext(context),
+                Type::U64 => LLVMInt64TypeInContext(context),
+                Type::U8 => LLVMInt8TypeInContext(context),
+                Type::U16 => LLVMInt16TypeInContext(context),
+                Type::I8 => LLVMInt8TypeInContext(context),
+                Type::I16 => LLVMInt16TypeInContext(context),
+                Type::Function {
                     params,
                     return_type,
                 } => {
@@ -76,12 +73,37 @@ impl VeldType {
                         0,
                     )
                 }
-                VeldType::Array(element_type) => {
-                    LLVMPointerType(element_type.to_llvm_type(context), 0)
+                Type::Array(element_type) => LLVMPointerType(element_type.to_llvm_type(context), 0),
+                Type::Tuple(types) => {
+                    let field_types: Vec<LLVMTypeRef> =
+                        types.iter().map(|t| t.to_llvm_type(context)).collect();
+                    LLVMStructTypeInContext(
+                        context,
+                        field_types.as_ptr() as *mut LLVMTypeRef,
+                        field_types.len() as u32,
+                        0, // not packed
+                    )
                 }
-                VeldType::Generic(_) => {
+                Type::GenericFunction { .. }
+                | Type::Generic { .. }
+                | Type::TypeParam(_)
+                | Type::TypeVar(_) => {
                     // Generic types should be resolved before code generation
-                    panic!("Cannot convert unresolved generic type to LLVM")
+                    panic!("Cannot convert unresolved generic type to LLVM: {:?}", self)
+                }
+                Type::IntegerLiteral(_) => LLVMInt64TypeInContext(context), // Default to i64
+                Type::FloatLiteral(_) => LLVMDoubleTypeInContext(context),  // Default to f64
+                Type::Number => LLVMDoubleTypeInContext(context),           // Default to f64
+                Type::Any => LLVMPointerType(LLVMInt8TypeInContext(context), 0), // Void pointer
+                Type::Struct { .. }
+                | Type::Record { .. }
+                | Type::Enum { .. }
+                | Type::KindSelf(_)
+                | Type::Module(_)
+                | Type::StructType(_)
+                | Type::EnumType(_) => {
+                    // These would need more complex handling in a full implementation
+                    LLVMPointerType(LLVMInt8TypeInContext(context), 0) // Placeholder as void pointer
                 }
             }
         }
@@ -92,7 +114,7 @@ impl VeldType {
 #[derive(Debug, Clone)]
 pub struct Variable {
     pub name: String,
-    pub veld_type: VeldType,
+    pub veld_type: Type,
     pub llvm_value: LLVMValueRef,
     pub is_mutable: bool,
 }
@@ -101,8 +123,8 @@ pub struct Variable {
 #[derive(Debug, Clone)]
 pub struct FunctionSignature {
     pub name: String,
-    pub params: Vec<(String, VeldType)>,
-    pub return_type: VeldType,
+    pub params: Vec<(String, Type)>,
+    pub return_type: Type,
     pub llvm_function: Option<LLVMValueRef>,
 }
 
@@ -223,8 +245,8 @@ impl CompilerContext {
     pub fn declare_function(
         &mut self,
         name: &str,
-        params: Vec<(String, VeldType)>,
-        return_type: VeldType,
+        params: Vec<(String, Type)>,
+        return_type: Type,
     ) -> Result<LLVMValueRef, String> {
         // Create LLVM function type
         let param_types: Vec<LLVMTypeRef> = params
@@ -263,9 +285,9 @@ impl CompilerContext {
     pub fn compile_function(
         &mut self,
         name: &str,
-        params: Vec<(String, VeldType)>,
-        return_type: VeldType,
-        body: &VeldExpression,
+        params: Vec<(String, Type)>,
+        return_type: Type,
+        body: &Expression,
     ) -> Result<LLVMValueRef, String> {
         // Check if function is already declared, if not declare it
         let function = if let Some(sig) = self.get_function(name) {
@@ -317,7 +339,7 @@ impl CompilerContext {
 
         // Handle return value
         unsafe {
-            if return_type == VeldType::Unit {
+            if return_type == Type::Unit {
                 LLVMBuildRetVoid(self.builder);
             } else {
                 LLVMBuildRet(self.builder, result);
@@ -332,25 +354,25 @@ impl CompilerContext {
     }
 
     /// Compile a Veld expression to LLVM IR
-    pub fn compile_expression(&mut self, expr: &VeldExpression) -> Result<LLVMValueRef, String> {
+    pub fn compile_expression(&mut self, expr: &Expression) -> Result<LLVMValueRef, String> {
         match expr {
-            VeldExpression::IntLiteral(value) => Ok(self.const_i32(*value)),
-            VeldExpression::FloatLiteral(value) => Ok(self.const_f64(*value)),
-            VeldExpression::BoolLiteral(value) => Ok(self.const_bool(*value)),
-            VeldExpression::StringLiteral(value) => Ok(self.const_string(value)),
+            Expression::IntLiteral(value) => Ok(self.const_i32(*value)),
+            Expression::FloatLiteral(value) => Ok(self.const_f64(*value)),
+            Expression::BoolLiteral(value) => Ok(self.const_bool(*value)),
+            Expression::StringLiteral(value) => Ok(self.const_string(value)),
 
-            VeldExpression::Variable(name) => self
+            Expression::Variable(name) => self
                 .get_variable(name)
                 .map(|var| var.llvm_value)
                 .ok_or_else(|| format!("Undefined variable: {}", name)),
 
-            VeldExpression::BinaryOp { left, op, right } => {
+            Expression::BinaryOp { left, op, right } => {
                 let left_val = self.compile_expression(left)?;
                 let right_val = self.compile_expression(right)?;
                 self.compile_binary_op(left_val, op, right_val)
             }
 
-            VeldExpression::FunctionCall { name, args } => {
+            Expression::FunctionCall { name, args } => {
                 let function = self
                     .get_function(name)
                     .ok_or_else(|| format!("Undefined function: {}", name))?;
@@ -378,7 +400,7 @@ impl CompilerContext {
                 }
             }
 
-            VeldExpression::IfThenElse {
+            Expression::IfThenElse {
                 condition,
                 then_expr,
                 else_expr,
@@ -462,7 +484,7 @@ impl CompilerContext {
                 Ok(phi_node)
             }
 
-            VeldExpression::Let { name, value, .. } => {
+            Expression::Let { name, value, .. } => {
                 let val = self.compile_expression(value)?;
 
                 // For now, we'll create an alloca and store the value
@@ -477,7 +499,7 @@ impl CompilerContext {
 
                 let var = Variable {
                     name: name.clone(),
-                    veld_type: VeldType::I32, // TODO: Infer type properly
+                    veld_type: Type::I32, // TODO: Infer type properly
                     llvm_value: alloca,
                     is_mutable: true,
                 };
@@ -596,32 +618,32 @@ impl Drop for CompilerContext {
     }
 }
 
-/// Abstract Syntax Tree for Veld expressions
+/// Abstract Syntax Tree for Veld expressions (simple version for compiler)
 #[derive(Debug, Clone)]
-pub enum VeldExpression {
+pub enum Expression {
     IntLiteral(i32),
     FloatLiteral(f64),
     BoolLiteral(bool),
     StringLiteral(String),
     Variable(String),
     BinaryOp {
-        left: Box<VeldExpression>,
+        left: Box<Expression>,
         op: BinaryOperator,
-        right: Box<VeldExpression>,
+        right: Box<Expression>,
     },
     FunctionCall {
         name: String,
-        args: Vec<VeldExpression>,
+        args: Vec<Expression>,
     },
     IfThenElse {
-        condition: Box<VeldExpression>,
-        then_expr: Box<VeldExpression>,
-        else_expr: Box<VeldExpression>,
+        condition: Box<Expression>,
+        then_expr: Box<Expression>,
+        else_expr: Box<Expression>,
     },
     Let {
         name: String,
-        veld_type: Option<VeldType>,
-        value: Box<VeldExpression>,
+        veld_type: Option<Type>,
+        value: Box<Expression>,
     },
 }
 
@@ -684,9 +706,9 @@ impl VeldCompiler {
 #[derive(Debug, Clone)]
 pub struct VeldFunctionDef {
     pub name: String,
-    pub params: Vec<(String, VeldType)>,
-    pub return_type: VeldType,
-    pub body: VeldExpression,
+    pub params: Vec<(String, Type)>,
+    pub return_type: Type,
+    pub body: Expression,
 }
 
 #[cfg(test)]
@@ -700,15 +722,12 @@ mod tests {
         // Test compiling a simple function: fn add(x: i32, y: i32) -> i32 => x + y
         let add_func = VeldFunctionDef {
             name: "add".to_string(),
-            params: vec![
-                ("x".to_string(), VeldType::I32),
-                ("y".to_string(), VeldType::I32),
-            ],
-            return_type: VeldType::I32,
-            body: VeldExpression::BinaryOp {
-                left: Box::new(VeldExpression::Variable("x".to_string())),
+            params: vec![("x".to_string(), Type::I32), ("y".to_string(), Type::I32)],
+            return_type: Type::I32,
+            body: Expression::BinaryOp {
+                left: Box::new(Expression::Variable("x".to_string())),
                 op: BinaryOperator::Add,
-                right: Box::new(VeldExpression::Variable("y".to_string())),
+                right: Box::new(Expression::Variable("y".to_string())),
             },
         };
 
@@ -727,24 +746,24 @@ mod tests {
         // Test recursive factorial function
         let factorial_func = VeldFunctionDef {
             name: "factorial".to_string(),
-            params: vec![("n".to_string(), VeldType::I32)],
-            return_type: VeldType::I32,
-            body: VeldExpression::IfThenElse {
-                condition: Box::new(VeldExpression::BinaryOp {
-                    left: Box::new(VeldExpression::Variable("n".to_string())),
+            params: vec![("n".to_string(), Type::I32)],
+            return_type: Type::I32,
+            body: Expression::IfThenElse {
+                condition: Box::new(Expression::BinaryOp {
+                    left: Box::new(Expression::Variable("n".to_string())),
                     op: BinaryOperator::Less,
-                    right: Box::new(VeldExpression::IntLiteral(2)),
+                    right: Box::new(Expression::IntLiteral(2)),
                 }),
-                then_expr: Box::new(VeldExpression::IntLiteral(1)),
-                else_expr: Box::new(VeldExpression::BinaryOp {
-                    left: Box::new(VeldExpression::Variable("n".to_string())),
+                then_expr: Box::new(Expression::IntLiteral(1)),
+                else_expr: Box::new(Expression::BinaryOp {
+                    left: Box::new(Expression::Variable("n".to_string())),
                     op: BinaryOperator::Mul,
-                    right: Box::new(VeldExpression::FunctionCall {
+                    right: Box::new(Expression::FunctionCall {
                         name: "factorial".to_string(),
-                        args: vec![VeldExpression::BinaryOp {
-                            left: Box::new(VeldExpression::Variable("n".to_string())),
+                        args: vec![Expression::BinaryOp {
+                            left: Box::new(Expression::Variable("n".to_string())),
                             op: BinaryOperator::Sub,
-                            right: Box::new(VeldExpression::IntLiteral(1)),
+                            right: Box::new(Expression::IntLiteral(1)),
                         }],
                     }),
                 }),
@@ -759,23 +778,23 @@ mod tests {
 
     #[test]
     fn test_type_system() {
-        let i32_type = VeldType::I32;
-        let func_type = VeldType::Function {
-            params: vec![VeldType::I32, VeldType::F64],
-            return_type: Box::new(VeldType::Bool),
+        let i32_type = Type::I32;
+        let func_type = Type::Function {
+            params: vec![Type::I32, Type::F64],
+            return_type: Box::new(Type::Bool),
         };
 
         // Test that types can be created and compared
-        assert_eq!(i32_type, VeldType::I32);
-        assert_ne!(i32_type, VeldType::F64);
+        assert_eq!(i32_type, Type::I32);
+        assert_ne!(i32_type, Type::F64);
 
-        if let VeldType::Function {
+        if let Type::Function {
             params,
             return_type,
         } = func_type
         {
             assert_eq!(params.len(), 2);
-            assert_eq!(*return_type, VeldType::Bool);
+            assert_eq!(*return_type, Type::Bool);
         }
     }
 
