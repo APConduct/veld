@@ -944,7 +944,7 @@ impl BytecodeCompiler {
 
     /// Resolve upvalue (simplified)
     fn resolve_upvalue(&self, _name: &str) -> Option<usize> {
-        // Simplified - would need proper upvalue resolution
+        // TODO: implement proper upvalue resolution
         None
     }
 
