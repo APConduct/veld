@@ -1,0 +1,16 @@
+pub struct Foo<T>
+    pub t: T
+end
+
+impl<T> Foo<T> <- std.ToString where T: std.ToString
+    pub fn to_string(self) -> str
+        return "foo"
+    end
+end
+
+pub fn main()
+    # Simple test that doesn't use generic struct creation
+    return 0
+end
+
+main()

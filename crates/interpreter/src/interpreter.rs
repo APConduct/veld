@@ -213,6 +213,7 @@ impl Interpreter {
         }
 
         // Load critical standard library modules with their types and methods
+        self.load_stdlib_module_with_types(&["std"]); // Load main std module for ToString and other kinds
         self.load_stdlib_module_with_types(&["std", "option"]);
         self.load_stdlib_module_with_types(&["std", "vec"]);
 

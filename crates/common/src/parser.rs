@@ -1444,11 +1444,22 @@ impl Parser {
             self.consume(&Token::Colon(ZTUP), "Expected ':' after type parameter")?;
 
             let mut bounds = Vec::new();
-            bounds.push(self.consume_identifier("Expected kind name after ':'")?);
+            // Parse qualified identifier (e.g., std.ToString)
+            let mut bound_name = self.consume_identifier("Expected kind name after ':'")?;
+            while self.match_token(&[Token::Dot(ZTUP)]) {
+                let next_part = self.consume_identifier("Expected identifier after '.'")?;
+                bound_name = format!("{}.{}", bound_name, next_part);
+            }
+            bounds.push(bound_name);
 
             // Handle multiple bounds separated by '+'
             while self.match_token(&[Token::Plus(ZTUP)]) {
-                bounds.push(self.consume_identifier("Expected kind name after '+'")?);
+                let mut bound_name = self.consume_identifier("Expected kind name after '+'")?;
+                while self.match_token(&[Token::Dot(ZTUP)]) {
+                    let next_part = self.consume_identifier("Expected identifier after '.'")?;
+                    bound_name = format!("{}.{}", bound_name, next_part);
+                }
+                bounds.push(bound_name);
             }
 
             constraints.push(TypeConstraint { type_param, bounds });
@@ -1533,7 +1544,14 @@ impl Parser {
 
                 // Check for trait/kind implementation
                 if self.match_token(&[Token::LeftArrow(ZTUP)]) {
-                    let kind_name = Some(self.consume_identifier("Expected kind name after '<-'")?);
+                    // Parse qualified identifier for kind name (e.g., std.ToString)
+                    let mut kind_name_str =
+                        self.consume_identifier("Expected kind name after '<-'")?;
+                    while self.match_token(&[Token::Dot(ZTUP)]) {
+                        let next_part = self.consume_identifier("Expected identifier after '.'")?;
+                        kind_name_str = format!("{}.{}", kind_name_str, next_part);
+                    }
+                    let kind_name = Some(kind_name_str);
                     let generic_args = self.parse_generic_args_if_present()?;
                     let where_clause = self.parse_where_clause()?;
                     let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
@@ -1572,7 +1590,14 @@ impl Parser {
             )),
             _ => {
                 // impl KindName for TypeName
-                let kind_name = self.consume_identifier("Expected kind name after 'impl'")?;
+                // Parse qualified identifier for kind name (e.g., std.ToString)
+                let mut kind_name_str =
+                    self.consume_identifier("Expected kind name after 'impl'")?;
+                while self.match_token(&[Token::Dot(ZTUP)]) {
+                    let next_part = self.consume_identifier("Expected identifier after '.'")?;
+                    kind_name_str = format!("{}.{}", kind_name_str, next_part);
+                }
+                let kind_name = kind_name_str;
                 let generic_args = self.parse_generic_args_if_present()?;
                 self.consume(&Token::For(ZTUP), "Expected 'for' after kind name")?;
                 let type_name = self.consume_identifier("Expected type name after 'for'")?;
