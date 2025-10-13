@@ -7,13 +7,13 @@
 //! - Basic optimizations
 //! - Memory management
 
+use llvm_sys::LLVMIntPredicate;
 use llvm_sys::analysis::*;
 use llvm_sys::bit_writer::*;
 use llvm_sys::core::*;
 use llvm_sys::execution_engine::*;
 use llvm_sys::prelude::*;
 use llvm_sys::target::*;
-use llvm_sys::LLVMIntPredicate;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::ptr;
@@ -55,6 +55,16 @@ impl TypeToLLVM for Type {
                 Type::U16 => LLVMInt16TypeInContext(context),
                 Type::I8 => LLVMInt8TypeInContext(context),
                 Type::I16 => LLVMInt16TypeInContext(context),
+                Type::Union { variants } => {
+                    let variant_types: Vec<LLVMTypeRef> =
+                        variants.iter().map(|v| v.to_llvm_type(context)).collect();
+                    LLVMStructTypeInContext(
+                        context,
+                        variant_types.as_ptr() as *mut LLVMTypeRef,
+                        variant_types.len() as u32,
+                        0,
+                    )
+                }
                 Type::Function {
                     params,
                     return_type,

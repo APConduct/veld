@@ -5085,6 +5085,14 @@ impl TypeChecker {
             Type::IntegerLiteral(val) => format!("{}", val),
             Type::FloatLiteral(val) => format!("{}", val),
             Type::Number => "number".to_string(),
+            Type::Union { variants } => {
+                let variants_str = variants
+                    .iter()
+                    .map(|t| self.type_to_string(t))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("union({})", variants_str)
+            }
             Type::Struct { name, .. } => name.clone(),
             Type::Enum { name, .. } => name.clone(),
             Type::Generic { base, type_args } => {

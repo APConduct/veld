@@ -74,6 +74,10 @@ pub enum Type {
         fields: HashMap<String, Type>,
     },
 
+    Union {
+        variants: Vec<Type>,
+    },
+
     Generic {
         base: String,
         type_args: Vec<Type>,
@@ -205,6 +209,13 @@ impl Type {
                     fields: field_types,
                 })
             }
+            TypeAnnotation::Union { variants } => {
+                let variants = variants
+                    .iter()
+                    .map(|v| Type::from_annotation(v, None))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Type::Union { variants })
+            }
             TypeAnnotation::Constrained {
                 base_type: _,
                 constraints: _,
@@ -334,6 +345,16 @@ impl std::fmt::Display for Type {
             Type::KindSelf(name) => write!(f, "{}", name),
             Type::StructType(name) => write!(f, "struct type: {}", name),
             Type::EnumType(name) => write!(f, "enum type: {}", name),
+            Type::Union { variants } => {
+                write!(f, "union type: ")?;
+                for (i, variant) in variants.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " | ")?;
+                    }
+                    write!(f, "{}", variant)?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -864,6 +885,13 @@ impl TypeEnvironment {
                 Ok(Type::Record {
                     fields: field_types,
                 })
+            }
+            TypeAnnotation::Union { variants } => {
+                let variants = variants
+                    .iter()
+                    .map(|v| self.from_annotation(v, None))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Type::Union { variants })
             }
             TypeAnnotation::Constrained {
                 base_type: _,

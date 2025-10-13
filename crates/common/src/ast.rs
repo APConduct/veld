@@ -117,6 +117,9 @@ pub enum TypeAnnotation {
     Record {
         fields: Vec<(String, TypeAnnotation)>, // Record type, e.g., { name: str, age: i32 }
     },
+    Union {
+        variants: Vec<TypeAnnotation>, // Union type, e.g., i32 | f64 | str
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
