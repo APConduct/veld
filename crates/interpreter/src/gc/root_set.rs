@@ -373,7 +373,9 @@ mod tests {
     use crate::gc::handle::{GcHandle, Generation};
 
     fn create_test_handle(id: u64) -> GcHandle {
-        GcHandle::new(id, Generation::new())
+        // Use a fixed generation based on the ID to ensure consistency
+        // This ensures that create_test_handle(1) always returns the same handle
+        GcHandle::new(id, Generation(1000 + id))
     }
 
     #[test]

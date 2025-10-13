@@ -474,12 +474,24 @@ impl PauseTimePercentiles {
 
         let len = durations.len();
 
+        // Helper function to calculate percentile using standard method
+        let percentile = |p: usize| {
+            if len == 1 {
+                return durations[0];
+            }
+            let index = (len - 1) * p / 100;
+            durations[index]
+        };
+
         Self {
-            p50: durations[len * 50 / 100],
-            p90: durations[len * 90 / 100],
-            p95: durations[len * 95 / 100],
-            p99: durations[len * 99 / 100],
-            p99_9: durations[len * 999 / 1000],
+            p50: percentile(50),
+            p90: percentile(90),
+            p95: percentile(95),
+            p99: percentile(99),
+            p99_9: {
+                let index = (len - 1) * 999 / 1000;
+                durations[index]
+            },
             max: durations[len - 1],
         }
     }

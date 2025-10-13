@@ -13,7 +13,7 @@ static HANDLE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Generation counter for detecting stale handles
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Generation(u64);
+pub struct Generation(pub u64);
 
 impl Generation {
     pub fn new() -> Self {
