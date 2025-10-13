@@ -2,14 +2,21 @@ pub struct Foo<T>
     pub t: T
 end
 
-impl<T> Foo<T> <- std.ToString if T: std.ToString then
+impl Foo<str> <- std.ToString
     pub fn to_string(self) -> str
-        return self.t.to_string()
+        return self.t
+    end
+end
+
+# Conditional implementation with where clause - demonstrates parsing
+impl<T> Foo<T> <- std.ToString where T: std.ToString
+    pub fn to_string(self) -> str
+        return "conditional: " + self.t.to_string()
     end
 end
 
 pub fn main()
-    let foo = Foo<str> { t: "hello" }
+    let foo = Foo<str>(t: "hello")
     assert~(foo.to_string() == "hello")
 end
 

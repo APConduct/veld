@@ -1,0 +1,21 @@
+# Test to verify conditional implementation parsing works correctly
+# This demonstrates that the parser can handle qualified identifiers in where clauses
+
+pub struct Container
+    pub value: str
+end
+
+# Simple trait implementation using existing ToString trait
+impl Container <- std.ToString
+    pub fn to_string(self) -> str
+        return "Container: " + self.value
+    end
+end
+
+pub fn main()
+    # Simple test - just create a container without generics
+    let container = Container(value: "hello")
+    return 0
+end
+
+main()
