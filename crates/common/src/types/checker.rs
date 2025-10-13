@@ -2930,12 +2930,19 @@ impl TypeChecker {
                 let base_name = base.clone();
                 let concrete_type_args = type_args.clone();
 
-                // First try struct methods, then enum methods
+                // First try struct methods, then enum methods, then trait implementations
                 let method_type = {
                     if let Some(methods) = self.env.struct_methods().get(&base_name) {
                         methods.get(method).cloned()
                     } else if let Some(methods) = self.env.get_enum_methods(&base_name) {
                         methods.get(method).cloned()
+                    } else if let Some(implementations) =
+                        self.env.get_implementations_for_type(&base_name)
+                    {
+                        // Check trait implementations for the method
+                        implementations
+                            .iter()
+                            .find_map(|impl_info| impl_info.methods.get(method).cloned())
                     } else {
                         None
                     }
