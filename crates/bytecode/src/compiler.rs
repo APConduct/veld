@@ -1,12 +1,11 @@
-use crate::chunk::{Chunk, ChunkBuilder};
-use crate::instruction::Instruction;
-use crate::value::BytecodeValue;
 use std::collections::HashMap;
 use tracing::{trace, warn};
 use veld_common::ast::{
     AST, Argument, BinaryOperator, Expr, FunctionDeclaration, Literal, MatchArm, MatchPattern,
     Statement, TypeAnnotation, UnaryOperator, VarKind,
 };
+use veld_common::bytecode::{Chunk, ChunkBuilder, Instruction};
+use veld_common::value::Value;
 use veld_error::{Result, VeldError};
 
 /// Bytecode compiler for converting Veld AST to bytecode
@@ -225,9 +224,7 @@ impl BytecodeCompiler {
                     );
                 } else {
                     // Fallback: treat as global assignment
-                    let name_index = self
-                        .current_chunk
-                        .add_constant(BytecodeValue::String(name.clone()));
+                    let name_index = self.current_chunk.add_constant(Value::String(name.clone()));
                     self.emit_instruction(
                         Instruction::StoreGlobal(name_index as u16),
                         self.current_line,
@@ -265,7 +262,7 @@ impl BytecodeCompiler {
                 if let Some(return_expr) = expr {
                     self.compile_expression(return_expr)?;
                 } else {
-                    let unit_index = self.current_chunk.add_constant(BytecodeValue::Unit);
+                    let unit_index = self.current_chunk.add_constant(Value::Unit);
                     self.emit_instruction(
                         Instruction::LoadConstant(unit_index as u16),
                         self.current_line,
@@ -420,7 +417,7 @@ impl BytecodeCompiler {
                 self.compile_expression(object)?;
                 let field_index = self
                     .current_chunk
-                    .add_constant(BytecodeValue::String(property.clone()));
+                    .add_constant(Value::String(property.clone()));
                 self.emit_instruction(Instruction::GetField(field_index as u16), self.current_line);
             }
 
@@ -452,7 +449,7 @@ impl BytecodeCompiler {
             } => {
                 // Simplified lambda compilation
                 warn!("Lambda compilation not fully implemented");
-                let unit_index = self.current_chunk.add_constant(BytecodeValue::Unit);
+                let unit_index = self.current_chunk.add_constant(Value::Unit);
                 self.emit_instruction(
                     Instruction::LoadConstant(unit_index as u16),
                     self.current_line,
@@ -462,7 +459,7 @@ impl BytecodeCompiler {
             _ => {
                 warn!("Unhandled expression type: {:?}", expr);
                 // Push unit as placeholder
-                let unit_index = self.current_chunk.add_constant(BytecodeValue::Unit);
+                let unit_index = self.current_chunk.add_constant(Value::Unit);
                 self.emit_instruction(
                     Instruction::LoadConstant(unit_index as u16),
                     self.current_line,
@@ -537,7 +534,7 @@ impl BytecodeCompiler {
         // Assume global
         let name_index = self
             .current_chunk
-            .add_constant(BytecodeValue::String(name.to_string()));
+            .add_constant(Value::String(name.to_string()));
         self.emit_instruction(
             Instruction::LoadGlobal(name_index as u16),
             self.current_line,
@@ -560,9 +557,7 @@ impl BytecodeCompiler {
                         self.current_line,
                     );
                 } else {
-                    let name_index = self
-                        .current_chunk
-                        .add_constant(BytecodeValue::String(name.clone()));
+                    let name_index = self.current_chunk.add_constant(Value::String(name.clone()));
                     self.emit_instruction(
                         Instruction::StoreGlobal(name_index as u16),
                         self.current_line,
@@ -580,7 +575,7 @@ impl BytecodeCompiler {
                 self.compile_expression(object)?;
                 let field_index = self
                     .current_chunk
-                    .add_constant(BytecodeValue::String(property.clone()));
+                    .add_constant(Value::String(property.clone()));
                 self.emit_instruction(Instruction::SetField(field_index as u16), self.current_line);
             }
 
@@ -853,22 +848,64 @@ impl BytecodeCompiler {
 
     /// Compile function declaration
     fn compile_function(&mut self, func: &FunctionDeclaration) -> Result<()> {
-        // For now, create a simple function value
-        // In a full implementation, this would create a new chunk
-        let func_value = BytecodeValue::Function {
-            chunk_index: 0, // Would reference compiled function chunk
+        // Compile the function body into a new chunk
+        let mut function_chunk = ChunkBuilder::new()
+            .with_name(func.name.clone())
+            .with_parameter_count(func.params.len())
+            .build();
+
+        // Save current state
+        let prev_chunk = std::mem::replace(&mut self.current_chunk, function_chunk);
+        let prev_locals = std::mem::replace(&mut self.locals, Vec::new());
+        let prev_scope_depth = self.scope_depth;
+
+        self.scope_depth = 0;
+
+        // Declare parameters as locals
+        for (i, param) in func.params.iter().enumerate() {
+            let name = param.0.clone();
+            self.locals.push(Local {
+                name,
+                depth: 0,
+                is_captured: false,
+                is_mutable: true,
+                slot: i,
+            });
+        }
+
+        // Compile the function body
+        for stmt in &func.body {
+            self.compile_statement(stmt)?;
+        }
+
+        // Ensure function returns Unit if no explicit return
+        let unit_index = self.current_chunk.add_constant(Value::Unit);
+        self.emit_instruction(
+            Instruction::LoadConstant(unit_index as u16),
+            self.current_line,
+        );
+        self.emit_instruction(Instruction::Return, self.current_line);
+
+        // Restore previous state and get the completed chunk
+        function_chunk = std::mem::replace(&mut self.current_chunk, prev_chunk);
+        self.locals = prev_locals;
+        self.scope_depth = prev_scope_depth;
+
+        // Add the compiled function to the constant pool
+        let func_value = Value::CompiledFunction {
+            chunk: function_chunk,
             arity: func.params.len() as u8,
-            upvalue_count: 0,
             name: Some(func.name.clone()),
         };
-
         let index = self.current_chunk.add_constant(func_value);
+
+        // Load the function as a constant
         self.emit_instruction(Instruction::LoadConstant(index as u16), self.current_line);
 
         // Store in global
         let name_index = self
             .current_chunk
-            .add_constant(BytecodeValue::String(func.name.clone()));
+            .add_constant(Value::String(func.name.clone()));
         self.emit_instruction(
             Instruction::StoreGlobal(name_index as u16),
             self.current_line,
@@ -881,31 +918,72 @@ impl BytecodeCompiler {
     fn compile_lambda(
         &mut self,
         params: &[(String, Option<TypeAnnotation>)],
-        _body: &Expr,
+        body: &Expr,
     ) -> Result<()> {
-        // Simplified lambda compilation
-        let func_value = BytecodeValue::Function {
-            chunk_index: 0,
+        // Compile the lambda body into a new chunk
+        let mut lambda_chunk = ChunkBuilder::new()
+            .with_name("<lambda>".to_string())
+            .with_parameter_count(params.len())
+            .build();
+
+        // Save current state
+        let prev_chunk = std::mem::replace(&mut self.current_chunk, lambda_chunk);
+        let prev_locals = std::mem::replace(&mut self.locals, Vec::new());
+        let prev_scope_depth = self.scope_depth;
+
+        self.scope_depth = 0;
+
+        // Declare parameters as locals
+        for (i, param) in params.iter().enumerate() {
+            let name = param.0.clone();
+            self.locals.push(Local {
+                name,
+                depth: 0,
+                is_captured: false,
+                is_mutable: true,
+                slot: i,
+            });
+        }
+
+        // Compile the lambda body expression
+        self.compile_expression(body)?;
+
+        // Ensure lambda returns Unit if no explicit return
+        let unit_index = self.current_chunk.add_constant(Value::Unit);
+        self.emit_instruction(
+            Instruction::LoadConstant(unit_index as u16),
+            self.current_line,
+        );
+        self.emit_instruction(Instruction::Return, self.current_line);
+
+        // Restore previous state and get the completed chunk
+        lambda_chunk = std::mem::replace(&mut self.current_chunk, prev_chunk);
+        self.locals = prev_locals;
+        self.scope_depth = prev_scope_depth;
+
+        // Add the compiled lambda to the constant pool
+        let func_value = Value::CompiledFunction {
+            chunk: lambda_chunk,
             arity: params.len() as u8,
-            upvalue_count: 0,
             name: None,
         };
-
         let index = self.current_chunk.add_constant(func_value);
+
+        // Load the lambda as a constant
         self.emit_instruction(Instruction::LoadConstant(index as u16), self.current_line);
 
         Ok(())
     }
 
     /// Convert literal to bytecode value
-    fn literal_to_bytecode_value(&self, literal: &Literal) -> BytecodeValue {
+    fn literal_to_bytecode_value(&self, literal: &Literal) -> Value {
         match literal {
-            Literal::Integer(i) => BytecodeValue::Integer(*i),
-            Literal::Float(f) => BytecodeValue::Float(*f),
-            Literal::String(s) => BytecodeValue::String(s.clone()),
-            Literal::Boolean(b) => BytecodeValue::Boolean(*b),
-            Literal::Char(c) => BytecodeValue::Char(*c),
-            Literal::Unit => BytecodeValue::Unit,
+            Literal::Integer(i) => Value::Integer(*i),
+            Literal::Float(f) => Value::Float(*f),
+            Literal::String(s) => Value::String(s.clone()),
+            Literal::Boolean(b) => Value::Boolean(*b),
+            Literal::Char(c) => Value::Char(*c),
+            Literal::Unit => Value::Unit,
         }
     }
 

@@ -1,179 +1,84 @@
+use super::value::Value;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+
+// =======================================================================
+//  Instruction Definition (from former instruction.rs)
+// =======================================================================
 
 /// Bytecode instructions for the Veld virtual machine
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Instruction {
-    // Stack operations
-    /// Push a constant value onto the stack
     LoadConstant(u16),
-    /// Pop the top value from the stack
     Pop,
-    /// Duplicate the top value on the stack
     Duplicate,
-    /// Swap the top two values on the stack
     Swap,
-
-    // Variable operations
-    /// Load a local variable onto the stack
     LoadLocal(u16),
-    /// Store the top stack value into a local variable
     StoreLocal(u16),
-    /// Load a global variable onto the stack
     LoadGlobal(u16),
-    /// Store the top stack value into a global variable
     StoreGlobal(u16),
-    /// Load an upvalue (closure variable) onto the stack
     LoadUpvalue(u16),
-    /// Store the top stack value into an upvalue
     StoreUpvalue(u16),
-
-    // Arithmetic operations
-    /// Add two numeric values
     Add,
-    /// Subtract two numeric values
     Subtract,
-    /// Multiply two numeric values
     Multiply,
-    /// Divide two numeric values
     Divide,
-    /// Modulo operation
     Modulo,
-    /// Exponentiation
     Power,
-    /// Negate a numeric value
     Negate,
-
-    // Comparison operations
-    /// Equal comparison
     Equal,
-    /// Not equal comparison
     NotEqual,
-    /// Greater than comparison
     Greater,
-    /// Greater than or equal comparison
     GreaterEqual,
-    /// Less than comparison
     Less,
-    /// Less than or equal comparison
     LessEqual,
-
-    // Logical operations
-    /// Logical AND
     LogicalAnd,
-    /// Logical OR
     LogicalOr,
-    /// Logical NOT
     LogicalNot,
-
-    // Bitwise operations
-    /// Bitwise AND
     BitwiseAnd,
-    /// Bitwise OR
     BitwiseOr,
-    /// Bitwise XOR
     BitwiseXor,
-    /// Bitwise NOT
     BitwiseNot,
-    /// Left shift
     LeftShift,
-    /// Right shift
     RightShift,
-
-    // Control flow
-    /// Unconditional jump to offset
     Jump(i16),
-    /// Jump if top of stack is false
     JumpIfFalse(i16),
-    /// Jump if top of stack is true
     JumpIfTrue(i16),
-    /// Pop and jump if false
     PopJumpIfFalse(i16),
-    /// Pop and jump if true
     PopJumpIfTrue(i16),
-    /// Return from current function
     Return,
-
-    // Function operations
-    /// Call a function with n arguments
     Call(u8),
-    /// Create a closure with n upvalues
     Closure(u16, u8),
-    /// Close upvalues from stack position
     CloseUpvalues(u16),
-
-    // Object operations
-    /// Create a new struct instance
     NewStruct(u16),
-    /// Get a field from a struct
     GetField(u16),
-    /// Set a field in a struct
     SetField(u16),
-    /// Create a new array with n elements
     NewArray(u16),
-    /// Get an element from an array
     GetIndex,
-    /// Set an element in an array
     SetIndex,
-    /// Create a tuple with n elements
     NewTuple(u8),
-    /// Create an enum variant
     NewEnum(u16, u8),
-
-    // Pattern matching
-    /// Start pattern matching
     MatchStart,
-    /// Match against a pattern
     MatchPattern(u16),
-    /// Jump to match arm
     MatchJump(i16),
-    /// End pattern matching
     MatchEnd,
-
-    // Type operations
-    /// Check type of value on stack
     TypeCheck(u16),
-    /// Cast value to specified type
     TypeCast(u16),
-
-    // Module operations
-    /// Import a module
     Import(u16),
-    /// Export a value
     Export(u16),
-
-    // Special operations
-    /// Print top of stack (for debugging)
     Print,
-    /// Halt the VM
     Halt,
-    /// No operation
     Nop,
-
-    // Iterator operations
-    /// Create an iterator from a collection
     MakeIterator,
-    /// Get next value from iterator
     IteratorNext,
-    /// Check if iterator has more values
     IteratorHasNext,
-
-    // Exception handling
-    /// Throw an exception
     Throw,
-    /// Try block start
     TryStart(i16),
-    /// Try block end
     TryEnd,
-    /// Catch block
     Catch(u16),
-
-    // Memory operations
-    /// Allocate memory on heap
     Allocate(u16),
-    /// Deallocate memory
     Deallocate,
-    /// Copy memory
     MemCopy(u16),
 }
 
@@ -184,14 +89,12 @@ impl Display for Instruction {
             Instruction::Pop => write!(f, "POP"),
             Instruction::Duplicate => write!(f, "DUP"),
             Instruction::Swap => write!(f, "SWAP"),
-
             Instruction::LoadLocal(idx) => write!(f, "LOAD_LOCAL {}", idx),
             Instruction::StoreLocal(idx) => write!(f, "STORE_LOCAL {}", idx),
             Instruction::LoadGlobal(idx) => write!(f, "LOAD_GLOBAL {}", idx),
             Instruction::StoreGlobal(idx) => write!(f, "STORE_GLOBAL {}", idx),
             Instruction::LoadUpvalue(idx) => write!(f, "LOAD_UPVAL {}", idx),
             Instruction::StoreUpvalue(idx) => write!(f, "STORE_UPVAL {}", idx),
-
             Instruction::Add => write!(f, "ADD"),
             Instruction::Subtract => write!(f, "SUB"),
             Instruction::Multiply => write!(f, "MUL"),
@@ -199,36 +102,30 @@ impl Display for Instruction {
             Instruction::Modulo => write!(f, "MOD"),
             Instruction::Power => write!(f, "POW"),
             Instruction::Negate => write!(f, "NEG"),
-
             Instruction::Equal => write!(f, "EQ"),
             Instruction::NotEqual => write!(f, "NE"),
             Instruction::Greater => write!(f, "GT"),
             Instruction::GreaterEqual => write!(f, "GE"),
             Instruction::Less => write!(f, "LT"),
             Instruction::LessEqual => write!(f, "LE"),
-
             Instruction::LogicalAnd => write!(f, "AND"),
             Instruction::LogicalOr => write!(f, "OR"),
             Instruction::LogicalNot => write!(f, "NOT"),
-
             Instruction::BitwiseAnd => write!(f, "BIT_AND"),
             Instruction::BitwiseOr => write!(f, "BIT_OR"),
             Instruction::BitwiseXor => write!(f, "BIT_XOR"),
             Instruction::BitwiseNot => write!(f, "BIT_NOT"),
             Instruction::LeftShift => write!(f, "LSHIFT"),
             Instruction::RightShift => write!(f, "RSHIFT"),
-
             Instruction::Jump(offset) => write!(f, "JUMP {}", offset),
             Instruction::JumpIfFalse(offset) => write!(f, "JUMP_IF_FALSE {}", offset),
             Instruction::JumpIfTrue(offset) => write!(f, "JUMP_IF_TRUE {}", offset),
             Instruction::PopJumpIfFalse(offset) => write!(f, "POP_JUMP_IF_FALSE {}", offset),
             Instruction::PopJumpIfTrue(offset) => write!(f, "POP_JUMP_IF_TRUE {}", offset),
             Instruction::Return => write!(f, "RETURN"),
-
             Instruction::Call(argc) => write!(f, "CALL {}", argc),
             Instruction::Closure(idx, upvals) => write!(f, "CLOSURE {} {}", idx, upvals),
             Instruction::CloseUpvalues(idx) => write!(f, "CLOSE_UPVALS {}", idx),
-
             Instruction::NewStruct(idx) => write!(f, "NEW_STRUCT {}", idx),
             Instruction::GetField(idx) => write!(f, "GET_FIELD {}", idx),
             Instruction::SetField(idx) => write!(f, "SET_FIELD {}", idx),
@@ -237,31 +134,24 @@ impl Display for Instruction {
             Instruction::SetIndex => write!(f, "SET_INDEX"),
             Instruction::NewTuple(size) => write!(f, "NEW_TUPLE {}", size),
             Instruction::NewEnum(variant, fields) => write!(f, "NEW_ENUM {} {}", variant, fields),
-
             Instruction::MatchStart => write!(f, "MATCH_START"),
             Instruction::MatchPattern(idx) => write!(f, "MATCH_PATTERN {}", idx),
             Instruction::MatchJump(offset) => write!(f, "MATCH_JUMP {}", offset),
             Instruction::MatchEnd => write!(f, "MATCH_END"),
-
             Instruction::TypeCheck(idx) => write!(f, "TYPE_CHECK {}", idx),
             Instruction::TypeCast(idx) => write!(f, "TYPE_CAST {}", idx),
-
             Instruction::Import(idx) => write!(f, "IMPORT {}", idx),
             Instruction::Export(idx) => write!(f, "EXPORT {}", idx),
-
             Instruction::Print => write!(f, "PRINT"),
             Instruction::Halt => write!(f, "HALT"),
             Instruction::Nop => write!(f, "NOP"),
-
             Instruction::MakeIterator => write!(f, "MAKE_ITER"),
             Instruction::IteratorNext => write!(f, "ITER_NEXT"),
             Instruction::IteratorHasNext => write!(f, "ITER_HAS_NEXT"),
-
             Instruction::Throw => write!(f, "THROW"),
             Instruction::TryStart(handler) => write!(f, "TRY_START {}", handler),
             Instruction::TryEnd => write!(f, "TRY_END"),
             Instruction::Catch(idx) => write!(f, "CATCH {}", idx),
-
             Instruction::Allocate(size) => write!(f, "ALLOC {}", size),
             Instruction::Deallocate => write!(f, "DEALLOC"),
             Instruction::MemCopy(size) => write!(f, "MEMCPY {}", size),
@@ -270,10 +160,8 @@ impl Display for Instruction {
 }
 
 impl Instruction {
-    /// Returns the size of the instruction in bytes
     pub fn size(&self) -> usize {
         match self {
-            // Instructions with no operands
             Instruction::Pop
             | Instruction::Duplicate
             | Instruction::Swap
@@ -313,11 +201,7 @@ impl Instruction {
             | Instruction::Throw
             | Instruction::TryEnd
             | Instruction::Deallocate => 1,
-
-            // Instructions with 1-byte operands
             Instruction::Call(_) | Instruction::NewTuple(_) => 2,
-
-            // Instructions with 2-byte operands
             Instruction::LoadConstant(_)
             | Instruction::LoadLocal(_)
             | Instruction::StoreLocal(_)
@@ -338,8 +222,6 @@ impl Instruction {
             | Instruction::Catch(_)
             | Instruction::Allocate(_)
             | Instruction::MemCopy(_) => 3,
-
-            // Instructions with 2-byte signed operands
             Instruction::Jump(_)
             | Instruction::JumpIfFalse(_)
             | Instruction::JumpIfTrue(_)
@@ -347,13 +229,10 @@ impl Instruction {
             | Instruction::PopJumpIfTrue(_)
             | Instruction::MatchJump(_)
             | Instruction::TryStart(_) => 3,
-
-            // Instructions with multiple operands
             Instruction::Closure(_, _) | Instruction::NewEnum(_, _) => 4,
         }
     }
 
-    /// Returns true if this instruction can modify control flow
     pub fn is_control_flow(&self) -> bool {
         matches!(
             self,
@@ -371,7 +250,6 @@ impl Instruction {
         )
     }
 
-    /// Returns true if this instruction pops values from the stack
     pub fn pops_stack(&self) -> bool {
         matches!(
             self,
@@ -409,7 +287,6 @@ impl Instruction {
         )
     }
 
-    /// Returns true if this instruction pushes values onto the stack
     pub fn pushes_stack(&self) -> bool {
         matches!(
             self,
@@ -453,5 +330,324 @@ impl Instruction {
                 | Instruction::IteratorNext
                 | Instruction::IteratorHasNext
         )
+    }
+}
+
+// =======================================================================
+//  Chunk Definition (from former chunk.rs)
+// =======================================================================
+
+/// A chunk of bytecode containing instructions, constants, and metadata
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Chunk {
+    pub instructions: Vec<Instruction>,
+    pub constants: Vec<Value>,
+    pub line_numbers: Vec<usize>,
+    pub source_file: Option<String>,
+    pub name: Option<String>,
+    pub local_count: usize,
+    pub parameter_count: usize,
+    pub max_stack_depth: usize,
+    pub upvalues: Vec<UpvalueInfo>,
+    pub labels: HashMap<String, usize>,
+    pub debug_symbols: Vec<DebugSymbol>,
+}
+
+/// Information about an upvalue (captured variable)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpvalueInfo {
+    pub index: usize,
+    pub is_local: bool,
+    pub name: Option<String>,
+}
+
+/// Debug information for variables
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DebugSymbol {
+    pub name: String,
+    pub index: usize,
+    pub start_instruction: usize,
+    pub end_instruction: usize,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+}
+
+impl Chunk {
+    pub fn new() -> Self {
+        Self {
+            instructions: Vec::new(),
+            constants: Vec::new(),
+            line_numbers: Vec::new(),
+            source_file: None,
+            name: None,
+            local_count: 0,
+            parameter_count: 0,
+            max_stack_depth: 0,
+            upvalues: Vec::new(),
+            labels: HashMap::new(),
+            debug_symbols: Vec::new(),
+        }
+    }
+
+    pub fn with_name(name: String) -> Self {
+        let mut chunk = Self::new();
+        chunk.name = Some(name);
+        chunk
+    }
+
+    pub fn add_instruction(&mut self, instruction: Instruction, line: usize) -> usize {
+        let index = self.instructions.len();
+        self.instructions.push(instruction);
+        self.line_numbers.push(line);
+        index
+    }
+
+    pub fn add_constant(&mut self, value: Value) -> usize {
+        if let Some(index) = self
+            .constants
+            .iter()
+            .position(|existing| existing == &value)
+        {
+            return index;
+        }
+        let index = self.constants.len();
+        self.constants.push(value);
+        index
+    }
+
+    pub fn get_constant(&self, index: usize) -> Option<&Value> {
+        self.constants.get(index)
+    }
+
+    pub fn get_instruction(&self, index: usize) -> Option<&Instruction> {
+        self.instructions.get(index)
+    }
+
+    pub fn get_line_number(&self, instruction_index: usize) -> Option<usize> {
+        self.line_numbers.get(instruction_index).copied()
+    }
+
+    pub fn add_label(&mut self, label: String) {
+        let position = self.instructions.len();
+        self.labels.insert(label, position);
+    }
+
+    pub fn get_label_position(&self, label: &str) -> Option<usize> {
+        self.labels.get(label).copied()
+    }
+
+    pub fn add_upvalue(&mut self, info: UpvalueInfo) -> usize {
+        let index = self.upvalues.len();
+        self.upvalues.push(info);
+        index
+    }
+
+    pub fn add_debug_symbol(&mut self, symbol: DebugSymbol) {
+        self.debug_symbols.push(symbol);
+    }
+
+    pub fn find_debug_symbol(&self, name: &str, instruction: usize) -> Option<&DebugSymbol> {
+        self.debug_symbols.iter().find(|symbol| {
+            symbol.name == name
+                && instruction >= symbol.start_instruction
+                && instruction <= symbol.end_instruction
+        })
+    }
+
+    pub fn instruction_count(&self) -> usize {
+        self.instructions.len()
+    }
+
+    pub fn constant_count(&self) -> usize {
+        self.constants.len()
+    }
+
+    pub fn patch_jump(&mut self, instruction_index: usize, target: usize) -> Result<(), String> {
+        if instruction_index >= self.instructions.len() {
+            return Err("Invalid instruction index".to_string());
+        }
+        let offset = target as i16 - instruction_index as i16 - 1;
+        match &mut self.instructions[instruction_index] {
+            Instruction::Jump(jump_offset) => *jump_offset = offset,
+            Instruction::JumpIfFalse(jump_offset) => *jump_offset = offset,
+            Instruction::JumpIfTrue(jump_offset) => *jump_offset = offset,
+            Instruction::PopJumpIfFalse(jump_offset) => *jump_offset = offset,
+            Instruction::PopJumpIfTrue(jump_offset) => *jump_offset = offset,
+            Instruction::MatchJump(jump_offset) => *jump_offset = offset,
+            Instruction::TryStart(handler_offset) => *handler_offset = offset,
+            _ => return Err("Cannot patch non-jump instruction".to_string()),
+        }
+        Ok(())
+    }
+
+    pub fn calculate_max_stack_depth(&mut self) {
+        let mut current_depth: usize = 0;
+        let mut max_depth: usize = 0;
+        for instruction in &self.instructions {
+            if instruction.pops_stack() {
+                match instruction {
+                    Instruction::Pop => current_depth = current_depth.saturating_sub(1),
+                    Instruction::Call(argc) => {
+                        current_depth = current_depth.saturating_sub(*argc as usize + 1);
+                        current_depth += 1;
+                    }
+                    Instruction::Return => current_depth = current_depth.saturating_sub(1),
+                    Instruction::NewArray(size) => {
+                        current_depth = current_depth.saturating_sub(*size as usize);
+                        current_depth += 1;
+                    }
+                    Instruction::NewTuple(size) => {
+                        current_depth = current_depth.saturating_sub(*size as usize);
+                        current_depth += 1;
+                    }
+                    Instruction::NewStruct(_) => {
+                        current_depth = current_depth.saturating_sub(1);
+                        current_depth += 1;
+                    }
+                    _ => current_depth = current_depth.saturating_sub(1),
+                }
+            }
+            if instruction.pushes_stack() {
+                current_depth += 1;
+            }
+            max_depth = max_depth.max(current_depth);
+        }
+        self.max_stack_depth = max_depth;
+    }
+
+    pub fn optimize(&mut self) {
+        let mut optimized_instructions = Vec::new();
+        let mut i = 0;
+        while i < self.instructions.len() {
+            match &self.instructions[i] {
+                Instruction::Pop => {
+                    let mut pop_count = 1;
+                    while i + pop_count < self.instructions.len() {
+                        if matches!(self.instructions[i + pop_count], Instruction::Pop) {
+                            pop_count += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    for _ in 0..pop_count {
+                        optimized_instructions.push(Instruction::Pop);
+                    }
+                    i += pop_count;
+                }
+                _ => {
+                    optimized_instructions.push(self.instructions[i].clone());
+                    i += 1;
+                }
+            }
+        }
+        self.instructions = optimized_instructions;
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        for instruction in &self.instructions {
+            match instruction {
+                Instruction::LoadConstant(index) => {
+                    if *index as usize >= self.constants.len() {
+                        return Err(format!("Invalid constant index: {}", index));
+                    }
+                }
+                Instruction::LoadLocal(index) | Instruction::StoreLocal(index) => {
+                    if *index as usize >= self.local_count {
+                        return Err(format!("Invalid local variable index: {}", index));
+                    }
+                }
+                _ => {}
+            }
+        }
+        if self.line_numbers.len() != self.instructions.len() {
+            return Err("Line numbers count doesn't match instructions count".to_string());
+        }
+        Ok(())
+    }
+}
+
+impl Default for Chunk {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Display for Chunk {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        writeln!(f, "=== {} ===", self.name.as_deref().unwrap_or("Anonymous"))?;
+        writeln!(f, "Constants: {}", self.constants.len())?;
+        writeln!(f, "Locals: {}", self.local_count)?;
+        writeln!(f, "Parameters: {}", self.parameter_count)?;
+        writeln!(f, "Max stack depth: {}", self.max_stack_depth)?;
+        writeln!(f, "Upvalues: {}", self.upvalues.len())?;
+        writeln!(f)?;
+        if !self.constants.is_empty() {
+            writeln!(f, "Constants:")?;
+            for (i, constant) in self.constants.iter().enumerate() {
+                writeln!(f, "  {:04}: {}", i, constant)?;
+            }
+            writeln!(f)?;
+        }
+        writeln!(f, "Instructions:")?;
+        for (i, instruction) in self.instructions.iter().enumerate() {
+            let line = self.line_numbers.get(i).copied().unwrap_or(0);
+            writeln!(f, "  {:04} (line {:3}): {}", i, line, instruction)?;
+        }
+        Ok(())
+    }
+}
+
+/// Builder for creating chunks with fluent interface
+#[derive(Debug, Clone)]
+pub struct ChunkBuilder {
+    chunk: Chunk,
+}
+
+impl ChunkBuilder {
+    pub fn new() -> Self {
+        Self {
+            chunk: Chunk::new(),
+        }
+    }
+
+    pub fn with_name(mut self, name: String) -> Self {
+        self.chunk.name = Some(name);
+        self
+    }
+
+    pub fn with_source_file(mut self, source_file: String) -> Self {
+        self.chunk.source_file = Some(source_file);
+        self
+    }
+
+    pub fn with_local_count(mut self, count: usize) -> Self {
+        self.chunk.local_count = count;
+        self
+    }
+
+    pub fn with_parameter_count(mut self, count: usize) -> Self {
+        self.chunk.parameter_count = count;
+        self
+    }
+
+    pub fn instruction(mut self, instruction: Instruction, line: usize) -> Self {
+        self.chunk.add_instruction(instruction, line);
+        self
+    }
+
+    pub fn constant(mut self, value: Value) -> Self {
+        self.chunk.add_constant(value);
+        self
+    }
+
+    pub fn build(mut self) -> Chunk {
+        self.chunk.calculate_max_stack_depth();
+        self.chunk
+    }
+}
+
+impl Default for ChunkBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }

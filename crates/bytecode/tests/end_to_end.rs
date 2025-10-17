@@ -1,4 +1,4 @@
-use veld_bytecode::{BytecodeCompiler, BytecodeValue, InterpretResult, VirtualMachine};
+use veld_bytecode::{BytecodeCompiler, InterpretResult, VirtualMachine, value::BytecodeValue};
 use veld_common::ast::{AST, Statement};
 use veld_common::lexer::Lexer;
 use veld_common::parser::Parser;

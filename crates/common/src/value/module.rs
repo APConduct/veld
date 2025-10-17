@@ -1,11 +1,12 @@
 use super::super::ast::{ImportItem, Statement};
 use super::super::lexer::Lexer;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use veld_error::{Result as VeldResult, VeldError};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Module {
     pub name: String,
     pub statements: Vec<Statement>,
@@ -19,7 +20,7 @@ impl Module {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ExportedItem {
     Function(usize),
     Struct(usize),

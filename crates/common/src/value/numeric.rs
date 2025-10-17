@@ -1,10 +1,10 @@
 use crate::types::Type;
 use crate::types::TypeEnvironment;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::hash::Hasher;
 use veld_error::Result;
-
 pub struct NumericKinds;
 
 impl NumericKinds {
@@ -425,7 +425,7 @@ impl NumericKinds {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash, Deserialize, Serialize)]
 pub enum IntegerValue {
     I8(i8),
     I16(i16),
@@ -473,7 +473,7 @@ impl IntegerValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum FloatValue {
     F32(f32),
     F64(f64),
@@ -509,7 +509,7 @@ impl FloatValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash, Deserialize, Serialize)]
 pub enum NumericValue {
     Integer(IntegerValue),
     Float(FloatValue),

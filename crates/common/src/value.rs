@@ -1,18 +1,20 @@
 use super::ast::{Statement, TypeAnnotation};
 use super::types::Type;
 use std::collections::HashMap;
+use std::fmt::Display;
 use veld_error::{Result, VeldError};
 pub mod module;
 pub mod numeric;
 pub mod numeric_ops;
 use module::Module;
 use numeric::NumericValue;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq)]
 // Anonymous struct like: { field1: Type, field2: Type }
 pub struct Record {}
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Value {
     Record(HashMap<String, Value>),
     Numeric(NumericValue),
@@ -52,6 +54,12 @@ pub enum Value {
 
     Break,
     Continue,
+
+    CompiledFunction {
+        chunk: super::bytecode::Chunk,
+        arity: u8,
+        name: Option<String>,
+    },
 
     Module(Module),
 }
@@ -117,6 +125,9 @@ impl Value {
                     .map(|(k, v)| (k.clone(), v.type_of()))
                     .collect(),
             },
+            Value::CompiledFunction { chunk, arity, name } => {
+                todo!("Implement type inference for compiled functions")
+            }
         }
     }
 
@@ -133,6 +144,82 @@ impl Value {
                 "Invalid operation {:?} between {:?} and {:?}",
                 op, self, rhs
             ))),
+        }
+    }
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Numeric(n) => write!(f, "{:?}", n),
+            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Boolean(b) => write!(f, "{}", b),
+            Value::Unit => write!(f, "()"),
+            Value::Struct { name, fields } => {
+                write!(f, "{} {{", name)?;
+                for (i, (k, v)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", k, v)?;
+                }
+                write!(f, "}}")
+            }
+            Value::Enum {
+                enum_name,
+                variant_name,
+                ..
+            } => {
+                write!(f, "{}::{}", enum_name, variant_name)
+            }
+            Value::EnumType { name, .. } => {
+                write!(f, "{}", name)
+            }
+            Value::StructType { name, .. } => {
+                write!(f, "{}", name)
+            }
+            Value::Tuple(values) => {
+                write!(f, "(")?;
+                for (i, v) in values.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", v)?;
+                }
+                write!(f, ")")
+            }
+            Value::Record(fields) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", k, v)?;
+                }
+                write!(f, "}}")
+            }
+            Value::Integer(i) => write!(f, "{}", i),
+            Value::Float(fl) => write!(f, "{}", fl),
+            Value::Char(c) => write!(f, "'{}'", c),
+            Value::Return(val) => write!(f, "return {}", val),
+            Value::Function { .. } => write!(f, "<function>"),
+            Value::Break => write!(f, "break"),
+            Value::Continue => write!(f, "continue"),
+            Value::CompiledFunction { name, .. } => match name {
+                Some(n) => write!(f, "<compiled function {}>", n),
+                None => write!(f, "<compiled function>"),
+            },
+            Value::Module(module) => write!(f, "<module {}>", module.name),
+            Value::Array(arr) => {
+                write!(f, "[")?;
+                for (i, v) in arr.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", v)?;
+                }
+                write!(f, "]")
+            }
         }
     }
 }

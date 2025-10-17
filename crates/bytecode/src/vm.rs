@@ -1,8 +1,9 @@
-use crate::chunk::Chunk;
-use crate::instruction::Instruction;
 use crate::value::{BytecodeValue, RuntimeError, UpvalueRef};
 use std::collections::HashMap;
 use tracing::{trace, warn};
+use veld_common::bytecode::Chunk;
+use veld_common::bytecode::Instruction;
+use veld_common::value::Value as InterpreterValue;
 
 /// The Veld virtual machine for executing bytecode
 pub struct VirtualMachine {
@@ -423,6 +424,8 @@ impl VirtualMachine {
             });
         }
 
+        // The instruction in the chunk is already of type veld_common::bytecode::Instruction,
+        // which is the same as our imported Instruction type.
         let instruction = frame.chunk.instructions[frame.ip].clone();
         frame.ip += 1;
         Ok(instruction)
@@ -431,7 +434,7 @@ impl VirtualMachine {
     /// Read a constant from the constant pool
     fn read_constant(&self, index: u16) -> Result<BytecodeValue, RuntimeError> {
         let frame = self.current_frame();
-        frame
+        let value = frame
             .chunk
             .constants
             .get(index as usize)
@@ -439,7 +442,8 @@ impl VirtualMachine {
             .ok_or_else(|| RuntimeError::InvalidOperation {
                 op: "invalid constant index".to_string(),
                 types: vec![index.to_string()],
-            })
+            })?;
+        BytecodeValue::from_interpreter_value(&value)
     }
 
     /// Push a value onto the stack

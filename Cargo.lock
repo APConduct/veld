@@ -1716,6 +1716,7 @@ name = "veld-common"
 version = "0.1.4"
 dependencies = [
  "logos 0.15.1",
+ "serde",
  "tracing",
  "veld-error",
 ]

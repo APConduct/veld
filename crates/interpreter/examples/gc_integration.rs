@@ -5,10 +5,10 @@
 
 use std::path::Path;
 use veld_common::ast::{Expr, Literal, Statement, VarKind};
+use veld_common::gc::{GarbageCollector, GcConfig, SafeGc};
 use veld_common::lexer::Lexer;
 use veld_common::parser::Parser;
 use veld_common::value::Value;
-use veld_interpreter::gc::{GarbageCollector, GcConfig, SafeGc};
 use veld_interpreter::interpreter::Interpreter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -370,7 +370,7 @@ fn _integrated_interpreter_example() -> Result<(), Box<dyn std::error::Error>> {
     let safe_gc = SafeGc::new(gc);
 
     // Initialize thread-local GC context
-    veld_interpreter::gc::init_gc_context(safe_gc.clone());
+    veld_common::gc::init_gc_context(safe_gc.clone());
 
     // Create an interpreter instance
     let mut interpreter = Interpreter::new(".");

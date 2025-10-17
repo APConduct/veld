@@ -1,4 +1,5 @@
 use super::source::SourceMap;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fmt::{Debug, Display, Formatter},
@@ -26,19 +27,19 @@ impl AST {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MacroPattern(pub String);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MacroTemplate {
     pub pattern: MacroPattern,
     pub expansion: MacroExpansion,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MacroExpansion(pub Vec<Statement>);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum VarKind {
     Let,
     Var,
@@ -46,7 +47,7 @@ pub enum VarKind {
     LetMut,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Literal {
     Integer(i64),
     Char(char),
@@ -80,7 +81,7 @@ impl Display for VarKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Argument {
     Positional(Expr),
     Named { name: String, value: Expr },
@@ -95,7 +96,7 @@ impl Display for Argument {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TypeAnnotation {
     Basic(String),
     Unit,
@@ -122,7 +123,7 @@ pub enum TypeAnnotation {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WhereClause {
     pub constraints: Vec<TypeConstraint>,
 }
@@ -140,7 +141,7 @@ impl Display for WhereClause {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TypeConstraint {
     pub type_param: String,
     pub bounds: Vec<String>, // Kind names that the type parameter must implement
@@ -152,7 +153,7 @@ impl Display for TypeConstraint {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum UnaryOperator {
     Negate, // For -x
     Not,    // For !x or not x
@@ -168,7 +169,7 @@ impl Display for UnaryOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expr {
     BlockExpression {
         statements: Vec<Statement>,
@@ -335,7 +336,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BinaryOperator {
     Add,
     Subtract,
@@ -381,7 +382,7 @@ impl Display for BinaryOperator {
 /// Examples:
 /// - In `Add<T>`, T is an unnamed generic argument
 /// - In `Add<T, Output = U>`, T is unnamed and Output = U is named
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GenericArgument {
     /// Optional name for named arguments (e.g., "Output" in `Output = T`)
     /// None for positional/unnamed type arguments
@@ -439,7 +440,7 @@ impl GenericArgument {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StructMethod {
     pub name: String,
     pub params: Vec<(String, TypeAnnotation)>,
@@ -447,7 +448,7 @@ pub struct StructMethod {
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EnumMethod {
     pub name: String,
     pub params: Vec<(String, TypeAnnotation)>,
@@ -455,21 +456,21 @@ pub struct EnumMethod {
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EnumVariant {
     pub name: String,
     pub fields: Option<Vec<TypeAnnotation>>, // For variants with fields
     pub methods: HashMap<String, EnumMethod>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StructField {
     pub name: String,
     pub type_annotation: TypeAnnotation,
     pub is_public: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Pattern {
     Literal(Literal),
     Identifier(String),
@@ -486,7 +487,7 @@ pub enum Pattern {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum Statement {
     BlockScope {
         body: Vec<Statement>,
@@ -613,7 +614,7 @@ pub enum Statement {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchArm {
     pub pat: MatchPattern,
     pub guard: Option<Expr>,
@@ -626,7 +627,7 @@ impl std::fmt::Display for MatchArm {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchPattern {
     Literal(Literal),
     Identifier(String),
@@ -676,7 +677,7 @@ impl std::fmt::Display for MatchPattern {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ImportItem {
     All,           // import math.*
     Named(String), // import math.{sqrt}
@@ -687,7 +688,7 @@ pub enum ImportItem {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub params: Vec<(String, TypeAnnotation)>,
@@ -698,7 +699,7 @@ pub struct FunctionDeclaration {
     pub generic_params: Vec<GenericArgument>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct KindMethod {
     pub name: String,
     pub params: Vec<(String, TypeAnnotation)>,
@@ -707,7 +708,7 @@ pub struct KindMethod {
     pub is_public: bool, //   To track visibility
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MethodImpl {
     pub name: String,
     pub generic_params: Vec<GenericArgument>,
