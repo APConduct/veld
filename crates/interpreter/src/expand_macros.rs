@@ -51,6 +51,10 @@ fn expand_macros_in_statement_children(
             }
             Ok(vec![BlockScope { body: new_body }])
         }
+        TypeDeclaration { .. } => {
+            // Type declarations are not expanded as macros; ignore.
+            Ok(vec![stmt.clone()])
+        }
         ExprStatement(expr) => {
             let expr = expand_macros_in_expr(expr, macro_system)?;
             Ok(vec![ExprStatement(expr)])

@@ -494,6 +494,10 @@ pub enum Statement {
     BlockScope {
         body: Vec<Statement>,
     },
+    TypeDeclaration {
+        name: String,
+        type_annotation: TypeAnnotation,
+    },
 
     ExprStatement(Expr),
     FunctionDeclaration {

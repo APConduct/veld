@@ -55,6 +55,22 @@ impl Parser {
 }
 
 impl Parser {
+    fn type_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
+        let start = self.get_current_position();
+        let name = self.consume_identifier("Expected type name")?;
+        self.consume(&Token::Equals(ZTUP), "Expected '=' after type name")?;
+        let type_annotation = self.parse_type()?;
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
+
+        Ok(Statement::TypeDeclaration {
+            name,
+            type_annotation,
+        })
+    }
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
@@ -205,6 +221,10 @@ impl Parser {
     }
 
     fn declaration_with_context(&mut self, context: &mut ParseContext) -> Result<Statement> {
+        tracing::debug!(
+            "declaration_with_context: Entering declaration(), current token: {:?}",
+            self.peek()
+        );
         self.declaration(&mut Some(context))
     }
 
@@ -215,6 +235,10 @@ impl Parser {
         let start = self.get_current_position();
 
         tracing::info!("Parsing declaration. context: {:?}", ctx);
+        tracing::debug!(
+            "declaration: Entering declaration(), current token: {:?}",
+            self.peek()
+        );
 
         let res = if self.is_declaration_keyword() {
             self.variable_declaration(ctx)
@@ -224,6 +248,8 @@ impl Parser {
             self.plex_declaration_with_visibility(false, ctx.as_deref_mut())
         } else if self.match_token(&[Token::Union(ZTUP)]) {
             self.union_declaration_with_visibility(false, ctx.as_deref_mut())
+        } else if self.match_token(&[Token::Type(ZTUP)]) {
+            self.type_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Mod(ZTUP)]) {
             self.module_declaration(ctx)
         } else if self.match_token(&[Token::Import(ZTUP)]) {
@@ -1931,12 +1957,12 @@ impl Parser {
         };
 
         // Now, check for union types using '|'
-        if self.match_token(&[Token::Pipe(ZTUP)]) {
+        if self.match_token(&[Token::PipeOr(ZTUP)]) {
             let mut variants = vec![ty];
             loop {
                 let next_ty = self.parse_type()?;
                 variants.push(next_ty);
-                if !self.match_token(&[Token::Pipe(ZTUP)]) {
+                if !self.match_token(&[Token::PipeOr(ZTUP)]) {
                     break;
                 }
             }
@@ -4630,7 +4656,7 @@ impl Parser {
             variants.push(Type::from_annotation(&type_ann, None).unwrap());
 
             // If next token is '|', continue parsing more variants
-            if self.match_token(&[Token::Pipe(ZTUP)]) {
+            if self.match_token(&[Token::PipeOr(ZTUP)]) {
                 continue;
             } else {
                 break;
@@ -4639,6 +4665,34 @@ impl Parser {
 
         // Optionally allow trailing comma (not required, but for flexibility)
         self.match_token(&[Token::Comma(ZTUP)]);
+
+        // Skip any stray PipeOr tokens left after parsing variants
+        while self.match_token(&[Token::PipeOr(ZTUP)]) {
+            // Advance past any remaining PipeOr tokens
+        }
+
+        // If the next token is a declaration keyword, advance to avoid getting stuck
+        match self.peek() {
+            Token::Union(_)
+            | Token::Plex(_)
+            | Token::Let(_)
+            | Token::Var(_)
+            | Token::Const(_)
+            | Token::Enum(_)
+            | Token::Mod(_)
+            | Token::Type(_)
+            | Token::Import(_)
+            | Token::Macro(_)
+            | Token::Fn(_)
+            | Token::Pub(_)
+            | Token::Proc(_)
+            | Token::Struct(_)
+            | Token::Kind(_)
+            | Token::Impl(_) => {
+                self.advance();
+            }
+            _ => {}
+        }
 
         // No explicit 'end' required for union type declaration (single-line)
         let res = Ok(Statement::UnionDeclaration {
@@ -4673,6 +4727,9 @@ mod tests {
         let tokens = lexer.collect_tokens().unwrap();
         tracing::event!(tracing::Level::INFO, "Tokens collected");
 
+        for token in &tokens {
+            tracing::debug!("LEXER TOKEN: {:?}", token);
+        }
         let mut parser = Parser::new(tokens);
         tracing::event!(tracing::Level::INFO, "Parser created");
 
