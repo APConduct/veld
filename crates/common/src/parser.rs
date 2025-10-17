@@ -1982,7 +1982,13 @@ impl Parser {
                         return_type,
                     }
                 } else {
-                    let base_type = self.consume_identifier("Expected type name")?;
+                    // Support qualified (dotted) type names like std.io.Result
+                    let mut base_type = self.consume_identifier("Expected type name")?;
+                    while self.match_token(&[Token::Dot(ZTUP)]) {
+                        let next =
+                            self.consume_identifier("Expected identifier after '.' in type name")?;
+                        base_type = format!("{}.{}", base_type, next);
+                    }
 
                     if self.match_token(&[Token::Less(ZTUP)]) {
                         // Generic type parameters
@@ -2373,7 +2379,7 @@ impl Parser {
             || self.check(&Token::True(ZTUP))
             || self.check(&Token::False(ZTUP))
         {
-            let expr = self.primary(ctx)?;
+            let expr = self.postfix(ctx)?;
             if let Expr::Literal(lit) = expr {
                 return Ok(MatchPattern::Literal(lit));
             }
@@ -3168,6 +3174,11 @@ impl Parser {
             if self.is_at_end() {
                 break;
             }
+            tracing::debug!(
+                "postfix_with_expr: expr = {:?}, current token = {:?}",
+                expr,
+                self.peek()
+            );
 
             // Enum variant creation: Enum.Variant(...)
             // Only treat as enum variant if left side is a bare identifier starting with uppercase (likely a type/enum)
@@ -3285,10 +3296,20 @@ impl Parser {
                         };
                     } else {
                         // Just a property access
+                        tracing::debug!(
+                            "Matched Dot: expr = {:?}, about to parse property/method, next token = {:?}",
+                            expr,
+                            self.peek()
+                        );
                         expr = Expr::PropertyAccess {
                             object: Box::new(expr),
                             property,
                         };
+                        tracing::debug!(
+                            "postfix_with_expr: after property access, expr = {:?}, next token = {:?}",
+                            expr,
+                            self.peek()
+                        );
                     }
                 }
             } else if self.match_token(&[Token::LParen(ZTUP)]) {
@@ -3627,10 +3648,24 @@ impl Parser {
             // }
             _ => {
                 tracing::debug!("Last token: {:?}", self.previous());
-                tracing::error!("Unexpected token in primary expression: {:?}", self.peek());
+                tracing::error!(
+                    "Unexpected token in primary expression: {:?}, previous token: {:?}",
+                    self.peek(),
+                    self.previous()
+                );
+                tracing::error!(
+                    "primary() error: current token = {:?}, previous token = {:?}, tokens window = {:?}, current index = {}",
+                    self.peek(),
+                    self.previous(),
+                    self.tokens
+                        .get(self.current.saturating_sub(5)..self.current + 5)
+                        .unwrap_or(&[]),
+                    self.current
+                );
                 return Err(VeldError::ParserError(format!(
-                    "Unexpected token: {:?}",
-                    self.peek()
+                    "Unexpected token: {:?}, previous token: {:?}",
+                    self.peek(),
+                    self.previous()
                 )));
             }
         };
