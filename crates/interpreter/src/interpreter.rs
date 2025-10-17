@@ -208,6 +208,40 @@ impl Interpreter {
         interpreter
     }
 
+    /// Allocates a heap value via GC and triggers collection.
+    /// If the value is a heap type (String, Array, Tuple, Struct, Function, CompiledFunction),
+    /// allocates it via GC, triggers GC, and returns Value::GcRef. Otherwise, returns the value as-is.
+    pub fn allocate_value(&self, value: Value) -> Result<Value> {
+        use veld_common::gc::collector::CollectionStrategy;
+
+        match value {
+            Value::String(_)
+            | Value::Array(_)
+            | Value::Tuple(_)
+            | Value::Struct { .. }
+            | Value::Function { .. }
+            | Value::CompiledFunction { .. } => {
+                let gc_ref = self.allocator.write().unwrap().allocate(value)?;
+                let root_set = self.collect_gc_roots();
+                self.collector.write().unwrap().collect(
+                    CollectionStrategy::Incremental,
+                    &mut self.allocator.write().unwrap(),
+                    &root_set,
+                    &self.gc_config,
+                )?;
+                Ok(Value::GcRef(gc_ref))
+            }
+            _ => Ok(value),
+        }
+    }
+
+    /// Sets a variable in the current (top) stack frame.
+    pub fn set_stack_var(&mut self, name: String, value: Value) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.set(name, value);
+        }
+    }
+
     pub fn interpret_ast(&mut self, ast: veld_common::ast::AST) -> Result<Value> {
         // Expand macros in the AST before interpretation
         let mut macro_system = MacroSystem::new();
