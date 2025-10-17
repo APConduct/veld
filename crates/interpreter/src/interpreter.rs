@@ -291,7 +291,7 @@ impl Interpreter {
                     | Statement::EnumDeclaration { .. }
                     | Statement::PlexDeclaration { .. }
             ) {
-                tracing::info!("Executing statement: {:?}", stmt);
+                tracing::debug!("Executing statement: {:?}", stmt);
                 last_value = self.execute_statement(stmt)?;
             }
         }
@@ -504,7 +504,7 @@ impl Interpreter {
     }
 
     fn io_print(&self, args: Vec<Value>) -> Result<Value> {
-        tracing::info!("io_print called with args: {:?}", args);
+        tracing::debug!("io_print called with args: {:?}", args);
         if let Some(value) = args.get(0) {
             let actual_value = match value {
                 Value::GcRef(handle) => {
@@ -518,7 +518,7 @@ impl Interpreter {
             };
             match self.value_to_string(&actual_value) {
                 Ok(s) => {
-                    tracing::info!("io_print printing: {}", s);
+                    tracing::debug!("io_print printing: {}", s);
                     print!("{}", s);
                     use std::io::{self, Write};
                     io::stdout().flush().unwrap();
@@ -534,7 +534,7 @@ impl Interpreter {
     }
 
     fn io_println(&self, args: Vec<Value>) -> Result<Value> {
-        tracing::info!("io_println called with args: {:?}", args);
+        tracing::debug!("io_println called with args: {:?}", args);
         if args.is_empty() {
             println!();
             return Ok(Value::Unit);
@@ -553,7 +553,7 @@ impl Interpreter {
             };
             match self.value_to_string(&actual_value) {
                 Ok(s) => {
-                    tracing::info!("io_println printing: {}", s);
+                    tracing::debug!("io_println printing: {}", s);
                     println!("{}", s);
                     Ok(Value::Unit)
                 }
