@@ -61,7 +61,14 @@ pub enum CollectorState {
     Finalizing,
 }
 
+impl Default for CollectorState {
+    fn default() -> Self {
+        CollectorState::Idle
+    }
+}
+
 /// Main garbage collector implementation
+#[derive(Debug, Default)]
 pub struct GcCollector {
     /// Current collector state
     state: CollectorState,
@@ -99,6 +106,18 @@ struct IncrementalProgress {
     start_time: Option<Instant>,
 }
 
+impl Default for IncrementalProgress {
+    fn default() -> Self {
+        IncrementalProgress {
+            strategy: CollectionStrategy::Minor,
+            mark_queue: VecDeque::new(),
+            sweep_queue: VecDeque::new(),
+            elapsed_time: Duration::ZERO,
+            start_time: None,
+        }
+    }
+}
+
 /// Thresholds for triggering different collection types
 #[derive(Debug, Clone)]
 struct CollectionThresholds {
@@ -110,6 +129,17 @@ struct CollectionThresholds {
     major_threshold: usize,
     /// Time threshold for incremental steps
     time_threshold: Duration,
+}
+
+impl Default for CollectionThresholds {
+    fn default() -> Self {
+        CollectionThresholds {
+            // young_threshold: 1024 * 1024,
+            old_threshold: 1024 * 1024 * 10,
+            major_threshold: 1024 * 1024 * 100,
+            time_threshold: Duration::from_millis(10),
+        }
+    }
 }
 
 impl GcCollector {

@@ -44,8 +44,7 @@ impl NativeFunctionRegistry {
         let _span = tracing::span!(tracing::Level::INFO, "Registering static method");
         let _guard = _span.enter();
 
-        let func =
-            Arc::new(move |interpreter: &Interpreter, args: Vec<Value>| f(interpreter, args));
+        let func = Arc::new(f);
         self.static_functions.insert(name.to_string(), func);
     }
 

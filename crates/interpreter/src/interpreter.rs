@@ -94,9 +94,66 @@ pub struct Interpreter {
     native_method_registry: NativeMethodRegistry,
     recursion_depth: usize,
     pub allocator: std::sync::RwLock<veld_common::gc::allocator::GcAllocator>,
+    pub collector: std::sync::RwLock<veld_common::gc::collector::GcCollector>,
+    pub gc_config: veld_common::gc::GcConfig,
 }
 
+use veld_common::gc::root_set::RootSet;
+
 impl Interpreter {
+    /// Collect all GC roots from interpreter state (scopes, etc.)
+    pub fn collect_gc_roots(&self) -> RootSet {
+        let mut roots = RootSet::new();
+
+        // Collect roots from all scopes (stack frames)
+        for scope in &self.scopes {
+            for (_name, value) in scope.vals() {
+                Self::add_value_roots(&mut roots, value);
+            }
+        }
+
+        // Collect roots from global scope (scopes[0])
+        if let Some(global_scope) = self.scopes.get(0) {
+            for (_name, value) in global_scope.vals() {
+                Self::add_value_roots(&mut roots, value);
+            }
+        }
+
+        // Collect roots from closure captured_vars in all stack frames
+        for scope in &self.scopes {
+            for (_name, value) in scope.vals() {
+                if let Value::Function { captured_vars, .. } = value {
+                    for (_var_name, var_value) in captured_vars {
+                        Self::add_value_roots(&mut roots, var_value);
+                    }
+                }
+            }
+        }
+
+        // TODO: Collect roots from modules, imported modules, etc.
+
+        roots
+    }
+
+    fn add_value_roots(roots: &mut RootSet, value: &Value) {
+        match value {
+            Value::GcRef(handle) => {
+                roots.add_stack_root(handle.clone()).ok();
+            }
+            Value::Array(elements) | Value::Tuple(elements) => {
+                for v in elements {
+                    Self::add_value_roots(roots, v);
+                }
+            }
+            Value::Struct { fields, .. } => {
+                for v in fields.values() {
+                    Self::add_value_roots(roots, v);
+                }
+            }
+            // Add other composite types as needed
+            _ => {}
+        }
+    }
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
         let span = tracing::info_span!("interpreter_new", root_dir = ?root_dir.as_ref());
         let _enter = span.enter();
@@ -115,7 +172,9 @@ impl Interpreter {
             native_method_registry: NativeMethodRegistry::new(),
             recursion_depth: 0,
             enum_methods: HashMap::new(),
+            gc_config: veld_common::gc::GcConfig::default(),
             allocator: std::sync::RwLock::new(veld_common::gc::allocator::GcAllocator::default()),
+            collector: std::sync::RwLock::new(veld_common::gc::collector::GcCollector::default()),
         };
 
         interpreter.initialize_std_modules();
@@ -489,12 +548,22 @@ impl Interpreter {
                 ));
             }
 
-            Ok(Value::GcRef(
-                self.allocator
-                    .write()
-                    .unwrap()
-                    .allocate(Value::String(result))?,
-            ))
+            let gc_ref = self
+                .allocator
+                .write()
+                .unwrap()
+                .allocate(Value::String(result))?;
+
+            // Trigger GC after allocation
+            let root_set = self.collect_gc_roots();
+            self.collector.write().unwrap().collect(
+                veld_common::gc::collector::CollectionStrategy::Incremental,
+                &mut self.allocator.write().unwrap(),
+                &root_set,
+                &self.gc_config,
+            );
+
+            Ok(Value::GcRef(gc_ref))
         } else {
             Err(VeldError::RuntimeError(
                 "Format string must be a string".to_string(),
@@ -506,26 +575,17 @@ impl Interpreter {
         // Register IO functions using closures that take &mut self if needed
 
         self.native_registry
-            .register_static("std.io.print", |interpreter, args| {
-                // SAFETY: This is safe because register_static is only called during initialization,
-                // and no aliasing occurs. However, casting &Interpreter to &mut Interpreter is UB.
-                // Instead, we should require &mut self for register_static, or use interior mutability.
-                // Here, we call io_print with &self, which is fine because io_print only borrows self immutably.
+            .register("std.io.print", |interpreter, args| {
                 interpreter.io_print(args)
             });
         self.native_registry
-            .register_static("std.io.println", |interpreter, args| {
+            .register("std.io.println", |interpreter, args| {
                 interpreter.io_println(args)
             });
 
-        // io_format_string requires &mut self, but register_static expects &self.
-        // To fix the type mismatch, we can call io_format_string with &self, but this requires io_format_string to accept &self.
-        // Since io_format_string is defined as fn(&mut self, ...), we need to change this registration to use register_static and accept &self.
-        // If io_format_string does not mutate self, change its signature to accept &self.
-        // Otherwise, we need to use interior mutability or refactor the registration.
-        // For now, we will call io_format_string with &self, assuming it does not mutate self.
+        // io_format_string can use &self, so register with the standard API
         self.native_registry
-            .register_static("std.io._format_string", |interpreter, args| {
+            .register("std.io._format_string", |interpreter, args| {
                 interpreter.io_format_string(args)
             });
 
