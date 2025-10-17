@@ -126,6 +126,8 @@ fn float_lit_callback(lex: &mut LLexer<Token>) -> (f64, (usize, usize)) {
 #[logos(skip(r"\n", newline_callback))]
 pub enum Token {
     // Keywords
+    #[token("of", word_callback)]
+    Of((usize, usize)),
     #[token("fn", word_callback)]
     Fn((usize, usize)),
     #[token("proc", word_callback)]
@@ -325,6 +327,7 @@ pub enum Token {
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Token::Of((x, y)) => write!(f, "of at {}, {}", x, y),
             Token::EOF => write!(f, "EOF"),
             Token::Fn((x, y)) => write!(f, "fn at {}, {}", x, y),
             Token::Proc((x, y)) => write!(f, "proc at {}, {}", x, y),
@@ -423,6 +426,7 @@ impl Display for Token {
 impl Token {
     pub fn locate(&self) -> Option<(usize, usize)> {
         match self {
+            Token::Of((x, y)) => Some((*x, *y)),
             Token::EOF => None,
             Token::PipeOr((x, y)) => Some((*x, *y)),
             Token::Fn((x, y)) => Some((*x, *y)),
@@ -518,6 +522,10 @@ impl Token {
 
     pub fn source_pos(&self) -> Position {
         match self {
+            Token::Of((x, y)) => Position {
+                line: *x as u32,
+                column: *y as u32,
+            },
             Token::EOF => Position { line: 0, column: 0 },
             Token::PipeOr((x, y)) => Position {
                 line: *x as u32,

@@ -56,10 +56,55 @@ impl Parser {
 
 impl Parser {
     fn type_declaration(&mut self, ctx: Option<&mut ParseContext>) -> Result<Statement> {
+        tracing::debug!(
+            "type_declaration: parsing type declaration at token {:?}",
+            self.peek()
+        );
         let start = self.get_current_position();
         let name = self.consume_identifier("Expected type name")?;
+        let generic_params = self.parse_generic_args_if_present()?; // Support generics
         self.consume(&Token::Equals(ZTUP), "Expected '=' after type name")?;
 
+        // New: Support 'type Foo = | Bar of T | Baz'
+        if self.match_token(&[Token::PipeOr(ZTUP)]) {
+            let mut variants = Vec::new();
+            loop {
+                // Parse variant name
+                let variant_name = self.consume_identifier("Expected variant name after '|'")?;
+                // Optional 'of' and type(s)
+                let fields = if self.match_token(&[Token::Of(ZTUP)]) {
+                    let mut types = Vec::new();
+                    types.push(self.parse_type()?);
+                    // Optionally support multiple types: | Foo of T, U
+                    while self.match_token(&[Token::Comma(ZTUP)]) {
+                        types.push(self.parse_type()?);
+                    }
+                    Some(types)
+                } else {
+                    None
+                };
+                variants.push(EnumVariant {
+                    name: variant_name,
+                    fields,
+                    methods: HashMap::new(),
+                });
+                if !self.match_token(&[Token::PipeOr(ZTUP)]) {
+                    break;
+                }
+            }
+            let end = self.get_current_position();
+            if let Some(ctx) = ctx {
+                ctx.add_span(NodeId::new(), start, end);
+            }
+            return Ok(Statement::EnumDeclaration {
+                name,
+                variants,
+                is_public: false,
+                generic_params,
+            });
+        }
+
+        // Existing: plex, union, or type alias
         match self.peek() {
             Token::LBrace(_) => {
                 // Delegate to plex: parse as a plex with the given name
@@ -75,7 +120,7 @@ impl Parser {
                     name,
                     type_annotation,
                     is_public: false,
-                    generic_params: Vec::new(),
+                    generic_params,
                 })
             }
             Token::Identifier(_) | Token::PipeOr(_) => {
@@ -102,7 +147,7 @@ impl Parser {
                     name,
                     variants,
                     is_public: false,
-                    generic_params: Vec::new(),
+                    generic_params,
                 })
             }
             _ => {
@@ -170,6 +215,9 @@ impl Parser {
         };
 
         let statements = parser.parse_with_context(&mut context)?;
+        for stmt in &statements {
+            tracing::debug!("Parsed top-level statement: {:?}", stmt);
+        }
 
         Ok(AST {
             statements,
@@ -181,6 +229,11 @@ impl Parser {
     pub fn parse_with_context(&mut self, context: &mut ParseContext) -> Result<Vec<Statement>> {
         let _span = tracing::span!(tracing::Level::DEBUG, "parse_with_context");
         let _guard = _span.enter();
+
+        tracing::debug!(
+            "parse_with_context: starting with tokens: {:?}",
+            self.tokens
+        );
 
         let mut statements = Vec::new();
         let mut step_count = 0;
@@ -196,6 +249,7 @@ impl Parser {
             }
 
             let stmt = self.declaration_with_context(context)?;
+            tracing::debug!("parse_with_context: parsed statement: {:?}", stmt);
             statements.push(stmt);
         }
         Ok(statements)

@@ -325,7 +325,31 @@ impl TypeChecker {
                         self.env.define(name, function_type);
                     }
                 }
-                _ => {} // TODO: Handle enum declarations
+                Statement::EnumDeclaration {
+                    name,
+                    variants,
+                    is_public: _,
+                    generic_params: _,
+                } => {
+                    let mut variant_map = std::collections::HashMap::new();
+                    for variant in variants {
+                        // For now, just register the variant name with a dummy EnumVariant
+                        // Register the correct EnumVariant type for each variant
+                        let enum_variant = if let Some(fields) = &variant.fields {
+                            if fields.is_empty() {
+                                super::EnumVariant::Simple
+                            } else {
+                                // For now, treat all as tuple variants with Any type (could be improved)
+                                super::EnumVariant::Tuple(vec![Type::Any; fields.len()])
+                            }
+                        } else {
+                            super::EnumVariant::Simple
+                        };
+                        variant_map.insert(variant.name.clone(), enum_variant);
+                    }
+                    self.env.enums.insert(name.clone(), variant_map);
+                }
+                _ => {} // TODO: Handle other declarations
             }
         }
         // Second pass: Type check all statements (function bodies will be checked here)
@@ -1630,21 +1654,91 @@ impl TypeChecker {
                     return Ok(Type::Unit);
                 }
 
+                // If matching on an enum, bring its variants into scope for the arms
+                let is_enum = matches!(&value_type, Type::Enum { .. });
+                if let Type::Enum { variants, .. } = &value_type {
+                    self.env.push_scope();
+                    for (variant_name, _) in variants {
+                        self.env.define(variant_name, Type::Unit); // or a marker type
+                    }
+                }
+
                 let mut arm_types = Vec::new();
 
-                // Type check each arm with pattern bindings in scope
-                for arm in arms {
-                    // Push a new scope for pattern bindings
-                    self.env.push_scope();
+                // If matching on an enum, rewrite bare variant patterns to MatchPattern::Enum
+                if let Type::Enum {
+                    name: enum_name,
+                    variants,
+                } = &value_type
+                {
+                    for (i, arm) in arms.iter().enumerate() {
+                        // Debug: Print the pattern before rewriting
+                        tracing::debug!("Match arm {}: original pattern: {:?}", i, arm.pat);
 
-                    // Extract pattern bindings and add them to the type environment
-                    self.add_pattern_bindings_to_env(&arm.pat, &value_type)?;
+                        // If the pattern is a struct or identifier and matches a variant, rewrite as Enum pattern
+                        let pat = match &arm.pat {
+                            MatchPattern::Identifier(variant) if variants.contains_key(variant) => {
+                                tracing::debug!(
+                                    "Match arm {}: rewriting Identifier({}) to Enum({}, {})",
+                                    i,
+                                    variant,
+                                    enum_name,
+                                    variant
+                                );
+                                MatchPattern::Enum {
+                                    name: enum_name.clone(),
+                                    variant: variant.clone(),
+                                    fields: vec![],
+                                }
+                            }
+                            MatchPattern::Struct {
+                                name: variant,
+                                fields,
+                            } if variants.contains_key(variant) => {
+                                tracing::debug!(
+                                    "Match arm {}: rewriting Struct({}, ...) to Enum({}, {})",
+                                    i,
+                                    variant,
+                                    enum_name,
+                                    variant
+                                );
+                                MatchPattern::Enum {
+                                    name: enum_name.clone(),
+                                    variant: variant.clone(),
+                                    fields: fields.clone(),
+                                }
+                            }
+                            _ => {
+                                tracing::debug!(
+                                    "Match arm {}: pattern not rewritten: {:?}",
+                                    i,
+                                    arm.pat
+                                );
+                                arm.pat.clone()
+                            }
+                        };
 
-                    // Type check the arm body with bindings in scope
-                    let arm_type = self.infer_expression_type(&arm.body)?;
-                    arm_types.push(arm_type);
+                        // Debug: Print the pattern after rewriting
+                        tracing::debug!("Match arm {}: rewritten pattern: {:?}", i, pat);
 
-                    // Pop the pattern binding scope
+                        self.env.push_scope();
+                        self.add_pattern_bindings_to_env(&pat, &value_type)?;
+                        let arm_type = self.infer_expression_type(&arm.body)?;
+                        arm_types.push(arm_type);
+                        self.env.pop_scope();
+                    }
+                } else {
+                    // Type check each arm with pattern bindings in scope
+                    for arm in arms {
+                        self.env.push_scope();
+                        self.add_pattern_bindings_to_env(&arm.pat, &value_type)?;
+                        let arm_type = self.infer_expression_type(&arm.body)?;
+                        arm_types.push(arm_type);
+                        self.env.pop_scope();
+                    }
+                }
+
+                if is_enum {
                     self.env.pop_scope();
                 }
 
@@ -3372,9 +3466,14 @@ impl TypeChecker {
                         })
                     }
                     _ => {
-                        // For unknown module functions, return Any for now
-                        // In a complete implementation, we'd look up the function signature
-                        Ok(Type::Any)
+                        // Try to look up the function in the environment
+                        if let Some(func_type) = self.env.get(&function_path) {
+                            // Use the same logic as infer_function_call_type to check arguments and return type
+                            self.infer_function_call_type(&function_path, args)
+                        } else {
+                            // Fallback: unknown function
+                            Ok(Type::Any)
+                        }
                     }
                 }
             }
