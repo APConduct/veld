@@ -93,6 +93,7 @@ pub struct Interpreter {
     native_registry: NativeFunctionRegistry,
     native_method_registry: NativeMethodRegistry,
     recursion_depth: usize,
+    pub allocator: veld_common::gc::allocator::GcAllocator,
 }
 
 impl Interpreter {
@@ -114,6 +115,7 @@ impl Interpreter {
             native_method_registry: NativeMethodRegistry::new(),
             recursion_depth: 0,
             enum_methods: HashMap::new(),
+            allocator: veld_common::gc::allocator::GcAllocator::default(),
         };
 
         interpreter.initialize_std_modules();
@@ -382,7 +384,14 @@ impl Interpreter {
 
     fn io_print(&self, args: Vec<Value>) -> Result<Value> {
         if let Some(value) = args.get(0) {
-            match self.value_to_string(value) {
+            let actual_value = match value {
+                Value::GcRef(handle) => self
+                    .allocator
+                    .get_value(handle)
+                    .expect("dangling GC handle"),
+                _ => value,
+            };
+            match self.value_to_string(actual_value) {
                 Ok(s) => {
                     print!("{}", s);
                     use std::io::{self, Write};
@@ -405,7 +414,14 @@ impl Interpreter {
         }
 
         if let Some(value) = args.get(0) {
-            match self.value_to_string(value) {
+            let actual_value = match value {
+                Value::GcRef(handle) => self
+                    .allocator
+                    .get_value(handle)
+                    .expect("dangling GC handle"),
+                _ => value,
+            };
+            match self.value_to_string(actual_value) {
                 Ok(s) => {
                     println!("{}", s);
                     Ok(Value::Unit)
@@ -970,6 +986,13 @@ impl Interpreter {
             Value::Boolean(b) => Ok(Expr::Literal(Literal::Boolean(b))),
             Value::Char(c) => Ok(Expr::Literal(Literal::Char(c))),
             Value::Unit => Ok(Expr::Literal(Literal::Unit)),
+            Value::GcRef(handle) => {
+                let actual_value = self
+                    .allocator
+                    .get_value(&handle)
+                    .expect("dangling GC handle");
+                self.value_to_expr(actual_value.clone())
+            }
             Value::Numeric(num) => match num {
                 NumericValue::Integer(int_val) => match int_val {
                     IntegerValue::I8(i) => Ok(Expr::Literal(Literal::Integer(i as i64))),
