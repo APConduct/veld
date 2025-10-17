@@ -82,3 +82,43 @@ fn test_local_variables() {
         }
     }
 }
+
+#[test]
+fn test_variable_scoping() {
+    let code = "let a = 1\ndo\n    let a = 2\nend\nreturn a";
+
+    // 1. Lexing
+    let mut lexer = Lexer::new(code);
+    let tokens = lexer.collect_tokens().expect("Failed to lex code");
+
+    // 2. Parsing
+    let mut parser = Parser::new(tokens);
+    let statements: Vec<Statement> = parser.parse().expect("Failed to parse code");
+    let ast = AST::new(statements);
+
+    // 3. Compiling
+    let mut compiler = BytecodeCompiler::new();
+    let compilation_result = compiler.compile(&ast);
+
+    assert!(
+        compilation_result.errors.is_empty(),
+        "Compilation failed with errors: {:?}",
+        compilation_result.errors
+    );
+
+    // 4. Executing
+    let mut vm = VirtualMachine::new();
+    let result = vm.interpret(compilation_result.main_chunk);
+
+    match result {
+        InterpretResult::Ok(value) => {
+            assert_eq!(value, BytecodeValue::Integer(1));
+        }
+        InterpretResult::RuntimeError(e) => {
+            panic!("VM failed with a runtime error: {}", e);
+        }
+        InterpretResult::CompileError(e) => {
+            panic!("VM failed with a compile error: {}", e);
+        }
+    }
+}
