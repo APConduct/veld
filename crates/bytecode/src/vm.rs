@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use tracing::{trace, warn};
 use veld_common::bytecode::Chunk;
 use veld_common::bytecode::Instruction;
-use veld_common::value::Value as InterpreterValue;
 
 /// The Veld virtual machine for executing bytecode
 pub struct VirtualMachine {

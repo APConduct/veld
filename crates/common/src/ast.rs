@@ -1,3 +1,5 @@
+use crate::types::Type;
+
 use super::source::SourceMap;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -609,6 +611,12 @@ pub enum Statement {
     PlexDeclaration {
         name: String,
         type_annotation: TypeAnnotation,
+        is_public: bool,
+        generic_params: Vec<GenericArgument>,
+    },
+    UnionDeclaration {
+        name: String,
+        variants: Vec<Type>,
         is_public: bool,
         generic_params: Vec<GenericArgument>,
     },

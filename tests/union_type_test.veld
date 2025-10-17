@@ -1,0 +1,9 @@
+# type UnionType = str | i32 | bool
+plex Thing = {
+    name: str,
+    age: i32,
+    is_active: bool,
+    address: str
+}
+
+union SumThing = str | i32 | bool

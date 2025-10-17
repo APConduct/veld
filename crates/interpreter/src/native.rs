@@ -79,14 +79,6 @@ impl NativeFunctionRegistry {
             )))
         }
     }
-
-    pub(crate) fn register_mut<F>(&mut self, name: &str, f: F)
-    where
-        F: Fn(&Interpreter, Vec<Value>) -> Result<Value> + 'static + Send + Sync,
-    {
-        let func = Arc::new(f);
-        self.static_functions.insert(name.to_string(), func);
-    }
 }
 
 // Registry for native methods on built-in types

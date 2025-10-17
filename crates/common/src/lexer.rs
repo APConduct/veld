@@ -212,6 +212,8 @@ pub enum Token {
     EqualEqual((usize, usize)),
     #[token("!=", word_callback)]
     NotEqual((usize, usize)),
+    #[token("|", word_callback)]
+    PipeOr((usize, usize)),
 
     // Delimiters
     #[token("(", word_callback)]
@@ -317,11 +319,13 @@ pub enum Token {
     Type((usize, usize)),
     #[token("union", word_callback)]
     Union((usize, usize)),
+    EOF,
 }
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Token::EOF => write!(f, "EOF"),
             Token::Fn((x, y)) => write!(f, "fn at {}, {}", x, y),
             Token::Proc((x, y)) => write!(f, "proc at {}, {}", x, y),
             Token::Let((x, y)) => write!(f, "let at {}, {}", x, y),
@@ -381,7 +385,7 @@ impl Display for Token {
             Token::Identifier(s) => write!(f, "{} at {},{}", s.0, s.1.0, s.1.1),
             Token::StringLiteral(s) => write!(f, "\"{}\" at {},{}", s.0, s.1.0, s.1.1),
             Token::CharLiteral(c) => write!(f, "'{}' at {},{}", c.0, c.1.0, c.1.1),
-
+            Token::PipeOr((x, y)) => write!(f, "| at {},{}", x, y),
             Token::IntegerLiteral(n) => write!(f, "{} at ({}, {})", n.0, n.1.0, n.1.1),
             Token::FloatLiteral(n) => write!(f, "{} at {},{}", n.0, n.1.0, n.1.1),
             Token::If((x, y)) => write!(f, "if at {},{}", x, y),
@@ -419,6 +423,8 @@ impl Display for Token {
 impl Token {
     pub fn locate(&self) -> Option<(usize, usize)> {
         match self {
+            Token::EOF => None,
+            Token::PipeOr((x, y)) => Some((*x, *y)),
             Token::Fn((x, y)) => Some((*x, *y)),
             Token::Union((x, y)) => Some((*x, *y)),
             Token::Type((x, y)) => Some((*x, *y)),
@@ -512,6 +518,11 @@ impl Token {
 
     pub fn source_pos(&self) -> Position {
         match self {
+            Token::EOF => Position { line: 0, column: 0 },
+            Token::PipeOr((x, y)) => Position {
+                line: *x as u32,
+                column: *y as u32,
+            },
             Token::Fn((x, y)) => Position {
                 line: *x as u32,
                 column: *y as u32,

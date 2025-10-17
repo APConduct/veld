@@ -1,5 +1,6 @@
 use super::ast::{GenericArgument, Statement, TypeAnnotation, VarKind};
 use super::value::Value;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use veld_error::{Result, VeldError};
@@ -27,7 +28,7 @@ pub mod checker;
 // pub const U32_MIN: u32 = 0;
 // pub const U64_MIN: u64 = 0;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Type {
     Unit,
     I32,
@@ -362,14 +363,14 @@ impl std::fmt::Display for Type {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EnumVariant {
     Simple,
     Tuple(Vec<Type>),
     Struct(HashMap<String, Type>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImplementationInfo {
     type_name: String,
     kind_name: String,

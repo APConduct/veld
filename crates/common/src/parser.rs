@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::Level;
 
+use crate::types::Type;
+
 use super::ast::{AST, UnaryOperator};
 use super::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
@@ -198,12 +200,16 @@ impl Parser {
 
         let start = self.get_current_position();
 
+        tracing::info!("Parsing declaration. context: {:?}", ctx);
+
         let res = if self.is_declaration_keyword() {
             self.variable_declaration(ctx)
         } else if self.match_token(&[Token::Enum(ZTUP)]) {
             self.enum_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Plex(ZTUP)]) {
             self.plex_declaration_with_visibility(false, ctx.as_deref_mut())
+        } else if self.match_token(&[Token::Union(ZTUP)]) {
+            self.union_declaration_with_visibility(false, ctx.as_deref_mut())
         } else if self.match_token(&[Token::Mod(ZTUP)]) {
             self.module_declaration(ctx)
         } else if self.match_token(&[Token::Import(ZTUP)]) {
@@ -257,6 +263,7 @@ impl Parser {
         if let Some(ctx) = ctx {
             ctx.add_span(NodeId::new(), start, end);
         }
+        tracing::debug!("Parsed declaration");
         res
     }
 
@@ -1912,7 +1919,15 @@ impl Parser {
     }
 
     fn previous(&self) -> Token {
-        self.tokens[self.current - 1].clone()
+        if self.current == 0 {
+            // If at the start, return a default token or handle as needed
+            Token::EOF // Or another appropriate default
+        } else {
+            self.tokens
+                .get(self.current - 1)
+                .cloned()
+                .unwrap_or(Token::EOF)
+        }
     }
 
     fn consume(&mut self, token: &Token, message: &str) -> Result<Token> {
@@ -2082,6 +2097,8 @@ impl Parser {
     fn statement(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "statement");
         let _span = _span.enter();
+
+        tracing::info!("Parsing statement");
 
         let start = self.get_current_position();
 
@@ -2982,6 +2999,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "postfix");
         let _span = _span.enter();
 
+        tracing::debug!("Parsing postfix. context: {:?}", ctx);
+
         let _start = self.get_current_position();
 
         let expr = self.primary(ctx)?;
@@ -2991,6 +3010,7 @@ impl Parser {
         if let Some(ctx) = ctx {
             ctx.add_span(NodeId::new(), _start, _end);
         }
+        tracing::debug!("Parsed postfix. context: {:?}", ctx);
         result
     }
 
@@ -4498,6 +4518,58 @@ impl Parser {
 
         if ctx.is_some() {
             ctx.unwrap().add_span(NodeId::new(), start, end);
+        }
+
+        res
+    }
+
+    fn union_declaration_with_visibility(
+        &mut self,
+        is_public: bool,
+        mut ctx: Option<&mut ParseContext>,
+    ) -> Result<Statement> {
+        let _span = tracing::span!(tracing::Level::INFO, "Parsing union declaration");
+        let _enter = _span.enter();
+
+        tracing::info!("Parsing union declaration");
+
+        let start = self.get_current_position();
+
+        let name = self.consume_identifier("expected union name")?;
+
+        self.consume(&Token::Equals(ZTUP), "Expected '=' after union name")?;
+
+        // look for types delimited by '|'
+        // Parse the union type variants separated by '|'
+        let mut variants = Vec::new();
+
+        loop {
+            // Parse a type annotation for each variant
+            let type_ann = self.parse_type()?;
+            variants.push(Type::from_annotation(&type_ann, None).unwrap());
+
+            // If next token is '|', continue parsing more variants
+            if self.match_token(&[Token::Pipe(ZTUP)]) {
+                continue;
+            } else {
+                break;
+            }
+        }
+
+        // Optionally allow trailing comma (not required, but for flexibility)
+        self.match_token(&[Token::Comma(ZTUP)]);
+
+        // No explicit 'end' required for union type declaration (single-line)
+        let res = Ok(Statement::UnionDeclaration {
+            name,
+            variants,
+            is_public: is_public,
+            generic_params: Vec::new(),
+        });
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx.as_mut() {
+            ctx.add_span(NodeId::new(), start, end);
         }
 
         res

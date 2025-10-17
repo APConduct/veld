@@ -405,6 +405,17 @@ fn expand_macros_in_statement_children(
         // Handle any remaining statement types
         Break => Ok(vec![Break]),
         Continue => Ok(vec![Continue]),
+        UnionDeclaration {
+            name,
+            variants,
+            is_public,
+            generic_params,
+        } => Ok(vec![UnionDeclaration {
+            name,
+            variants,
+            is_public,
+            generic_params,
+        }]),
     }
 }
 
