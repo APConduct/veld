@@ -166,6 +166,7 @@ impl BytecodeCompiler {
         self.emit_instruction(Instruction::Halt, self.current_line);
 
         // Finalize chunk
+        self.current_chunk.local_count = self.locals.len();
         self.current_chunk.calculate_max_stack_depth();
         if self.options.optimize {
             self.current_chunk.optimize();
