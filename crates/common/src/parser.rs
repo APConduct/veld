@@ -59,17 +59,65 @@ impl Parser {
         let start = self.get_current_position();
         let name = self.consume_identifier("Expected type name")?;
         self.consume(&Token::Equals(ZTUP), "Expected '=' after type name")?;
-        let type_annotation = self.parse_type()?;
-        let end = self.get_current_position();
 
-        if let Some(ctx) = ctx {
-            ctx.add_span(NodeId::new(), start, end);
+        match self.peek() {
+            Token::LBrace(_) => {
+                // Delegate to plex: parse as a plex with the given name
+                // Save current token index
+                let saved_current = self.current;
+                // Advance past '{' and parse the type annotation as a plex
+                let type_annotation = self.parse_type()?;
+                let end = self.get_current_position();
+                if let Some(ctx) = ctx {
+                    ctx.add_span(NodeId::new(), start, end);
+                }
+                Ok(Statement::PlexDeclaration {
+                    name,
+                    type_annotation,
+                    is_public: false,
+                    generic_params: Vec::new(),
+                })
+            }
+            Token::Identifier(_) | Token::PipeOr(_) => {
+                // Delegate to union: parse as a union with the given name
+                let mut variants = Vec::new();
+                loop {
+                    let type_ann = self.parse_type()?;
+                    variants.push(crate::types::Type::from_annotation(&type_ann, None).unwrap());
+                    if self.match_token(&[Token::PipeOr(ZTUP)]) {
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+                // Optionally allow trailing comma
+                self.match_token(&[Token::Comma(ZTUP)]);
+                // Skip any stray PipeOr tokens left after parsing variants
+                while self.match_token(&[Token::PipeOr(ZTUP)]) {}
+                let end = self.get_current_position();
+                if let Some(ctx) = ctx {
+                    ctx.add_span(NodeId::new(), start, end);
+                }
+                Ok(Statement::UnionDeclaration {
+                    name,
+                    variants,
+                    is_public: false,
+                    generic_params: Vec::new(),
+                })
+            }
+            _ => {
+                // Fallback: treat as type alias
+                let type_annotation = self.parse_type()?;
+                let end = self.get_current_position();
+                if let Some(ctx) = ctx {
+                    ctx.add_span(NodeId::new(), start, end);
+                }
+                Ok(Statement::TypeDeclaration {
+                    name,
+                    type_annotation,
+                })
+            }
         }
-
-        Ok(Statement::TypeDeclaration {
-            name,
-            type_annotation,
-        })
     }
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
