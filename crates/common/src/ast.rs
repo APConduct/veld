@@ -1,10 +1,11 @@
-use crate::types::Type;
+use crate::types::{self, Type};
 
 use super::source::SourceMap;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fmt::{Debug, Display, Formatter},
+    hash::{Hash, Hasher},
 };
 use veld_error::VeldError;
 
@@ -30,7 +31,7 @@ impl AST {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct MacroPattern(pub String);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -42,7 +43,7 @@ pub struct MacroTemplate {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MacroExpansion(pub Vec<Statement>);
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub enum VarKind {
     Let,
     Var,
@@ -58,6 +59,19 @@ pub enum Literal {
     String(String),
     Boolean(bool),
     Unit, // unit value: ()
+}
+
+impl Hash for Literal {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Literal::Integer(i) => i.hash(state),
+            Literal::Char(c) => c.hash(state),
+            Literal::Float(ff) => ff.to_bits().hash(state),
+            Literal::String(s) => s.hash(state),
+            Literal::Boolean(b) => b.hash(state),
+            Literal::Unit => ().hash(state),
+        }
+    }
 }
 
 impl Display for Literal {
@@ -118,6 +132,10 @@ pub enum TypeAnnotation {
     },
     Array(Box<TypeAnnotation>), // Array type, e.g., [i32]
     Tuple(Vec<TypeAnnotation>), // (e.g., (i32, f64, str))
+    Enum {
+        name: String,
+        variants: std::collections::HashMap<String, EnumVariant>,
+    }, // like | Typ1 of str | Typ2 of i32 | Typ3 | Typ4 of bool
     Record {
         fields: Vec<(String, TypeAnnotation)>, // Record type, e.g., { name: str, age: i32 }
     },
@@ -473,7 +491,7 @@ pub struct StructField {
     pub is_public: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Hash)]
 pub enum Pattern {
     Literal(Literal),
     Identifier(String),

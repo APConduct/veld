@@ -1,8 +1,11 @@
+use crate::types;
+
 use super::ast::{GenericArgument, Statement, TypeAnnotation, VarKind};
 use super::value::Value;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
+use std::hash::{Hash, Hasher};
 use veld_error::{Result, VeldError};
 
 pub mod checker;
@@ -107,6 +110,164 @@ pub enum Type {
     EnumType(String),   // Represents an enum type that can have constructor methods called on it
 }
 
+impl Hash for Type {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Type::Unit => {
+                "Unit".hash(state);
+            }
+            Type::I32 => {
+                "I32".hash(state);
+            }
+            Type::F64 => {
+                "F64".hash(state);
+            }
+            Type::Bool => {
+                "Bool".hash(state);
+            }
+            Type::String => {
+                "String".hash(state);
+            }
+            Type::Char => {
+                "Char".hash(state);
+            }
+            Type::I64 => {
+                "I64".hash(state);
+            }
+            Type::F32 => {
+                "F32".hash(state);
+            }
+            Type::U32 => {
+                "U32".hash(state);
+            }
+            Type::U64 => {
+                "U64".hash(state);
+            }
+            Type::U8 => {
+                "U8".hash(state);
+            }
+            Type::U16 => {
+                "U16".hash(state);
+            }
+            Type::I8 => {
+                "I8".hash(state);
+            }
+            Type::I16 => {
+                "I16".hash(state);
+            }
+            Type::IntegerLiteral(val) => {
+                "IntegerLiteral".hash(state);
+                val.hash(state);
+            }
+            Type::FloatLiteral(val) => {
+                "FloatLiteral".hash(state);
+                // Use to_bits for f64 to get a hashable representation
+                val.to_bits().hash(state);
+            }
+            Type::Number => {
+                "Number".hash(state);
+            }
+            Type::Function {
+                params,
+                return_type,
+            } => {
+                "Function".hash(state);
+                params.hash(state);
+                return_type.hash(state);
+            }
+            Type::GenericFunction {
+                generic_params,
+                params,
+                return_type,
+            } => {
+                "GenericFunction".hash(state);
+                generic_params.hash(state);
+                params.hash(state);
+                return_type.hash(state);
+            }
+            Type::Struct { name, fields } => {
+                "Struct".hash(state);
+                name.hash(state);
+                // HashMap does not implement Hash, so hash as sorted Vec
+                let mut fields_vec: Vec<_> = fields.iter().collect();
+                fields_vec.sort_by(|a, b| a.0.cmp(b.0));
+                for (k, v) in fields_vec {
+                    k.hash(state);
+                    v.hash(state);
+                }
+            }
+            Type::Record { fields } => {
+                "Record".hash(state);
+                let mut fields_vec: Vec<_> = fields.iter().collect();
+                fields_vec.sort_by(|a, b| a.0.cmp(b.0));
+                for (k, v) in fields_vec {
+                    k.hash(state);
+                    v.hash(state);
+                }
+            }
+            Type::Union { variants } => {
+                "Union".hash(state);
+                variants.hash(state);
+            }
+            Type::Generic { base, type_args } => {
+                "Generic".hash(state);
+                base.hash(state);
+                type_args.hash(state);
+            }
+            Type::TypeParam(name) => {
+                "TypeParam".hash(state);
+                name.hash(state);
+            }
+            Type::Enum { name, variants } => {
+                "Enum".hash(state);
+                name.hash(state);
+                // HashMap does not implement Hash, so hash as sorted Vec
+                let mut variants_vec: Vec<_> = variants.iter().collect();
+                variants_vec.sort_by(|a, b| a.0.cmp(b.0));
+                for (k, v) in variants_vec {
+                    k.hash(state);
+                    v.hash(state);
+                }
+            }
+            Type::Tuple(types) => {
+                "Tuple".hash(state);
+                types.hash(state);
+            }
+            Type::Array(element_type) => {
+                "Array".hash(state);
+                element_type.hash(state);
+            }
+            Type::Any => {
+                "Any".hash(state);
+            }
+            Type::TypeVar(id) => {
+                "TypeVar".hash(state);
+                id.hash(state);
+            }
+            Type::GcRef(element_type) => {
+                "GcRef".hash(state);
+                element_type.hash(state);
+            }
+            Type::KindSelf(name) => {
+                "KindSelf".hash(state);
+                name.hash(state);
+            }
+            Type::Module(name) => {
+                "Module".hash(state);
+                name.hash(state);
+            }
+            Type::StructType(name) => {
+                "StructType".hash(state);
+                name.hash(state);
+            }
+            Type::EnumType(name) => {
+                "EnumType".hash(state);
+                name.hash(state);
+            }
+        }
+    }
+}
+
 impl Type {
     pub fn is_numeric(&self) -> bool {
         match self {
@@ -129,6 +290,10 @@ impl Type {
         current_kind: Option<&str>,
     ) -> Result<Type> {
         match annotation {
+            TypeAnnotation::Enum {
+                name,
+                variants: _variants,
+            } => Ok(Type::EnumType(name.clone())),
             TypeAnnotation::Unit => Ok(Type::Unit),
             TypeAnnotation::Basic(name) => {
                 if let Some(kind_name) = current_kind {
@@ -363,14 +528,38 @@ impl std::fmt::Display for Type {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum EnumVariant {
     Simple,
     Tuple(Vec<Type>),
     Struct(HashMap<String, Type>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl Hash for EnumVariant {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            EnumVariant::Simple => {
+                state.write_u8(0);
+            }
+            EnumVariant::Tuple(types) => {
+                state.write_u8(1);
+                types.hash(state);
+            }
+            EnumVariant::Struct(fields) => {
+                state.write_u8(2);
+                // HashMap does not implement Hash, so hash as sorted Vec
+                let mut fields_vec: Vec<_> = fields.iter().collect();
+                fields_vec.sort_by(|a, b| a.0.cmp(b.0));
+                for (k, v) in fields_vec {
+                    k.hash(state);
+                    v.hash(state);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ImplementationInfo {
     type_name: String,
     kind_name: String,
@@ -740,6 +929,49 @@ impl TypeEnvironment {
         current_kind: Option<&str>,
     ) -> Result<Type> {
         match annotation {
+            TypeAnnotation::Enum { name, variants } => {
+                // Convert ast::EnumVariant to types::EnumVariant
+                fn convert_ast_enum_variant_to_types_enum_variant(
+                    ast_variant: &crate::ast::EnumVariant,
+                ) -> crate::types::EnumVariant {
+                    use crate::types::EnumVariant as TypesEnumVariant;
+                    match &ast_variant.fields {
+                        None => TypesEnumVariant::Simple,
+                        Some(fields) => {
+                            if fields.len() == 1 {
+                                TypesEnumVariant::Tuple(
+                                    fields
+                                        .iter()
+                                        .map(|f| {
+                                            crate::types::Type::from_annotation(f, None)
+                                                .unwrap_or(crate::types::Type::Any)
+                                        })
+                                        .collect(),
+                                )
+                            } else {
+                                TypesEnumVariant::Tuple(
+                                    fields
+                                        .iter()
+                                        .map(|f| {
+                                            crate::types::Type::from_annotation(f, None)
+                                                .unwrap_or(crate::types::Type::Any)
+                                        })
+                                        .collect(),
+                                )
+                            }
+                        }
+                    }
+                }
+                let variants_converted: std::collections::HashMap<
+                    String,
+                    crate::types::EnumVariant,
+                > = variants
+                    .iter()
+                    .map(|(k, v)| (k.clone(), convert_ast_enum_variant_to_types_enum_variant(v)))
+                    .collect();
+                self.add_enum(name, variants_converted);
+                Ok(Type::EnumType(name.clone()))
+            }
             TypeAnnotation::Unit => Ok(Type::Unit),
             TypeAnnotation::Basic(name) => {
                 if self.is_type_param_in_scope(name) {

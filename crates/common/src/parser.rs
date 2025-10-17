@@ -109,7 +109,7 @@ impl Parser {
             Token::LBrace(_) => {
                 // Delegate to plex: parse as a plex with the given name
                 // Save current token index
-                let saved_current = self.current;
+                let _saved_current = self.current;
                 // Advance past '{' and parse the type annotation as a plex
                 let type_annotation = self.parse_type()?;
                 let end = self.get_current_position();
@@ -151,12 +151,26 @@ impl Parser {
                 })
             }
             _ => {
-                // Fallback: treat as type alias
+                // Fallback: treat as type alias or enum type
                 let type_annotation = self.parse_type()?;
                 let end = self.get_current_position();
                 if let Some(ctx) = ctx {
                     ctx.add_span(NodeId::new(), start, end);
                 }
+                // If this is an Enum type annotation with a Vec, convert to HashMap
+                let type_annotation = match type_annotation {
+                    TypeAnnotation::Enum {
+                        name: enum_name,
+                        variants,
+                    } => {
+                        let variants_map = variants.into_iter().collect();
+                        TypeAnnotation::Enum {
+                            name: enum_name,
+                            variants: variants_map,
+                        }
+                    }
+                    other => other,
+                };
                 Ok(Statement::TypeDeclaration {
                     name,
                     type_annotation,
