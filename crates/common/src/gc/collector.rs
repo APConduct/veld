@@ -67,7 +67,6 @@ pub struct GcCollector {
     state: CollectorState,
 
     /// Mark phase implementation
-    mark_phase: MarkPhase,
 
     /// Objects marked in current collection
     marked_objects: HashSet<u64>,
@@ -104,7 +103,7 @@ struct IncrementalProgress {
 #[derive(Debug, Clone)]
 struct CollectionThresholds {
     /// Young generation threshold (bytes)
-    young_threshold: usize,
+
     /// Old generation threshold (bytes)
     old_threshold: usize,
     /// Heap size threshold for major collection
@@ -118,7 +117,7 @@ impl GcCollector {
     pub fn new(config: &GcConfig) -> Self {
         Self {
             state: CollectorState::Idle,
-            mark_phase: MarkPhase::new(),
+            // mark_phase: MarkPhase::new(),
             marked_objects: HashSet::new(),
             finalization_queue: VecDeque::new(),
             last_result: CollectionResult::default(),
@@ -130,7 +129,7 @@ impl GcCollector {
                 start_time: None,
             },
             thresholds: CollectionThresholds {
-                young_threshold: config.initial_heap_size / 3,
+                // young_threshold: config.initial_heap_size / 3,
                 old_threshold: config.initial_heap_size * 2 / 3,
                 major_threshold: config.initial_heap_size,
                 time_threshold: Duration::from_micros(config.max_incremental_time),

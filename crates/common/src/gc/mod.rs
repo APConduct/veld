@@ -30,9 +30,8 @@ pub mod root_set;
 pub mod statistics;
 pub mod value_ref;
 
-use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub use allocator::GcAllocator;
 pub use collector::{CollectionResult, GcCollector};

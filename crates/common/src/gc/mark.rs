@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use super::super::value::Value;
 use super::allocator::{GcAllocator, ObjectGeneration};
-use super::handle::GcHandle;
+
 use super::root_set::RootSet;
 use veld_error::{Result, VeldError};
 

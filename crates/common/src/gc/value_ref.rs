@@ -11,7 +11,6 @@ use super::super::value::Value;
 use super::GarbageCollector;
 use super::handle::GcHandle;
 use veld_error::{Result, VeldError};
-
 /// A reference to a value that may be garbage collected
 #[derive(Debug, Clone)]
 pub enum GcValueRef {

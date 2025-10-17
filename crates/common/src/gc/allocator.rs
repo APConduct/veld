@@ -3,17 +3,14 @@
 //! This module implements a generational allocator that efficiently manages
 //! memory for Veld values with different allocation patterns and lifetimes.
 
-use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::time::Instant;
 
 use super::super::value::Value;
 use super::GcConfig;
 use super::handle::{GcHandle, Generation, HandlePool};
 use veld_error::{Result, VeldError};
-
-/// Unique object identifier counter
-static OBJECT_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Metadata for a garbage-collected object
 #[derive(Debug, Clone)]
