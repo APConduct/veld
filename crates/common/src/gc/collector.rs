@@ -113,6 +113,27 @@ struct CollectionThresholds {
 }
 
 impl GcCollector {
+    /// Unified collection entry point with explicit strategy
+    pub fn collect(
+        &mut self,
+        strategy: CollectionStrategy,
+        allocator: &mut GcAllocator,
+        roots: &RootSet,
+        config: &GcConfig,
+    ) -> Result<CollectionResult> {
+        match strategy {
+            CollectionStrategy::Minor | CollectionStrategy::Major | CollectionStrategy::Full => {
+                self.collect_full(allocator, roots, config)
+            }
+            CollectionStrategy::Incremental => {
+                let ok = self.collect_incremental(allocator, roots, config)?;
+                Ok(CollectionResult {
+                    completed: ok,
+                    ..Default::default()
+                })
+            }
+        }
+    }
     /// Create a new garbage collector
     pub fn new(config: &GcConfig) -> Self {
         Self {

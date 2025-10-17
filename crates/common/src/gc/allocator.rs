@@ -72,6 +72,12 @@ pub enum ObjectGeneration {
     Permanent,
 }
 
+impl Default for ObjectGeneration {
+    fn default() -> Self {
+        ObjectGeneration::Young
+    }
+}
+
 /// A garbage-collected object
 #[derive(Debug, Clone)]
 pub struct GcObject {
@@ -109,7 +115,7 @@ impl GcObject {
 }
 
 /// Memory region for a generation
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct GenerationRegion {
     /// Objects in this generation
     objects: HashMap<u64, GcObject>,
@@ -195,7 +201,7 @@ impl GenerationRegion {
 }
 
 /// Statistics for a generation region
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GenerationStats {
     pub object_count: usize,
     pub allocated_bytes: usize,
@@ -204,6 +210,7 @@ pub struct GenerationStats {
 }
 
 /// Main garbage collector allocator
+#[derive(Debug, Clone, Default)]
 pub struct GcAllocator {
     /// Handle management
     handle_pool: HandlePool,

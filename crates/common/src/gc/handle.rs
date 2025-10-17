@@ -150,7 +150,7 @@ impl fmt::Display for WeakGcHandle {
 }
 
 /// Handle pool for managing object lifetimes
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HandlePool {
     /// Current generation counter
     current_generation: Generation,
