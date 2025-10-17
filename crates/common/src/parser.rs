@@ -173,8 +173,22 @@ impl Parser {
                 )));
             }
 
+            println!(
+                "DEBUG: Before declaration, current token: {:?}",
+                self.peek()
+            );
+            let prev_token = self.current;
             let stmt = self.declaration_with_context(context)?;
+            println!("DEBUG: After declaration, current token: {:?}", self.peek());
             statements.push(stmt);
+            // If we didn't advance, skip the token to avoid infinite loop
+            if self.current == prev_token && !self.is_at_end() {
+                println!(
+                    "DEBUG: Advancing token to avoid infinite loop: {:?}",
+                    self.peek()
+                );
+                self.advance();
+            }
         }
         Ok(statements)
     }
@@ -257,7 +271,32 @@ impl Parser {
         } else if self.match_token(&[Token::Impl(ZTUP)]) {
             self.implementation_declaration(ctx)
         } else {
-            self.statement(ctx)
+            // Before falling through to statement/expression parsing,
+            // check if the next token is a declaration keyword and, if so, emit an error.
+            match self.peek() {
+                Token::Let(_)
+                | Token::Var(_)
+                | Token::Const(_)
+                | Token::Enum(_)
+                | Token::Plex(_)
+                | Token::Union(_)
+                | Token::Mod(_)
+                | Token::Type(_)
+                | Token::Import(_)
+                | Token::Macro(_)
+                | Token::Fn(_)
+                | Token::Pub(_)
+                | Token::Proc(_)
+                | Token::Struct(_)
+                | Token::Kind(_)
+                | Token::Impl(_) => {
+                    return Err(VeldError::ParserError(format!(
+                        "Stuck on declaration keyword: {:?}. Parser did not consume token.",
+                        self.peek()
+                    )));
+                }
+                _ => self.statement(ctx),
+            }
         };
         let end = self.get_current_position();
         if let Some(ctx) = ctx {
@@ -1738,135 +1777,112 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_type");
         let _span = _span.enter();
 
-        if self.match_token(&[Token::LParen(ZTUP)]) {
-            let mut types = Vec::new();
-            let mut saw_comma = false;
+        // Parse the first type (could be basic, tuple, record, etc.)
+        let mut ty = {
+            if self.match_token(&[Token::LParen(ZTUP)]) {
+                let mut types = Vec::new();
+                let mut saw_comma = false;
 
-            // Empty tuple: ()
-            if self.match_token(&[Token::RParen(ZTUP)]) {
-                return Ok(TypeAnnotation::Unit);
-            }
-
-            // Parse first type
-            types.push(self.parse_type()?);
-
-            // If comma, it's a tuple type
-            if self.match_token(&[Token::Comma(ZTUP)]) {
-                saw_comma = true;
-
-                // Parse remaining types if not immediately followed by ')'
-                if !self.check(&Token::RParen(ZTUP)) {
-                    loop {
-                        types.push(self.parse_type()?);
-
-                        if !self.match_token(&[Token::Comma(ZTUP)]) {
-                            break;
-                        }
-
-                        // Allow trailing comma by checking if the next token is ')'
-                        if self.check(&Token::RParen(ZTUP)) {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            self.consume(&Token::RParen(ZTUP), "Expected ')' after tuple type")?;
-
-            // If there is only one type without a comma, it's a parenthesized type, not a tuple
-            if types.len() == 1 && !saw_comma {
-                // Check for function type: (T) -> U
-                if self.match_token(&[Token::Arrow(ZTUP)]) {
-                    let return_type = Box::new(self.parse_type()?);
-                    Ok(TypeAnnotation::Function {
-                        params: vec![types[0].clone()],
-                        return_type,
-                    })
-                } else {
-                    Ok(types[0].clone())
-                }
-            } else {
-                Ok(TypeAnnotation::Tuple(types))
-            }
-        } else if self.match_token(&[Token::LBrace(ZTUP)]) {
-            // Record type annotation: { field1: Type1, field2: Type2 }
-            let mut fields = Vec::new();
-
-            // Empty record: {}
-            if self.match_token(&[Token::RBrace(ZTUP)]) {
-                return Ok(TypeAnnotation::Record { fields });
-            }
-
-            // Parse fields
-            loop {
-                let field_name = self.consume_identifier("Expected field name in record type")?;
-                self.consume(
-                    &Token::Colon(ZTUP),
-                    "Expected ':' after field name in record type",
-                )?;
-                let field_type = self.parse_type()?;
-                fields.push((field_name, field_type));
-
-                if !self.match_token(&[Token::Comma(ZTUP)]) {
-                    break;
+                // Empty tuple: ()
+                if self.match_token(&[Token::RParen(ZTUP)]) {
+                    return Ok(TypeAnnotation::Unit);
                 }
 
-                // Allow trailing comma
-                if self.check(&Token::RBrace(ZTUP)) {
-                    break;
-                }
-            }
+                // Parse first type
+                types.push(self.parse_type()?);
 
-            self.consume(
-                &Token::RBrace(ZTUP),
-                "Expected '}' after record type fields",
-            )?;
-            Ok(TypeAnnotation::Record { fields })
-        } else {
-            // Handle array type notation
-            if self.match_token(&[Token::LBracket(ZTUP)]) {
-                let element_type = self.parse_type()?;
-                self.consume(
-                    &Token::RBracket(ZTUP),
-                    "Expected ']' after array element type",
-                )?;
-                return Ok(TypeAnnotation::Array(Box::new(element_type)));
-            }
+                // If comma, it's a tuple type
+                if self.match_token(&[Token::Comma(ZTUP)]) {
+                    saw_comma = true;
 
-            if self.match_token(&[Token::Fn((0, 0))]) {
-                // Function type
-                self.consume(&Token::LParen(ZTUP), "Expected '(' in function type")?;
-
-                let mut params = Vec::new();
-                if !self.check(&Token::RParen(ZTUP)) {
-                    loop {
-                        params.push(self.parse_type()?);
-
-                        if !self.match_token(&[Token::Comma(ZTUP)]) {
-                            break;
-                        }
-                    }
-                }
-
-                self.consume(&Token::RParen(ZTUP), "Expected ')' after parameter types")?;
-                self.consume(&Token::Arrow(ZTUP), "Expected '->' in function type")?;
-
-                let return_type = Box::new(self.parse_type()?);
-
-                Ok(TypeAnnotation::Function {
-                    params,
-                    return_type,
-                })
-            } else {
-                let base_type = self.consume_identifier("Expected type name")?;
-
-                if self.match_token(&[Token::Less(ZTUP)]) {
-                    // Generic type parameters
-                    let mut type_args = Vec::new();
-
-                    if !self.check(&Token::Greater(ZTUP)) {
+                    // Parse remaining types if not immediately followed by ')'
+                    if !self.check(&Token::RParen(ZTUP)) {
                         loop {
-                            type_args.push(self.parse_type()?);
+                            types.push(self.parse_type()?);
+
+                            if !self.match_token(&[Token::Comma(ZTUP)]) {
+                                break;
+                            }
+
+                            // Allow trailing comma by checking if the next token is ')'
+                            if self.check(&Token::RParen(ZTUP)) {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                self.consume(&Token::RParen(ZTUP), "Expected ')' after tuple type")?;
+
+                // If there is only one type without a comma, it's a parenthesized type, not a tuple
+                if types.len() == 1 && !saw_comma {
+                    // Check for function type: (T) -> U
+                    if self.match_token(&[Token::Arrow(ZTUP)]) {
+                        let return_type = Box::new(self.parse_type()?);
+                        TypeAnnotation::Function {
+                            params: vec![types[0].clone()],
+                            return_type,
+                        }
+                    } else {
+                        types[0].clone()
+                    }
+                } else {
+                    TypeAnnotation::Tuple(types)
+                }
+            } else if self.match_token(&[Token::LBrace(ZTUP)]) {
+                // Record type annotation: { field1: Type1, field2: Type2 }
+                let mut fields = Vec::new();
+
+                // Empty record: {}
+                if self.match_token(&[Token::RBrace(ZTUP)]) {
+                    return Ok(TypeAnnotation::Record { fields });
+                }
+
+                // Parse fields
+                loop {
+                    let field_name =
+                        self.consume_identifier("Expected field name in record type")?;
+                    self.consume(
+                        &Token::Colon(ZTUP),
+                        "Expected ':' after field name in record type",
+                    )?;
+                    let field_type = self.parse_type()?;
+                    fields.push((field_name, field_type));
+
+                    if !self.match_token(&[Token::Comma(ZTUP)]) {
+                        break;
+                    }
+
+                    // Allow trailing comma
+                    if self.check(&Token::RBrace(ZTUP)) {
+                        break;
+                    }
+                }
+
+                self.consume(
+                    &Token::RBrace(ZTUP),
+                    "Expected '}' after record type fields",
+                )?;
+                TypeAnnotation::Record { fields }
+            } else {
+                // Handle array type notation
+                if self.match_token(&[Token::LBracket(ZTUP)]) {
+                    let element_type = self.parse_type()?;
+                    self.consume(
+                        &Token::RBracket(ZTUP),
+                        "Expected ']' after array element type",
+                    )?;
+                    return Ok(TypeAnnotation::Array(Box::new(element_type)));
+                }
+
+                if self.match_token(&[Token::Fn((0, 0))]) {
+                    // Function type
+                    self.consume(&Token::LParen(ZTUP), "Expected '(' in function type")?;
+
+                    let mut params = Vec::new();
+                    if !self.check(&Token::RParen(ZTUP)) {
+                        loop {
+                            params.push(self.parse_type()?);
 
                             if !self.match_token(&[Token::Comma(ZTUP)]) {
                                 break;
@@ -1874,18 +1890,60 @@ impl Parser {
                         }
                     }
 
-                    self.consume(&Token::Greater(ZTUP), "Expected '>' after type arguments")?;
+                    self.consume(&Token::RParen(ZTUP), "Expected ')' after parameter types")?;
+                    self.consume(&Token::Arrow(ZTUP), "Expected '->' in function type")?;
 
-                    Ok(TypeAnnotation::Generic {
-                        base: base_type,
-                        type_args,
-                    })
+                    let return_type = Box::new(self.parse_type()?);
+
+                    TypeAnnotation::Function {
+                        params,
+                        return_type,
+                    }
                 } else {
-                    // Basic type
-                    Ok(TypeAnnotation::Basic(base_type))
+                    let base_type = self.consume_identifier("Expected type name")?;
+
+                    if self.match_token(&[Token::Less(ZTUP)]) {
+                        // Generic type parameters
+                        let mut type_args = Vec::new();
+
+                        if !self.check(&Token::Greater(ZTUP)) {
+                            loop {
+                                type_args.push(self.parse_type()?);
+
+                                if !self.match_token(&[Token::Comma(ZTUP)]) {
+                                    break;
+                                }
+                            }
+                        }
+
+                        self.consume(&Token::Greater(ZTUP), "Expected '>' after type arguments")?;
+
+                        TypeAnnotation::Generic {
+                            base: base_type,
+                            type_args,
+                        }
+                    } else {
+                        // Basic type
+                        TypeAnnotation::Basic(base_type)
+                    }
                 }
             }
+        };
+
+        // Now, check for union types using '|'
+        if self.match_token(&[Token::Pipe(ZTUP)]) {
+            let mut variants = vec![ty];
+            loop {
+                let next_ty = self.parse_type()?;
+                variants.push(next_ty);
+                if !self.match_token(&[Token::Pipe(ZTUP)]) {
+                    break;
+                }
+            }
+            ty = TypeAnnotation::Union { variants };
         }
+
+        Ok(ty)
     }
 
     // Helper methods
@@ -4506,6 +4564,29 @@ impl Parser {
 
         self.consume(&Token::Equals(ZTUP), "Expected '=' after plex name")?;
         let type_annotation = self.parse_type()?;
+
+        // If the next token is a declaration keyword, advance to avoid getting stuck
+        match self.peek() {
+            Token::Union(_)
+            | Token::Plex(_)
+            | Token::Let(_)
+            | Token::Var(_)
+            | Token::Const(_)
+            | Token::Enum(_)
+            | Token::Mod(_)
+            | Token::Type(_)
+            | Token::Import(_)
+            | Token::Macro(_)
+            | Token::Fn(_)
+            | Token::Pub(_)
+            | Token::Proc(_)
+            | Token::Struct(_)
+            | Token::Kind(_)
+            | Token::Impl(_) => {
+                self.advance();
+            }
+            _ => {}
+        }
 
         let res = Ok(Statement::PlexDeclaration {
             name,
