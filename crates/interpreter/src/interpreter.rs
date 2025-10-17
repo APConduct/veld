@@ -3149,12 +3149,22 @@ impl Interpreter {
 
                                     values.push(value);
                                 }
-                                Ok(Value::GcRef(
-                                    self.allocator
-                                        .write()
-                                        .unwrap()
-                                        .allocate(Value::Array(values))?,
-                                ))
+                                let gc_ref = self
+                                    .allocator
+                                    .write()
+                                    .unwrap()
+                                    .allocate(Value::Array(values))?;
+
+                                // Trigger GC after allocation
+                                let root_set = self.collect_gc_roots();
+                                self.collector.write().unwrap().collect(
+                                    veld_common::gc::collector::CollectionStrategy::Incremental,
+                                    &mut self.allocator.write().unwrap(),
+                                    &root_set,
+                                    &self.gc_config,
+                                )?;
+
+                                Ok(Value::GcRef(gc_ref))
                             }
                             Expr::IndexAccess { object, index } => {
                                 let obj_value = self.evaluate_expression(*object)?.unwrap_return();
@@ -3935,16 +3945,23 @@ impl Interpreter {
                     }
 
                     // Store the collected values as an array
-                    bindings.insert(
-                        variable.clone(),
-                        Value::GcRef(
-                            self.allocator
-                                .write()
-                                .unwrap()
-                                .allocate(Value::Array(collected_values))
-                                .ok()?,
-                        ),
+                    let gc_ref = self
+                        .allocator
+                        .write()
+                        .unwrap()
+                        .allocate(Value::Array(collected_values))
+                        .ok()?;
+
+                    // Trigger GC after allocation
+                    let root_set = self.collect_gc_roots();
+                    self.collector.write().unwrap().collect(
+                        veld_common::gc::collector::CollectionStrategy::Incremental,
+                        &mut self.allocator.write().unwrap(),
+                        &root_set,
+                        &self.gc_config,
                     );
+
+                    bindings.insert(variable.clone(), Value::GcRef(gc_ref));
                 }
             }
             p_idx += 1;
@@ -4814,13 +4831,22 @@ impl Interpreter {
                 {
                     let parts: Vec<String> = s.split(delimiter).map(|s| s.to_string()).collect();
                     let values: Vec<Value> = parts.into_iter().map(Value::String).collect();
-                    Ok(Value::GcRef(
-                        interpreter
-                            .allocator
-                            .write()
-                            .unwrap()
-                            .allocate(Value::Array(values))?,
-                    ))
+                    let gc_ref = interpreter
+                        .allocator
+                        .write()
+                        .unwrap()
+                        .allocate(Value::Array(values))?;
+
+                    // Trigger GC after allocation
+                    let root_set = interpreter.collect_gc_roots();
+                    interpreter.collector.write().unwrap().collect(
+                        veld_common::gc::collector::CollectionStrategy::Incremental,
+                        &mut interpreter.allocator.write().unwrap(),
+                        &root_set,
+                        &interpreter.gc_config,
+                    );
+
+                    Ok(Value::GcRef(gc_ref))
                 } else {
                     Err(VeldError::RuntimeError(
                         "split called with invalid arguments".to_string(),
@@ -6051,21 +6077,41 @@ impl Interpreter {
                         ));
                     }
                     if elements.is_empty() {
-                        return Ok(Value::GcRef(
-                            self.allocator
-                                .write()
-                                .unwrap()
-                                .allocate(Value::Array(vec![]))?,
-                        ));
+                        let gc_ref = self
+                            .allocator
+                            .write()
+                            .unwrap()
+                            .allocate(Value::Array(vec![]))?;
+
+                        // Trigger GC after allocation
+                        let root_set = self.collect_gc_roots();
+                        self.collector.write().unwrap().collect(
+                            veld_common::gc::collector::CollectionStrategy::Incremental,
+                            &mut self.allocator.write().unwrap(),
+                            &root_set,
+                            &self.gc_config,
+                        );
+
+                        return Ok(Value::GcRef(gc_ref));
                     }
                     let mut new_elements = elements.clone();
                     new_elements.pop();
-                    return Ok(Value::GcRef(
-                        self.allocator
-                            .write()
-                            .unwrap()
-                            .allocate(Value::Array(new_elements))?,
-                    ));
+                    let gc_ref = self
+                        .allocator
+                        .write()
+                        .unwrap()
+                        .allocate(Value::Array(new_elements))?;
+
+                    // Trigger GC after allocation
+                    let root_set = self.collect_gc_roots();
+                    self.collector.write().unwrap().collect(
+                        veld_common::gc::collector::CollectionStrategy::Incremental,
+                        &mut self.allocator.write().unwrap(),
+                        &root_set,
+                        &self.gc_config,
+                    );
+
+                    return Ok(Value::GcRef(gc_ref));
                 }
                 "tail" => {
                     if !args.is_empty() {
@@ -6077,12 +6123,22 @@ impl Interpreter {
                         return Ok(Value::Array(vec![]));
                     }
                     let new_elements = elements.iter().skip(1).cloned().collect();
-                    return Ok(Value::GcRef(
-                        self.allocator
-                            .write()
-                            .unwrap()
-                            .allocate(Value::Array(new_elements))?,
-                    ));
+                    let gc_ref = self
+                        .allocator
+                        .write()
+                        .unwrap()
+                        .allocate(Value::Array(new_elements))?;
+
+                    // Trigger GC after allocation
+                    let root_set = self.collect_gc_roots();
+                    self.collector.write().unwrap().collect(
+                        veld_common::gc::collector::CollectionStrategy::Incremental,
+                        &mut self.allocator.write().unwrap(),
+                        &root_set,
+                        &self.gc_config,
+                    );
+
+                    return Ok(Value::GcRef(gc_ref));
                 }
                 "with" => {
                     if args.len() != 1 {
