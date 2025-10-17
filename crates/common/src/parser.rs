@@ -4212,6 +4212,19 @@ impl Parser {
 
         let start = self.get_current_position();
 
+        tracing::info!(
+            "import_declaration_with_visibility: is_public={} path={:?}",
+            is_public,
+            self.tokens.get(self.current..).map(|toks| {
+                toks.iter()
+                    .filter_map(|tok| match tok {
+                        Token::Identifier((name, _)) => Some(name.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            })
+        );
+
         // parse import path
         let mut path = vec![self.consume_identifier("Expected module name")?];
 

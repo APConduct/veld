@@ -34,6 +34,9 @@ pub import std.vec
 # IO module
 pub import std.io # as io
 
+# File system module
+pub import std.fs
+
 # String representation capability
 pub kind ToString
     fn to_string(self) -> str

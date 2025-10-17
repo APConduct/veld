@@ -347,6 +347,7 @@ impl Interpreter {
         // Register other native functions
         self.register_math_functions();
         self.register_io_functions();
+        self.register_fs_functions();
         let _ = self.initialize_operator_kinds();
 
         // Ensure all type parameter scopes are cleaned up after stdlib initialization
@@ -718,6 +719,128 @@ impl Interpreter {
                     ))),
                 }
             });
+    }
+
+    fn register_fs_functions(&mut self) {
+        // Write contents to a file
+        self.native_registry.register("std.fs.write", |_, args| {
+            if let (Some(Value::String(path)), Some(Value::String(contents))) =
+                (args.get(0), args.get(1))
+            {
+                match std::fs::write(path, contents) {
+                    Ok(_) => Ok(Value::Enum {
+                        enum_name: "Result".to_string(),
+                        variant_name: "Ok".to_string(),
+                        fields: vec![Value::Unit],
+                    }),
+                    Err(e) => Ok(Value::Enum {
+                        enum_name: "Result".to_string(),
+                        variant_name: "Err".to_string(),
+                        fields: vec![Value::String(e.to_string())],
+                    }),
+                }
+            } else {
+                Err(VeldError::RuntimeError(
+                    "write(path, contents) requires two string arguments".to_string(),
+                ))
+            }
+        });
+
+        // Read contents of a file
+        self.native_registry.register("std.fs.read", |_, args| {
+            if let Some(Value::String(path)) = args.get(0) {
+                match std::fs::read_to_string(path) {
+                    Ok(content) => Ok(Value::Enum {
+                        enum_name: "Result".to_string(),
+                        variant_name: "Ok".to_string(),
+                        fields: vec![Value::String(content)],
+                    }),
+                    Err(e) => Ok(Value::Enum {
+                        enum_name: "Result".to_string(),
+                        variant_name: "Err".to_string(),
+                        fields: vec![Value::String(e.to_string())],
+                    }),
+                }
+            } else {
+                Err(VeldError::RuntimeError(
+                    "read(path) requires a string argument".to_string(),
+                ))
+            }
+        });
+
+        // List directory entries
+        self.native_registry.register("std.fs.read_dir", |_, args| {
+            if let Some(Value::String(path)) = args.get(0) {
+                match std::fs::read_dir(path) {
+                    Ok(entries) => {
+                        let mut files = Vec::new();
+                        for entry in entries {
+                            match entry {
+                                Ok(e) => {
+                                    if let Some(name) = e.file_name().to_str() {
+                                        files.push(Value::String(name.to_string()));
+                                    }
+                                }
+                                Err(e) => {
+                                    return Ok(Value::Enum {
+                                        enum_name: "Result".to_string(),
+                                        variant_name: "Err".to_string(),
+                                        fields: vec![Value::String(e.to_string())],
+                                    });
+                                }
+                            }
+                        }
+                        Ok(Value::Enum {
+                            enum_name: "Result".to_string(),
+                            variant_name: "Ok".to_string(),
+                            fields: vec![Value::Array(files)],
+                        })
+                    }
+                    Err(e) => Ok(Value::Enum {
+                        enum_name: "Result".to_string(),
+                        variant_name: "Err".to_string(),
+                        fields: vec![Value::String(e.to_string())],
+                    }),
+                }
+            } else {
+                Err(VeldError::RuntimeError(
+                    "read_dir(path) requires a string argument".to_string(),
+                ))
+            }
+        });
+
+        // Remove a file
+        self.native_registry.register("std.fs.remove", |_, args| {
+            if let Some(Value::String(path)) = args.get(0) {
+                match std::fs::remove_file(path) {
+                    Ok(_) => Ok(Value::Enum {
+                        enum_name: "Result".to_string(),
+                        variant_name: "Ok".to_string(),
+                        fields: vec![Value::Unit],
+                    }),
+                    Err(e) => Ok(Value::Enum {
+                        enum_name: "Result".to_string(),
+                        variant_name: "Err".to_string(),
+                        fields: vec![Value::String(e.to_string())],
+                    }),
+                }
+            } else {
+                Err(VeldError::RuntimeError(
+                    "remove(path) requires a string argument".to_string(),
+                ))
+            }
+        });
+
+        // Check if a file or directory exists
+        self.native_registry.register("std.fs.exists", |_, args| {
+            if let Some(Value::String(path)) = args.get(0) {
+                Ok(Value::Boolean(std::path::Path::new(path).exists()))
+            } else {
+                Err(VeldError::RuntimeError(
+                    "exists(path) requires a string argument".to_string(),
+                ))
+            }
+        });
     }
 
     fn collect_free_variables_expr(
@@ -5640,8 +5763,8 @@ impl Interpreter {
             }
             Value::Module(module) => {
                 // Debug: Show module exports when looking up property
-                tracing::debug!(
-                    "Looking up property '{}' in module '{}' with exports: {:?}",
+                println!(
+                    "[get_property] Looking for '{}' in module '{}'. Exports: {:?}",
                     property,
                     module.name,
                     module.exports.keys().collect::<Vec<_>>()

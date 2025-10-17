@@ -130,7 +130,9 @@ impl ModuleManager {
         let statements = parser.parse()?;
 
         // ---- Ensure all public imports are loaded before extracting exports
+        tracing::debug!("extract_exports: statements for module: {:?}", statements);
         for stmt in &statements {
+            tracing::debug!("extract_exports: statement: {:?}", stmt);
             if let Statement::ImportDeclaration {
                 path, is_public, ..
             } = stmt
@@ -459,6 +461,21 @@ impl ModuleManager {
                     }
                 }
 
+                // --- Add tracing debug output for all statements processed ---
+                _ => {}
+            }
+        }
+
+        tracing::debug!("extract_exports: statements for module: {:?}", statements);
+
+        tracing::info!(
+            "Final exports after extraction: {:?}",
+            exports.keys().collect::<Vec<_>>()
+        );
+
+        for stmt in statements {
+            tracing::debug!("extract_exports: statement: {:?}", stmt);
+            match stmt {
                 Statement::ImportDeclaration {
                     path,
                     items,
@@ -483,17 +500,26 @@ impl ModuleManager {
 
                         // Process different import types
                         match items.as_slice() {
-                            [] if alias.is_some() => {
-                                let module_alias = alias.as_ref().unwrap();
+                            // For pub import std.fs as foo or pub import std.fs, always create a submodule export
+                            [] => {
+                                let submodule_name = alias.as_ref().cloned().unwrap_or_else(|| {
+                                    path.last()
+                                        .cloned()
+                                        .unwrap_or_else(|| source_module_path.clone())
+                                });
+                                println!(
+                                    "[extract_exports] Inserting submodule export: '{}' -> '{}'",
+                                    submodule_name, source_module_path
+                                );
+                                tracing::info!(
+                                    "Inserting submodule export: '{}' -> '{}'",
+                                    submodule_name,
+                                    source_module_path
+                                );
                                 exports.insert(
-                                    module_alias.clone(),
+                                    submodule_name,
                                     ExportedItem::Module(source_module_path.clone()),
                                 );
-                            }
-                            [] => {
-                                for (name, item) in &source_module.exports {
-                                    exports.insert(name.clone(), item.clone());
-                                }
                             }
                             _ => {
                                 for item in items {
@@ -519,7 +545,6 @@ impl ModuleManager {
                         }
                     }
                 }
-
                 _ => {}
             }
         }
