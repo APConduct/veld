@@ -98,6 +98,8 @@ pub enum Type {
 
     TypeVar(usize),
 
+    GcRef(Box<Type>),
+
     KindSelf(String),
     Module(String),
     StructType(String), // Represents a struct type that can have static methods called on it
@@ -257,6 +259,7 @@ impl std::fmt::Display for Type {
             Type::F64 => write!(f, "f64"),
             Type::Bool => write!(f, "bool"),
             Type::String => write!(f, "str"),
+            Type::GcRef(boxed_type) => write!(f, "GcRef<{}>", boxed_type),
             Type::Function {
                 params,
                 return_type,

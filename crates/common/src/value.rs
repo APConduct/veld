@@ -36,6 +36,7 @@ pub enum Value {
         fields: HashMap<String, Value>,
     },
     Array(Vec<Value>),
+    GcRef(crate::gc::handle::GcHandle),
     Enum {
         enum_name: String, // This is the name of the enum type, not the instance or variant
         variant_name: String,
@@ -128,6 +129,7 @@ impl Value {
             Value::CompiledFunction { chunk, arity, name } => {
                 todo!("Implement type inference for compiled functions")
             }
+            Value::GcRef(value) => Type::GcRef(Box::new(value.type_of())),
         }
     }
 
@@ -219,6 +221,9 @@ impl Display for Value {
                     write!(f, "{}", v)?;
                 }
                 write!(f, "]")
+            }
+            Value::GcRef(_) => {
+                write!(f, "<gc ref>")
             }
         }
     }

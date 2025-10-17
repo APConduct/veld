@@ -115,6 +115,10 @@ impl TypeToLLVM for Type {
                     // TODO: implement more complex handling in a full implementation
                     LLVMPointerType(LLVMInt8TypeInContext(context), 0) // Placeholder as void pointer
                 }
+                Type::GcRef(_) => {
+                    // For GcRef, treat as a pointer to i8 (void pointer)
+                    LLVMPointerType(LLVMInt8TypeInContext(context), 0)
+                }
             }
         }
     }

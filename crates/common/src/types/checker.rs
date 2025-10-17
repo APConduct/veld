@@ -5144,6 +5144,7 @@ impl TypeChecker {
             Type::GenericFunction { generic_params, .. } => {
                 format!("fn<{}>(...)", generic_params.join(", "))
             }
+            Type::GcRef(_) => "GcRef".to_string(), // Added to fix diagnostics
         }
     }
 }

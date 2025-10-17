@@ -4,15 +4,18 @@
 //! directly holding pointers. They use generation counters to detect use-after-free
 //! and provide both strong and weak reference semantics.
 
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::types::Type;
 
 /// Unique identifier for a GC handle
 static HANDLE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Generation counter for detecting stale handles
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Generation(pub u64);
 
 impl Generation {
@@ -39,12 +42,18 @@ impl Default for Generation {
 ///
 /// GcHandle provides safe access to GC-managed objects. The handle becomes
 /// invalid if the object is collected, preventing use-after-free errors.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GcHandle {
     /// Unique object identifier
     pub(crate) object_id: u64,
     /// Generation counter for validity checking
     pub(crate) generation: Generation,
+}
+
+impl GcHandle {
+    pub fn type_of(&self) -> Type {
+        todo!("Implement type_of method")
+    }
 }
 
 impl GcHandle {
