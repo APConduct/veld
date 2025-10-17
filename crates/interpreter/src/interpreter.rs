@@ -1417,14 +1417,68 @@ impl Interpreter {
                             value,
                         } => self.execute_compound_assignment(name, operator, value)?,
                         Statement::EnumDeclaration { name, variants, .. } => {
-                            self.enums.insert(name.clone(), variants);
-                            // Register the enum type in the environment so Color.Red works
+                            use tracing::{debug, info};
+                            info!(
+                                "Interpreter received statement: EnumDeclaration {{ name: {}, variants: {:?} }}",
+                                name, variants
+                            );
+                            self.enums.insert(name.clone(), variants.clone());
+                            // Register the enum type in the environment so Option.Some works
                             self.current_scope_mut().set(
                                 name.clone(),
                                 Value::EnumType {
                                     name: name.clone(),
                                     methods: None,
                                 },
+                            );
+                            // Register constructors for each variant
+                            use veld_common::ast::{Expr, Statement, TypeAnnotation};
+                            for variant in &variants {
+                                let ctor_name = &variant.name;
+                                let fields = variant.fields.clone().unwrap_or_default();
+                                let params: Vec<(String, TypeAnnotation)> = fields
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, t)| (format!("field{}", i), t.clone()))
+                                    .collect();
+
+                                let enum_name = name.clone();
+                                let variant_name = ctor_name.clone();
+                                let body = vec![Statement::Return(Some(Expr::EnumVariant {
+                                    enum_name: enum_name.clone(),
+                                    variant_name: variant_name.clone(),
+                                    fields: params
+                                        .iter()
+                                        .map(|(n, _)| Expr::Identifier(n.clone()))
+                                        .collect(),
+                                    type_args: None,
+                                }))];
+
+                                let ctor_value = Value::Function {
+                                    params: params.clone(),
+                                    body,
+                                    return_type: TypeAnnotation::Basic(enum_name.clone()),
+                                    captured_vars: std::collections::HashMap::new(),
+                                };
+
+                                // Register as Option.Some and Some
+                                let qualified = format!("{}.{}", enum_name, variant_name);
+                                self.current_scope_mut()
+                                    .set(qualified.clone(), ctor_value.clone());
+                                self.current_scope_mut()
+                                    .set(variant_name.clone(), ctor_value);
+
+                                debug!(
+                                    "Registered enum constructor: '{}' and '{}'",
+                                    qualified, variant_name
+                                );
+                            }
+                            // Log all keys in the current scope after registration
+                            let ke = self.current_scope().keys().clone();
+                            let keys: Vec<_> = ke.iter().collect();
+                            info!(
+                                "Enum '{}' registration complete. Current scope keys: {:?}",
+                                name, keys
                             );
                             Ok(Value::Unit)
                         }

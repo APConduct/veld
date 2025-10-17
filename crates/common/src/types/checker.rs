@@ -1387,10 +1387,9 @@ impl TypeChecker {
                 Ok(ty)
             }
             Expr::UnitLiteral => Ok(Type::Unit),
-            Expr::Identifier(name) => self
-                .env
-                .get(name)
-                .ok_or_else(|| VeldError::TypeError(format!("Undefined identifier: {}", name))),
+            Expr::Identifier(name) => self.env.get(name).ok_or_else(|| {
+                VeldError::TypeError(format!("Undefined identifier: {}, expected type", name,))
+            }),
             Expr::BinaryOp {
                 left,
                 operator,

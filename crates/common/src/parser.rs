@@ -96,6 +96,11 @@ impl Parser {
             if let Some(ctx) = ctx {
                 ctx.add_span(NodeId::new(), start, end);
             }
+            use tracing::debug;
+            debug!(
+                "Parser produced EnumDeclaration: name = {}, variants = {:?}",
+                name, variants
+            );
             return Ok(Statement::EnumDeclaration {
                 name,
                 variants,
@@ -4576,6 +4581,11 @@ impl Parser {
             self.consume(&Token::End(ZTUP), "Expected 'end' after enum body")?;
         }
 
+        use tracing::debug;
+        debug!(
+            "Parser produced EnumDeclaration: name = {}, variants = {:?}",
+            name, variants
+        );
         let res = Ok(Statement::EnumDeclaration {
             name,
             variants,

@@ -19,6 +19,10 @@ impl Scope {
         }
     }
 
+    pub fn keys(&self) -> Vec<String> {
+        self.values.keys().cloned().collect::<Vec<String>>()
+    }
+
     pub fn scope_level(&self) -> usize {
         self.scope_level
     }

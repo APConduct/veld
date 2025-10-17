@@ -1,11 +1,14 @@
 # Plex definition
 type Point = { x: f64, y: f64 } # Structural because of the '{...}'
 
+# Nom def
+type PointNom = |{ x: f64, y: f64 } # nominal because of the '|' before the '{...}'
+
 # Struct def
-type PointStruct = |{ x: f64, y: f64 } # nominal because of the '|' before the '{...}'
+type PointStruct = struct( x: f64, y: f64 ) # nominal and members are private by default
 
-type EitherUnion<T, U> = T | U
+# type EitherUnion<T, U> = T | U
 
-type Either<T, U> =
-    | Left of T
-    | Right of U
+# type Either<T, U> =
+#     | Left of T
+#     | Right of U
