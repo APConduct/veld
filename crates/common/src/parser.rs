@@ -229,6 +229,10 @@ impl Parser {
         const MAX_STEPS: usize = 1000;
 
         while !self.is_at_end() {
+            tracing::debug!(
+                "parse_statements: Current token before calling declaration_with_context: {:?}",
+                self.peek()
+            );
             step_count += 1;
             if step_count > MAX_STEPS {
                 return Err(VeldError::ParserError(format!(
@@ -326,6 +330,8 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "declaration");
         let _span = _span.enter();
 
+        tracing::debug!("declaration: At start, current token: {:?}", self.peek());
+
         let start = self.get_current_position();
 
         tracing::debug!("Parsing declaration. context: {:?}", ctx);
@@ -335,11 +341,11 @@ impl Parser {
         );
 
         let res = if self.match_token(&[Token::Let(ZTUP)]) {
-            self.variable_declaration(ctx)
+            self.variable_declaration(VarKind::Let, false, ctx)
         } else if self.match_token(&[Token::Var(ZTUP)]) {
-            self.variable_declaration(ctx)
+            self.variable_declaration(VarKind::Var, false, ctx)
         } else if self.match_token(&[Token::Const(ZTUP)]) {
-            self.variable_declaration(ctx)
+            self.variable_declaration(VarKind::Const, false, ctx)
         } else if self.match_token(&[Token::Enum(ZTUP)]) {
             self.enum_declaration(ctx.as_deref_mut())
         } else if self.match_token(&[Token::Plex(ZTUP)]) {
@@ -374,12 +380,20 @@ impl Parser {
                 self.module_declaration_with_visibility(true, ctx)
             } else if self.match_token(&[Token::Import(ZTUP)]) {
                 self.import_declaration_with_visibility(true, ctx.as_deref_mut())
-            } else if matches!(self.peek(), Token::Let(_))
-                || self.peek() == &Token::Var(ZTUP)
-                || self.peek() == &Token::Const(ZTUP)
-            {
+            } else if matches!(self.peek(), Token::Let(_)) {
+                self.advance();
+                if matches!(self.peek(), Token::Mut(_)) {
+                    self.advance();
+                    self.variable_declaration_with_visibility(VarKind::LetMut, true, ctx)
+                } else {
+                    self.variable_declaration_with_visibility(VarKind::Let, true, ctx)
+                }
+            } else if matches!(self.peek(), Token::Var(_)) {
+                // || self.peek() == &Token::Var(ZTUP)
+                // || self.peek() == &Token::Const(ZTUP)
+
                 // Handle public variable declarations
-                self.variable_declaration_with_visibility(true, ctx)
+                self.variable_declaration_with_visibility(VarKind::Var, true, ctx)
             } else {
                 Err(VeldError::ParserError(
                     "Expected function, proc, struct, or variable declaration after 'pub'"
@@ -2167,6 +2181,7 @@ impl Parser {
 
     fn variable_declaration_with_visibility(
         &mut self,
+        var_kind: VarKind,
         is_public: bool,
         ctx: &mut Option<&mut ParseContext>,
     ) -> Result<Statement> {
@@ -2177,24 +2192,6 @@ impl Parser {
         let _span = _span.enter();
 
         let start = self.get_current_position();
-
-        // Determine the variable kind
-        let var_kind = if matches!(self.peek(), Token::Let(_)) {
-            self.advance(); // consume the let token
-            if self.match_token(&[Token::Mut(ZTUP)]) {
-                VarKind::LetMut
-            } else {
-                VarKind::Let
-            }
-        } else if self.match_token(&[Token::Var(ZTUP)]) {
-            VarKind::Var
-        } else if self.match_token(&[Token::Const(ZTUP)]) {
-            VarKind::Const
-        } else {
-            return Err(VeldError::ParserError(
-                "Expected variable declaration keyword".to_string(),
-            ));
-        };
 
         // Parse the variable name
         let name = self.consume_identifier("Expected variable name")?;
@@ -2230,12 +2227,16 @@ impl Parser {
         res
     }
 
-    fn variable_declaration(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Statement> {
+    fn variable_declaration(
+        &mut self,
+        var_kind: VarKind,
+        is_public: bool,
+        ctx: &mut Option<&mut ParseContext>,
+    ) -> Result<Statement> {
         let _span = tracing::span!(tracing::Level::TRACE, "variable_declaration");
         let _span = _span.enter();
 
-        let is_public = self.match_token(&[Token::Pub(ZTUP)]);
-        self.variable_declaration_with_visibility(is_public, ctx)
+        self.variable_declaration_with_visibility(var_kind, is_public, ctx)
     }
 
     fn parse_macro_invocation(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Statement> {
@@ -2308,7 +2309,7 @@ impl Parser {
             Ok(Statement::Continue)
         } else if self.is_declaration_keyword() {
             //TODO: Handle variable declarations (let, var, const)
-            self.variable_declaration(ctx)
+            self.variable_declaration(VarKind::Let, true, ctx)
         } else if self.check_assignment() {
             self.assignment_statement(ctx)
         } else {
