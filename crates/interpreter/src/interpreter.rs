@@ -115,7 +115,11 @@ impl Interpreter {
         // Collect roots from global scope (scopes[0])
         if let Some(global_scope) = self.scopes.get(0) {
             for (_name, value) in global_scope.vals() {
-                Self::add_value_roots(&mut roots, value);
+                // Only add roots if value is a veld_common::value::Value
+                if let Some(val) = value.downcast_ref::<veld_common::value::Value>() {
+                    Self::add_value_roots(&mut roots, val);
+                }
+                // Otherwise, skip (cannot add roots for Expr)
             }
         }
 
@@ -130,7 +134,29 @@ impl Interpreter {
             }
         }
 
-        // TODO: Collect roots from modules, imported modules, etc.
+        // Collect roots from loaded modules (exports/globals)
+        // NOTE: Skipping module variable roots unless you have a runtime Value store for modules.
+        // If you add a global/module value environment, traverse those values here for GC roots.
+
+        // Collect roots from imported modules (by alias)
+        for (_alias, module_name) in &self.imported_modules {
+            if let Some(module) = self.module_manager.get_module(module_name) {
+                for export in module.exports.values() {
+                    match export {
+                        veld_common::value::module::ExportedItem::Variable(idx) => {
+                            if let Some(veld_common::ast::Statement::VariableDeclaration {
+                                value,
+                                ..
+                            }) = module.statements.get(*idx)
+                            {
+                                // Skipping: cannot add roots for Expr, only for runtime Value.
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
 
         roots
     }
@@ -2683,8 +2709,7 @@ impl Interpreter {
                 } else {
                     Ok(None) // Not an enum
                 }
-            }
-            _ => Ok(None), // Not implemented yet
+            } // _ => Ok(None), // Not implemented yet
         }
     }
 

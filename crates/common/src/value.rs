@@ -126,7 +126,11 @@ impl Value {
                     .map(|(k, v)| (k.clone(), v.type_of()))
                     .collect(),
             },
-            Value::CompiledFunction { chunk, arity, name } => {
+            Value::CompiledFunction {
+                chunk: _,
+                arity: _,
+                name: _,
+            } => {
                 todo!("Implement type inference for compiled functions")
             }
             Value::GcRef(value) => Type::GcRef(Box::new(value.type_of())),
@@ -146,6 +150,23 @@ impl Value {
                 "Invalid operation {:?} between {:?} and {:?}",
                 op, self, rhs
             ))),
+        }
+    }
+
+    // Remove the generic parameter T, as it is not used and causes diagnostics.
+    // If you want to downcast, you should use Any, but here we just provide a reference to self for supported variants.
+    pub fn downcast_ref<T: ?Sized>(&self) -> Option<&Value> {
+        match self {
+            Value::Numeric(_) => Some(self),
+            Value::String(_) => Some(self),
+            Value::Boolean(_) => Some(self),
+            Value::Unit => Some(self),
+            Value::Struct { .. } => Some(self),
+            Value::Enum { .. } => Some(self),
+            Value::Array(_) => Some(self),
+            Value::CompiledFunction { .. } => Some(self),
+            Value::GcRef(_) => Some(self),
+            _ => None,
         }
     }
 }
