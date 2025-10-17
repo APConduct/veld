@@ -19,13 +19,31 @@ fn main() -> Result<()> {
             let args: Vec<String> = env::args().collect();
 
             if args.len() == 1 {
+                if args[1] == "build" {
+                    // TODO: Implement bytecode compilation
+                    println!("Bytecode compilation not implemented yet");
+                } else if args[1] == "run" {
+                    // TODO: Implement running bytecode
+                }
                 let mut repl = Repl::new();
                 repl.run()
                     .map_err(|e| veld_error::VeldError::RuntimeError(format!("{e}")))?;
                 Ok(())
             } else if args.len() == 2 {
+                if args[1] == "build" {
+                    // TODO: Implement bytecode compilation
+                    println!("Bytecode compilation not implemented yet");
+                    run_file(&args[1])
+                } else if args[1] == "run" {
+                    // TODO: Implement running bytecode
+                    run_file(&args[1])
+                } else if args[1] == "opt" {
+                    // TODO: Implement bitcode compilation
+                    run_file(&args[1])
+                } else {
+                    run_file(&args[1])
+                }
                 // One argument - interpret the file
-                run_file(&args[1])
             } else {
                 println!("Usage: veld [filename]");
                 println!("       veld           # Run in REPL mode");

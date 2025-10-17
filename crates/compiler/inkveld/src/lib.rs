@@ -112,7 +112,7 @@ impl TypeToLLVM for Type {
                 | Type::Module(_)
                 | Type::StructType(_)
                 | Type::EnumType(_) => {
-                    // These would need more complex handling in a full implementation
+                    // TODO: implement more complex handling in a full implementation
                     LLVMPointerType(LLVMInt8TypeInContext(context), 0) // Placeholder as void pointer
                 }
             }

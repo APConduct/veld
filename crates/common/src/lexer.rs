@@ -312,6 +312,11 @@ pub enum Token {
     Await((usize, usize)),
     #[token("spawn", word_callback)]
     Spawn((usize, usize)),
+
+    #[token("type", word_callback)]
+    Type((usize, usize)),
+    #[token("union", word_callback)]
+    Union((usize, usize)),
 }
 
 impl Display for Token {
@@ -404,6 +409,9 @@ impl Display for Token {
             Token::Async((x, y)) => write!(f, "async at {},{}", x, y),
             Token::Await((x, y)) => write!(f, "await at {},{}", x, y),
             Token::Spawn((x, y)) => write!(f, "spawn at {},{}", x, y),
+
+            Token::Union((x, y)) => write!(f, "union at {},{}", x, y),
+            Token::Type((x, y)) => write!(f, "type at {},{}", x, y),
         }
     }
 }
@@ -412,6 +420,8 @@ impl Token {
     pub fn locate(&self) -> Option<(usize, usize)> {
         match self {
             Token::Fn((x, y)) => Some((*x, *y)),
+            Token::Union((x, y)) => Some((*x, *y)),
+            Token::Type((x, y)) => Some((*x, *y)),
             Token::Proc((x, y)) => Some((*x, *y)),
             Token::Let((x, y)) => Some((*x, *y)),
             Token::Struct((x, y)) => Some((*x, *y)),
@@ -503,6 +513,14 @@ impl Token {
     pub fn source_pos(&self) -> Position {
         match self {
             Token::Fn((x, y)) => Position {
+                line: *x as u32,
+                column: *y as u32,
+            },
+            Token::Type((x, y)) => Position {
+                line: *x as u32,
+                column: *y as u32,
+            },
+            Token::Union((x, y)) => Position {
                 line: *x as u32,
                 column: *y as u32,
             },
