@@ -98,6 +98,11 @@ fn run_file(filename: &str) -> Result<()> {
         .collect_tokens()
         .map_err(|e| VeldError::LexerError(e))?;
 
+    // Debug print all lexer tokens for inspection
+    for token in &tokens {
+        tracing::debug!("LEXER TOKEN: {:?}", token);
+    }
+
     // Parsing
     let parser = Parser::new(tokens.clone());
     tracing::event!(Level::TRACE, "Starting parsing...");

@@ -189,6 +189,14 @@ impl Parser {
                 )));
             }
 
+            // Skip non-declaration tokens before calling declaration
+            while !self.is_declaration_keyword() && !self.is_at_end() {
+                self.advance();
+            }
+            if self.is_at_end() {
+                break;
+            }
+
             println!(
                 "DEBUG: Before declaration, current token: {:?}",
                 self.peek()
@@ -4641,6 +4649,9 @@ impl Parser {
         tracing::info!("Parsing union declaration");
 
         let start = self.get_current_position();
+
+        // Advance past the 'union' token
+        self.consume(&Token::Union(ZTUP), "Expected 'union' keyword")?;
 
         let name = self.consume_identifier("expected union name")?;
 
