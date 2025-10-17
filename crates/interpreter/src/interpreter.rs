@@ -93,7 +93,7 @@ pub struct Interpreter {
     native_registry: NativeFunctionRegistry,
     native_method_registry: NativeMethodRegistry,
     recursion_depth: usize,
-    pub allocator: veld_common::gc::allocator::GcAllocator,
+    pub allocator: std::cell::RefCell<veld_common::gc::allocator::GcAllocator>,
 }
 
 impl Interpreter {
@@ -115,7 +115,7 @@ impl Interpreter {
             native_method_registry: NativeMethodRegistry::new(),
             recursion_depth: 0,
             enum_methods: HashMap::new(),
-            allocator: veld_common::gc::allocator::GcAllocator::default(),
+            allocator: std::cell::RefCell::new(veld_common::gc::allocator::GcAllocator::default()),
         };
 
         interpreter.initialize_std_modules();
@@ -385,13 +385,16 @@ impl Interpreter {
     fn io_print(&self, args: Vec<Value>) -> Result<Value> {
         if let Some(value) = args.get(0) {
             let actual_value = match value {
-                Value::GcRef(handle) => self
-                    .allocator
-                    .get_value(handle)
-                    .expect("dangling GC handle"),
-                _ => value,
+                Value::GcRef(handle) => {
+                    let allocator = self.allocator.borrow();
+                    allocator
+                        .get_value(handle)
+                        .expect("dangling GC handle")
+                        .clone()
+                }
+                _ => value.clone(),
             };
-            match self.value_to_string(actual_value) {
+            match self.value_to_string(&actual_value) {
                 Ok(s) => {
                     print!("{}", s);
                     use std::io::{self, Write};
@@ -415,13 +418,16 @@ impl Interpreter {
 
         if let Some(value) = args.get(0) {
             let actual_value = match value {
-                Value::GcRef(handle) => self
-                    .allocator
-                    .get_value(handle)
-                    .expect("dangling GC handle"),
-                _ => value,
+                Value::GcRef(handle) => {
+                    let allocator = self.allocator.borrow();
+                    allocator
+                        .get_value(handle)
+                        .expect("dangling GC handle")
+                        .clone()
+                }
+                _ => value.clone(),
             };
-            match self.value_to_string(actual_value) {
+            match self.value_to_string(&actual_value) {
                 Ok(s) => {
                     println!("{}", s);
                     Ok(Value::Unit)
@@ -483,7 +489,11 @@ impl Interpreter {
                 ));
             }
 
-            Ok(Value::String(result))
+            Ok(Value::GcRef(
+                self.allocator
+                    .borrow_mut()
+                    .allocate(Value::String(result))?,
+            ))
         } else {
             Err(VeldError::RuntimeError(
                 "Format string must be a string".to_string(),
@@ -492,17 +502,31 @@ impl Interpreter {
     }
 
     fn register_io_functions(&mut self) {
-        // Capture a raw pointer to the interpreter for use in closures
-        let _interpreter_ptr = self as *const Interpreter;
+        // Register IO functions using closures that take &mut self if needed
 
         self.native_registry
-            .register_static("std.io.print", Self::io_print);
+            .register_static("std.io.print", |interpreter, args| {
+                // SAFETY: This is safe because register_static is only called during initialization,
+                // and no aliasing occurs. However, casting &Interpreter to &mut Interpreter is UB.
+                // Instead, we should require &mut self for register_static, or use interior mutability.
+                // Here, we call io_print with &self, which is fine because io_print only borrows self immutably.
+                interpreter.io_print(args)
+            });
         self.native_registry
-            .register_static("std.io.println", Self::io_println);
-        self.native_registry
-            .register_static("std.io._format_string", Self::io_format_string);
+            .register_static("std.io.println", |interpreter, args| {
+                interpreter.io_println(args)
+            });
 
-        // Other IO functions...
+        // io_format_string requires &mut self, but register_static expects &self.
+        // To fix the type mismatch, we can call io_format_string with &self, but this requires io_format_string to accept &self.
+        // Since io_format_string is defined as fn(&mut self, ...), we need to change this registration to use register_static and accept &self.
+        // If io_format_string does not mutate self, change its signature to accept &self.
+        // Otherwise, we need to use interior mutability or refactor the registration.
+        // For now, we will call io_format_string with &self, assuming it does not mutate self.
+        self.native_registry
+            .register_static("std.io._format_string", |interpreter, args| {
+                interpreter.io_format_string(args)
+            });
 
         // File operations
         self.native_registry.register("std.io.read_file", |args| {
@@ -987,10 +1011,8 @@ impl Interpreter {
             Value::Char(c) => Ok(Expr::Literal(Literal::Char(c))),
             Value::Unit => Ok(Expr::Literal(Literal::Unit)),
             Value::GcRef(handle) => {
-                let actual_value = self
-                    .allocator
-                    .get_value(&handle)
-                    .expect("dangling GC handle");
+                let allocator = self.allocator.borrow();
+                let actual_value = allocator.get_value(&handle).expect("dangling GC handle");
                 self.value_to_expr(actual_value.clone())
             }
             Value::Numeric(num) => match num {
