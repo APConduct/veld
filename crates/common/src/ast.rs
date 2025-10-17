@@ -8,6 +8,7 @@ use std::{
 };
 use veld_error::VeldError;
 
+#[derive(Debug)]
 pub struct AST {
     pub statements: Vec<Statement>,
     pub source_map: Option<SourceMap>,

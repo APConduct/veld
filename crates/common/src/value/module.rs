@@ -38,7 +38,7 @@ pub struct ModuleManager {
 
 impl ModuleManager {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
-        let _span = tracing::span!(tracing::Level::INFO, "Initializing ModuleManager");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Initializing ModuleManager");
         let _guard = _span.enter();
 
         let root = root_dir.as_ref().to_path_buf();
@@ -69,7 +69,7 @@ impl ModuleManager {
     }
 
     pub fn register_stdlib_path(&mut self, path: &std::path::Path) -> VeldResult<()> {
-        let _span = tracing::span!(tracing::Level::INFO, "Registering stdlib path");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Registering stdlib path");
         let _guard = _span.enter();
 
         if !path.exists() || !path.is_dir() {
@@ -97,7 +97,7 @@ impl ModuleManager {
     }
 
     pub fn add_search_path<P: AsRef<Path>>(&mut self, path: P) {
-        let _span = tracing::span!(tracing::Level::INFO, "Adding search path");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Adding search path");
         let _guard = _span.enter();
 
         let path_buf = path.as_ref().to_path_buf();
@@ -107,7 +107,7 @@ impl ModuleManager {
     }
 
     pub fn load_module(&mut self, module_path: &[String]) -> Result<&Module, VeldError> {
-        let _span = tracing::span!(tracing::Level::INFO, "Loading module");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Loading module");
         let _guard = _span.enter();
 
         let full_name = module_path.join(".");
@@ -236,7 +236,7 @@ impl ModuleManager {
         name: &str,
         statements: Vec<Statement>,
     ) -> Result<&Module, VeldError> {
-        let _span = tracing::span!(tracing::Level::INFO, "Creating module");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Creating module");
         let _guard = _span.enter();
 
         let exports = self.extract_exports(&statements);
@@ -253,7 +253,7 @@ impl ModuleManager {
     }
 
     fn find_module_file(&self, module_path: &[String]) -> Result<PathBuf, VeldError> {
-        let _span = tracing::span!(tracing::Level::INFO, "Finding module file");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Finding module file");
         let _guard = _span.enter();
 
         tracing::debug!("Searching for module: {:?}", module_path);
@@ -409,7 +409,7 @@ impl ModuleManager {
     }
 
     fn extract_exports(&self, statements: &[Statement]) -> HashMap<String, ExportedItem> {
-        let _span = tracing::span!(tracing::Level::INFO, "Extracting exports");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Extracting exports");
         let _guard = _span.enter();
 
         let mut exports = HashMap::new();
@@ -468,7 +468,7 @@ impl ModuleManager {
 
         tracing::debug!("extract_exports: statements for module: {:?}", statements);
 
-        tracing::info!(
+        tracing::debug!(
             "Final exports after extraction: {:?}",
             exports.keys().collect::<Vec<_>>()
         );
@@ -511,7 +511,7 @@ impl ModuleManager {
                                     "[extract_exports] Inserting submodule export: '{}' -> '{}'",
                                     submodule_name, source_module_path
                                 );
-                                tracing::info!(
+                                tracing::debug!(
                                     "Inserting submodule export: '{}' -> '{}'",
                                     submodule_name,
                                     source_module_path
@@ -564,7 +564,7 @@ impl ModuleManager {
     }
 
     pub fn get_nested_module(&self, path: &[String]) -> Option<&Module> {
-        let _span = tracing::span!(tracing::Level::INFO, "Getting nested module");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Getting nested module");
         let _guard = _span.enter();
 
         if path.len() == 1 {
@@ -600,7 +600,7 @@ impl ModuleManager {
         module_name: &str,
         items: &[ImportItem],
     ) -> Result<HashMap<String, ExportedItem>, VeldError> {
-        let _span = tracing::span!(tracing::Level::INFO, "Getting exports");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Getting exports");
         let _guard = _span.enter();
 
         let module = self.get_module(module_name).ok_or_else(|| {

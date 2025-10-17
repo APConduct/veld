@@ -99,6 +99,7 @@ fn run_file(filename: &str) -> Result<()> {
         .map_err(|e| VeldError::LexerError(e))?;
 
     // Debug print all lexer tokens for inspection
+    tracing::debug!("TOKEN COUNT: {}", tokens.len());
     for token in &tokens {
         tracing::debug!("LEXER TOKEN: {:?}", token);
     }
@@ -110,6 +111,9 @@ fn run_file(filename: &str) -> Result<()> {
     // match parser.parse() {
     match parser.parse_with_source_map(source.as_str(), abs_filename) {
         Ok(ast) => {
+            // Debug print all top-level AST statements for inspection
+            tracing::debug!("PARSED AST STATEMENTS: {:?}", ast);
+
             // Run the interpreter if parsing succeeds
             let mut interpreter = Interpreter::new("../..");
             match interpreter.interpret_ast(ast) {

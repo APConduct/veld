@@ -181,7 +181,7 @@ impl Interpreter {
         }
     }
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
-        let span = tracing::info_span!("interpreter_new", root_dir = ?root_dir.as_ref());
+        let span = tracing::debug_span!("interpreter_new", root_dir = ?root_dir.as_ref());
         let _enter = span.enter();
 
         let mut interpreter = Self {
@@ -252,7 +252,7 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, statements: Vec<Statement>) -> Result<Value> {
-        let span = tracing::info_span!("interpret", statement_count = statements.len());
+        let span = tracing::debug_span!("interpret", statement_count = statements.len());
         let _enter = span.enter();
 
         // First pass: execute imports and register all declarations
@@ -291,6 +291,7 @@ impl Interpreter {
                     | Statement::EnumDeclaration { .. }
                     | Statement::PlexDeclaration { .. }
             ) {
+                tracing::info!("Executing statement: {:?}", stmt);
                 last_value = self.execute_statement(stmt)?;
             }
         }
@@ -299,7 +300,7 @@ impl Interpreter {
     }
 
     fn initialize_std_modules(&mut self) {
-        let span = tracing::info_span!("initialize_std_modules");
+        let span = tracing::debug_span!("initialize_std_modules");
         let _enter = span.enter();
 
         // Find and register the stdlib path
@@ -503,6 +504,7 @@ impl Interpreter {
     }
 
     fn io_print(&self, args: Vec<Value>) -> Result<Value> {
+        tracing::info!("io_print called with args: {:?}", args);
         if let Some(value) = args.get(0) {
             let actual_value = match value {
                 Value::GcRef(handle) => {
@@ -516,6 +518,7 @@ impl Interpreter {
             };
             match self.value_to_string(&actual_value) {
                 Ok(s) => {
+                    tracing::info!("io_print printing: {}", s);
                     print!("{}", s);
                     use std::io::{self, Write};
                     io::stdout().flush().unwrap();
@@ -531,6 +534,7 @@ impl Interpreter {
     }
 
     fn io_println(&self, args: Vec<Value>) -> Result<Value> {
+        tracing::info!("io_println called with args: {:?}", args);
         if args.is_empty() {
             println!();
             return Ok(Value::Unit);
@@ -549,6 +553,7 @@ impl Interpreter {
             };
             match self.value_to_string(&actual_value) {
                 Ok(s) => {
+                    tracing::info!("io_println printing: {}", s);
                     println!("{}", s);
                     Ok(Value::Unit)
                 }
@@ -2127,7 +2132,7 @@ impl Interpreter {
         return_type: &TypeAnnotation,
         body: Vec<Statement>,
     ) -> Result<Value> {
-        let span = tracing::info_span!("function_declaration", name = %name);
+        let span = tracing::debug_span!("function_declaration", name = %name);
         let _enter = span.enter();
 
         let processed_body = if !body.is_empty() {
@@ -5763,7 +5768,7 @@ impl Interpreter {
             }
             Value::Module(module) => {
                 // Debug: Show module exports when looking up property
-                println!(
+                tracing::debug!(
                     "[get_property] Looking for '{}' in module '{}'. Exports: {:?}",
                     property,
                     module.name,
@@ -7545,6 +7550,13 @@ impl Interpreter {
         alias: Option<String>,
         is_public: bool,
     ) -> Result<Value> {
+        tracing::debug!(
+            "Executing import: path={:?}, items={:?}, alias={:?}, is_public={}",
+            path,
+            items,
+            alias,
+            is_public
+        );
         let mut actual_path = path.clone();
         let mut actual_items = items.clone();
 
@@ -7666,6 +7678,11 @@ impl Interpreter {
                             ..
                         } = &module_statements[idx]
                         {
+                            tracing::debug!(
+                                "Importing function '{}' with body length: {}",
+                                name,
+                                body.len()
+                            );
                             let function = Value::Function {
                                 params: params.clone(),
                                 body: body.clone(),

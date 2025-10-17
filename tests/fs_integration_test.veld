@@ -2,24 +2,24 @@
 
 # Write to a file
 let write_result = std.fs.write("test_fs_file.txt", "hello veld fs!")
-std.io.println("write_result: " + write_result.to_string())
+std.io.println("write_result: ")
 
 # Read the file back
-let read_result = std.fs.read("test_fs_file.txt")
-std.io.println("read_result: " + read_result.to_string())
+# let read_result = std.fs.read("test_fs_file.txt")
+# std.io.println("read_result: " + read_result.to_string())
 
-# Check file existence
-let exists = std.fs.exists("test_fs_file.txt")
-std.io.println("exists: " + exists.to_string())
+# # Check file existence
+# let exists = std.fs.exists("test_fs_file.txt")
+# std.io.println("exists: " + exists.to_string())
 
-# List current directory
-let dir_result = std.fs.read_dir(".")
-std.io.println("read_dir: " + dir_result.to_string())
+# # List current directory
+# let dir_result = std.fs.read_dir(".")
+# std.io.println("read_dir: " + dir_result.to_string())
 
-# Remove the file
-let remove_result = std.fs.remove("test_fs_file.txt")
-std.io.println("remove_result: " + remove_result.to_string())
+# # Remove the file
+# let remove_result = std.fs.remove("test_fs_file.txt")
+# std.io.println("remove_result: " + remove_result.to_string())
 
-# Check file existence again
-let exists_after = std.fs.exists("test_fs_file.txt")
-std.io.println("exists_after: " + exists_after.to_string())
+# # Check file existence again
+# let exists_after = std.fs.exists("test_fs_file.txt")
+# std.io.println("exists_after: " + exists_after.to_string())

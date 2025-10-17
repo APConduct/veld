@@ -149,7 +149,7 @@ impl Parser {
     }
 
     pub fn from_source(source: &str, file_path: impl Into<PathBuf>) -> Result<AST> {
-        let _span = tracing::span!(Level::INFO, "from_source");
+        let _span = tracing::span!(Level::DEBUG, "from_source");
         let _guard = _span.enter();
 
         let tokens = Lexer::new(source).collect_tokens();
@@ -179,7 +179,7 @@ impl Parser {
     }
 
     pub fn parse_with_context(&mut self, context: &mut ParseContext) -> Result<Vec<Statement>> {
-        let _span = tracing::span!(tracing::Level::INFO, "parse_with_context");
+        let _span = tracing::span!(tracing::Level::DEBUG, "parse_with_context");
         let _guard = _span.enter();
 
         let mut statements = Vec::new();
@@ -237,28 +237,51 @@ impl Parser {
                 )));
             }
 
-            // Skip non-declaration tokens before calling declaration
-            while !self.is_declaration_keyword() && !self.is_at_end() {
-                self.advance();
-            }
-            if self.is_at_end() {
-                break;
-            }
-
-            println!(
-                "DEBUG: Before declaration, current token: {:?}",
+            tracing::debug!(
+                "parse_statements: Current token before loop: {:?}",
                 self.peek()
             );
+
             let prev_token = self.current;
-            let stmt = self.declaration_with_context(context)?;
-            println!("DEBUG: After declaration, current token: {:?}", self.peek());
-            statements.push(stmt);
+            // Try to parse a declaration or a statement (expression)
+            match self.declaration_with_context(context) {
+                Ok(stmt) => {
+                    tracing::debug!("PARSED STATEMENT: {:?}", stmt);
+                    statements.push(stmt);
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Error parsing statement at token {:?}: {:?}",
+                        self.peek(),
+                        e
+                    );
+                    // Try to parse as an expression statement if declaration failed
+                    if !self.is_at_end() {
+                        match self.statement(&mut Some(context)) {
+                            Ok(stmt) => {
+                                tracing::debug!("PARSED TOP-LEVEL STATEMENT: {:?}", stmt);
+                                statements.push(stmt);
+                            }
+                            Err(expr_err) => {
+                                tracing::error!(
+                                    "Error parsing top-level statement at token {:?}: {:?}",
+                                    self.peek(),
+                                    expr_err
+                                );
+                                // Advance to avoid infinite loop
+                                self.advance();
+                            }
+                        }
+                    }
+                }
+            }
+            tracing::debug!(
+                "After statement/declaration, current token: {:?}",
+                self.peek()
+            );
             // If we didn't advance, skip the token to avoid infinite loop
             if self.current == prev_token && !self.is_at_end() {
-                println!(
-                    "DEBUG: Advancing token to avoid infinite loop: {:?}",
-                    self.peek()
-                );
+                tracing::debug!("Advancing token to avoid infinite loop: {:?}", self.peek());
                 self.advance();
             }
         }
@@ -271,7 +294,22 @@ impl Parser {
 
     fn is_declaration_keyword(&self) -> bool {
         match self.peek() {
-            Token::Let(_) | Token::Var(_) | Token::Const(_) => true,
+            Token::Let(_)
+            | Token::Var(_)
+            | Token::Const(_)
+            | Token::Import(_)
+            | Token::Fn(_)
+            | Token::Pub(_)
+            | Token::Proc(_)
+            | Token::Struct(_)
+            | Token::Kind(_)
+            | Token::Enum(_)
+            | Token::Plex(_)
+            | Token::Union(_)
+            | Token::Mod(_)
+            | Token::Type(_)
+            | Token::Macro(_)
+            | Token::Impl(_) => true,
             _ => false,
         }
     }
@@ -290,13 +328,17 @@ impl Parser {
 
         let start = self.get_current_position();
 
-        tracing::info!("Parsing declaration. context: {:?}", ctx);
+        tracing::debug!("Parsing declaration. context: {:?}", ctx);
         tracing::debug!(
             "declaration: Entering declaration(), current token: {:?}",
             self.peek()
         );
 
-        let res = if self.is_declaration_keyword() {
+        let res = if self.match_token(&[Token::Let(ZTUP)]) {
+            self.variable_declaration(ctx)
+        } else if self.match_token(&[Token::Var(ZTUP)]) {
+            self.variable_declaration(ctx)
+        } else if self.match_token(&[Token::Const(ZTUP)]) {
             self.variable_declaration(ctx)
         } else if self.match_token(&[Token::Enum(ZTUP)]) {
             self.enum_declaration(ctx.as_deref_mut())
@@ -647,7 +689,7 @@ impl Parser {
                 // If the last statement is an expression, make it an implicit return
                 if self.check(&Token::End(ZTUP)) {
                     if let Statement::ExprStatement(expr) = stmt {
-                        tracing::info!("Implicit return in function_declaration_with_visibility");
+                        tracing::debug!("Implicit return in function_declaration_with_visibility");
                         if matches!(return_type, TypeAnnotation::Basic(ref s) if s == "infer") {
                             if let Some(inferred_type) = self.infer_lambda_return_type(&expr) {
                                 return_type = inferred_type;
@@ -2244,7 +2286,7 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "statement");
         let _span = _span.enter();
 
-        tracing::info!("Parsing statement");
+        tracing::debug!("Parsing statement");
 
         let start = self.get_current_position();
 
@@ -4247,7 +4289,7 @@ impl Parser {
 
         let start = self.get_current_position();
 
-        tracing::info!(
+        tracing::debug!(
             "import_declaration_with_visibility: is_public={} path={:?}",
             is_public,
             self.tokens.get(self.current..).map(|toks| {
@@ -4739,10 +4781,10 @@ impl Parser {
         is_public: bool,
         mut ctx: Option<&mut ParseContext>,
     ) -> Result<Statement> {
-        let _span = tracing::span!(tracing::Level::INFO, "Parsing union declaration");
+        let _span = tracing::span!(tracing::Level::DEBUG, "Parsing union declaration");
         let _enter = _span.enter();
 
-        tracing::info!("Parsing union declaration");
+        tracing::debug!("Parsing union declaration");
 
         let start = self.get_current_position();
 
@@ -4825,7 +4867,7 @@ mod tests {
     use super::*;
 
     fn parse_code(input: &str) -> Vec<Statement> {
-        let _span = tracing::span!(tracing::Level::INFO, "Parsing code", input = input);
+        let _span = tracing::span!(tracing::Level::DEBUG, "Parsing code", input = input);
         let _enter = _span.enter();
 
         let mut lexer = Lexer::new(input);
