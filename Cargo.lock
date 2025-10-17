@@ -1706,6 +1706,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tracing",
+ "tracing-subscriber 0.3.19",
  "veld-common",
  "veld-error",
 ]

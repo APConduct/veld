@@ -218,8 +218,26 @@ impl BytecodeCompiler {
 
             Statement::Assignment { name, value, .. } => {
                 self.compile_expression(value)?;
-                let target = Expr::Identifier(name.clone());
-                self.compile_assignment_target(&target)?;
+                if let Some(local_index) = self.resolve_local(name) {
+                    self.emit_instruction(
+                        Instruction::StoreLocal(local_index as u16),
+                        self.current_line,
+                    );
+                } else {
+                    // Fallback: treat as global assignment
+                    let name_index = self
+                        .current_chunk
+                        .add_constant(BytecodeValue::String(name.clone()));
+                    self.emit_instruction(
+                        Instruction::StoreGlobal(name_index as u16),
+                        self.current_line,
+                    );
+                }
+            }
+
+            Statement::PropertyAssignment { target, value, .. } => {
+                self.compile_expression(value)?;
+                self.compile_assignment_target(target)?;
             }
 
             Statement::FunctionDeclaration {
@@ -335,25 +353,6 @@ impl BytecodeCompiler {
                     self.compile_statement(stmt)?;
                 }
                 self.end_scope();
-            }
-            Statement::Assignment { name, value } => {
-                self.compile_expression(value)?;
-                // Fix: resolve local index for StoreLocal
-                if let Some(local_index) = self.resolve_local(name) {
-                    self.emit_instruction(
-                        Instruction::StoreLocal(local_index as u16),
-                        self.current_line,
-                    );
-                } else {
-                    // Fallback: treat as global assignment
-                    let name_index = self
-                        .current_chunk
-                        .add_constant(BytecodeValue::String(name.clone()));
-                    self.emit_instruction(
-                        Instruction::StoreGlobal(name_index as u16),
-                        self.current_line,
-                    );
-                }
             }
             _ => {
                 warn!("Unhandled statement type: {:?}", statement);
