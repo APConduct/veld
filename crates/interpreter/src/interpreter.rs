@@ -93,7 +93,7 @@ pub struct Interpreter {
     native_registry: NativeFunctionRegistry,
     native_method_registry: NativeMethodRegistry,
     recursion_depth: usize,
-    pub allocator: std::cell::RefCell<veld_common::gc::allocator::GcAllocator>,
+    pub allocator: std::sync::RwLock<veld_common::gc::allocator::GcAllocator>,
 }
 
 impl Interpreter {
@@ -115,7 +115,7 @@ impl Interpreter {
             native_method_registry: NativeMethodRegistry::new(),
             recursion_depth: 0,
             enum_methods: HashMap::new(),
-            allocator: std::cell::RefCell::new(veld_common::gc::allocator::GcAllocator::default()),
+            allocator: std::sync::RwLock::new(veld_common::gc::allocator::GcAllocator::default()),
         };
 
         interpreter.initialize_std_modules();
@@ -238,7 +238,7 @@ impl Interpreter {
 
     fn register_math_functions(&mut self) {
         // Square root
-        self.native_registry.register("std.math.sqrt", |args| {
+        self.native_registry.register("std.math.sqrt", |_, args| {
             if args.len() != 1 {
                 return Err(VeldError::RuntimeError(
                     "sqrt requires exactly one argument".to_string(),
@@ -272,7 +272,7 @@ impl Interpreter {
         });
 
         // Power function
-        self.native_registry.register("std.math.pow", |args| {
+        self.native_registry.register("std.math.pow", |_, args| {
             if args.len() != 2 {
                 return Err(VeldError::RuntimeError(
                     "pow requires exactly two arguments".to_string(),
@@ -309,7 +309,7 @@ impl Interpreter {
         });
 
         // Sine function
-        self.native_registry.register("std.math.sin", |args| {
+        self.native_registry.register("std.math.sin", |_, args| {
             if args.len() != 1 {
                 return Err(VeldError::RuntimeError(
                     "sin requires exactly one argument".to_string(),
@@ -333,7 +333,7 @@ impl Interpreter {
         });
 
         // Cosine function
-        self.native_registry.register("std.math.cos", |args| {
+        self.native_registry.register("std.math.cos", |_, args| {
             if args.len() != 1 {
                 return Err(VeldError::RuntimeError(
                     "cos requires exactly one argument".to_string(),
@@ -356,7 +356,7 @@ impl Interpreter {
             Ok(Value::Float(val.cos()))
         });
 
-        self.native_registry.register("std.math.tan", |args| {
+        self.native_registry.register("std.math.tan", |_, args| {
             if args.len() != 1 {
                 return Err(VeldError::RuntimeError(
                     "tan requires exactly one argument".to_string(),
@@ -386,7 +386,7 @@ impl Interpreter {
         if let Some(value) = args.get(0) {
             let actual_value = match value {
                 Value::GcRef(handle) => {
-                    let allocator = self.allocator.borrow();
+                    let allocator = self.allocator.read().unwrap();
                     allocator
                         .get_value(handle)
                         .expect("dangling GC handle")
@@ -419,7 +419,7 @@ impl Interpreter {
         if let Some(value) = args.get(0) {
             let actual_value = match value {
                 Value::GcRef(handle) => {
-                    let allocator = self.allocator.borrow();
+                    let allocator = self.allocator.read().unwrap();
                     allocator
                         .get_value(handle)
                         .expect("dangling GC handle")
@@ -491,7 +491,8 @@ impl Interpreter {
 
             Ok(Value::GcRef(
                 self.allocator
-                    .borrow_mut()
+                    .write()
+                    .unwrap()
                     .allocate(Value::String(result))?,
             ))
         } else {
@@ -529,70 +530,74 @@ impl Interpreter {
             });
 
         // File operations
-        self.native_registry.register("std.io.read_file", |args| {
-            if let Some(Value::String(path)) = args.get(0) {
-                match std::fs::read_to_string(path) {
-                    Ok(content) => Ok(Value::String(content)),
-                    Err(e) => Err(VeldError::RuntimeError(format!(
-                        "Failed to read file '{}': {}",
-                        path, e
-                    ))),
+        self.native_registry
+            .register("std.io.read_file", |_, args| {
+                if let Some(Value::String(path)) = args.get(0) {
+                    match std::fs::read_to_string(path) {
+                        Ok(content) => Ok(Value::String(content)),
+                        Err(e) => Err(VeldError::RuntimeError(format!(
+                            "Failed to read file '{}': {}",
+                            path, e
+                        ))),
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "read_file() requires a string path argument".to_string(),
+                    ))
                 }
-            } else {
-                Err(VeldError::RuntimeError(
-                    "read_file() requires a string path argument".to_string(),
-                ))
-            }
-        });
+            });
 
-        self.native_registry.register("std.io.write_file", |args| {
-            if let (Some(Value::String(path)), Some(Value::String(content))) =
-                (args.get(0), args.get(1))
-            {
-                match std::fs::write(path, content) {
-                    Ok(_) => Ok(Value::Boolean(true)),
-                    Err(e) => Err(VeldError::RuntimeError(format!(
-                        "Failed to write to file '{}': {}",
-                        path, e
-                    ))),
+        self.native_registry
+            .register("std.io.write_file", |_, args| {
+                if let (Some(Value::String(path)), Some(Value::String(content))) =
+                    (args.get(0), args.get(1))
+                {
+                    match std::fs::write(path, content) {
+                        Ok(_) => Ok(Value::Boolean(true)),
+                        Err(e) => Err(VeldError::RuntimeError(format!(
+                            "Failed to write to file '{}': {}",
+                            path, e
+                        ))),
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "write_file() requires path and content string arguments".to_string(),
+                    ))
                 }
-            } else {
-                Err(VeldError::RuntimeError(
-                    "write_file() requires path and content string arguments".to_string(),
-                ))
-            }
-        });
+            });
 
-        self.native_registry.register("std.io.file_exists", |args| {
-            if let Some(Value::String(path)) = args.get(0) {
-                Ok(Value::Boolean(std::path::Path::new(path).exists()))
-            } else {
-                Err(VeldError::RuntimeError(
-                    "file_exists() requires a string path argument".to_string(),
-                ))
-            }
-        });
+        self.native_registry
+            .register("std.io.file_exists", |_, args| {
+                if let Some(Value::String(path)) = args.get(0) {
+                    Ok(Value::Boolean(std::path::Path::new(path).exists()))
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "file_exists() requires a string path argument".to_string(),
+                    ))
+                }
+            });
 
         // Read from standard input
-        self.native_registry.register("std.io.read_line", |_args| {
-            let mut input = String::new();
-            match std::io::stdin().read_line(&mut input) {
-                Ok(_) => {
-                    // Trim the trailing newline
-                    if input.ends_with('\n') {
-                        input.pop();
-                        if input.ends_with('\r') {
+        self.native_registry
+            .register("std.io.read_line", |_, _args| {
+                let mut input = String::new();
+                match std::io::stdin().read_line(&mut input) {
+                    Ok(_) => {
+                        // Trim the trailing newline
+                        if input.ends_with('\n') {
                             input.pop();
+                            if input.ends_with('\r') {
+                                input.pop();
+                            }
                         }
+                        Ok(Value::String(input))
                     }
-                    Ok(Value::String(input))
+                    Err(e) => Err(VeldError::RuntimeError(format!(
+                        "Failed to read from stdin: {}",
+                        e
+                    ))),
                 }
-                Err(e) => Err(VeldError::RuntimeError(format!(
-                    "Failed to read from stdin: {}",
-                    e
-                ))),
-            }
-        });
+            });
     }
 
     fn collect_free_variables_expr(
@@ -1011,7 +1016,7 @@ impl Interpreter {
             Value::Char(c) => Ok(Expr::Literal(Literal::Char(c))),
             Value::Unit => Ok(Expr::Literal(Literal::Unit)),
             Value::GcRef(handle) => {
-                let allocator = self.allocator.borrow();
+                let allocator = self.allocator.read().unwrap();
                 let actual_value = allocator.get_value(&handle).expect("dangling GC handle");
                 self.value_to_expr(actual_value.clone())
             }
@@ -2932,7 +2937,7 @@ impl Interpreter {
                                             let result = if let Some(handler) =
                                                 self.native_registry.get(&native_function_name)
                                             {
-                                                handler(arg_values)
+                                                handler(self, arg_values)
                                             } else if self
                                                 .native_registry
                                                 .contains_static(&native_function_name)
@@ -3084,7 +3089,12 @@ impl Interpreter {
 
                                     values.push(value);
                                 }
-                                Ok(Value::Array(values))
+                                Ok(Value::GcRef(
+                                    self.allocator
+                                        .write()
+                                        .unwrap()
+                                        .allocate(Value::Array(values))?,
+                                ))
                             }
                             Expr::IndexAccess { object, index } => {
                                 let obj_value = self.evaluate_expression(*object)?.unwrap_return();
@@ -3865,7 +3875,16 @@ impl Interpreter {
                     }
 
                     // Store the collected values as an array
-                    bindings.insert(variable.clone(), Value::Array(collected_values));
+                    bindings.insert(
+                        variable.clone(),
+                        Value::GcRef(
+                            self.allocator
+                                .write()
+                                .unwrap()
+                                .allocate(Value::Array(collected_values))
+                                .ok()?,
+                        ),
+                    );
                 }
             }
             p_idx += 1;
@@ -4378,7 +4397,7 @@ impl Interpreter {
 
         // String - just return self
         self.native_method_registry
-            .register("str", "to_string", |args| {
+            .register("str", "to_string", |_, args| {
                 if let Some(Value::String(s)) = args.get(0) {
                     Ok(Value::String(s.clone()))
                 } else {
@@ -4392,7 +4411,7 @@ impl Interpreter {
         let register_integer_to_string =
             |registry: &mut crate::native::NativeMethodRegistry, type_name: &str| {
                 let type_name_owned = type_name.to_string();
-                registry.register(type_name, "to_string", move |args| match args.get(0) {
+                registry.register(type_name, "to_string", move |_, args| match args.get(0) {
                     Some(Value::Integer(n)) => Ok(Value::String(n.to_string())),
                     Some(Value::Numeric(numeric_val)) => {
                         let s = match numeric_val {
@@ -4434,7 +4453,7 @@ impl Interpreter {
         let register_float_to_string = |registry: &mut crate::native::NativeMethodRegistry,
                                         type_name: &str| {
             let type_name_owned = type_name.to_string();
-            registry.register(type_name, "to_string", move |args| match args.get(0) {
+            registry.register(type_name, "to_string", move |_, args| match args.get(0) {
                 Some(Value::Float(n)) => Ok(Value::String(n.to_string())),
                 Some(Value::Numeric(numeric_val)) => {
                     let s = match numeric_val {
@@ -4467,7 +4486,7 @@ impl Interpreter {
 
         // Boolean
         self.native_method_registry
-            .register("bool", "to_string", |args| {
+            .register("bool", "to_string", |_, args| {
                 if let Some(Value::Boolean(b)) = args.get(0) {
                     Ok(Value::String(if *b { "true" } else { "false" }.to_string()))
                 } else {
@@ -4479,7 +4498,7 @@ impl Interpreter {
 
         // Character
         self.native_method_registry
-            .register("char", "to_string", |args| {
+            .register("char", "to_string", |_, args| {
                 if let Some(Value::Char(c)) = args.get(0) {
                     Ok(Value::String(c.to_string()))
                 } else {
@@ -4530,19 +4549,20 @@ impl Interpreter {
         // --- Implement Sized for collection types ---
 
         // String size (length)
-        self.native_method_registry.register("str", "size", |args| {
-            if let Some(Value::String(s)) = args.get(0) {
-                Ok(Value::Integer(s.len() as i64))
-            } else {
-                Err(VeldError::RuntimeError(
-                    "size called on non-string".to_string(),
-                ))
-            }
-        });
+        self.native_method_registry
+            .register("str", "size", |_, args| {
+                if let Some(Value::String(s)) = args.get(0) {
+                    Ok(Value::Integer(s.len() as i64))
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "size called on non-string".to_string(),
+                    ))
+                }
+            });
 
         // Array size (length)
         self.native_method_registry
-            .register("array", "size", |args| {
+            .register("array", "size", |_, args| {
                 if let Some(Value::Array(arr)) = args.get(0) {
                     Ok(Value::Integer(arr.len() as i64))
                 } else {
@@ -4554,7 +4574,7 @@ impl Interpreter {
 
         // Empty check for collections
         self.native_method_registry
-            .register("str", "is_empty", |args| {
+            .register("str", "is_empty", |_, args| {
                 if let Some(Value::String(s)) = args.get(0) {
                     Ok(Value::Boolean(s.is_empty()))
                 } else {
@@ -4565,7 +4585,7 @@ impl Interpreter {
             });
 
         self.native_method_registry
-            .register("array", "is_empty", |args| {
+            .register("array", "is_empty", |interpreter, args| {
                 if let Some(Value::Array(arr)) = args.get(0) {
                     Ok(Value::Boolean(arr.is_empty()))
                 } else {
@@ -4579,7 +4599,7 @@ impl Interpreter {
 
         // Get type name as string
         self.native_method_registry
-            .register("any", "type_name", |args| {
+            .register("any", "type_name", |_, args| {
                 if let Some(value) = args.get(0) {
                     Ok(Value::String(value.type_of().to_string()))
                 } else {
@@ -4666,7 +4686,7 @@ impl Interpreter {
 
         // Find index
         self.native_method_registry
-            .register("str", "index_of", |args| {
+            .register("str", "index_of", |_, args| {
                 if let (Some(Value::String(s)), Some(Value::String(substring))) =
                     (args.get(0), args.get(1))
                 {
@@ -4685,56 +4705,62 @@ impl Interpreter {
 
         // Substring
         self.native_method_registry
-                            .register("str", "substring", |args| {
-                                use veld_common::value::numeric::IntegerValue;
-                                if let (
-                                    Some(Value::String(s)),
-                                    Some(Value::Numeric(NumericValue::Integer(start))),
-                                    Some(Value::Numeric(NumericValue::Integer(end))),
-                                ) = (args.get(0), args.get(1), args.get(2))
-                                {
-                                    // Convert IntegerValue to i64, then to usize
-                                    fn integer_value_to_usize(iv: &IntegerValue) -> Option<usize> {
-                                        match iv {
-                                            IntegerValue::I8(v) => Some(*v as usize),
-                                            IntegerValue::I16(v) => Some(*v as usize),
-                                            IntegerValue::I32(v) => Some(*v as usize),
-                                            IntegerValue::I64(v) => Some(*v as usize),
-                                            IntegerValue::U8(v) => Some(*v as usize),
-                                            IntegerValue::U16(v) => Some(*v as usize),
-                                            IntegerValue::U32(v) => Some(*v as usize),
-                                            IntegerValue::U64(v) => Some(*v as usize),
-                                        }
-                                    }
-                                    let start = integer_value_to_usize(start).unwrap_or(0);
-                                    let end = integer_value_to_usize(end).unwrap_or(0).min(s.len());
+            .register("str", "substring", |_, args| {
+                use veld_common::value::numeric::IntegerValue;
+                if let (
+                    Some(Value::String(s)),
+                    Some(Value::Numeric(NumericValue::Integer(start))),
+                    Some(Value::Numeric(NumericValue::Integer(end))),
+                ) = (args.get(0), args.get(1), args.get(2))
+                {
+                    // Convert IntegerValue to i64, then to usize
+                    fn integer_value_to_usize(iv: &IntegerValue) -> Option<usize> {
+                        match iv {
+                            IntegerValue::I8(v) => Some(*v as usize),
+                            IntegerValue::I16(v) => Some(*v as usize),
+                            IntegerValue::I32(v) => Some(*v as usize),
+                            IntegerValue::I64(v) => Some(*v as usize),
+                            IntegerValue::U8(v) => Some(*v as usize),
+                            IntegerValue::U16(v) => Some(*v as usize),
+                            IntegerValue::U32(v) => Some(*v as usize),
+                            IntegerValue::U64(v) => Some(*v as usize),
+                        }
+                    }
+                    let start = integer_value_to_usize(start).unwrap_or(0);
+                    let end = integer_value_to_usize(end).unwrap_or(0).min(s.len());
 
-                                    if start <= end && start <= s.len() {
-                                        let substring = if start == s.len() {
-                                            "".to_string()
-                                        } else {
-                                            s[start..end].to_string()
-                                        };
-                                        Ok(Value::String(substring))
-                                    } else {
-                                        Ok(Value::String("".to_string()))
-                                    }
-                                } else {
-                                    Err(VeldError::RuntimeError(
-                                       format!("substring called with invalid arguments: expected string, integer, integer, got {:?}", args),
-                                    ))
-                                }
-                            });
+                    if start <= end && start <= s.len() {
+                        let substring = if start == s.len() {
+                            "".to_string()
+                        } else {
+                            s[start..end].to_string()
+                        };
+                        Ok(Value::String(substring))
+                    } else {
+                        Ok(Value::String("".to_string()))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        format!("substring called with invalid arguments: expected string, integer, integer, got {:?}", args),
+                    ))
+                }
+            });
 
         // Split
         self.native_method_registry
-            .register("str", "split", |args| {
+            .register("str", "split", |interpreter, args| {
                 if let (Some(Value::String(s)), Some(Value::String(delimiter))) =
                     (args.get(0), args.get(1))
                 {
                     let parts: Vec<String> = s.split(delimiter).map(|s| s.to_string()).collect();
                     let values: Vec<Value> = parts.into_iter().map(Value::String).collect();
-                    Ok(Value::Array(values))
+                    Ok(Value::GcRef(
+                        interpreter
+                            .allocator
+                            .write()
+                            .unwrap()
+                            .allocate(Value::Array(values))?,
+                    ))
                 } else {
                     Err(VeldError::RuntimeError(
                         "split called with invalid arguments".to_string(),
@@ -4744,7 +4770,7 @@ impl Interpreter {
 
         // Replace
         self.native_method_registry
-            .register("str", "replace", |args| {
+            .register("str", "replace", |_, args| {
                 if let (
                     Some(Value::String(s)),
                     Some(Value::String(from)),
@@ -4761,7 +4787,7 @@ impl Interpreter {
 
         // Repeat
         self.native_method_registry
-            .register("str", "repeat", |args| {
+            .register("str", "repeat", |_, args| {
                 use veld_common::value::numeric::IntegerValue;
                 if let (
                     Some(Value::String(s)),
@@ -4795,7 +4821,7 @@ impl Interpreter {
 
         // Padding
         self.native_method_registry
-            .register("str", "pad_start", |args| {
+            .register("str", "pad_start", |_, args| {
                 use veld_common::value::numeric::IntegerValue;
                 if let (
                     Some(Value::String(s)),
@@ -4832,7 +4858,7 @@ impl Interpreter {
             });
 
         self.native_method_registry
-            .register("str", "pad_end", |args| {
+            .register("str", "pad_end", |_, args| {
                 use veld_common::value::numeric::IntegerValue;
                 if let (
                     Some(Value::String(s)),
@@ -4872,7 +4898,7 @@ impl Interpreter {
 
         // Parse to integer
         self.native_method_registry
-            .register("str", "to_int", |args| {
+            .register("str", "to_int", |_, args| {
                 if let Some(Value::String(s)) = args.get(0) {
                     match s.parse::<i64>() {
                         Ok(n) => Ok(Value::Enum {
@@ -4895,7 +4921,7 @@ impl Interpreter {
 
         // Parse to float
         self.native_method_registry
-            .register("str", "to_float", |args| {
+            .register("str", "to_float", |_, args| {
                 if let Some(Value::String(s)) = args.get(0) {
                     match s.parse::<f64>() {
                         Ok(n) => Ok(Value::Enum {
@@ -4918,7 +4944,7 @@ impl Interpreter {
 
         // Parse to boolean
         self.native_method_registry
-            .register("str", "to_bool", |args| {
+            .register("str", "to_bool", |_, args| {
                 if let Some(Value::String(s)) = args.get(0) {
                     let lowercase = s.to_lowercase();
                     if lowercase == "true" {
@@ -4952,29 +4978,31 @@ impl Interpreter {
         // --- Implement Numeric for both integer and float ---
 
         // Absolute value
-        self.native_method_registry.register("i32", "abs", |args| {
-            if let Some(Value::Integer(n)) = args.get(0) {
-                Ok(Value::Integer(n.abs()))
-            } else {
-                Err(VeldError::RuntimeError(
-                    "abs called on non-integer value".to_string(),
-                ))
-            }
-        });
+        self.native_method_registry
+            .register("i32", "abs", |_, args| {
+                if let Some(Value::Integer(n)) = args.get(0) {
+                    Ok(Value::Integer(n.abs()))
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "abs called on non-integer value".to_string(),
+                    ))
+                }
+            });
 
-        self.native_method_registry.register("f64", "abs", |args| {
-            if let Some(Value::Float(n)) = args.get(0) {
-                Ok(Value::Float(n.abs()))
-            } else {
-                Err(VeldError::RuntimeError(
-                    "abs called on non-float value".to_string(),
-                ))
-            }
-        });
+        self.native_method_registry
+            .register("f64", "abs", |_, args| {
+                if let Some(Value::Float(n)) = args.get(0) {
+                    Ok(Value::Float(n.abs()))
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "abs called on non-float value".to_string(),
+                    ))
+                }
+            });
 
         // Sign (-1, 0, 1)
         self.native_method_registry
-            .register("i32", "signum", |args| {
+            .register("i32", "signum", |_, args| {
                 if let Some(Value::Integer(n)) = args.get(0) {
                     Ok(Value::Integer(n.signum()))
                 } else {
@@ -4985,7 +5013,7 @@ impl Interpreter {
             });
 
         self.native_method_registry
-            .register("f64", "signum", |args| {
+            .register("f64", "signum", |_, args| {
                 if let Some(Value::Float(n)) = args.get(0) {
                     Ok(Value::Integer(if *n > 0.0 {
                         1
@@ -5005,7 +5033,7 @@ impl Interpreter {
 
         // Even/odd checks
         self.native_method_registry
-            .register("i32", "is_even", |args| {
+            .register("i32", "is_even", |_, args| {
                 if let Some(Value::Integer(n)) = args.get(0) {
                     Ok(Value::Boolean(n % 2 == 0))
                 } else {
@@ -5016,7 +5044,7 @@ impl Interpreter {
             });
 
         self.native_method_registry
-            .register("i32", "is_odd", |args| {
+            .register("i32", "is_odd", |_, args| {
                 if let Some(Value::Integer(n)) = args.get(0) {
                     Ok(Value::Boolean(n % 2 != 0))
                 } else {
@@ -5028,7 +5056,7 @@ impl Interpreter {
 
         // Convert to float
         self.native_method_registry
-            .register("i32", "to_float", |args| {
+            .register("i32", "to_float", |_, args| {
                 if let Some(Value::Integer(n)) = args.get(0) {
                     Ok(Value::Float(*n as f64))
                 } else {
@@ -5042,7 +5070,7 @@ impl Interpreter {
 
         // Rounding operations
         self.native_method_registry
-            .register("f64", "floor", |args| {
+            .register("f64", "floor", |_, args| {
                 if let Some(Value::Float(n)) = args.get(0) {
                     Ok(Value::Float(n.floor()))
                 } else {
@@ -5052,18 +5080,19 @@ impl Interpreter {
                 }
             });
 
-        self.native_method_registry.register("f64", "ceil", |args| {
-            if let Some(Value::Float(n)) = args.get(0) {
-                Ok(Value::Float(n.ceil()))
-            } else {
-                Err(VeldError::RuntimeError(
-                    "ceil called on non-float value".to_string(),
-                ))
-            }
-        });
+        self.native_method_registry
+            .register("f64", "ceil", |_, args| {
+                if let Some(Value::Float(n)) = args.get(0) {
+                    Ok(Value::Float(n.ceil()))
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "ceil called on non-float value".to_string(),
+                    ))
+                }
+            });
 
         self.native_method_registry
-            .register("f64", "round", |args| {
+            .register("f64", "round", |_, args| {
                 if let Some(Value::Float(n)) = args.get(0) {
                     Ok(Value::Float(n.round()))
                 } else {
@@ -5075,9 +5104,9 @@ impl Interpreter {
 
         // Convert to integer
         self.native_method_registry
-            .register("f64", "to_int", |args| {
+            .register("f64", "to_int", |_, args| {
                 if let Some(Value::Float(n)) = args.get(0) {
-                    Ok(Value::Integer(*n as i64))
+                    Ok(Value::Integer(n.round() as i64))
                 } else {
                     Err(VeldError::RuntimeError(
                         "to_int called on non-float value".to_string(),
@@ -5209,7 +5238,7 @@ impl Interpreter {
             if self.native_registry.contains(&name) {
                 // Call native function directly
                 let result = if let Some(handler) = self.native_registry.get(&name) {
-                    handler(arg_values)
+                    handler(self, arg_values)
                 } else if self.native_registry.contains_static(&name) {
                     // Try static functions if regular one not found
                     self.native_registry.call_static(&name, self, arg_values)
@@ -5237,7 +5266,7 @@ impl Interpreter {
                 // This is a std.io function, call the native implementation instead
                 let result = if let Some(handler) = self.native_registry.get(&native_function_name)
                 {
-                    handler(arg_values)
+                    handler(self, arg_values)
                 } else if self.native_registry.contains_static(&native_function_name) {
                     self.native_registry
                         .call_static(&native_function_name, self, arg_values)
@@ -5262,7 +5291,7 @@ impl Interpreter {
         for native_name in &potential_native_names {
             if self.native_registry.contains(native_name) {
                 let result = if let Some(handler) = self.native_registry.get(native_name) {
-                    handler(arg_values)
+                    handler(self, arg_values)
                 } else if self.native_registry.contains_static(native_name) {
                     self.native_registry
                         .call_static(native_name, self, arg_values)
@@ -5293,7 +5322,7 @@ impl Interpreter {
                         if self.native_registry.contains(native_name) {
                             let result =
                                 if let Some(handler) = self.native_registry.get(native_name) {
-                                    handler(arg_values)
+                                    handler(self, arg_values)
                                 } else if self.native_registry.contains_static(native_name) {
                                     self.native_registry
                                         .call_static(native_name, self, arg_values)
@@ -5821,7 +5850,7 @@ impl Interpreter {
                     let result =
                         if let Some(handler) = self.native_registry.get(&native_function_name) {
                             tracing::debug!("Calling regular native function");
-                            handler(args)
+                            handler(self, args)
                         } else if self.native_registry.contains_static(&native_function_name) {
                             tracing::debug!("Calling static native function");
                             self.native_registry
@@ -5851,7 +5880,7 @@ impl Interpreter {
             method_args.extend(args.clone());
 
             if let Some(handler) = self.native_method_registry.get(&type_name, &method_name) {
-                return handler(method_args);
+                return handler(self, method_args);
             }
         }
 
@@ -5962,11 +5991,21 @@ impl Interpreter {
                         ));
                     }
                     if elements.is_empty() {
-                        return Ok(Value::Array(vec![]));
+                        return Ok(Value::GcRef(
+                            self.allocator
+                                .write()
+                                .unwrap()
+                                .allocate(Value::Array(vec![]))?,
+                        ));
                     }
                     let mut new_elements = elements.clone();
                     new_elements.pop();
-                    return Ok(Value::Array(new_elements));
+                    return Ok(Value::GcRef(
+                        self.allocator
+                            .write()
+                            .unwrap()
+                            .allocate(Value::Array(new_elements))?,
+                    ));
                 }
                 "tail" => {
                     if !args.is_empty() {
@@ -5978,7 +6017,12 @@ impl Interpreter {
                         return Ok(Value::Array(vec![]));
                     }
                     let new_elements = elements.iter().skip(1).cloned().collect();
-                    return Ok(Value::Array(new_elements));
+                    return Ok(Value::GcRef(
+                        self.allocator
+                            .write()
+                            .unwrap()
+                            .allocate(Value::Array(new_elements))?,
+                    ));
                 }
                 "with" => {
                     if args.len() != 1 {
@@ -6822,7 +6866,7 @@ impl Interpreter {
                         if self.native_registry.contains(native_name) {
                             let result =
                                 if let Some(handler) = self.native_registry.get(native_name) {
-                                    handler(arg_values)
+                                    handler(self, arg_values)
                                 } else if self.native_registry.contains_static(native_name) {
                                     self.native_registry
                                         .call_static(native_name, self, arg_values)

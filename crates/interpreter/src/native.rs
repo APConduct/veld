@@ -5,11 +5,14 @@ use std::sync::Arc;
 use veld_error::{Result, VeldError};
 
 // Type for native function implementations
-pub type NativeFn = Arc<dyn Fn(Vec<Value>) -> Result<Value> + Send + Sync>;
+pub type NativeFn = Arc<dyn Fn(&Interpreter, Vec<Value>) -> Result<Value> + Send + Sync>;
 
 // Registry to store native function implementations
 pub struct NativeFunctionRegistry {
-    functions: std::collections::HashMap<String, NativeFn>,
+    functions: std::collections::HashMap<
+        String,
+        Arc<dyn Fn(&Interpreter, Vec<Value>) -> Result<Value> + Send + Sync>,
+    >,
     static_functions:
         HashMap<String, Arc<dyn Fn(&Interpreter, Vec<Value>) -> Result<Value> + Send + Sync>>,
 }
@@ -25,7 +28,7 @@ impl NativeFunctionRegistry {
     // Register a native function
     pub fn register<F>(&mut self, name: &str, f: F)
     where
-        F: Fn(Vec<Value>) -> Result<Value> + 'static + Send + Sync,
+        F: Fn(&Interpreter, Vec<Value>) -> Result<Value> + 'static + Send + Sync,
     {
         let _span = tracing::span!(tracing::Level::INFO, "Registering native function");
         let _guard = _span.enter();
@@ -89,7 +92,7 @@ impl NativeFunctionRegistry {
 
 // Registry for native methods on built-in types
 pub struct NativeMethodRegistry {
-    methods: HashMap<String, NativeFn>,
+    methods: HashMap<String, Arc<dyn Fn(&Interpreter, Vec<Value>) -> Result<Value> + Send + Sync>>,
 }
 
 impl NativeMethodRegistry {
@@ -102,7 +105,7 @@ impl NativeMethodRegistry {
     // Register a native method for a specific type
     pub fn register<F>(&mut self, type_name: &str, method_name: &str, f: F)
     where
-        F: Fn(Vec<Value>) -> Result<Value> + 'static + Send + Sync,
+        F: Fn(&Interpreter, Vec<Value>) -> Result<Value> + 'static + Send + Sync,
     {
         let _span = tracing::span!(tracing::Level::INFO, "Registering static method");
         let _guard = _span.enter();
@@ -132,9 +135,9 @@ impl NativeMethodRegistry {
         let _guard = _span.enter();
 
         let method_name_owned = method_name.to_string();
-        self.register("str", method_name, move |args| {
+        self.register("str", method_name, move |_, args| {
             if let Some(Value::String(s)) = args.get(0) {
-                Ok(Value::String(handler(s)))
+                Ok(Value::String(handler(s.as_str())))
             } else {
                 Err(VeldError::RuntimeError(format!(
                     "String method {} called on non-string value",
@@ -156,10 +159,10 @@ impl NativeMethodRegistry {
         let _guard = _span.enter();
 
         let method_name_owned = method_name.to_string();
-        self.register("str", method_name, move |args| {
+        self.register("str", method_name, move |_, args| {
             if let (Some(Value::String(s)), Some(Value::String(param))) = (args.get(0), args.get(1))
             {
-                Ok(Value::String(handler(s, param)))
+                Ok(Value::String(handler(s.as_str(), param.as_str())))
             } else {
                 Err(VeldError::RuntimeError(format!(
                     "String method {} called with invalid arguments",
@@ -178,9 +181,9 @@ impl NativeMethodRegistry {
         let _guard = _span.enter();
 
         let method_name_owned = method_name.to_string();
-        self.register("str", method_name, move |args| {
+        self.register("str", method_name, move |_, args| {
             if let Some(Value::String(s)) = args.get(0) {
-                Ok(Value::Boolean(handler(s)))
+                Ok(Value::Boolean(handler(s.as_str())))
             } else {
                 Err(VeldError::RuntimeError(format!(
                     "String method {} called on non-string value",
@@ -202,10 +205,10 @@ impl NativeMethodRegistry {
         let _guard = _span.enter();
 
         let method_name_owned = method_name.to_string();
-        self.register("str", method_name, move |args| {
+        self.register("str", method_name, move |_, args| {
             if let (Some(Value::String(s)), Some(Value::String(param))) = (args.get(0), args.get(1))
             {
-                Ok(Value::Boolean(handler(s, param)))
+                Ok(Value::Boolean(handler(s.as_str(), param.as_str())))
             } else {
                 Err(VeldError::RuntimeError(format!(
                     "String method {} called with invalid arguments",
