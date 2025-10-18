@@ -84,7 +84,7 @@ pub struct Interpreter {
     structs: HashMap<String, Vec<StructField>>, // struct name -> fields
     struct_methods: HashMap<String, HashMap<String, Value>>, // struct name -> (method name -> method)
     generic_structs: HashMap<String, StructInfo>,
-    module_manager: ModuleManager,
+    pub module_manager: ModuleManager,
     current_module: String,
     imported_modules: HashMap<String, String>, // alias -> module name
     enums: HashMap<String, Vec<EnumVariant>>,
@@ -247,6 +247,19 @@ impl Interpreter {
         let mut macro_system = MacroSystem::new();
         let expanded_ast = expand_macros_in_ast(ast, &mut macro_system)
             .map_err(|e| VeldError::RuntimeError(format!("Macro expansion failed: {:?}", e)))?;
+
+        // Register the main script as a module named "main" in the module manager
+        use std::collections::HashMap;
+        use veld_common::value::module::Module;
+        let main_module = Module {
+            name: "main".to_string(),
+            statements: expanded_ast.statements.clone(),
+            exports: HashMap::new(),
+            path: None,
+        };
+        self.module_manager
+            .modules
+            .insert("main".to_string(), main_module);
 
         self.interpret(expanded_ast.statements)
     }
@@ -8218,6 +8231,17 @@ impl Interpreter {
         }
 
         if is_public {
+            if !self
+                .module_manager
+                .modules
+                .contains_key(&self.current_module)
+            {
+                tracing::error!(
+                    "Current module '{}' not found in module manager. Available modules: {:?}",
+                    self.current_module,
+                    self.module_manager.modules.keys().collect::<Vec<_>>()
+                );
+            }
             let current_module = self.get_current_module().to_string();
             let exports = self
                 .module_manager

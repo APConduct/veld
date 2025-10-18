@@ -32,7 +32,7 @@ pub enum ExportedItem {
 
 pub struct ModuleManager {
     root_dir: PathBuf,
-    modules: HashMap<String, Module>,
+    pub modules: HashMap<String, Module>,
     module_search_paths: Vec<PathBuf>,
 }
 
