@@ -1,4 +1,4 @@
 import std.fs
 
-let x = fs.test()
+let x = fs
 std.io.print(x)

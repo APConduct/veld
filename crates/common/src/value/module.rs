@@ -30,6 +30,7 @@ pub enum ExportedItem {
     Module(String),
 }
 
+#[derive(Debug, Clone)]
 pub struct ModuleManager {
     root_dir: PathBuf,
     pub modules: HashMap<String, Module>,

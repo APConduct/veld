@@ -1388,7 +1388,18 @@ impl TypeChecker {
             }
             Expr::UnitLiteral => Ok(Type::Unit),
             Expr::Identifier(name) => self.env.get(name).ok_or_else(|| {
-                VeldError::TypeError(format!("Undefined identifier: {}, expected type", name,))
+                {
+                    use tracing::error;
+                    error!(
+                        "Type checker failed to resolve identifier as type: '{}'.\nCurrent var_info keys: {:?}\nStructs: {:?}\nEnums: {:?}\nScope keys: {:?}",
+                        name,
+                        self.var_info.keys().collect::<Vec<_>>(),
+                        self.env.structs.keys().collect::<Vec<_>>(),
+                        self.env.enums.keys().collect::<Vec<_>>(),
+                        self.env.scopes.iter().map(|scope| scope.keys().collect::<Vec<_>>()).collect::<Vec<_>>()
+                    );
+                    VeldError::TypeError(format!("Undefined identifier: {}, expected type", name,))
+                }
             }),
             Expr::BinaryOp {
                 left,
@@ -1417,7 +1428,16 @@ impl TypeChecker {
                 object,
                 method,
                 arguments,
-            } => self.infer_method_call_type(object, method, arguments),
+            } => {
+                // If the object is an identifier and is a module, skip type checking
+                if let Expr::Identifier(obj_name) = &**object {
+                    if let Some(Type::Module(_)) = self.env.get(obj_name) {
+                        tracing::debug!("Skipping type checking for module method call: {}.{}", obj_name, method);
+                        return Ok(Type::Unit); // Or infer a more precise type if desired
+                    }
+                }
+                self.infer_method_call_type(object, method, arguments)
+            }
             Expr::PropertyAccess { object, property } => {
                 self.infer_property_access_type(object, property)
             }
@@ -1463,6 +1483,18 @@ impl TypeChecker {
             Expr::MacroExpr { .. } => todo!("Macro expression type inference"),
             Expr::MacroVar(_) => todo!("Macro variable type inference"),
             Expr::Call { callee, arguments } => {
+                // If callee is a PropertyAccess, and the object is a module, skip type checking (module function call)
+                if let Expr::PropertyAccess { object, property } = &**callee {
+                    // Try to infer the type of the object
+                    if let Expr::Identifier(obj_name) = &**object {
+                        // If the object is a module (registered in env as Type::Module), skip type checking
+                        if let Some(Type::Module(_)) = self.env.get(obj_name) {
+                            tracing::debug!("Skipping type checking for module function call: {}.{}", obj_name, property);
+                            return Ok(Type::Unit); // Or infer a more precise type if desired
+                        }
+                    }
+                }
+
                 let callee_type = self.infer_expression_type(callee)?;
 
                 match callee_type {

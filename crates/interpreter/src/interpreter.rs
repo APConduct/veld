@@ -3091,6 +3091,17 @@ impl Interpreter {
                             Expr::Literal(lit) => evaluate_literal_expression(lit),
                             Expr::UnitLiteral => Ok(Value::Unit),
                             Expr::Identifier(name) => self.get_variable(&name).ok_or_else(|| {
+                                // Detailed logging for identifier lookup failure
+                                use tracing::error;
+                                let scope_keys: Vec<Vec<String>> = self.scopes.iter()
+                                    .map(|scope| scope.vals().keys().cloned().collect())
+                                    .collect();
+                                let current_module = &self.current_module;
+                                let loaded_modules: Vec<String> = self.module_manager.modules.keys().cloned().collect();
+                                error!(
+                                    "Identifier lookup failed: '{}'.\nScope stack keys (innermost to outermost): {:?}\nCurrent module: {}\nLoaded modules: {:?}",
+                                    name, scope_keys, current_module, loaded_modules
+                                );
                                 VeldError::RuntimeError(format!("Undefined variable '{}'", name))
                             }),
                             Expr::BlockLambda {
@@ -7466,6 +7477,16 @@ impl Interpreter {
     }
 
     fn get_variable(&self, name: &str) -> Option<Value> {
+        // Debug: print scope keys during lookup
+        tracing::debug!(
+            "Looking up variable '{}'. Scope stack (innermost to outermost): {:?}",
+            name,
+            self.scopes
+                .iter()
+                .rev()
+                .map(|scope| scope.keys().into_iter().collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        );
         // 1. Check local scopes (from innermost to outermost)
         for (_i, scope) in self.scopes.iter().rev().enumerate() {
             if let Some(val) = scope.get(name) {
@@ -7736,9 +7757,20 @@ impl Interpreter {
         if let Some(alias_name) = alias {
             // Store the module alias -> actual name mapping
             self.imported_modules
-                .insert(alias_name, actual_module_path_str.clone());
+                .insert(alias_name.clone(), actual_module_path_str.clone());
+            // Register the alias as a module type in the type environment
+            self.type_checker
+                .env()
+                .define(&alias_name, Type::Module(alias_name.clone()));
         } else {
             // No alias, so we're importing specific items or the entire module
+
+            // Register the last component of the original import path as a module type in the type environment
+            if let Some(last) = path.last() {
+                self.type_checker
+                    .env()
+                    .define(last, Type::Module(last.clone()));
+            }
 
             // Get the exports we want
             let exports = self
@@ -8226,6 +8258,28 @@ impl Interpreter {
                         }
                     }
                     _ => {}
+                }
+            }
+
+            // If this is a simple import (no alias, items == [All]), bind the module in the current scope
+            if items == vec![ImportItem::All] && alias.is_none() {
+                let my_mod_man = self.module_manager.clone();
+                if let Some(module) = my_mod_man.get_module(&actual_module_path_str) {
+                    let import_name = path
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| actual_module_path_str.clone());
+
+                    self.current_scope_mut()
+                        .set(import_name.clone(), Value::Module(module.clone()));
+                    tracing::debug!(
+                        "Bound import '{}' in current scope. Scope keys now: {:?}",
+                        import_name,
+                        self.current_scope_mut()
+                            .keys()
+                            .into_iter()
+                            .collect::<Vec<_>>()
+                    );
                 }
             }
         }
