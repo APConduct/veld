@@ -1,0 +1,4 @@
+import std.fs
+
+let x = fs.test()
+std.io.print(x)

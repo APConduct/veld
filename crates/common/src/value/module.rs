@@ -87,9 +87,9 @@ impl ModuleManager {
         for module_name in core_modules.iter() {
             let parts: Vec<&str> = module_name.split('.').collect();
             let module_parts: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-            match self.load_module(&module_parts) {
-                Ok(_) => (),
-                Err(e) => tracing::error!("Failed to load module '{}': {}", module_name, e),
+            if let Err(e) = self.load_module(&module_parts) {
+                tracing::error!("Failed to load module '{}': {}", module_name, e);
+                // Continue loading other modules even if one fails
             }
         }
 
@@ -257,8 +257,7 @@ impl ModuleManager {
         let _guard = _span.enter();
 
         tracing::debug!("Searching for module: {:?}", module_path);
-        // use dbug in
-        tracing::debug!("Module search paths: {:?}", self.module_search_paths);
+        tracing::trace!("Module search paths: {:?}", self.module_search_paths);
 
         // Special case for std module and its submodules
         if let Some(first) = module_path.first() {
@@ -279,8 +278,8 @@ impl ModuleManager {
                 );
 
                 for stdlib_dir in &potential_stdlib_dirs {
-                    tracing::debug!(
-                        "  Checking: {:?} exists: {}",
+                    tracing::trace!(
+                        "  [find_module_file] Checking stdlib_dir: {:?} exists: {}",
                         stdlib_dir,
                         stdlib_dir.exists()
                     );
@@ -289,24 +288,30 @@ impl ModuleManager {
                         if module_path.len() == 1 {
                             // Just "std" - map to stdlib/mod.veld
                             let mod_file = stdlib_dir.join("mod.veld");
-                            tracing::debug!(
-                                "  Checking mod file: {:?} exists: {}",
+                            tracing::trace!(
+                                "  [find_module_file] Checking mod file: {:?} exists: {}",
                                 mod_file,
                                 mod_file.exists()
                             );
                             if mod_file.exists() {
-                                tracing::debug!("  Found mod.veld at: {:?}", mod_file);
+                                tracing::info!(
+                                    "[find_module_file] Found std root mod.veld at: {:?}",
+                                    mod_file
+                                );
                                 return Ok(mod_file);
                             }
 
                             let init_file = stdlib_dir.join("init.veld");
-                            tracing::debug!(
-                                "  Checking init file: {:?} exists: {}",
+                            tracing::trace!(
+                                "  [find_module_file] Checking init file: {:?} exists: {}",
                                 init_file,
                                 init_file.exists()
                             );
                             if init_file.exists() {
-                                tracing::debug!("  Found init.veld at: {:?}", init_file);
+                                tracing::info!(
+                                    "[find_module_file] Found std root init.veld at: {:?}",
+                                    init_file
+                                );
                                 return Ok(init_file);
                             }
                         } else {
@@ -318,37 +323,46 @@ impl ModuleManager {
 
                             // Try as a direct .veld file
                             let veld_file = stdlib_dir.join(&submodule_path).with_extension("veld");
-                            tracing::debug!(
-                                "  Checking direct file: {:?} exists: {}",
+                            tracing::trace!(
+                                "  [find_module_file] Checking direct file: {:?} exists: {}",
                                 veld_file,
                                 veld_file.exists()
                             );
                             if veld_file.exists() {
-                                tracing::debug!("  Found direct .veld file at: {:?}", veld_file);
+                                tracing::info!(
+                                    "[find_module_file] Found direct .veld file at: {:?}",
+                                    veld_file
+                                );
                                 return Ok(veld_file);
                             }
 
                             // Try as a directory with mod.veld
                             let mod_file = stdlib_dir.join(&submodule_path).join("mod.veld");
-                            tracing::debug!(
-                                "  Checking mod file: {:?} exists: {}",
+                            tracing::trace!(
+                                "  [find_module_file] Checking mod file: {:?} exists: {}",
                                 mod_file,
                                 mod_file.exists()
                             );
                             if mod_file.exists() {
-                                tracing::debug!("  Found mod.veld at: {:?}", mod_file);
+                                tracing::info!(
+                                    "[find_module_file] Found submodule mod.veld at: {:?}",
+                                    mod_file
+                                );
                                 return Ok(mod_file);
                             }
 
                             // Try as a directory with init.veld
                             let init_file = stdlib_dir.join(&submodule_path).join("init.veld");
-                            tracing::debug!(
-                                "  Checking init file: {:?} exists: {}",
+                            tracing::trace!(
+                                "  [find_module_file] Checking init file: {:?} exists: {}",
                                 init_file,
                                 init_file.exists()
                             );
                             if init_file.exists() {
-                                tracing::debug!("  Found init.veld at: {:?}", init_file);
+                                tracing::info!(
+                                    "[find_module_file] Found submodule init.veld at: {:?}",
+                                    init_file
+                                );
                                 return Ok(init_file);
                             }
                         }
@@ -366,37 +380,40 @@ impl ModuleManager {
 
             // Try with .veld extension first (direct file)
             let veld_path = file_path.with_extension("veld");
-            tracing::debug!(
-                "  Checking file: {:?} exists: {}",
+            tracing::trace!(
+                "  [find_module_file] Checking file: {:?} exists: {}",
                 veld_path,
                 veld_path.exists()
             );
             if veld_path.exists() {
-                tracing::debug!("  Found direct .veld file at: {:?}", veld_path);
+                tracing::info!(
+                    "[find_module_file] Found direct .veld file at: {:?}",
+                    veld_path
+                );
                 return Ok(veld_path);
             }
 
             // Try with /mod.veld
             let mod_path = file_path.join("mod.veld");
-            tracing::debug!(
-                "  Checking mod file: {:?} exists: {}",
+            tracing::trace!(
+                "  [find_module_file] Checking mod file: {:?} exists: {}",
                 mod_path,
                 mod_path.exists()
             );
             if mod_path.exists() {
-                tracing::debug!("  Found mod.veld at: {:?}", mod_path);
+                tracing::info!("[find_module_file] Found mod.veld at: {:?}", mod_path);
                 return Ok(mod_path);
             }
 
             // Try with /init.veld
             let init_path = file_path.join("init.veld");
-            tracing::debug!(
-                "  Checking init file: {:?} exists: {}",
+            tracing::trace!(
+                "  [find_module_file] Checking init file: {:?} exists: {}",
                 init_path,
                 init_path.exists()
             );
             if init_path.exists() {
-                tracing::debug!("  Found init.veld at: {:?}", init_path);
+                tracing::info!("[find_module_file] Found init.veld at: {:?}", init_path);
                 return Ok(init_path);
             }
         }
@@ -408,7 +425,7 @@ impl ModuleManager {
         )))
     }
 
-    fn extract_exports(&self, statements: &[Statement]) -> HashMap<String, ExportedItem> {
+    fn extract_exports(&mut self, statements: &[Statement]) -> HashMap<String, ExportedItem> {
         let _span = tracing::span!(tracing::Level::DEBUG, "Extracting exports");
         let _guard = _span.enter();
 
@@ -475,6 +492,22 @@ impl ModuleManager {
 
         for stmt in statements {
             tracing::debug!("extract_exports: statement: {:?}", stmt);
+            if let Statement::ImportDeclaration {
+                path,
+                items,
+                alias,
+                is_public,
+                ..
+            } = stmt
+            {
+                tracing::info!(
+                    "[extract_exports] ImportDeclaration: path={:?}, is_public={}, items={:?}, alias={:?}",
+                    path,
+                    is_public,
+                    items,
+                    alias
+                );
+            }
             match stmt {
                 Statement::ImportDeclaration {
                     path,
@@ -487,9 +520,20 @@ impl ModuleManager {
                         // Get the source module path as string
                         let source_module_path = path.join(".");
 
-                        // If this module hasn't been loaded yet, we can't re-export from it
+                        // Try to load the module if it hasn't been loaded yet
                         if !self.is_module_loaded(&source_module_path) {
-                            continue; // Skip if module is not loaded
+                            tracing::info!(
+                                "[extract_exports] Attempting to load public import '{}'",
+                                source_module_path
+                            );
+                            if let Err(e) = self.load_module(&path) {
+                                tracing::error!(
+                                    "Failed to load public import '{}': {}",
+                                    source_module_path,
+                                    e
+                                );
+                                continue; // Skip if still not loaded
+                            }
                         }
 
                         // Get the source module to re-export from
@@ -507,12 +551,24 @@ impl ModuleManager {
                                         .cloned()
                                         .unwrap_or_else(|| source_module_path.clone())
                                 });
-                                println!(
+                                tracing::info!(
                                     "[extract_exports] Inserting submodule export: '{}' -> '{}'",
-                                    submodule_name, source_module_path
+                                    submodule_name,
+                                    source_module_path
                                 );
-                                tracing::debug!(
-                                    "Inserting submodule export: '{}' -> '{}'",
+                                exports.insert(
+                                    submodule_name,
+                                    ExportedItem::Module(source_module_path.clone()),
+                                );
+                            }
+                            // PATCH: treat [ImportItem::All] with no alias as a submodule re-export
+                            [ImportItem::All] if alias.is_none() => {
+                                let submodule_name = path
+                                    .last()
+                                    .cloned()
+                                    .unwrap_or_else(|| source_module_path.clone());
+                                tracing::info!(
+                                    "[extract_exports] Inserting submodule export (All): '{}' -> '{}'",
                                     submodule_name,
                                     source_module_path
                                 );
@@ -549,8 +605,8 @@ impl ModuleManager {
             }
         }
         // Debug print to show what is being exported
-        tracing::debug!(
-            "extract_exports: Exported keys: {:?}",
+        tracing::info!(
+            "[extract_exports] Exported keys: {:?}",
             exports.keys().collect::<Vec<_>>()
         );
         exports

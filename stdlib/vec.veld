@@ -1,188 +1,190 @@
-#| Vec type for Veld
-#| Provides a dynamic array implementation that conforms to GrowableSequence
+# Vec module temporarily commented out to debug stdlib loading issues
 
-import std.option.{Option}
-import std.collections.sequence.{Sequence, GrowableSequence}
+# | Vec type for Veld
+# | Provides a dynamic array implementation that conforms to GrowableSequence
 
-# Dynamic array type - simplified implementation using native arrays
-pub struct Vec<T>
-    data: [T],
-    size: i32,
-end
+# import std.option.{Option}
+# import std.collections.sequence.{Sequence, GrowableSequence}
 
-impl<T> Vec<T>
-    # Constructor - creates a new empty vector
-    pub fn new() -> Vec<T>
-        Vec(
-            data: [],
-            size: 0
-        )
-    end
+# # Dynamic array type - simplified implementation using native arrays
+# pub struct Vec<T>
+#     data: [T],
+#     size: i32,
+# end
 
-    # Create a vector with initial capacity
-    pub fn with_capacity(capacity: i32) -> Vec<T>
-        Vec(
-            data: [],
-            size: 0
-        )
-    end
+# impl<T> Vec<T>
+#     # Constructor - creates a new empty vector
+#     pub fn new() -> Vec<T>
+#         Vec(
+#             data: [],
+#             size: 0
+#         )
+#     end
 
-    # Get the current capacity of the vector
-    pub fn capacity(self) -> i32
-        self.data.len()
-    end
+#     # Create a vector with initial capacity
+#     pub fn with_capacity(capacity: i32) -> Vec<T>
+#         Vec(
+#             data: [],
+#             size: 0
+#         )
+#     end
 
-    # Ensure the vector has at least the specified capacity
-    # Ensure the vector has at least the specified capacity
-    fn ensure_capacity(mut self, min_capacity: i32) -> ()
-        # THIS IS A NO-OP. The original logic was buggy and the capacity
-        # is implicitly handled by creating new arrays in push/insert.
+#     # Get the current capacity of the vector
+#     pub fn capacity(self) -> i32
+#         self.data.len()
+#     end
 
-
-    end
-end
-
-# Implement Sequence<T> for Vec<T>
-impl<T> Vec<T> <- Sequence<T>
-    # Get element at index, returning Some(value) if valid, None if out of bounds
-    fn get(self, index: i32) -> Option<T>
-        if index >= 0 and index < self.size then
-            Option.Some(self.data[index])
-        else
-            Option.None
-        end
-    end
-
-    # Set element at index, returning true if successful, false if out of bounds
-    fn set(mut self, index: i32, value: T) -> bool
-        if index >= 0 and index < self.size then
-            self.data[index] = value
-            true
-        else
-            false
-        end
-    end
-
-    # Get the number of elements in the vector
-    fn len(self) -> i32
-        self.size
-    end
-
-    # Check if the vector is empty
-    fn is_empty(self) -> bool
-        self.size == 0
-    end
-end
-
-# Implement GrowableSequence<T> for Vec<T>
-impl<T> Vec<T> <- GrowableSequence<T>
-    # Add an element to the end of the vector
-    # Add an element to the end of the vector
-    fn push(mut self, item: T) -> ()
-        var new_data = []
-        var i = 0
-
-        # Copy existing elements
-        while i < self.size do
-            let elem = self.data[i]
-            new_data = new_data.with(elem)
-            i = i + 1
-        end
-
-        # Add the new item
-        new_data = new_data.with(item)
-
-        # Update the vector
-        self.data = new_data
-        self.size = self.size + 1
-    end
+#     # Ensure the vector has at least the specified capacity
+#     # Ensure the vector has at least the specified capacity
+#     fn ensure_capacity(mut self, min_capacity: i32) -> ()
+#         # THIS IS A NO-OP. The original logic was buggy and the capacity
+#         # is implicitly handled by creating new arrays in push/insert.
 
 
-    # Remove and return the last element, or None if empty
-    fn pop(mut self) -> Option<T>
-        if self.size == 0 then
-            Option.None
-        else
-            let value = self.data[self.size - 1]  # Get the last element before decrementing size
-            self.size = self.size - 1
+#     end
+# end
 
-            var new_data = []
-            var i = 0
-            while i < self.size do
-                let elem = self.data[i]
-                new_data = new_data.with(elem)
-                i = i + 1
-            end
+# # Implement Sequence<T> for Vec<T>
+# impl<T> Vec<T> <- Sequence<T>
+#     # Get element at index, returning Some(value) if valid, None if out of bounds
+#     fn get(self, index: i32) -> Option<T>
+#         if index >= 0 and index < self.size then
+#             Option.Some(self.data[index])
+#         else
+#             Option.None
+#         end
+#     end
 
-            self.data = new_data
-            Option.Some(value)
-        end
-    end
+#     # Set element at index, returning true if successful, false if out of bounds
+#     fn set(mut self, index: i32, value: T) -> bool
+#         if index >= 0 and index < self.size then
+#             self.data[index] = value
+#             true
+#         else
+#             false
+#         end
+#     end
+
+#     # Get the number of elements in the vector
+#     fn len(self) -> i32
+#         self.size
+#     end
+
+#     # Check if the vector is empty
+#     fn is_empty(self) -> bool
+#         self.size == 0
+#     end
+# end
+
+# # Implement GrowableSequence<T> for Vec<T>
+# impl<T> Vec<T> <- GrowableSequence<T>
+#     # Add an element to the end of the vector
+#     # Add an element to the end of the vector
+#     fn push(mut self, item: T) -> ()
+#         var new_data = []
+#         var i = 0
+
+#         # Copy existing elements
+#         while i < self.size do
+#             let elem = self.data[i]
+#             new_data = new_data.with(elem)
+#             i = i + 1
+#         end
+
+#         # Add the new item
+#         new_data = new_data.with(item)
+
+#         # Update the vector
+#         self.data = new_data
+#         self.size = self.size + 1
+#     end
 
 
-    # Insert an element at the specified index
-    fn insert(mut self, index: i32, value: T) -> bool
-        if index < 0 or index > self.size then
-            false
-        else
-            var new_data = []
-            var i = 0
+#     # Remove and return the last element, or None if empty
+#     fn pop(mut self) -> Option<T>
+#         if self.size == 0 then
+#             Option.None
+#         else
+#             let value = self.data[self.size - 1]  # Get the last element before decrementing size
+#             self.size = self.size - 1
 
-            # Copy elements before the insertion point
-            while i < index do
-                let elem = self.data[i]
-                new_data = new_data.with(elem)
-                i = i + 1
-            end
+#             var new_data = []
+#             var i = 0
+#             while i < self.size do
+#                 let elem = self.data[i]
+#                 new_data = new_data.with(elem)
+#                 i = i + 1
+#             end
 
-            # Insert the new element
-            new_data = new_data.with(value)
-
-            # Copy remaining elements
-            while i < self.size do
-                let elem = self.data[i]
-                new_data = new_data.with(elem)
-                i = i + 1
-            end
-
-            self.data = new_data
-            self.size = self.size + 1
-            true
-        end
-    end
+#             self.data = new_data
+#             Option.Some(value)
+#         end
+#     end
 
 
-    # Remove and return the element at the specified index
-    fn remove(mut self, index: i32) -> Option<T>
-        if index < 0 or index >= self.size then
-            Option.None
-        else
-            let value = self.data[index]
+#     # Insert an element at the specified index
+#     fn insert(mut self, index: i32, value: T) -> bool
+#         if index < 0 or index > self.size then
+#             false
+#         else
+#             var new_data = []
+#             var i = 0
 
-            # Create new array without the removed element
-            let mut new_data = []
-            let mut i = 0
+#             # Copy elements before the insertion point
+#             while i < index do
+#                 let elem = self.data[i]
+#                 new_data = new_data.with(elem)
+#                 i = i + 1
+#             end
 
-            # Copy elements before the removal point
-            while i < index do
-                let elem = self.data[i]
-                let temp_array = new_data.with(elem)
-                new_data = temp_array
-                i = i + 1
-            end
+#             # Insert the new element
+#             new_data = new_data.with(value)
 
-            # Skip the removed element and copy the rest
-            i = i + 1
-            while i < self.size do
-                let elem = self.data[i]
-                let temp_array = new_data.with(elem)
-                new_data = temp_array
-                i = i + 1
-            end
+#             # Copy remaining elements
+#             while i < self.size do
+#                 let elem = self.data[i]
+#                 new_data = new_data.with(elem)
+#                 i = i + 1
+#             end
 
-            self.data = new_data
-            self.size = self.size - 1
-            Option.Some(value)
-        end
-    end
-end
+#             self.data = new_data
+#             self.size = self.size + 1
+#             true
+#         end
+#     end
+
+
+#     # Remove and return the element at the specified index
+#     fn remove(mut self, index: i32) -> Option<T>
+#         if index < 0 or index >= self.size then
+#             Option.None
+#         else
+#             let value = self.data[index]
+
+#             # Create new array without the removed element
+#             let mut new_data = []
+#             let mut i = 0
+
+#             # Copy elements before the removal point
+#             while i < index do
+#                 let elem = self.data[i]
+#                 let temp_array = new_data.with(elem)
+#                 new_data = temp_array
+#                 i = i + 1
+#             end
+
+#             # Skip the removed element and copy the rest
+#             i = i + 1
+#             while i < self.size do
+#                 let elem = self.data[i]
+#                 let temp_array = new_data.with(elem)
+#                 new_data = temp_array
+#                 i = i + 1
+#             end
+
+#             self.data = new_data
+#             self.size = self.size - 1
+#             Option.Some(value)
+#         end
+#     end
+# end

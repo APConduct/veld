@@ -115,9 +115,9 @@ fn run_file(filename: &str) -> Result<()> {
             // Debug print all top-level AST statements for inspection
             tracing::debug!("PARSED AST STATEMENTS: {:?}", ast);
             // Always print AST with tracing before interpretation
-            tracing::info!("==== DEBUG: AST ====");
-            tracing::info!("{:#?}", ast);
-            tracing::info!("==== END AST ====");
+            // tracing::info!("==== DEBUG: AST ====");
+            // tracing::info!("{:#?}", ast);
+            // tracing::info!("==== END AST ====");
 
             // Run the interpreter if parsing succeeds
             let mut interpreter = Interpreter::new("../..");
