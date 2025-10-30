@@ -1,0 +1,14 @@
+enum Option<T>
+    Some(T),
+    None,
+end
+
+struct Point
+    x: f64,
+    y: f64,
+end
+
+struct Size<T>
+    pub width: T,
+    pub height: T,
+end
