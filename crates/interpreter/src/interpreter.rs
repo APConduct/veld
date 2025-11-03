@@ -742,7 +742,8 @@ impl Interpreter {
     fn register_fs_functions(&mut self) {
         // Write contents to a file
         self.native_registry.register("std.fs.write", |_, args| {
-            if let (Some(Value::String(path)), Some(Value::String(contents))) =
+            tracing::debug!("fs.write called with args: {:?}", args);
+            let result = if let (Some(Value::String(path)), Some(Value::String(contents))) =
                 (args.get(0), args.get(1))
             {
                 match std::fs::write(path, contents) {
@@ -761,12 +762,15 @@ impl Interpreter {
                 Err(VeldError::RuntimeError(
                     "write(path, contents) requires two string arguments".to_string(),
                 ))
-            }
+            };
+            tracing::debug!("fs.write returning: {:?}", result);
+            result
         });
 
         // Read contents of a file
         self.native_registry.register("std.fs.read", |_, args| {
-            if let Some(Value::String(path)) = args.get(0) {
+            tracing::debug!("fs.read called with args: {:?}", args);
+            let result = if let Some(Value::String(path)) = args.get(0) {
                 match std::fs::read_to_string(path) {
                     Ok(content) => Ok(Value::Enum {
                         enum_name: "Result".to_string(),
@@ -783,12 +787,15 @@ impl Interpreter {
                 Err(VeldError::RuntimeError(
                     "read(path) requires a string argument".to_string(),
                 ))
-            }
+            };
+            tracing::debug!("fs.read returning: {:?}", result);
+            result
         });
 
         // List directory entries
         self.native_registry.register("std.fs.read_dir", |_, args| {
-            if let Some(Value::String(path)) = args.get(0) {
+            tracing::debug!("fs.read_dir called with args: {:?}", args);
+            let result = if let Some(Value::String(path)) = args.get(0) {
                 match std::fs::read_dir(path) {
                     Ok(entries) => {
                         let mut files = Vec::new();
@@ -824,12 +831,15 @@ impl Interpreter {
                 Err(VeldError::RuntimeError(
                     "read_dir(path) requires a string argument".to_string(),
                 ))
-            }
+            };
+            tracing::debug!("fs.read_dir returning: {:?}", result);
+            result
         });
 
         // Remove a file
         self.native_registry.register("std.fs.remove", |_, args| {
-            if let Some(Value::String(path)) = args.get(0) {
+            tracing::debug!("fs.remove called with args: {:?}", args);
+            let result = if let Some(Value::String(path)) = args.get(0) {
                 match std::fs::remove_file(path) {
                     Ok(_) => Ok(Value::Enum {
                         enum_name: "Result".to_string(),
@@ -846,18 +856,23 @@ impl Interpreter {
                 Err(VeldError::RuntimeError(
                     "remove(path) requires a string argument".to_string(),
                 ))
-            }
+            };
+            tracing::debug!("fs.remove returning: {:?}", result);
+            result
         });
 
         // Check if a file or directory exists
         self.native_registry.register("std.fs.exists", |_, args| {
-            if let Some(Value::String(path)) = args.get(0) {
+            tracing::debug!("fs.exists called with args: {:?}", args);
+            let result = if let Some(Value::String(path)) = args.get(0) {
                 Ok(Value::Boolean(std::path::Path::new(path).exists()))
             } else {
                 Err(VeldError::RuntimeError(
                     "exists(path) requires a string argument".to_string(),
                 ))
-            }
+            };
+            tracing::debug!("fs.exists returning: {:?}", result);
+            result
         });
     }
 
@@ -6265,6 +6280,13 @@ impl Interpreter {
         args: Vec<Value>,
         variable_name: Option<String>,
     ) -> Result<Value> {
+        tracing::debug!(
+            "call_method_value_with_mutation: object={:?} (type: {}), method_name={}, args={:?}",
+            object,
+            object.type_of(),
+            method_name,
+            args
+        );
         // Special handling for std.io module method calls - redirect to native implementations
         if let Value::Module(module) = &object {
             tracing::debug!(

@@ -1,3 +1,0 @@
-type Option<T> =
-    | Some of T
-    | None
