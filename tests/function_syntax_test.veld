@@ -140,7 +140,7 @@ fn apply_twice(f: fn(i32) -> i32, x: i32) -> i32 => f(f(x))
 let higher_order_result = apply_twice(traditional_func, 5)  # Should be 7 (traditional_func applied twice: 5->6->7)
 
 # Test functions returning functions (closures would be more complex, but this works)
-fn make_adder(n: i32) -> fn(i32) -> i32 => fn(x) => x + n # TODO add syntax for capturing variables by reference
+fn make_adder(n: i32) -> fn(i32) -> i32 => fn(x) => x + n # TODO: add syntax for capturing variables by reference
 
 let add_five = make_adder(5)
 let closure_result = add_five(10)  # Should be 15
