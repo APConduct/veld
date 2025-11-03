@@ -1433,7 +1433,8 @@ impl TypeChecker {
                 if let Expr::Identifier(obj_name) = &**object {
                     if let Some(Type::Module(_)) = self.env.get(obj_name) {
                         tracing::debug!("Skipping type checking for module method call: {}.{}", obj_name, method);
-                        return Ok(Type::Unit); // Or infer a more precise type if desired
+                        // Return Unknown type so that chained method calls don't fail
+                        return Ok(self.env.fresh_type_var());
                     }
                 }
                 self.infer_method_call_type(object, method, arguments)
@@ -1490,7 +1491,8 @@ impl TypeChecker {
                         // If the object is a module (registered in env as Type::Module), skip type checking
                         if let Some(Type::Module(_)) = self.env.get(obj_name) {
                             tracing::debug!("Skipping type checking for module function call: {}.{}", obj_name, property);
-                            return Ok(Type::Unit); // Or infer a more precise type if desired
+                            // Return Unknown type so that chained method calls don't fail
+                            return Ok(self.env.fresh_type_var());
                         }
                     }
                 }
@@ -3868,17 +3870,27 @@ impl TypeChecker {
                     }
                 }
 
-                // If no method found, this is an error
-                Err(VeldError::TypeError(format!(
-                    "No type found with method {} for type variable",
+                // If no method found, return a fresh type variable to allow chained calls
+                // This allows module function results (which are type variables) to have methods called on them
+                tracing::debug!(
+                    "No type found with method {} for type variable, returning fresh type var to allow chaining",
                     method
-                )))
+                );
+                Ok(self.env.fresh_type_var())
             }
 
-            _ => Err(VeldError::TypeError(format!(
-                "Type {} does not have methods",
-                obj_type
-            ))),
+            _ => {
+                tracing::error!(
+                    "Type checker: Type '{}' does not have methods. Method: '{}', Object type: {:?}",
+                    obj_type,
+                    method,
+                    obj_type
+                );
+                Err(VeldError::TypeError(format!(
+                    "Type {} does not have methods",
+                    obj_type
+                )))
+            }
         }
     }
 

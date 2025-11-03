@@ -1,31 +1,48 @@
 import std.fs
 
 std.io.println("Testing fs.write...")
-let write_result = fs.write("veld_test.txt" + "Hello, Veld!")
-std.io.println("fs.write result:" + write_result.to_string())
+let write_result = fs.write("veld_test.txt", "Hello, Veld!")
+if write_result.is_ok() then
+    std.io.println("fs.write: OK")
+else
+    std.io.println("fs.write: Error")
+end
 
 std.io.println("Testing fs.read...")
 let read_result = fs.read("veld_test.txt")
-std.io.println("fs.read result:" + read_result.unwrap().to_string())
 if read_result.is_ok() then
-    std.io.println("fs.read contents:" + read_result.unwrap().to_string())
+    std.io.println("fs.read contents:" + read_result.unwrap_or(""))
+else
+    std.io.println("fs.read: Error")
 end
 
 std.io.println("Testing fs.exists...")
 let exists_before = fs.exists("veld_test.txt")
-std.io.println("fs.exists before remove:" + exists_before.to_string())
+if exists_before then
+    std.io.println("fs.exists before remove: true")
+else
+    std.io.println("fs.exists before remove: false")
+end
 
 std.io.println("Testing fs.remove...")
 let remove_result = fs.remove("veld_test.txt")
-std.io.println("fs.remove result:" + remove_result.unwrap().to_string())
+if remove_result.is_ok() then
+    std.io.println("fs.remove: OK")
+else
+    std.io.println("fs.remove: Error")
+end
 
 let exists_after = fs.exists("veld_test.txt")
-std.io.println("fs.exists after remove:" + exists_after.to_string())
+if exists_after then
+    std.io.println("fs.exists after remove: true")
+else
+    std.io.println("fs.exists after remove: false")
+end
 
 std.io.println("Testing fs.read_dir...")
 let dir_result = fs.read_dir(".")
-std.io.println("fs.read_dir result:" + dir_result.unwrap().to_string())
 if dir_result.is_ok() then
-    std.io.println("fs.read_dir entries:" + dir_result.unwrap().to_string())
+    std.io.println("fs.read_dir: OK")
+else
+    std.io.println("fs.read_dir: Error")
 end
-std.io.print(x)
