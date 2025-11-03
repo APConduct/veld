@@ -3,7 +3,7 @@ import std.fs
 std.io.println("Testing fs.write...")
 let write_result = fs.write("veld_test.txt", "Hello, Veld!")
 if write_result.is_ok() then
-    std.io.println("fs.write: OK")
+    std.io.println("fs.write: OK") # if ... => ...
 else
     std.io.println("fs.write: Error")
 end
