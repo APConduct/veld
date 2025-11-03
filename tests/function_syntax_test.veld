@@ -25,7 +25,7 @@ fn inferred_block_func(x: i32) => do
 end
 
 # 6. Procedure declaration (traditional) - returns unit
-proc traditional_proc(value: i32)
+proc traditional_proc(value: i32)   # TODO: either add more capabilities to proc or remove it as a feature
     let temp = value + 100
 end
 
