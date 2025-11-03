@@ -466,6 +466,7 @@ impl Parser {
                 // || self.peek() == &Token::Const(ZTUP)
 
                 // Handle public variable declarations
+                self.advance(); // Consume the Var token
                 self.variable_declaration_with_visibility(VarKind::Var, true, ctx)
             } else {
                 Err(VeldError::ParserError(
@@ -741,9 +742,24 @@ impl Parser {
             // Fat arrow syntax: fn name() => expr or fn name() => do ... end
             if self.match_token(&[Token::Do(ZTUP)]) {
                 // Block syntax: fn name() => do ... end
+                tracing::debug!("Parsing function '{}' with => do block syntax", name);
+                tracing::debug!(
+                    "Current token after Do: {:?}, is_at_end: {}",
+                    self.peek(),
+                    self.is_at_end()
+                );
                 while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                    body.push(self.statement(ctx)?);
+                    tracing::debug!("Loop iteration: current token: {:?}", self.peek());
+                    let stmt = self.statement(ctx)?;
+                    tracing::debug!("Parsed statement in function '{}' body: {:?}", name, stmt);
+                    body.push(stmt);
                 }
+                tracing::debug!(
+                    "Function '{}' body has {} statements. Exited loop with token: {:?}",
+                    name,
+                    body.len(),
+                    self.peek()
+                );
                 self.consume(&Token::End(ZTUP), "Expected 'end' after function body")?;
 
                 // Infer return type from last statement if needed
@@ -2382,7 +2398,14 @@ impl Parser {
             Ok(Statement::Continue)
         } else if self.is_declaration_keyword() {
             //TODO: Handle variable declarations (let, var, const)
-            self.variable_declaration(VarKind::Let, true, ctx)
+            // Consume the declaration keyword and determine the var kind
+            let var_kind = match self.advance() {
+                Token::Let(_) => VarKind::Let,
+                Token::Var(_) => VarKind::Var,
+                Token::Const(_) => VarKind::Const,
+                _ => VarKind::Let, // Fallback, though this shouldn't happen
+            };
+            self.variable_declaration(var_kind, true, ctx)
         } else if self.check_assignment() {
             self.assignment_statement(ctx)
         } else {

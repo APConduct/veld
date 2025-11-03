@@ -1,0 +1,9 @@
+# Minimal test case for arrow function with do block syntax
+
+fn arrow_block_func(x: i32) -> i32 => do
+    let temp = x + 3
+    temp * 2
+end
+
+let result = arrow_block_func(5)
+std.io.println("Result: " + result.to_string())

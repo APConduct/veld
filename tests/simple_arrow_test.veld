@@ -1,0 +1,6 @@
+# Simple test without do block
+
+fn simple_arrow(x: i32) -> i32 => x + 1
+
+let result = simple_arrow(5)
+std.io.println("Result: " + result.to_string())
