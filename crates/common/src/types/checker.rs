@@ -349,6 +349,64 @@ impl TypeChecker {
                     }
                     self.env.enums.insert(name.clone(), variant_map);
                 }
+                Statement::TypeDeclaration {
+                    name,
+                    type_annotation,
+                } => {
+                    // Register type alias in the type environment
+                    let aliased_type = self.env.from_annotation(type_annotation, None)?;
+                    self.env.add_type_alias(name, aliased_type);
+                }
+                Statement::PlexDeclaration {
+                    name,
+                    type_annotation,
+                    generic_params,
+                    ..
+                } => {
+                    // Handle generic plex types
+                    if !generic_params.is_empty() {
+                        self.env.push_type_param_scope();
+                        for param in generic_params.clone() {
+                            let param_name = match &param.name {
+                                Some(name) => name.clone(),
+                                None => {
+                                    if let TypeAnnotation::Basic(base_name) = &param.type_annotation
+                                    {
+                                        base_name.clone()
+                                    } else {
+                                        "T".to_string()
+                                    }
+                                }
+                            };
+                            self.env.add_type_param(&param_name);
+                        }
+
+                        // Convert the type annotation to a Type and add as generic alias
+                        let aliased_type = self.env.from_annotation(type_annotation, None)?;
+                        let type_param_names: Vec<String> = generic_params
+                            .iter()
+                            .map(|param| match &param.name {
+                                Some(name) => name.clone(),
+                                None => {
+                                    if let TypeAnnotation::Basic(base_name) = &param.type_annotation
+                                    {
+                                        base_name.clone()
+                                    } else {
+                                        "T".to_string()
+                                    }
+                                }
+                            })
+                            .collect();
+                        self.env
+                            .add_generic_type_alias(name, aliased_type, type_param_names);
+
+                        self.env.pop_type_param_scope();
+                    } else {
+                        // Regular plex type alias
+                        let aliased_type = self.env.from_annotation(type_annotation, None)?;
+                        self.env.add_type_alias(name, aliased_type);
+                    }
+                }
                 _ => {} // TODO: Handle other declarations
             }
         }

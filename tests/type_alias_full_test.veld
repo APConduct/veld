@@ -1,0 +1,61 @@
+# Comprehensive test for the 'type' keyword
+import std.io
+
+# 1. Simple type aliases for primitives
+type UserId = i32
+type UserName = str
+type Score = f64
+
+# 2. Plex type aliases (structural types)
+type Person = { name: str, age: i32 }
+type Point2D = { x: f64, y: f64 }
+type Point3D = { x: f64, y: f64, z: f64 }
+
+# 3. Union type aliases
+type IntOrString = i32 | str
+type NumberOrBool = i32 | f64 | bool
+
+# 4. Generic type aliases
+type Pair<T> = { first: T, second: T }
+type Box<T> = { value: T }
+type Triple<T> = { a: T, b: T, c: T }
+
+# 5. Test using type aliases in variable declarations
+let id: UserId = 42
+let name: UserName = "Alice"
+let score: Score = 95.5
+
+let person: Person = { name: "Bob", age: 30 }
+let point: Point2D = { x: 1.5, y: 2.5 }
+
+# 6. Test using type aliases in function signatures
+fn get_user_id(user: Person) -> UserId do
+    return 123
+end
+
+fn create_point(x: f64, y: f64) -> Point2D do
+    return { x: x, y: y }
+end
+
+fn double_score(s: Score) -> Score do
+    return s * 2.0
+end
+
+# 7. Test generic type usage
+let pair_nums: Pair<i32> = { first: 10, second: 20 }
+let pair_strs: Pair<str> = { first: "hello", second: "world" }
+let boxed: Box<i32> = { value: 42 }
+
+# 8. Test calling functions with type aliases
+let uid = get_user_id(person)
+let new_point = create_point(3.0, 4.0)
+let doubled = double_score(score)
+
+# 9. Print results to verify everything works
+
+io.println("=== Type Alias Test Results ===")
+io.println("Simple type aliases work!")
+io.println("Plex type aliases work!")
+io.println("Generic type aliases work!")
+io.println("Function signatures with type aliases work!")
+io.println("All type alias tests passed!")

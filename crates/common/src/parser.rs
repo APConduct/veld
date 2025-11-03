@@ -128,7 +128,7 @@ impl Parser {
                     generic_params,
                 })
             }
-            Token::Identifier(_) | Token::PipeOr(_) => {
+            Token::PipeOr(_) => {
                 // Delegate to union: parse as a union with the given name
                 let mut variants = Vec::new();
                 loop {
@@ -154,6 +154,44 @@ impl Parser {
                     is_public: false,
                     generic_params,
                 })
+            }
+            Token::Identifier(_) => {
+                // Check if this is a union type (has | operator) or simple type alias
+                // Parse the type and check if there's a PipeOr following
+                let type_ann = self.parse_type()?;
+
+                // If next token is PipeOr, it's a union type
+                if self.check(&Token::PipeOr(ZTUP)) {
+                    let mut variants = Vec::new();
+                    variants.push(crate::types::Type::from_annotation(&type_ann, None).unwrap());
+
+                    while self.match_token(&[Token::PipeOr(ZTUP)]) {
+                        let type_ann = self.parse_type()?;
+                        variants
+                            .push(crate::types::Type::from_annotation(&type_ann, None).unwrap());
+                    }
+
+                    let end = self.get_current_position();
+                    if let Some(ctx) = ctx {
+                        ctx.add_span(NodeId::new(), start, end);
+                    }
+                    Ok(Statement::UnionDeclaration {
+                        name,
+                        variants,
+                        is_public: false,
+                        generic_params,
+                    })
+                } else {
+                    // Simple type alias
+                    let end = self.get_current_position();
+                    if let Some(ctx) = ctx {
+                        ctx.add_span(NodeId::new(), start, end);
+                    }
+                    Ok(Statement::TypeDeclaration {
+                        name,
+                        type_annotation: type_ann,
+                    })
+                }
             }
             _ => {
                 // Fallback: treat as type alias or enum type

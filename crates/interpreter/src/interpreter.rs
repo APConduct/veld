@@ -286,6 +286,9 @@ impl Interpreter {
                 Statement::PlexDeclaration { .. } => {
                     self.execute_statement(stmt.clone())?;
                 }
+                Statement::TypeDeclaration { .. } => {
+                    self.execute_statement(stmt.clone())?;
+                }
                 _ => {}
             }
         }
@@ -303,6 +306,7 @@ impl Interpreter {
                     | Statement::StructDeclaration { .. }
                     | Statement::EnumDeclaration { .. }
                     | Statement::PlexDeclaration { .. }
+                    | Statement::TypeDeclaration { .. }
             ) {
                 tracing::debug!("Executing statement: {:?}", stmt);
                 last_value = self.execute_statement(stmt)?;
@@ -1515,79 +1519,19 @@ impl Interpreter {
                             name,
                             type_annotation,
                         } => {
-                            use veld_common::ast::Expr;
-                            use veld_common::ast::Statement;
-                            use veld_common::ast::TypeAnnotation;
-                            // Only handle enums for now (diagnostic fix: remove Sum variant)
-                            // Assume type_annotation is an Enum type with variants field
-                            // If your TypeAnnotation does not have variants, you may need to adjust this logic.
-                            // For now, try to extract variants if possible.
-                            let variants_opt = {
-                                // Try to extract variants from a custom Enum type annotation
-                                #[allow(unused_mut)]
-                                let mut variants: Option<
-                                    &std::collections::HashMap<
-                                        String,
-                                        veld_common::ast::EnumVariant,
-                                    >,
-                                > = None;
-                                // If you have a TypeAnnotation::Enum { variants, .. }, match here:
-                                if let TypeAnnotation::Enum { variants: v, .. } = &type_annotation {
-                                    variants = Some(v);
-                                }
-                                variants
-                            };
-                            if let Some(variants) = variants_opt {
-                                // Register the enum type itself
-                                self.current_scope_mut().set(
-                                    name.clone(),
-                                    Value::EnumType {
-                                        name: name.clone(),
-                                        methods: None,
-                                    },
-                                );
-                                // For each variant, create and register a constructor
-                                for (ctor_name, variant) in variants.iter() {
-                                    let fields = variant.fields.clone().unwrap_or_default();
-                                    let params: Vec<(String, TypeAnnotation)> = fields
-                                        .iter()
-                                        .enumerate()
-                                        .map(|(i, t): (usize, &TypeAnnotation)| {
-                                            (format!("field{}", i), t.clone())
-                                        })
-                                        .collect();
+                            // Register the type alias in the type checker's environment
+                            let aliased_type = self
+                                .type_checker
+                                .env()
+                                .from_annotation(&type_annotation, None)?;
+                            self.type_checker.env().add_type_alias(&name, aliased_type);
 
-                                    // The constructor function body: creates the enum value
-                                    let enum_name = name.clone();
-                                    let variant_name = ctor_name.clone();
-                                    let body = vec![Statement::Return(Some(Expr::EnumVariant {
-                                        enum_name: enum_name.clone(),
-                                        variant_name: variant_name.clone(),
-                                        fields: params
-                                            .iter()
-                                            .map(|(n, _): &(String, TypeAnnotation)| {
-                                                Expr::Identifier(n.clone())
-                                            })
-                                            .collect(),
-                                        type_args: None,
-                                    }))];
+                            tracing::debug!(
+                                "Registered type alias: {} = {:?}",
+                                name,
+                                type_annotation
+                            );
 
-                                    let ctor_value = Value::Function {
-                                        params: params.clone(),
-                                        body,
-                                        return_type: TypeAnnotation::Basic(enum_name.clone()),
-                                        captured_vars: std::collections::HashMap::new(),
-                                    };
-
-                                    // Register as Option.Some and Some
-                                    self.current_scope_mut().set(
-                                        format!("{}.{}", enum_name, variant_name),
-                                        ctor_value.clone(),
-                                    );
-                                    self.current_scope_mut()
-                                        .set(variant_name.clone(), ctor_value);
-                                }
-                            }
                             Ok(Value::Unit)
                         }
                         Statement::Break => Ok(Value::Break),
