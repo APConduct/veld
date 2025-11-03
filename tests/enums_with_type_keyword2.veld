@@ -1,0 +1,16 @@
+type Option<T> =
+    | Some(T)
+    | None
+
+type Point = |{|
+    x: f64,
+    y: f64,
+|}
+
+type Size<T> = |{
+    width: T,
+    height: T,
+}
+
+
+type UntaggedIntIndexedUnion = str | i32

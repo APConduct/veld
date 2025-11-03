@@ -1,0 +1,23 @@
+let anonymous_struct_instance = struct
+    field1: String,
+    field2: i32,
+    field3: bool,
+end(
+    field1: "value1",
+    field2: 42,
+    field3: true,
+)
+
+let anonymous_struct_instance_paren = struct(
+    field1: String,
+    field2: i32,
+    field3: bool,
+)(
+    field1: "value1",
+    field2: 42,
+    field3: true,
+)
+
+assert~(
+    anonymous_struct_instance != anonymous_struct_instance_paren
+) # Anonymous struct instances are not equal

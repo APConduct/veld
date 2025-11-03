@@ -1,16 +1,17 @@
-type Option<T> =
-    | Some(T)
-    | None
+type Option<T> = enum
+    Some(T)
+    None
+end
 
-type Point = |{|
-    x: f64,
-    y: f64,
-|}
+type Point = struct
+    x: f64
+    y: f64
+end
 
-type Size<T> = |{
-    width: T,
-    height: T,
-}
+type Size<T> = struct
+    pub width: T
+    pub height: T
+end
 
 
 type UntaggedIntIndexedUnion = str | i32
