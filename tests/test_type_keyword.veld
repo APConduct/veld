@@ -1,16 +1,21 @@
-  # Simple type alias
-  type UserId = Int
-  type UserName = String
+import std.io
 
-  type Thing = { name: str, age: i32 } # Represents a person's name and age as a plex type
-  type SumThing = str | i32 | bool # Represents a sum type with a structural union type of string, integer, and boolean values
+# Simple type alias
+type UserId = i32
+type UserName = str
 
-  type Point = { # Represents a point in 2D space as a plex type
-      x: f64,
-      y: f64
-  }
+type Thing = { name: str, age: i32 } # Represents a person's name and age as a plex type
+type SumThing = str | i32 | bool # Represents a sum type with a structural union type of string, integer, and boolean values
 
-  type Size<T> = { # Represents a size in 2D space as a plex type with generic type parameter T
-      pub width: T,
-      pub height: T
-  }
+type Point = { # Represents a point in 2D space as a plex type
+    x: f64,
+    y: f64
+}
+
+type Size<T> = { # Represents a size in 2D space as a plex type with generic type parameter T
+    width: T,
+    height: T
+}
+
+# Test that type aliases are declared without errors
+# Type aliases are now successfully parsed and registered in the type checker

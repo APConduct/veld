@@ -2396,8 +2396,11 @@ impl Parser {
             Ok(Statement::Break)
         } else if self.match_token(&[Token::Continue(ZTUP)]) {
             Ok(Statement::Continue)
-        } else if self.is_declaration_keyword() {
-            //TODO: Handle variable declarations (let, var, const)
+        } else if self.check(&Token::Let(ZTUP))
+            || self.check(&Token::Var(ZTUP))
+            || self.check(&Token::Const(ZTUP))
+        {
+            // Handle variable declarations (let, var, const)
             // Consume the declaration keyword and determine the var kind
             let var_kind = match self.advance() {
                 Token::Let(_) => VarKind::Let,
@@ -2406,6 +2409,9 @@ impl Parser {
                 _ => VarKind::Let, // Fallback, though this shouldn't happen
             };
             self.variable_declaration(var_kind, true, ctx)
+        } else if self.is_declaration_keyword() {
+            // Handle other declarations (type, struct, enum, plex, union, etc.)
+            self.declaration(ctx)
         } else if self.check_assignment() {
             self.assignment_statement(ctx)
         } else {

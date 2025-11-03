@@ -488,6 +488,15 @@ impl TypeChecker {
                 }
                 Ok(())
             }
+            Statement::TypeDeclaration {
+                name,
+                type_annotation,
+            } => {
+                // Handle type alias declarations (e.g., type UserId = Int)
+                let aliased_type = self.env.from_annotation(type_annotation, None)?;
+                self.env.add_type_alias(name, aliased_type);
+                Ok(())
+            }
             Statement::FunctionDeclaration {
                 name,
                 params,
