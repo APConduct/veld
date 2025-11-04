@@ -29,15 +29,15 @@ let person: Person = { name: "Bob", age: 30 }
 let point: Point2D = { x: 1.5, y: 2.5 }
 
 # 6. Test using type aliases in function signatures
-fn get_user_id(user: Person) -> UserId do
+fn get_user_id(user: Person) -> UserId
     return 123
 end
 
-fn create_point(x: f64, y: f64) -> Point2D do
+fn create_point(x: f64, y: f64) -> Point2D
     return { x: x, y: y }
 end
 
-fn double_score(s: Score) -> Score do
+fn double_score(s: Score) -> Score
     return s * 2.0
 end
 
@@ -52,10 +52,46 @@ let new_point = create_point(3.0, 4.0)
 let doubled = double_score(score)
 
 # 9. Print results to verify everything works
+import std.io
 
 io.println("=== Type Alias Test Results ===")
-io.println("Simple type aliases work!")
-io.println("Plex type aliases work!")
-io.println("Generic type aliases work!")
-io.println("Function signatures with type aliases work!")
-io.println("All type alias tests passed!")
+io.println("")
+io.println("1. Simple type aliases:")
+io.print("   UserId (i32): ")
+io.println(id)
+io.print("   UserName (str): ")
+io.println(name)
+io.print("   Score (f64): ")
+io.println(score)
+
+io.println("")
+io.println("2. Plex type aliases:")
+io.print("   Person.name: ")
+io.println(person.name)
+io.print("   Person.age: ")
+io.println(person.age)
+io.print("   Point2D.x: ")
+io.println(point.x)
+io.print("   Point2D.y: ")
+io.println(point.y)
+
+io.println("")
+io.println("3. Generic type aliases:")
+io.print("   Pair<i32>.first: ")
+io.println(pair_nums.first)
+io.print("   Pair<i32>.second: ")
+io.println(pair_nums.second)
+io.print("   Box<i32>.value: ")
+io.println(boxed.value)
+
+io.println("")
+io.println("4. Function signatures with type aliases:")
+io.print("   get_user_id(person) returned: ")
+io.println(uid)
+io.print("   create_point(3.0, 4.0).x: ")
+io.println(new_point.x)
+io.print("   double_score(95.5) returned: ")
+io.println(doubled)
+
+io.println("")
+io.println("=== All type alias tests passed! ===")
