@@ -13,6 +13,8 @@ fn main() -> Result<()> {
     let handle = std::thread::Builder::new()
         .stack_size(16 * 1024 * 1024) // 16 MB stack
         .spawn(|| {
+            // Initialize tracing subscriber (only on debug builds)
+            #[cfg(debug_assertions)]
             tracing_subscriber::fmt::init();
 
             // Get command line arguments
@@ -102,7 +104,6 @@ fn run_file(filename: &str) -> Result<()> {
     tracing::debug!("TOKEN COUNT: {}", tokens.len());
     for token in &tokens {
         tracing::debug!("LEXER TOKEN: {:?}", token);
-        println!("LEXER TOKEN: {:?}", token);
     }
 
     // Parsing

@@ -910,9 +910,9 @@ impl Interpreter {
     fn register_hashmap_methods(&mut self) {
         use std::collections::HashMap as RustHashMap;
 
-        // HashMap.new() constructor as a module function
-        self.native_registry
-            .register("std.collections.hash_map.new", |_, _args| {
+        // HashMap.new() constructor as a struct method (static)
+        self.native_method_registry
+            .register("HashMap", "new", |_, _args| {
                 // Create a new HashMap represented as a Struct with internal storage
                 Ok(Value::Struct {
                     name: "HashMap".to_string(),
@@ -2944,6 +2944,36 @@ impl Interpreter {
         if !variable_exists {
             self.current_scope_mut()
                 .declare(name.clone(), evaluated_value.clone(), var_kind)?;
+            tracing::debug!(
+                "Declared variable '{}' in scope. Scope keys after declare: {:?}",
+                name,
+                self.current_scope_mut()
+                    .keys()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            );
+        } else {
+            // Variable exists - for var declarations, allow shadowing by re-declaring
+            // This allows variables to shadow imported modules/functions
+            if matches!(var_kind, VarKind::Var) {
+                // Re-declare to properly register the variable
+                // First remove the old binding, then declare new one
+                self.current_scope_mut().declare(
+                    name.clone(),
+                    evaluated_value.clone(),
+                    var_kind,
+                )?;
+                tracing::debug!(
+                    "Variable '{}' already exists, re-declared with new value (var kind allows shadowing)",
+                    name
+                );
+            } else {
+                // For let and const, don't allow redeclaration
+                return Err(VeldError::RuntimeError(format!(
+                    "Variable '{}' already declared in this scope",
+                    name
+                )));
+            }
         }
 
         tracing::debug!(
@@ -3405,20 +3435,63 @@ impl Interpreter {
                             }),
                             Expr::Literal(lit) => evaluate_literal_expression(lit),
                             Expr::UnitLiteral => Ok(Value::Unit),
-                            Expr::Identifier(name) => self.get_variable(&name).ok_or_else(|| {
-                                // Detailed logging for identifier lookup failure
-                                use tracing::error;
-                                let scope_keys: Vec<Vec<String>> = self.scopes.iter()
-                                    .map(|scope| scope.vals().keys().cloned().collect())
-                                    .collect();
-                                let current_module = &self.current_module;
-                                let loaded_modules: Vec<String> = self.module_manager.modules.keys().cloned().collect();
-                                error!(
-                                    "Identifier lookup failed: '{}'.\nScope stack keys (innermost to outermost): {:?}\nCurrent module: {}\nLoaded modules: {:?}",
-                                    name, scope_keys, current_module, loaded_modules
+                            Expr::Identifier(name) => {
+                                // Log scope information before lookup
+                                if name == "HashMap" {
+                                    tracing::debug!(
+                                        "Looking up HashMap in {} scopes",
+                                        self.scopes.len()
+                                    );
+                                    for (i, scope) in self.scopes.iter().enumerate() {
+                                        let keys: Vec<&String> = scope.vals().keys().collect();
+                                        tracing::debug!("  Scope {}: {:?}", i, keys);
+                                        if let Some(val) = scope.vals().get("HashMap") {
+                                            tracing::debug!(
+                                                "  Found HashMap in scope {}: {:?}",
+                                                i,
+                                                match val {
+                                                    veld_common::value::Value::Module(m) =>
+                                                        format!("Module({})", m.name),
+                                                    veld_common::value::Value::StructType {
+                                                        name,
+                                                        ..
+                                                    } => format!("StructType({})", name),
+                                                    _ => "Other".to_string(),
+                                                }
+                                            );
+                                        }
+                                    }
+                                }
+
+                                let result = self.get_variable(&name).ok_or_else(|| {
+                                    // Detailed logging for identifier lookup failure
+                                    use tracing::error;
+                                    let scope_keys: Vec<Vec<String>> = self.scopes.iter()
+                                        .map(|scope| scope.vals().keys().cloned().collect())
+                                        .collect();
+                                    let current_module = &self.current_module;
+                                    let loaded_modules: Vec<String> = self.module_manager.modules.keys().cloned().collect();
+                                    error!(
+                                        "Identifier lookup failed: '{}'.\nScope stack keys (innermost to outermost): {:?}\nCurrent module: {}\nLoaded modules: {:?}",
+                                        name, scope_keys, current_module, loaded_modules
+                                    );
+                                    VeldError::RuntimeError(format!("Undefined variable '{}'", name))
+                                })?;
+                                tracing::debug!(
+                                    "Identifier lookup succeeded: '{}' = {:?}",
+                                    name,
+                                    match &result {
+                                        veld_common::value::Value::Module(m) =>
+                                            format!("Module({})", m.name),
+                                        veld_common::value::Value::StructType { name, .. } =>
+                                            format!("StructType({})", name),
+                                        veld_common::value::Value::Function { .. } =>
+                                            "Function".to_string(),
+                                        _ => "Other".to_string(),
+                                    }
                                 );
-                                VeldError::RuntimeError(format!("Undefined variable '{}'", name))
-                            }),
+                                Ok(result)
+                            }
                             Expr::BlockLambda {
                                 params,
                                 body,
@@ -3640,7 +3713,8 @@ impl Interpreter {
                                 // Check if this is a module function call
                                 if let Value::Module(module) = &obj_value {
                                     // Try to find a native function for this module.method combination
-                                    let native_function_name = format!("{}.{}", module.name, method);
+                                    let native_function_name =
+                                        format!("{}.{}", module.name, method);
                                     if self.native_registry.contains(&native_function_name) {
                                         let mut arg_values = Vec::new();
                                         for arg in arguments {
@@ -3707,7 +3781,8 @@ impl Interpreter {
                                         }
                                     }
                                     // Diagnostic logging before error
-                                    let attempted_native_name = format!("{}.{}", module.name, method);
+                                    let attempted_native_name =
+                                        format!("{}.{}", module.name, method);
                                     let export_keys: Vec<&String> = module.exports.keys().collect();
                                     tracing::error!(
                                         "Function '{}' not found in module '{}'. \
@@ -7176,6 +7251,19 @@ impl Interpreter {
             (Value::StructType { name, .. }, _) => {
                 let struct_name = name.clone();
 
+                // First check if this is a native method
+                if self
+                    .native_method_registry
+                    .has_method(&struct_name, &method_name)
+                {
+                    let method_args = args.clone();
+                    if let Some(handler) =
+                        self.native_method_registry.get(&struct_name, &method_name)
+                    {
+                        return handler(self, method_args);
+                    }
+                }
+
                 // Get the method from struct_methods
                 let method = self
                     .struct_methods
@@ -8155,9 +8243,33 @@ impl Interpreter {
             // Try to load parent module first
             match self.module_manager.load_module(&parent_path) {
                 Ok(_) => {
-                    // Successfully loaded parent module, treat last component as item
-                    actual_path = parent_path;
-                    actual_items = vec![ImportItem::Named(potential_item)];
+                    // Check if potential_item exists in parent's exports and is NOT a module
+                    let parent_path_str = parent_path.join(".");
+                    let should_treat_as_item = if let Some(parent_module) =
+                        self.module_manager.get_module(&parent_path_str)
+                    {
+                        if let Some(export_item) = parent_module.exports.get(&potential_item) {
+                            // Only treat as item if it's not a module export
+                            !matches!(
+                                export_item,
+                                veld_common::value::module::ExportedItem::Module(_)
+                            )
+                        } else {
+                            // Not in exports, try loading as module
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    if should_treat_as_item {
+                        // It's an item (struct, enum, function), not a submodule
+                        actual_path = parent_path;
+                        actual_items = vec![ImportItem::Named(potential_item)];
+                    } else {
+                        // It's a submodule or doesn't exist in parent, try loading as module
+                        self.module_manager.load_module(&actual_path)?;
+                    }
                 }
                 Err(_) => {
                     // Parent module load failed, try original path
@@ -8191,17 +8303,27 @@ impl Interpreter {
         } else {
             // No alias, so we're importing specific items or the entire module
 
-            // Register the last component of the original import path as a module type in the type environment
-            if let Some(last) = path.last() {
-                self.type_checker
-                    .env()
-                    .define(last, Type::Module(last.clone()));
-            }
-
             // Get the exports we want
             let exports = self
                 .module_manager
                 .get_exports(&actual_module_path_str, &actual_items)?;
+
+            // Register imported items in type environment based on their type
+            // Only register modules as Module type, not structs/enums
+            for (name, export_item) in &exports {
+                match export_item {
+                    ExportedItem::Module(_) => {
+                        // This is a submodule export, register it as a module
+                        self.type_checker
+                            .env()
+                            .define(name, Type::Module(name.clone()));
+                    }
+                    _ => {
+                        // Structs, enums, functions will be registered below
+                        // when they are processed in the second pass
+                    }
+                }
+            }
 
             // To avoid double borrowing, collect all needed data first
             let module_statements = {
@@ -8340,19 +8462,199 @@ impl Interpreter {
                         }
                     }
                     ExportedItem::Struct(idx) => {
-                        // Handle struct imports - for now just remember the name
-                        if let Statement::StructDeclaration {
-                            name: _struct_name,
-                            fields,
-                            ..
-                        } = &module_statements[idx]
+                        // Handle struct imports - check if this is a re-export
+                        // If idx is out of bounds, we need to find the original module
+                        tracing::debug!(
+                            "Processing Struct export '{}' with idx {} from module '{}' (has {} statements)",
+                            name,
+                            idx,
+                            actual_module_path_str,
+                            module_statements.len()
+                        );
+
+                        // Check if this is a re-export by seeing if the statement at idx is actually a struct declaration
+                        let is_reexport = if idx >= module_statements.len() {
+                            true
+                        } else {
+                            !matches!(&module_statements[idx], Statement::StructDeclaration { .. })
+                        };
+
+                        let (struct_fields, impl_statements) = if is_reexport {
+                            // This is a re-exported struct, need to find the original module
+                            // Look through the current module's import statements to find where it came from
+                            tracing::debug!(
+                                "Struct '{}' with idx {} is out of bounds for module '{}' (len {}), looking for re-export source",
+                                name,
+                                idx,
+                                actual_module_path_str,
+                                module_statements.len()
+                            );
+
+                            let mut found_source = None;
+                            for stmt in &module_statements {
+                                if let Statement::ImportDeclaration {
+                                    path,
+                                    items,
+                                    is_public: true,
+                                    ..
+                                } = stmt
+                                {
+                                    // Check if this import includes the struct we're looking for
+                                    let should_check = items.iter().any(|item| match item {
+                                        ImportItem::Named(n) => n == &name,
+                                        ImportItem::NamedWithAlias { name: n, .. } => n == &name,
+                                        ImportItem::All => true,
+                                    });
+
+                                    if should_check {
+                                        let source_module_path = path.join(".");
+                                        if let Some(source_module) =
+                                            self.module_manager.get_module(&source_module_path)
+                                        {
+                                            if let Some(source_export) =
+                                                source_module.exports.get(&name)
+                                            {
+                                                if let ExportedItem::Struct(source_idx) =
+                                                    source_export
+                                                {
+                                                    found_source = Some((
+                                                        source_module_path.clone(),
+                                                        *source_idx,
+                                                    ));
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if let Some((source_path, source_idx)) = found_source {
+                                let source_module = self
+                                    .module_manager
+                                    .get_module(&source_path)
+                                    .ok_or_else(|| {
+                                        VeldError::RuntimeError(format!(
+                                            "Source module '{}' not found",
+                                            source_path
+                                        ))
+                                    })?;
+                                let source_statements = source_module.statements.clone();
+
+                                tracing::debug!(
+                                    "Source module '{}' has {} statements, looking at index {}",
+                                    source_path,
+                                    source_statements.len(),
+                                    source_idx
+                                );
+
+                                if source_idx >= source_statements.len() {
+                                    return Err(VeldError::RuntimeError(format!(
+                                        "Source index {} out of bounds for module '{}' (len {})",
+                                        source_idx,
+                                        source_path,
+                                        source_statements.len()
+                                    )));
+                                }
+
+                                let stmt = &source_statements[source_idx];
+                                tracing::debug!(
+                                    "Statement at source_idx {}: {:?}",
+                                    source_idx,
+                                    match stmt {
+                                        Statement::StructDeclaration { name, .. } =>
+                                            format!("StructDeclaration({})", name),
+                                        Statement::FunctionDeclaration { name, .. } =>
+                                            format!("FunctionDeclaration({})", name),
+                                        Statement::ImportDeclaration { .. } =>
+                                            "ImportDeclaration".to_string(),
+                                        _ => "Other".to_string(),
+                                    }
+                                );
+
+                                if let Statement::StructDeclaration { fields, .. } = stmt {
+                                    (fields.clone(), source_statements)
+                                } else {
+                                    return Err(VeldError::RuntimeError(format!(
+                                        "Expected struct declaration for '{}' in source module '{}', but found {:?}",
+                                        name,
+                                        source_path,
+                                        match stmt {
+                                            Statement::StructDeclaration { name, .. } =>
+                                                format!("StructDeclaration({})", name),
+                                            Statement::FunctionDeclaration { name, .. } =>
+                                                format!("FunctionDeclaration({})", name),
+                                            Statement::ImportDeclaration { .. } =>
+                                                "ImportDeclaration".to_string(),
+                                            _ => "Other".to_string(),
+                                        }
+                                    )));
+                                }
+                            } else {
+                                return Err(VeldError::RuntimeError(format!(
+                                    "Could not find source module for re-exported struct '{}'",
+                                    name
+                                )));
+                            }
+                        } else {
+                            // Direct export from this module
+                            tracing::debug!(
+                                "Direct export case: idx={}, module_statements.len()={}, module='{}'",
+                                idx,
+                                module_statements.len(),
+                                actual_module_path_str
+                            );
+
+                            if idx >= module_statements.len() {
+                                return Err(VeldError::RuntimeError(format!(
+                                    "Direct export: idx {} out of bounds for module '{}' (len {})",
+                                    idx,
+                                    actual_module_path_str,
+                                    module_statements.len()
+                                )));
+                            }
+
+                            let stmt = &module_statements[idx];
+                            tracing::debug!(
+                                "Direct export statement at idx {}: {:?}",
+                                idx,
+                                match stmt {
+                                    Statement::StructDeclaration { name, .. } =>
+                                        format!("StructDeclaration({})", name),
+                                    Statement::FunctionDeclaration { name, .. } =>
+                                        format!("FunctionDeclaration({})", name),
+                                    Statement::ImportDeclaration { .. } =>
+                                        "ImportDeclaration".to_string(),
+                                    _ => "Other".to_string(),
+                                }
+                            );
+
+                            if let Statement::StructDeclaration { fields, .. } = stmt {
+                                (fields.clone(), module_statements.clone())
+                            } else {
+                                return Err(VeldError::RuntimeError(format!(
+                                    "Expected struct declaration for '{}', but found {:?}",
+                                    name,
+                                    match stmt {
+                                        Statement::StructDeclaration { name, .. } =>
+                                            format!("StructDeclaration({})", name),
+                                        Statement::FunctionDeclaration { name, .. } =>
+                                            format!("FunctionDeclaration({})", name),
+                                        Statement::ImportDeclaration { .. } =>
+                                            "ImportDeclaration".to_string(),
+                                        _ => "Other".to_string(),
+                                    }
+                                )));
+                            }
+                        };
+
                         {
                             // Register the struct type in this scope
-                            self.structs.insert(name.clone(), fields.clone());
+                            self.structs.insert(name.clone(), struct_fields.clone());
 
                             // Convert StructField to HashMap<String, Type> for type checker
                             let mut field_types = HashMap::new();
-                            for field in fields {
+                            for field in &struct_fields {
                                 let field_type = self
                                     .type_checker
                                     .env()
@@ -8374,6 +8676,10 @@ impl Interpreter {
 
                             // Also add the struct name to the current scope as a "type value"
                             // This allows Vec.new, etc
+                            tracing::debug!(
+                                "Setting struct '{}' in current scope as StructType",
+                                name
+                            );
                             self.current_scope_mut().set(
                                 name.clone(),
                                 Value::StructType {
@@ -8383,7 +8689,7 @@ impl Interpreter {
                             );
 
                             // Also import any impl blocks for this struct
-                            for (_stmt_idx, stmt) in module_statements.iter().enumerate() {
+                            for (_stmt_idx, stmt) in impl_statements.iter().enumerate() {
                                 match stmt {
                                     Statement::InherentImpl {
                                         type_name,
@@ -8688,7 +8994,16 @@ impl Interpreter {
             }
 
             // If this is a simple import (no alias, items == [All]), bind the module in the current scope
-            if items == vec![ImportItem::All] && alias.is_none() {
+            // BUT skip this if items was adjusted (e.g., from [All] to [Named("HashMap")]) to avoid overwriting imported items
+            let was_adjusted = items != actual_items;
+            tracing::debug!(
+                "Module binding check: items={:?}, actual_items={:?}, was_adjusted={}, alias={:?}",
+                items,
+                actual_items,
+                was_adjusted,
+                alias
+            );
+            if items == vec![ImportItem::All] && alias.is_none() && !was_adjusted {
                 let my_mod_man = self.module_manager.clone();
 
                 // Determine which module to bind
@@ -8740,6 +9055,12 @@ impl Interpreter {
 
                     self.current_scope_mut()
                         .set(import_name.clone(), Value::Module(module.clone()));
+
+                    // Also register in type checker environment
+                    self.type_checker
+                        .env()
+                        .define(&import_name, Type::Module(import_name.clone()));
+
                     tracing::debug!(
                         "Bound import '{}' in current scope. Scope keys now: {:?}",
                         import_name,

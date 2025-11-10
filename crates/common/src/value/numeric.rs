@@ -2,6 +2,7 @@ use crate::types::Type;
 use crate::types::TypeEnvironment;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::hash::Hash;
 use std::hash::Hasher;
 use veld_error::Result;
@@ -437,6 +438,21 @@ pub enum IntegerValue {
     U64(u64),
 }
 
+impl Display for IntegerValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntegerValue::I8(n) => write!(f, "{}", n),
+            IntegerValue::I16(n) => write!(f, "{}", n),
+            IntegerValue::I32(n) => write!(f, "{}", n),
+            IntegerValue::I64(n) => write!(f, "{}", n),
+            IntegerValue::U8(n) => write!(f, "{}", n),
+            IntegerValue::U16(n) => write!(f, "{}", n),
+            IntegerValue::U32(n) => write!(f, "{}", n),
+            IntegerValue::U64(n) => write!(f, "{}", n),
+        }
+    }
+}
+
 impl IntegerValue {
     /// Converts an integer value to a 64-bit integer.
     ///
@@ -479,6 +495,15 @@ pub enum FloatValue {
     F64(f64),
 }
 
+impl Display for FloatValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FloatValue::F32(value) => write!(f, "{}", value),
+            FloatValue::F64(value) => write!(f, "{}", value),
+        }
+    }
+}
+
 impl Hash for FloatValue {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
@@ -513,6 +538,15 @@ impl FloatValue {
 pub enum NumericValue {
     Integer(IntegerValue),
     Float(FloatValue),
+}
+
+impl Display for NumericValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NumericValue::Integer(iv) => iv.fmt(f),
+            NumericValue::Float(fv) => fv.fmt(f),
+        }
+    }
 }
 
 impl NumericValue {

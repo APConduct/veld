@@ -8,9 +8,11 @@ pub struct HashMap<K, V>
     data: any
 end
 
-# Constructor - module-level function
-# @Compiler.Builtin
-pub fn new() -> HashMap<any, any>
+impl<K, V> HashMap<K, V>
+    # Constructor - associated function
+    # @Compiler.Builtin
+    pub fn new() -> HashMap<K, V>
+    end
 end
 
 impl<K, V> HashMap<K, V> <- Map<K, V>
