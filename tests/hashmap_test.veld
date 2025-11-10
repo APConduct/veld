@@ -1,18 +1,18 @@
 # Comprehensive HashMap test
 
-import std.collections.hash_map
+import std.collections.hash_map.HashMap
 import std.io
 
 # Test 1: Create a new HashMap
 io.println("=== HashMap Tests ===")
 io.println("")
 
-let my_map = hash_map.new()
+var my_map = HashMap.new()
 io.println("1. Created new HashMap")
 
 # Test 2: Set and get values
 my_map.set("name", "Alice")
-my_map.set("age", 30)
+my_map.set("age", 30.to_string())
 my_map.set("city", "New York")
 
 io.println("2. Set three key-value pairs")
@@ -98,14 +98,14 @@ io.println(my_map.len())
 io.print("   After clear, is_empty(): ")
 io.println(my_map.is_empty())
 
-# Test 11: Use with different types
+# Test 11: Use with different types (all as strings)
 io.println("")
-io.println("10. Testing with different value types:")
-let type_map = hash_map.new()
+io.println("10. Testing with string values:")
+var type_map = HashMap.new()
 type_map.set("string", "hello")
-type_map.set("number", 42)
-type_map.set("float", 3.14)
-type_map.set("bool", true)
+type_map.set("number", "42")
+type_map.set("float", "3.14")
+type_map.set("bool", "true")
 
 io.print("   string value: ")
 match type_map.get("string")

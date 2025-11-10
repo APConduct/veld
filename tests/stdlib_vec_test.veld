@@ -34,5 +34,4 @@ let insert_res_good = vec.insert(4, 10)
 let removed = vec.remove(0)
 # removed
 
-std.io.println(removed.to_string())
-# std.io.println(removed.unwrap().to_string())
+std.io.println(removed.unwrap().to_string())

@@ -364,6 +364,7 @@ impl Interpreter {
         self.load_stdlib_module_with_types(&["std", "option"]);
         self.load_stdlib_module_with_types(&["std", "result"]);
         self.load_stdlib_module_with_types(&["std", "vec"]);
+        self.load_stdlib_module_with_types(&["std", "collections", "hash_map"]);
 
         // Initialize native methods for built-in types
         self.initialize_core_capabilities();
