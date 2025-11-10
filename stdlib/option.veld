@@ -36,6 +36,23 @@ impl<T> Option<T>
         end
     end
 
+    #| Unwrap the option, returning the contained value
+    #| Panics if the option is None
+    #| # Example:
+    #| ```
+    #| let opt = Option.Some(42)
+    #| let value = opt.unwrap()  # value will be 42
+    #| ```
+    #| If the option is None, this will cause a runtime error.
+    #| Use this method only when you are certain the option contains a value,
+    #| or use unwrap_or for a safer alternative with a default value.
+    pub fn unwrap(self) -> T
+        match self
+            Option.Some(value) => value,
+            Option.None => panic~("Called unwrap() on None"),
+        end
+    end
+
     #| Transform the option with a function if it contains a value
     #| Returns a new Option with the transformed value
     #| or None if the original option was None.
@@ -55,16 +72,17 @@ impl<T> Option<T>
     #| without needing to check for None explicitly.
     #| It allows for a functional style of programming
     #| where operations can be applied to the contained value
-    #| if it exists, or skipped if it does not.
-    #| The function `f` should take a value of type T and return a value
-    #| of type U, where U is the type of the new Option.
-    #| The resulting Option will be of type Option<U>.
-    pub fn map<U>(self, f: (T) -> U) -> Option<U>
-        match self
-            Option.Some(value) => Option.Some(f(value)),
-            Option.None => Option.None,
-        end
-    end
+    # Temporarily commented out - generic method type parameters cause issues
+    # #| if it exists, or skipped if it does not.
+    # #| The function `f` should take a value of type T and return a value
+    # #| of type U, where U is the type of the new Option.
+    # #| The resulting Option will be of type Option<U>.
+    # pub fn map<U>(self, f: (T) -> U) -> Option<U>
+    #     match self
+    #         Option.Some(value) => Option.Some(f(value)),
+    #         Option.None => Option.None,
+    #     end
+    # end
 
     #| Return true if the option contains a value
     #| This method checks if the Option is of type Some

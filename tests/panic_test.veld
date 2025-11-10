@@ -1,0 +1,18 @@
+# Test panic macro builtin
+
+import std.io
+
+io.println("=== Panic Macro Test ===")
+io.println("")
+
+# Test 1: Test that code runs before panic
+io.println("Test 1: Code before panic")
+io.println("✓ This prints successfully")
+
+# Test 2: Now trigger panic
+io.println("")
+io.println("Test 2: Triggering panic...")
+panic~("This is a test panic!")
+
+# This should never print
+io.println("✗ This should not print!")

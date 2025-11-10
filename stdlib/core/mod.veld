@@ -1,4 +1,41 @@
 #| Core types and behaviors for all Veld types
+#|
+#| This module contains fundamental operations and utilities that are
+#| available to all Veld programs, including error handling and basic traits.
+
+#| Panic function - causes an unrecoverable error
+#|
+#| This function is used to signal programmer errors (bugs) that should never
+#| happen in correct code. It should NOT be used for expected errors - use
+#| Result<T, E> for those instead.
+#|
+#| The panic function is typically called via the panic~ macro for convenience.
+#|
+#| # Philosophy
+#| Veld follows Rust's philosophy of explicit error handling:
+#| - Use Result<T, E> for expected errors (file not found, invalid input, etc.)
+#| - Use panic for unrecoverable programmer errors (assertion failures, bugs)
+#|
+#| # Examples
+#| ```
+#| # Via the panic~ macro (recommended)
+#| panic~("This should never happen!")
+#|
+#| # Or directly (less common)
+#| std.core.panic("Invariant violated")
+#| ```
+#|
+#| # When to use panic
+#| - Assertion failures
+#| - Unreachable code that should never execute
+#| - Bugs detected at runtime
+#| - Test failures
+#|
+#| # When NOT to use panic
+#| - File I/O errors -> use Result<T, E>
+#| - Network errors -> use Result<T, E>
+#| - Invalid user input -> use Result<T, E>
+#| - Any expected failure condition -> use Result<T, E>
 
 # Basic value operations all types should support
 pub kind Value

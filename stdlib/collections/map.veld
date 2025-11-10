@@ -7,12 +7,11 @@ pub kind Map<K, V>
     fn set(self, key: K, value: V) -> ()
     fn has(self, key: K) -> bool
     fn remove(self, key: K) -> bool
+    fn clear(self) -> ()
     fn keys(self) -> [K]
     fn values(self) -> [V]
     fn entries(self) -> [(K, V)]
     fn len(self) -> i32
     fn is_empty(self) -> bool
 
-    # Default implementations
-    fn is_empty(self) -> bool => self.len() == 0
 end

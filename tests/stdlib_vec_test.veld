@@ -24,6 +24,7 @@ let pop4 = vec.pop() # Should be 5
 let insert_res_bool = vec.insert(0, 9)
 # Should be false because the index is out of bounds
 let insert_res_bad = vec.insert(8, 10)
+std.io.println(insert_res_bool.to_string())
 
 # Should be true because the index is valid
 let insert_res_good = vec.insert(4, 10)
@@ -32,3 +33,6 @@ let insert_res_good = vec.insert(4, 10)
 # because 0 Should be within the bounds of the vector
 let removed = vec.remove(0)
 # removed
+
+std.io.println(removed.to_string())
+# std.io.println(removed.unwrap().to_string())

@@ -1718,6 +1718,7 @@ dependencies = [
  "logos 0.15.1",
  "serde",
  "tracing",
+ "tracing-subscriber 0.3.19",
  "veld-error",
 ]
 

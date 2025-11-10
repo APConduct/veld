@@ -1,0 +1,123 @@
+# Comprehensive HashMap test
+
+import std.collections.hash_map
+import std.io
+
+# Test 1: Create a new HashMap
+io.println("=== HashMap Tests ===")
+io.println("")
+
+let my_map = hash_map.new()
+io.println("1. Created new HashMap")
+
+# Test 2: Set and get values
+my_map.set("name", "Alice")
+my_map.set("age", 30)
+my_map.set("city", "New York")
+
+io.println("2. Set three key-value pairs")
+
+let name_result = my_map.get("name")
+match name_result
+    Some(value) => do
+        io.print("   name: ")
+        io.println(value)
+    end
+    None => io.println("   name not found")
+end
+
+let age_result = my_map.get("age")
+match age_result
+    Some(value) => do
+        io.print("   age: ")
+        io.println(value)
+    end
+    None => io.println("   age not found")
+end
+
+# Test 3: Check if key exists
+io.println("")
+io.println("3. Testing has() method:")
+io.print("   has('name'): ")
+io.println(my_map.has("name"))
+io.print("   has('country'): ")
+io.println(my_map.has("country"))
+
+# Test 4: Get length
+io.println("")
+io.println("4. Testing len():")
+io.print("   my_map.len(): ")
+io.println(my_map.len())
+
+# Test 5: Check if empty
+io.println("")
+io.println("5. Testing is_empty():")
+io.print("   my_map.is_empty(): ")
+io.println(my_map.is_empty())
+
+# Test 6: Get keys and values
+io.println("")
+io.println("6. Getting keys and values:")
+let keys = my_map.keys()
+io.print("   keys: ")
+io.println(keys)
+
+let values = my_map.values()
+io.print("   values: ")
+io.println(values)
+
+# Test 7: Get entries
+io.println("")
+io.println("7. Getting entries:")
+let entries = my_map.entries()
+io.print("   entries: ")
+io.println(entries)
+
+# Test 8: Remove a key
+io.println("")
+io.println("8. Testing remove():")
+let removed = my_map.remove("age")
+io.print("   Removed 'age': ")
+io.println(removed)
+io.print("   New length: ")
+io.println(my_map.len())
+io.print("   has('age'): ")
+io.println(my_map.has("age"))
+
+# Test 9: Remove non-existent key
+let removed_none = my_map.remove("country")
+io.print("   Removed 'country': ")
+io.println(removed_none)
+
+# Test 10: Clear the map
+io.println("")
+io.println("9. Testing clear():")
+my_map.clear()
+io.print("   After clear, len(): ")
+io.println(my_map.len())
+io.print("   After clear, is_empty(): ")
+io.println(my_map.is_empty())
+
+# Test 11: Use with different types
+io.println("")
+io.println("10. Testing with different value types:")
+let type_map = hash_map.new()
+type_map.set("string", "hello")
+type_map.set("number", 42)
+type_map.set("float", 3.14)
+type_map.set("bool", true)
+
+io.print("   string value: ")
+match type_map.get("string")
+    Some(v) => io.println(v)
+    None => io.println("not found")
+end
+
+io.print("   number value: ")
+match type_map.get("number")
+    Some(v) => io.println(v)
+    None => io.println("not found")
+end
+
+io.println("")
+io.println("=== All HashMap tests completed! ===")

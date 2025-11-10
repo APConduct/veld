@@ -5609,7 +5609,7 @@ mod tests {
             macro~ vec
                 () => new_vec(),
                 ($elem:expr) => do
-                    let mut temp = new_vec()
+                    let mut temp = std.vec.new()
                     temp.push($elem)
                     temp
                 end

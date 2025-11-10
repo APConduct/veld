@@ -1,0 +1,41 @@
+# Simple HashMap test showing current functionality
+# Note: HashMap mutation is currently a known limitation
+
+import std.collections.hash_map
+import std.io
+
+io.println("=== Simple HashMap Test ===")
+io.println("")
+
+# Test 1: Create and query empty HashMap
+io.println("1. Creating empty HashMap...")
+let empty_map = hash_map.new()
+io.print("   isEmpty: ")
+io.println(empty_map.is_empty())
+io.print("   len: ")
+io.println(empty_map.len())
+
+# Test 2: Test get on empty map
+io.println("")
+io.println("2. Testing get on empty map...")
+let result = empty_map.get("key")
+match result
+    Some(value) => do
+        io.print("   Found value: ")
+        io.println(value)
+    end
+    None => io.println("   Returns None as expected")
+end
+
+# Test 3: Test has on empty map
+io.println("")
+io.println("3. Testing has on empty map...")
+io.print("   has('key'): ")
+io.println(empty_map.has("key"))
+
+io.println("")
+io.println("=== HashMap structure created successfully! ===")
+io.println("")
+io.println("Note: HashMap mutation (set/remove/clear) is a known limitation")
+io.println("that requires architectural changes to support proper mutation")
+io.println("of native struct instances in Veld.")

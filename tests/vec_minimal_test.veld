@@ -1,0 +1,22 @@
+# Minimal Vec test to isolate the type checking issue
+
+import std.io
+
+io.println("Testing Vec import...")
+
+# Try to just import and access Vec
+import std.vec.{Vec}
+
+io.println("Vec module imported successfully")
+
+# Try to create a Vec
+io.println("Creating Vec...")
+var my_vec = Vec.new()
+io.println("Vec created successfully!")
+
+# Try to push
+io.println("Pushing value...")
+my_vec.push(1)
+io.println("Push successful!")
+io.println("Vec length:")
+io.println(my_vec.len())

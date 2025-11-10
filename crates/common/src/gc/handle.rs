@@ -52,7 +52,9 @@ pub struct GcHandle {
 
 impl GcHandle {
     pub fn type_of(&self) -> Type {
-        todo!("Implement type_of method")
+        // TODO: Implement proper type tracking for GC-managed values
+        // For now, return Any to allow the system to work
+        Type::Any
     }
 }
 

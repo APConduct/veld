@@ -1,20 +1,25 @@
 pub import std.collections.map
 
+# HashMap data structure
+# Uses Rust's HashMap internally for now
 # @Compiler.Builtin
-pub struct HashMap
-end # ;
+pub struct HashMap<K, V>
+    # Internal storage - this will be backed by native Rust HashMap
+    data: any
+end
 
-# impl HashMap
-# end
+# Constructor - module-level function
+# @Compiler.Builtin
+pub fn new() -> HashMap<any, any>
+end
 
-impl<K, V> HashMap <- Map<K, V>
-
-`   # @Compiler.Builtin
+impl<K, V> HashMap<K, V> <- Map<K, V>
+    # @Compiler.Builtin
     fn get(self, key: K) -> Option<V>
     end
 
     # @Compiler.Builtin
-    fn set(self, key: K, value: V) -> ()
+    fn set(mut self, key: K, value: V) -> ()
     end
 
     # @Compiler.Builtin
@@ -22,27 +27,30 @@ impl<K, V> HashMap <- Map<K, V>
     end
 
     # @Compiler.Builtin
-    fn remove(self, key: K) -> Option<V>
+    fn remove(mut self, key: K) -> bool
     end
 
     # @Compiler.Builtin
-    fn keys(self) -> Vec<K>
+    fn clear(mut self) -> ()
     end
 
     # @Compiler.Builtin
-    fn values(self) -> Vec<V>
+    fn keys(self) -> [K]
     end
 
     # @Compiler.Builtin
-    fn entries(self) -> std.vec.Vec<(K, V)>
+    fn values(self) -> [V]
     end
 
     # @Compiler.Builtin
-    fn len(self) -> i32 # usize
+    fn entries(self) -> [(K, V)]
+    end
+
+    # @Compiler.Builtin
+    fn len(self) -> i32
     end
 
     # @Compiler.Builtin
     fn is_empty(self) -> bool
     end
-
 end

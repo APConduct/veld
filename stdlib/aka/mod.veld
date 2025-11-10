@@ -1,0 +1,8 @@
+#| This module provides utility types and functions for creating, manipulating, and resolving behavioral and interaction types and their associated data
+
+# Example: (TODO: pick between the following syntaxes
+#    type Foo = std.aka.Pick<Bar, "key">
+#    type Bar = std.aka.Pick~(Bar, "key")
+#    type Bar = std.aka.Pick~(Bar, key)
+#    type Bar = std.aka.Pick~(Bar, "key")
+#    type Bar = std.aka.pick~(Bar, key)

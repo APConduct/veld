@@ -89,6 +89,16 @@ impl MacroSystem {
                 description: "Placeholder for unimplemented code".to_string(),
             },
         );
+
+        // panic! macro
+        self.builtin_macros.insert(
+            "panic".to_string(),
+            BuiltinMacro {
+                name: "panic".to_string(),
+                expand_fn: expand_panic_macro,
+                description: "Causes an unrecoverable error".to_string(),
+            },
+        );
     }
 
     /// Parse and register a user-defined macro from source code
@@ -604,6 +614,23 @@ fn expand_todo_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>
             property: "io".to_string(),
         }),
         method: "println".to_string(),
+        arguments: vec![veld_common::ast::Argument::Positional(message)],
+    })])
+}
+
+fn expand_panic_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>, ExpansionError> {
+    let message = if args.is_empty() {
+        Expr::Literal(veld_common::ast::Literal::String(
+            "explicit panic".to_string(),
+        ))
+    } else {
+        args[0].clone()
+    };
+
+    // panic~(msg) -> std.panic(msg)
+    Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+        object: Box::new(Expr::Identifier("std".to_string())),
+        method: "panic".to_string(),
         arguments: vec![veld_common::ast::Argument::Positional(message)],
     })])
 }

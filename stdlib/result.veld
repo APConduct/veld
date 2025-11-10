@@ -15,6 +15,23 @@ impl<T, E> Result<T, E>
         end
     end
 
+    #| Unwrap the result, returning the contained Ok value
+    #| Panics if the result is Err
+    #| # Example:
+    #| ```
+    #| let result = Result.Ok(42)
+    #| let value = result.unwrap()  # value will be 42
+    #| ```
+    #| If the result is Err, this will cause a runtime error.
+    #| Use this method only when you are certain the result is Ok,
+    #| or use unwrap_or for a safer alternative with a default value.
+    pub fn unwrap(self) -> T
+        match self
+            Result.Ok(value) => value,
+            Result.Err(_) => panic~("Called unwrap() on Err"),
+        end
+    end
+
     # Transform the result with a function if it's Ok
     pub fn map<U>(self, f: (T) -> U) -> Result<U, E>
         match self

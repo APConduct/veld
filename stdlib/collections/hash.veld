@@ -1,0 +1,48 @@
+pub import std.collections.map
+
+# @Compiler.Builtin
+pub struct HashMap
+end # ;
+
+# impl HashMap
+# end
+
+impl<K, V> HashMap <- Map<K, V>
+
+`   # @Compiler.Builtin
+    fn get(self, key: K) -> Option<V>
+    end
+
+    # @Compiler.Builtin
+    fn set(self, key: K, value: V) -> ()
+    end
+
+    # @Compiler.Builtin
+    fn has(self, key: K) -> bool
+    end
+
+    # @Compiler.Builtin
+    fn remove(self, key: K) -> Option<V>
+    end
+
+    # @Compiler.Builtin
+    fn keys(self) -> Vec<K>
+    end
+
+    # @Compiler.Builtin
+    fn values(self) -> Vec<V>
+    end
+
+    # @Compiler.Builtin
+    fn entries(self) -> std.vec.Vec<(K, V)>
+    end
+
+    # @Compiler.Builtin
+    fn len(self) -> i32 # usize
+    end
+
+    # @Compiler.Builtin
+    fn is_empty(self) -> bool
+    end
+
+end

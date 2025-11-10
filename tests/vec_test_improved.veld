@@ -1,0 +1,95 @@
+# Improved Vec test with better output formatting
+
+import std.io
+import std.vec.{Vec}
+
+io.println("=== Vec Test ===")
+io.println("")
+
+# Test 1: Create empty vec
+io.println("Test 1: Create empty Vec")
+var my_vec = Vec.new()
+io.println("✓ Vec created")
+
+# Test 2: Check initial length
+io.println("")
+io.println("Test 2: Initial length should be 0")
+if my_vec.len() == 0 then
+    io.println("✓ Length is 0")
+else
+    io.println("✗ Length is not 0")
+end
+
+# Test 3: Check is_empty
+io.println("")
+io.println("Test 3: Vec should be empty")
+if my_vec.is_empty() then
+    io.println("✓ Vec is empty")
+else
+    io.println("✗ Vec is not empty")
+end
+
+# Test 4: Push first element
+io.println("")
+io.println("Test 4: Push first element (42)")
+my_vec.push(42)
+io.println("✓ Pushed 42")
+
+# Test 5: Check length after push
+io.println("")
+io.println("Test 5: Length should be 1")
+if my_vec.len() == 1 then
+    io.println("✓ Length is 1")
+else
+    io.println("✗ Length is not 1")
+end
+
+# Test 6: Check not empty
+io.println("")
+io.println("Test 6: Vec should not be empty")
+if my_vec.is_empty() then
+    io.println("✗ Vec is empty")
+else
+    io.println("✓ Vec is not empty")
+end
+
+# Test 7: Push more elements
+io.println("")
+io.println("Test 7: Push more elements (10, 20, 30)")
+my_vec.push(10)
+my_vec.push(20)
+my_vec.push(30)
+io.println("✓ Pushed 3 more elements")
+
+# Test 8: Check final length
+io.println("")
+io.println("Test 8: Length should be 4")
+if my_vec.len() == 4 then
+    io.println("✓ Length is 4")
+else
+    io.println("✗ Length is not 4")
+end
+
+# Test 9: Get elements
+io.println("")
+io.println("Test 9: Get element at index 0")
+let first = my_vec.get(0)
+io.println("✓ Got element at index 0")
+
+# Test 10: Pop element
+io.println("")
+io.println("Test 10: Pop last element")
+let popped = my_vec.pop()
+io.println("✓ Popped element")
+
+# Test 11: Check length after pop
+io.println("")
+io.println("Test 11: Length should be 3 after pop")
+if my_vec.len() == 3 then
+    io.println("✓ Length is 3")
+else
+    io.println("✗ Length is not 3")
+end
+
+io.println("")
+io.println("=== All tests completed ===")

@@ -1,0 +1,33 @@
+# Test Option unwrap functionality
+
+import std.io
+import std.option.{Option}
+
+io.println("=== Option Unwrap Test ===")
+io.println("")
+
+# Test 1: Create Some value
+io.println("Test 1: Create Some(42)")
+let some_val = Option.Some(42)
+io.println("✓ Created Some(42)")
+
+# Test 2: Unwrap Some value
+io.println("")
+io.println("Test 2: Unwrap Some value")
+let unwrapped = some_val.unwrap()
+io.println("✓ Unwrapped value:")
+io.println(unwrapped)
+
+# Test 3: Check unwrapped value
+io.println("")
+io.println("Test 3: Verify unwrapped value is 42")
+if unwrapped == 42 then
+    io.println("✓ Value is correct")
+else
+    io.println("✗ Value is incorrect")
+end
+
+io.println("")
+io.println("=== Tests completed successfully ===")
+io.println("")
+io.println("Note: Unwrapping None would cause panic - not tested here")

@@ -364,15 +364,32 @@ impl Interpreter {
         self.initialize_array_methods();
 
         // Register other native functions
+        self.register_panic_function();
         self.register_math_functions();
         self.register_io_functions();
         self.register_fs_functions();
+        self.register_hashmap_methods();
         let _ = self.initialize_operator_kinds();
 
         // Ensure all type parameter scopes are cleaned up after stdlib initialization
         while self.type_checker.env().has_type_param_scopes() {
             self.type_checker.env().pop_type_param_scope();
         }
+    }
+
+    fn register_panic_function(&mut self) {
+        // Panic function - causes a runtime error with a custom message
+        // This is called by the panic~ macro
+        self.native_registry.register("std.panic", |_, args| {
+            let message = if args.is_empty() {
+                "explicit panic".to_string()
+            } else if let Some(Value::String(msg)) = args.get(0) {
+                msg.clone()
+            } else {
+                format!("panic: {:?}", args[0])
+            };
+            Err(VeldError::RuntimeError(format!("panic: {}", message)))
+        });
     }
 
     fn register_math_functions(&mut self) {
@@ -879,6 +896,309 @@ impl Interpreter {
             tracing::debug!("fs.exists returning: {:?}", result);
             result
         });
+    }
+
+    fn register_hashmap_methods(&mut self) {
+        use std::collections::HashMap as RustHashMap;
+
+        // HashMap.new() constructor as a module function
+        self.native_registry
+            .register("std.collections.hash_map.new", |_, _args| {
+                // Create a new HashMap represented as a Struct with internal storage
+                Ok(Value::Struct {
+                    name: "HashMap".to_string(),
+                    fields: {
+                        let mut fields = RustHashMap::new();
+                        // Use Record to store the actual hashmap data
+                        fields.insert("data".to_string(), Value::Record(RustHashMap::new()));
+                        fields
+                    },
+                })
+            });
+
+        // HashMap.get(key) -> Option<V>
+        self.native_method_registry
+            .register("HashMap", "get", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "get requires self and one argument (key)".to_string(),
+                    ));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Record(map)) = fields.get("data") {
+                        let key = &args[1];
+                        let key_str = format!("{:?}", key);
+
+                        if let Some(value) = map.get(&key_str) {
+                            // Return Some(value)
+                            Ok(Value::Enum {
+                                enum_name: "Option".to_string(),
+                                variant_name: "Some".to_string(),
+                                fields: vec![value.clone()],
+                            })
+                        } else {
+                            // Return None
+                            Ok(Value::Enum {
+                                enum_name: "Option".to_string(),
+                                variant_name: "None".to_string(),
+                                fields: vec![],
+                            })
+                        }
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "get called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.set(key, value) -> ()
+        self.native_method_registry
+            .register("HashMap", "set", |_, mut args| {
+                if args.len() != 3 {
+                    return Err(VeldError::RuntimeError(
+                        "set requires self and two arguments (key, value)".to_string(),
+                    ));
+                }
+
+                // Extract key and value before mutable borrow
+                let key_str = format!("{:?}", &args[1]);
+                let value = args[2].clone();
+
+                if let Value::Struct { name, fields } = &mut args[0] {
+                    if let Some(Value::Record(map)) = fields.get_mut("data") {
+                        map.insert(key_str, value);
+                        // Return the modified HashMap for mutation support
+                        Ok(Value::Struct {
+                            name: name.clone(),
+                            fields: fields.clone(),
+                        })
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "set called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.has(key) -> bool
+        self.native_method_registry
+            .register("HashMap", "has", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "has requires self and one argument (key)".to_string(),
+                    ));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Record(map)) = fields.get("data") {
+                        let key = &args[1];
+                        let key_str = format!("{:?}", key);
+                        Ok(Value::Boolean(map.contains_key(&key_str)))
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "has called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.remove(key) -> bool
+        self.native_method_registry
+            .register("HashMap", "remove", |_, mut args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "remove requires self and one argument (key)".to_string(),
+                    ));
+                }
+
+                // Extract key before mutable borrow
+                let key_str = format!("{:?}", &args[1]);
+
+                if let Value::Struct { name, fields } = &mut args[0] {
+                    if let Some(Value::Record(map)) = fields.get_mut("data") {
+                        let existed = map.remove(&key_str).is_some();
+                        // Return the modified HashMap for mutation support
+                        Ok(Value::Struct {
+                            name: name.clone(),
+                            fields: fields.clone(),
+                        })
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "remove called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.clear() -> ()
+        self.native_method_registry
+            .register("HashMap", "clear", |_, mut args| {
+                if args.len() != 1 {
+                    return Err(VeldError::RuntimeError(
+                        "clear requires only self".to_string(),
+                    ));
+                }
+
+                if let Value::Struct { name, fields } = &mut args[0] {
+                    if let Some(Value::Record(map)) = fields.get_mut("data") {
+                        map.clear();
+                        // Return the modified HashMap for mutation support
+                        Ok(Value::Struct {
+                            name: name.clone(),
+                            fields: fields.clone(),
+                        })
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "clear called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.len() -> i32
+        self.native_method_registry
+            .register("HashMap", "len", |_, args| {
+                if args.is_empty() {
+                    return Err(VeldError::RuntimeError("len requires self".to_string()));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Record(map)) = fields.get("data") {
+                        Ok(Value::Numeric(NumericValue::Integer(IntegerValue::I32(
+                            map.len() as i32,
+                        ))))
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "len called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.is_empty() -> bool
+        self.native_method_registry
+            .register("HashMap", "is_empty", |_, args| {
+                if args.is_empty() {
+                    return Err(VeldError::RuntimeError(
+                        "is_empty requires self".to_string(),
+                    ));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Record(map)) = fields.get("data") {
+                        Ok(Value::Boolean(map.is_empty()))
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "is_empty called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.keys() -> [K]
+        self.native_method_registry
+            .register("HashMap", "keys", |_, args| {
+                if args.is_empty() {
+                    return Err(VeldError::RuntimeError("keys requires self".to_string()));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Record(map)) = fields.get("data") {
+                        // For now, return keys as strings
+                        // TODO: Store actual key values separately to return proper types
+                        let keys: Vec<Value> =
+                            map.keys().map(|k| Value::String(k.clone())).collect();
+                        Ok(Value::Array(keys))
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "keys called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.values() -> [V]
+        self.native_method_registry
+            .register("HashMap", "values", |_, args| {
+                if args.is_empty() {
+                    return Err(VeldError::RuntimeError("values requires self".to_string()));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Record(map)) = fields.get("data") {
+                        let values: Vec<Value> = map.values().cloned().collect();
+                        Ok(Value::Array(values))
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "values called on non-HashMap".to_string(),
+                    ))
+                }
+            });
+
+        // HashMap.entries() -> [(K, V)]
+        self.native_method_registry
+            .register("HashMap", "entries", |_, args| {
+                if args.is_empty() {
+                    return Err(VeldError::RuntimeError("entries requires self".to_string()));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Record(map)) = fields.get("data") {
+                        let entries: Vec<Value> = map
+                            .iter()
+                            .map(|(k, v)| Value::Tuple(vec![Value::String(k.clone()), v.clone()]))
+                            .collect();
+                        Ok(Value::Array(entries))
+                    } else {
+                        Err(VeldError::RuntimeError(
+                            "Invalid HashMap structure".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(VeldError::RuntimeError(
+                        "entries called on non-HashMap".to_string(),
+                    ))
+                }
+            });
     }
 
     fn collect_free_variables_expr(
@@ -5794,6 +6114,17 @@ impl Interpreter {
     }
 
     fn get_property(&mut self, object: Value, property: &str) -> Result<Value> {
+        // Dereference GcRef values before processing
+        let object = if let Value::GcRef(handle) = &object {
+            let allocator = self.allocator.read().unwrap();
+            allocator
+                .get_value(handle)
+                .expect("dangling GC handle in get_property")
+                .clone()
+        } else {
+            object
+        };
+
         match &object {
             Value::Struct { name: _, fields } => {
                 if let Some(value) = fields.get(property) {
@@ -6227,6 +6558,7 @@ impl Interpreter {
         method_name: String,
         args: Vec<Value>,
     ) -> Result<Value> {
+        // Extract variable name if object comes from a simple identifier
         self.call_method_value_with_mutation(object, method_name, args, None)
     }
 
@@ -6244,6 +6576,18 @@ impl Interpreter {
             method_name,
             args
         );
+
+        // Dereference GcRef values before processing
+        let object = if let Value::GcRef(handle) = &object {
+            let allocator = self.allocator.read().unwrap();
+            allocator
+                .get_value(handle)
+                .expect("dangling GC handle in call_method_value_with_mutation")
+                .clone()
+        } else {
+            object
+        };
+
         // Special handling for module method calls - redirect to native implementations
         if let Value::Module(module) = &object {
             tracing::debug!(
@@ -6291,7 +6635,19 @@ impl Interpreter {
             method_args.extend(args.clone());
 
             if let Some(handler) = self.native_method_registry.get(&type_name, &method_name) {
-                return handler(self, method_args);
+                let result = handler(self, method_args.clone())?;
+
+                // For native methods that return a struct (indicating mutation),
+                // update the original variable if we have a variable name
+                if let Value::Struct { .. } = &result {
+                    if let Some(var_name) = variable_name {
+                        // The native method returned the modified struct
+                        // Update the variable with the new value
+                        self.set_variable(&var_name, result.clone())?;
+                    }
+                }
+
+                return Ok(result);
             }
         }
 
@@ -7309,6 +7665,7 @@ impl Interpreter {
                         "std.math.min".to_string(),
                         "std.math.max".to_string(),
                         "std.math.clamp".to_string(),
+                        "std.panic".to_string(),
                     ]);
 
                     for native_name in &potential_native_names {
