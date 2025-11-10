@@ -3132,11 +3132,23 @@ impl TypeChecker {
                     concrete_type_args
                 );
 
+                // DEBUG: Log available enum methods for this type
+                if let Some(enum_methods) = self.env.get_enum_methods(&base_name) {
+                    tracing::debug!(
+                        "Available enum methods for {}: {:?}",
+                        base_name,
+                        enum_methods.keys().collect::<Vec<_>>()
+                    );
+                } else {
+                    tracing::debug!("No enum methods registered for {}", base_name);
+                }
+
                 // First try trait implementations, then struct methods, then enum methods
                 let method_type = {
-                    if let Some(implementations) = self.env.get_implementations_for_type(&base_name)
+                    // Try trait implementations first
+                    let from_trait = if let Some(implementations) =
+                        self.env.get_implementations_for_type(&base_name)
                     {
-                        // Check trait implementations for the method first
                         if let Some(method_type) = implementations
                             .iter()
                             .find_map(|impl_info| impl_info.methods.get(method).cloned())
@@ -3155,33 +3167,67 @@ impl TypeChecker {
                             );
                             None
                         }
-                    } else if let Some(methods) = self.env.struct_methods().get(&base_name) {
-                        if let Some(method_type) = methods.get(method).cloned() {
-                            tracing::debug!(
-                                "Found method {} in struct_methods: {:?}",
-                                method,
-                                method_type
-                            );
-                            Some(method_type)
-                        } else {
-                            None
-                        }
-                    } else if let Some(methods) = self.env.get_enum_methods(&base_name) {
-                        if let Some(method_type) = methods.get(method).cloned() {
-                            tracing::debug!(
-                                "Found method {} in enum_methods: {:?}",
-                                method,
-                                method_type
-                            );
-                            Some(method_type)
+                    } else {
+                        None
+                    };
+
+                    // If not found in traits, try struct methods
+                    let from_struct = if from_trait.is_none() {
+                        if let Some(methods) = self.env.struct_methods().get(&base_name) {
+                            if let Some(method_type) = methods.get(method).cloned() {
+                                tracing::debug!(
+                                    "Found method {} in struct_methods: {:?}",
+                                    method,
+                                    method_type
+                                );
+                                Some(method_type)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
                     } else {
-                        tracing::debug!("No implementations found for type {}", base_name);
                         None
-                    }
+                    };
+
+                    // If not found in traits or structs, try enum methods
+                    let from_enum = if from_trait.is_none() && from_struct.is_none() {
+                        if let Some(methods) = self.env.get_enum_methods(&base_name) {
+                            if let Some(method_type) = methods.get(method).cloned() {
+                                tracing::debug!(
+                                    "Found method {} in enum_methods: {:?}",
+                                    method,
+                                    method_type
+                                );
+                                Some(method_type)
+                            } else {
+                                tracing::debug!(
+                                    "Method {} not found in enum_methods for {}. Available: {:?}",
+                                    method,
+                                    base_name,
+                                    methods.keys().collect::<Vec<_>>()
+                                );
+                                None
+                            }
+                        } else {
+                            tracing::debug!("No enum methods registered for {}", base_name);
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    // Return the first one found
+                    from_trait.or(from_struct).or(from_enum)
                 };
+
+                tracing::debug!(
+                    "Final method_type for {}.{}: {:?}",
+                    base_name,
+                    method,
+                    method_type
+                );
 
                 match method_type {
                     Some(method_type) => {
@@ -3567,7 +3613,7 @@ impl TypeChecker {
                     }
                     _ => {
                         // Try to look up the function in the environment
-                        if let Some(func_type) = self.env.get(&function_path) {
+                        if let Some(_func_type) = self.env.get(&function_path) {
                             // Use the same logic as infer_function_call_type to check arguments and return type
                             self.infer_function_call_type(&function_path, args)
                         } else {

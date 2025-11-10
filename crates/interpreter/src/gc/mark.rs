@@ -292,6 +292,7 @@ impl MarkPhase {
                 // Numeric values are typically primitives, but check for any embedded references
                 // In the current implementation, NumericValue doesn't contain GC references
             }
+            _ => todo!("Implement GC marking for other value types"),
         }
 
         Ok(())

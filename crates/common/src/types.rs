@@ -1,5 +1,3 @@
-use crate::types;
-
 use super::ast::{GenericArgument, Statement, TypeAnnotation, VarKind};
 use super::value::Value;
 use serde::{Deserialize, Serialize};

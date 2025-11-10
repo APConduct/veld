@@ -289,6 +289,12 @@ impl Interpreter {
                 Statement::TypeDeclaration { .. } => {
                     self.execute_statement(stmt.clone())?;
                 }
+                Statement::InherentImpl { .. } => {
+                    self.execute_statement(stmt.clone())?;
+                }
+                Statement::Implementation { .. } => {
+                    self.execute_statement(stmt.clone())?;
+                }
                 _ => {}
             }
         }
@@ -307,6 +313,8 @@ impl Interpreter {
                     | Statement::EnumDeclaration { .. }
                     | Statement::PlexDeclaration { .. }
                     | Statement::TypeDeclaration { .. }
+                    | Statement::InherentImpl { .. }
+                    | Statement::Implementation { .. }
             ) {
                 tracing::debug!("Executing statement: {:?}", stmt);
                 last_value = self.execute_statement(stmt)?;
@@ -2275,16 +2283,42 @@ impl Interpreter {
         let result = self.execute_implementation(type_name.clone(), methods.clone());
 
         // Register methods in type checker while type parameters are in scope
+        // Check if this is an enum or struct to use the correct registration method
+        let is_enum = self.enums.contains_key(&type_name);
+
+        tracing::debug!(
+            "execute_inherent_implementation: type_name={}, is_enum={}, available enum keys: {:?}",
+            type_name,
+            is_enum,
+            self.enums.keys().collect::<Vec<_>>()
+        );
+
         for method in &methods {
-            if !self
-                .type_checker
-                .env()
-                .has_struct_method(&type_name, &method.name)
-            {
-                let method_type = self.type_checker.method_to_type(&method)?;
+            let method_type = self.type_checker.method_to_type(&method)?;
+
+            if is_enum {
+                // Register enum method in type checker
+                tracing::debug!(
+                    "Registering enum method {}.{} in type checker",
+                    type_name,
+                    method.name
+                );
                 self.type_checker
                     .env()
-                    .add_struct_method(&type_name, &method.name, method_type);
+                    .add_enum_method(&type_name, &method.name, method_type);
+            } else {
+                // Register struct method in type checker
+                if !self
+                    .type_checker
+                    .env()
+                    .has_struct_method(&type_name, &method.name)
+                {
+                    self.type_checker.env().add_struct_method(
+                        &type_name,
+                        &method.name,
+                        method_type,
+                    );
+                }
             }
         }
 
@@ -7209,6 +7243,21 @@ impl Interpreter {
                 // method calls. For example, Option<T>.to_string() should only be
                 // callable when T implements ToString.
 
+                // Debug: log available enum methods
+                tracing::debug!(
+                    "Looking for method '{}' on enum '{}'. Available enum_methods keys: {:?}",
+                    method_name,
+                    enum_name,
+                    self.enum_methods.keys().collect::<Vec<_>>()
+                );
+                if let Some(methods) = self.enum_methods.get(enum_name) {
+                    tracing::debug!(
+                        "Methods available for '{}': {:?}",
+                        enum_name,
+                        methods.keys().collect::<Vec<_>>()
+                    );
+                }
+
                 // Get the method from enum_methods - try qualified name first, then simple name
                 let method = self
                     .enum_methods
@@ -7217,12 +7266,29 @@ impl Interpreter {
                     .or_else(|| {
                         // If qualified name lookup fails, try simple name
                         let simple_name = enum_name.split('.').last().unwrap_or(enum_name);
+                        tracing::debug!(
+                            "Qualified lookup failed, trying simple name: '{}'",
+                            simple_name
+                        );
+                        if let Some(methods) = self.enum_methods.get(simple_name) {
+                            tracing::debug!(
+                                "Methods available for simple name '{}': {:?}",
+                                simple_name,
+                                methods.keys().collect::<Vec<_>>()
+                            );
+                        }
                         self.enum_methods
                             .get(simple_name)
                             .and_then(|methods| methods.get(&method_name))
                     })
                     .cloned()
                     .ok_or_else(|| {
+                        tracing::error!(
+                            "Method '{}' not found on enum '{}'. Available enums: {:?}",
+                            method_name,
+                            enum_name,
+                            self.enum_methods.keys().collect::<Vec<_>>()
+                        );
                         VeldError::RuntimeError(format!(
                             "Method '{}' not found on enum '{}'",
                             method_name, enum_name

@@ -1040,8 +1040,7 @@ impl BytecodeCompiler {
 
     /// Resolve upvalue (simplified)
     fn resolve_upvalue(&self, _name: &str) -> Option<usize> {
-        // TODO: implement proper upvalue resolution
-        None
+        todo!()
     }
 
     /// Patch forward jumps

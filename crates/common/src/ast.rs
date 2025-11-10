@@ -1,4 +1,4 @@
-use crate::types::{self, Type};
+use crate::types::Type;
 
 use super::source::SourceMap;
 use serde::{Deserialize, Serialize};
