@@ -193,7 +193,7 @@ add(5, 10)
         let chunk = load_bytecode_file(bytecode_path).expect("Load failed");
 
         // Verify
-        assert_eq!(chunk.main.name, "main");
+        assert_eq!(chunk.main.name, "<main>");
         assert!(!chunk.main.instructions.is_empty());
     }
 
