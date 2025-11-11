@@ -1,6 +1,14 @@
 #| IO module for Veld standard library
 #| Provides functions for input and output operations
 
+import std.result.{Result}
+
+# IO Error type - represents errors that can occur during I/O operations
+# Currently just wraps a string message, but could be expanded later
+pub struct IoError
+    message: str,
+end
+
 # These functions are implemented natively in Rust
 # The interpreter will resolve these to their native implementations
 
@@ -15,21 +23,25 @@ pub fn println(text: str) -> ()
 end
 
 # Read a file's contents as a string
+# Returns Ok(content) on success, Err(IoError) on failure
 # @Compiler.Builtin
-pub fn read_file(path: str) -> str
+pub fn read_file(path: str) -> Result<str, IoError>
 end
 
 # Write content to a file
+# Returns Ok(()) on success, Err(IoError) on failure
 # @Compiler.Builtin
-pub fn write_file(path: str, content: str) -> () # TODO: make return type io.Result<()>
+pub fn write_file(path: str, content: str) -> Result<(), IoError>
 end
 
 # Check if a file exists
+# This operation doesn't typically fail, but returns Result for consistency
 # @Compiler.Builtin
-pub fn file_exists(path: str) -> bool # TODO: make return type io.Result<bool>
+pub fn file_exists(path: str) -> Result<bool, IoError>
 end
 
 # Read a line from standard input
+# Returns Ok(line) on success, Err(IoError) on failure
 # @Compiler.Builtin
-pub fn read_line() -> str # TODO: make return type io.Result<str>
+pub fn read_line() -> Result<str, IoError>
 end

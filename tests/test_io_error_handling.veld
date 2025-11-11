@@ -1,0 +1,83 @@
+#| Practical example of I/O error handling with Result types
+#| Demonstrates various patterns for handling I/O errors safely
+
+import std.io.{read_file, write_file, println}
+import std.result.{Result}
+
+println("=== Practical I/O Error Handling Examples ===")
+println("")
+
+# Example 1: Using match for explicit error handling
+println("--- Example 1: Explicit error handling with match ---")
+let file_path = "/tmp/example_data.txt"
+let write_data = "Hello, Veld!\nThis is a test file.\nError handling is important."
+
+match write_file(file_path, write_data)
+    Result.Ok(_) => println("✓ File written successfully"),
+    Result.Err(e) => println("✗ Failed to write file: " + e.message),
+end
+println("")
+
+# Example 2: Using unwrap_or for default values
+println("--- Example 2: Using unwrap_or for defaults ---")
+let content1 = read_file(file_path).unwrap_or("default content")
+println("Content (or default): " + content1)
+
+let content2 = read_file("/nonexistent/path.txt").unwrap_or("File not found, using default")
+println("Missing file handled: " + content2)
+println("")
+
+# Example 3: Using is_ok/is_err for conditional logic
+println("--- Example 3: Conditional logic with is_ok/is_err ---")
+let read_result = read_file(file_path)
+if read_result.is_ok() then
+    println("✓ File read successfully")
+    let content = read_result.unwrap()
+    println("First 20 chars: " + content.substring(0, 20))
+else
+    println("✗ Could not read file")
+end
+println("")
+
+# Example 4: Chaining operations with and_then
+println("--- Example 4: Chaining with and_then ---")
+let process_result = read_file(file_path).and_then(
+    (content) => Result.Ok(content.to_upper())
+)
+match process_result
+    Result.Ok(upper_content) => println("Processed: " + upper_content.substring(0, 30) + "..."),
+    Result.Err(e) => println("Processing failed: " + e.message),
+end
+println("")
+
+# Example 5: Using map to transform success values
+println("--- Example 5: Transform with map ---")
+let length_result = read_file(file_path).map((content) => content.to_upper())
+match length_result
+    Result.Ok(upper) => println("✓ Transformed content to uppercase"),
+    Result.Err(e) => println("Could not transform content"),
+end
+println("")
+
+# Example 6: Using or_else for fallback operations
+println("--- Example 6: Fallback with or_else ---")
+let backup_path = "/tmp/example_backup.txt"
+write_file(backup_path, "Backup content")
+
+let content_with_fallback = read_file("/nonexistent.txt").or_else(
+    (e) => read_file(backup_path)
+)
+match content_with_fallback
+    Result.Ok(content) => println("Got content (possibly from fallback): " + content),
+    Result.Err(e) => println("Both attempts failed"),
+end
+println("")
+
+# Example 7: Error recovery with unwrap_or_else
+println("--- Example 7: Error recovery pattern ---")
+let risky_read = read_file("/definitely/does/not/exist.txt")
+let safe_content = risky_read.unwrap_or_else((e) => "Fallback content when file is unavailable")
+println("Safe content: " + safe_content)
+println("")
+
+println("=== All Error Handling Patterns Demonstrated! ===")

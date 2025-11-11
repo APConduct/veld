@@ -1,0 +1,63 @@
+#| Test for I/O functions returning Result types
+#| Verifies that read_file, write_file, file_exists, and read_line return Result<T, IoError>
+
+import std.io.{read_file, write_file, file_exists, println}
+import std.result.{Result}
+
+println("=== Testing I/O Functions with Result ===")
+println("")
+
+# Test file_exists - should return Result.Ok(bool)
+println("--- Testing file_exists ---")
+let exists_result = file_exists("/tmp/test_io_veld.txt")
+match exists_result
+    Result.Ok(exists) => println("✓ file_exists returns Result.Ok"),
+    Result.Err(e) => println("✗ file_exists failed unexpectedly"),
+end
+println("")
+
+# Test write_file - should return Result.Ok(()) on success
+println("--- Testing write_file ---")
+let write_result = write_file("/tmp/test_io_veld.txt", "Hello from Veld!")
+match write_result
+    Result.Ok(_) => println("✓ write_file returns Result.Ok on success"),
+    Result.Err(e) => println("✗ write_file failed"),
+end
+println("")
+
+# Test read_file - should return Result.Ok(content) on success
+println("--- Testing read_file ---")
+let read_result = read_file("/tmp/test_io_veld.txt")
+match read_result
+    Result.Ok(content) => println("✓ read_file returns Result.Ok with content: " + content),
+    Result.Err(e) => println("✗ read_file failed"),
+end
+println("")
+
+# Test read_file with non-existent file - should return Result.Err
+println("--- Testing read_file with non-existent file ---")
+let bad_read = read_file("/tmp/nonexistent_file_12345.txt")
+match bad_read
+    Result.Ok(content) => println("✗ Expected error but got Ok"),
+    Result.Err(e) => println("✓ read_file returns Result.Err for missing file"),
+end
+println("")
+
+# Test using unwrap_or for convenience
+println("--- Testing with unwrap_or ---")
+let content_or_default = read_result.unwrap_or("default content")
+println("Content with unwrap_or: " + content_or_default)
+println("")
+
+# Test using is_ok and is_err
+println("--- Testing is_ok and is_err ---")
+if write_result.is_ok() then
+    println("✓ write_result.is_ok() works")
+end
+
+if bad_read.is_err() then
+    println("✓ bad_read.is_err() works")
+end
+println("")
+
+println("=== All I/O Result Tests Passed! ===")

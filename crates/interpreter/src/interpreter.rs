@@ -723,11 +723,29 @@ impl Interpreter {
             .register("std.io.read_file", |_, args| {
                 if let Some(Value::String(path)) = args.get(0) {
                     match std::fs::read_to_string(path) {
-                        Ok(content) => Ok(Value::String(content)),
-                        Err(e) => Err(VeldError::RuntimeError(format!(
-                            "Failed to read file '{}': {}",
-                            path, e
-                        ))),
+                        Ok(content) => {
+                            // Return Result.Ok(content)
+                            Ok(Value::Enum {
+                                enum_name: "Result".to_string(),
+                                variant_name: "Ok".to_string(),
+                                fields: vec![Value::String(content)],
+                            })
+                        }
+                        Err(e) => {
+                            // Return Result.Err(IoError { message: error_string })
+                            let error_msg = format!("Failed to read file '{}': {}", path, e);
+                            let mut io_error_fields = std::collections::HashMap::new();
+                            io_error_fields.insert("message".to_string(), Value::String(error_msg));
+                            let io_error = Value::Struct {
+                                name: "IoError".to_string(),
+                                fields: io_error_fields,
+                            };
+                            Ok(Value::Enum {
+                                enum_name: "Result".to_string(),
+                                variant_name: "Err".to_string(),
+                                fields: vec![io_error],
+                            })
+                        }
                     }
                 } else {
                     Err(VeldError::RuntimeError(
@@ -742,11 +760,29 @@ impl Interpreter {
                     (args.get(0), args.get(1))
                 {
                     match std::fs::write(path, content) {
-                        Ok(_) => Ok(Value::Boolean(true)),
-                        Err(e) => Err(VeldError::RuntimeError(format!(
-                            "Failed to write to file '{}': {}",
-                            path, e
-                        ))),
+                        Ok(_) => {
+                            // Return Result.Ok(())
+                            Ok(Value::Enum {
+                                enum_name: "Result".to_string(),
+                                variant_name: "Ok".to_string(),
+                                fields: vec![Value::Unit],
+                            })
+                        }
+                        Err(e) => {
+                            // Return Result.Err(IoError { message: error_string })
+                            let error_msg = format!("Failed to write to file '{}': {}", path, e);
+                            let mut io_error_fields = std::collections::HashMap::new();
+                            io_error_fields.insert("message".to_string(), Value::String(error_msg));
+                            let io_error = Value::Struct {
+                                name: "IoError".to_string(),
+                                fields: io_error_fields,
+                            };
+                            Ok(Value::Enum {
+                                enum_name: "Result".to_string(),
+                                variant_name: "Err".to_string(),
+                                fields: vec![io_error],
+                            })
+                        }
                     }
                 } else {
                     Err(VeldError::RuntimeError(
@@ -758,7 +794,13 @@ impl Interpreter {
         self.native_registry
             .register("std.io.file_exists", |_, args| {
                 if let Some(Value::String(path)) = args.get(0) {
-                    Ok(Value::Boolean(std::path::Path::new(path).exists()))
+                    // Return Result.Ok(bool) - file_exists doesn't fail
+                    let exists = std::path::Path::new(path).exists();
+                    Ok(Value::Enum {
+                        enum_name: "Result".to_string(),
+                        variant_name: "Ok".to_string(),
+                        fields: vec![Value::Boolean(exists)],
+                    })
                 } else {
                     Err(VeldError::RuntimeError(
                         "file_exists() requires a string path argument".to_string(),
@@ -779,12 +821,28 @@ impl Interpreter {
                                 input.pop();
                             }
                         }
-                        Ok(Value::String(input))
+                        // Return Result.Ok(input)
+                        Ok(Value::Enum {
+                            enum_name: "Result".to_string(),
+                            variant_name: "Ok".to_string(),
+                            fields: vec![Value::String(input)],
+                        })
                     }
-                    Err(e) => Err(VeldError::RuntimeError(format!(
-                        "Failed to read from stdin: {}",
-                        e
-                    ))),
+                    Err(e) => {
+                        // Return Result.Err(IoError { message: error_string })
+                        let error_msg = format!("Failed to read from stdin: {}", e);
+                        let mut io_error_fields = std::collections::HashMap::new();
+                        io_error_fields.insert("message".to_string(), Value::String(error_msg));
+                        let io_error = Value::Struct {
+                            name: "IoError".to_string(),
+                            fields: io_error_fields,
+                        };
+                        Ok(Value::Enum {
+                            enum_name: "Result".to_string(),
+                            variant_name: "Err".to_string(),
+                            fields: vec![io_error],
+                        })
+                    }
                 }
             });
     }
