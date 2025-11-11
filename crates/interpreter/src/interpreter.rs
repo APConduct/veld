@@ -5573,21 +5573,84 @@ impl Interpreter {
     }
 
     fn initialize_string_capabilities(&mut self) {
+        // Register types for string methods in type checker
+        use veld_common::types::Type;
+
+        // str -> str methods
+        let str_to_str_type = Type::Function {
+            params: vec![Type::String],
+            return_type: Box::new(Type::String),
+        };
+
+        // str -> str -> bool methods
+        let str_str_to_bool_type = Type::Function {
+            params: vec![Type::String, Type::String],
+            return_type: Box::new(Type::Bool),
+        };
+
+        // str -> str -> i64 methods
+        let str_str_to_int_type = Type::Function {
+            params: vec![Type::String, Type::String],
+            return_type: Box::new(Type::I64),
+        };
+
+        // str -> i64 -> i64 -> str methods (substring)
+        let str_int_int_to_str_type = Type::Function {
+            params: vec![Type::String, Type::I64, Type::I64],
+            return_type: Box::new(Type::String),
+        };
+
+        // str -> str -> [str] methods (split)
+        let str_str_to_array_type = Type::Function {
+            params: vec![Type::String, Type::String],
+            return_type: Box::new(Type::Array(Box::new(Type::String))),
+        };
+
+        // str -> str -> str -> str methods (replace)
+        let str_str_str_to_str_type = Type::Function {
+            params: vec![Type::String, Type::String, Type::String],
+            return_type: Box::new(Type::String),
+        };
+
+        // str -> i64 -> str methods (repeat)
+        let str_int_to_str_type = Type::Function {
+            params: vec![Type::String, Type::I64],
+            return_type: Box::new(Type::String),
+        };
+
         // --- Implement Transformable for strings ---
 
         // Case transformations
         self.native_method_registry
             .register_string_method("to_upper", |s| s.to_uppercase());
+        self.type_checker
+            .env()
+            .add_struct_method("str", "to_upper", str_to_str_type.clone());
+
         self.native_method_registry
             .register_string_method("to_lower", |s| s.to_lowercase());
+        self.type_checker
+            .env()
+            .add_struct_method("str", "to_lower", str_to_str_type.clone());
 
         // Trimming
         self.native_method_registry
             .register_string_method("trim", |s| s.trim().to_string());
+        self.type_checker
+            .env()
+            .add_struct_method("str", "trim", str_to_str_type.clone());
+
         self.native_method_registry
             .register_string_method("trim_start", |s| s.trim_start().to_string());
+        self.type_checker
+            .env()
+            .add_struct_method("str", "trim_start", str_to_str_type.clone());
+
         self.native_method_registry
             .register_string_method("trim_end", |s| s.trim_end().to_string());
+        self.type_checker
+            .env()
+            .add_struct_method("str", "trim_end", str_to_str_type.clone());
 
         // --- Implement Searchable for strings ---
 
@@ -5596,14 +5659,27 @@ impl Interpreter {
             .register_string_bool_method_with_string_param("contains", |s, substr| {
                 s.contains(substr)
             });
+        self.type_checker
+            .env()
+            .add_struct_method("str", "contains", str_str_to_bool_type.clone());
+
         self.native_method_registry
             .register_string_bool_method_with_string_param("starts_with", |s, prefix| {
                 s.starts_with(prefix)
             });
+        self.type_checker.env().add_struct_method(
+            "str",
+            "starts_with",
+            str_str_to_bool_type.clone(),
+        );
+
         self.native_method_registry
             .register_string_bool_method_with_string_param("ends_with", |s, suffix| {
                 s.ends_with(suffix)
             });
+        self.type_checker
+            .env()
+            .add_struct_method("str", "ends_with", str_str_to_bool_type.clone());
 
         // Find index
         self.native_method_registry
@@ -5621,6 +5697,9 @@ impl Interpreter {
                     ))
                 }
             });
+        self.type_checker
+            .env()
+            .add_struct_method("str", "index_of", str_str_to_int_type.clone());
 
         // --- Implement Manipulatable for strings ---
 
@@ -5666,6 +5745,11 @@ impl Interpreter {
                     ))
                 }
             });
+        self.type_checker.env().add_struct_method(
+            "str",
+            "substring",
+            str_int_int_to_str_type.clone(),
+        );
 
         // Split
         self.native_method_registry
@@ -5697,6 +5781,9 @@ impl Interpreter {
                     ))
                 }
             });
+        self.type_checker
+            .env()
+            .add_struct_method("str", "split", str_str_to_array_type.clone());
 
         // Replace
         self.native_method_registry
@@ -5714,6 +5801,11 @@ impl Interpreter {
                     ))
                 }
             });
+        self.type_checker.env().add_struct_method(
+            "str",
+            "replace",
+            str_str_str_to_str_type.clone(),
+        );
 
         // Repeat
         self.native_method_registry
@@ -5748,6 +5840,9 @@ impl Interpreter {
                     ))
                 }
             });
+        self.type_checker
+            .env()
+            .add_struct_method("str", "repeat", str_int_to_str_type.clone());
 
         // Padding
         self.native_method_registry
