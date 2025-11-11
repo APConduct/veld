@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::rc::Rc;
 use veld_common::value::Value as InterpreterValue;
 
 /// Runtime values used by the bytecode virtual machine
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BytecodeValue {
     // Primitive types
     Integer(i64),
@@ -44,6 +46,7 @@ pub enum BytecodeValue {
     },
     Closure {
         function: Box<BytecodeValue>,
+        #[serde(skip)]
         upvalues: Vec<UpvalueRef>,
     },
 
@@ -73,10 +76,46 @@ pub enum BytecodeValue {
     Exception(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpvalueRef {
-    pub index: usize,
-    pub is_local: bool,
+/// Reference to an upvalue (shared ownership with interior mutability)
+pub type UpvalueRef = Rc<RefCell<Upvalue>>;
+
+/// An upvalue captures a variable from an enclosing scope
+#[derive(Debug, Clone)]
+pub struct Upvalue {
+    /// The captured value
+    pub value: BytecodeValue,
+
+    /// Location in the stack where this upvalue points (if open)
+    pub location: Option<usize>,
+
+    /// Whether this upvalue is closed (copied to heap)
+    pub is_closed: bool,
+}
+
+impl Upvalue {
+    /// Create a new open upvalue pointing to a stack location
+    pub fn new_open(location: usize, value: BytecodeValue) -> Self {
+        Self {
+            value,
+            location: Some(location),
+            is_closed: false,
+        }
+    }
+
+    /// Create a new closed upvalue with a captured value
+    pub fn new_closed(value: BytecodeValue) -> Self {
+        Self {
+            value,
+            location: None,
+            is_closed: true,
+        }
+    }
+
+    /// Close this upvalue (copy value to heap)
+    pub fn close(&mut self) {
+        self.is_closed = true;
+        self.location = None;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -232,6 +271,104 @@ impl Display for BytecodeValue {
             BytecodeValue::Break => write!(f, "break"),
             BytecodeValue::Continue => write!(f, "continue"),
             BytecodeValue::Exception(msg) => write!(f, "exception: {}", msg),
+        }
+    }
+}
+
+impl PartialEq for BytecodeValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (BytecodeValue::Integer(a), BytecodeValue::Integer(b)) => a == b,
+            (BytecodeValue::Float(a), BytecodeValue::Float(b)) => a == b,
+            (BytecodeValue::Boolean(a), BytecodeValue::Boolean(b)) => a == b,
+            (BytecodeValue::Char(a), BytecodeValue::Char(b)) => a == b,
+            (BytecodeValue::String(a), BytecodeValue::String(b)) => a == b,
+            (BytecodeValue::Unit, BytecodeValue::Unit) => true,
+            (BytecodeValue::Array(a), BytecodeValue::Array(b)) => a == b,
+            (BytecodeValue::Tuple(a), BytecodeValue::Tuple(b)) => a == b,
+            (
+                BytecodeValue::Struct {
+                    type_name: tn1,
+                    fields: f1,
+                },
+                BytecodeValue::Struct {
+                    type_name: tn2,
+                    fields: f2,
+                },
+            ) => tn1 == tn2 && f1 == f2,
+            (
+                BytecodeValue::Enum {
+                    type_name: tn1,
+                    variant: v1,
+                    fields: f1,
+                },
+                BytecodeValue::Enum {
+                    type_name: tn2,
+                    variant: v2,
+                    fields: f2,
+                },
+            ) => tn1 == tn2 && v1 == v2 && f1 == f2,
+            (
+                BytecodeValue::Function {
+                    chunk_index: ci1,
+                    arity: a1,
+                    upvalue_count: uc1,
+                    name: n1,
+                },
+                BytecodeValue::Function {
+                    chunk_index: ci2,
+                    arity: a2,
+                    upvalue_count: uc2,
+                    name: n2,
+                },
+            ) => ci1 == ci2 && a1 == a2 && uc1 == uc2 && n1 == n2,
+            (
+                BytecodeValue::NativeFunction {
+                    name: n1,
+                    arity: a1,
+                    ..
+                },
+                BytecodeValue::NativeFunction {
+                    name: n2,
+                    arity: a2,
+                    ..
+                },
+            ) => n1 == n2 && a1 == a2,
+            (
+                BytecodeValue::Closure { function: f1, .. },
+                BytecodeValue::Closure { function: f2, .. },
+            ) => {
+                // Compare closures by their function, ignore upvalues
+                f1 == f2
+            }
+            (BytecodeValue::Reference(a), BytecodeValue::Reference(b)) => a == b,
+            (BytecodeValue::MutableReference(a), BytecodeValue::MutableReference(b)) => a == b,
+            (
+                BytecodeValue::Iterator {
+                    values: v1,
+                    position: p1,
+                },
+                BytecodeValue::Iterator {
+                    values: v2,
+                    position: p2,
+                },
+            ) => v1 == v2 && p1 == p2,
+            (
+                BytecodeValue::Module {
+                    name: n1,
+                    exports: e1,
+                },
+                BytecodeValue::Module {
+                    name: n2,
+                    exports: e2,
+                },
+            ) => n1 == n2 && e1 == e2,
+            (BytecodeValue::Type(t1), BytecodeValue::Type(t2)) => t1 == t2,
+            (BytecodeValue::Return(v1), BytecodeValue::Return(v2)) => v1 == v2,
+            (BytecodeValue::Break, BytecodeValue::Break) => true,
+            (BytecodeValue::Continue, BytecodeValue::Continue) => true,
+            (BytecodeValue::Exception(m1), BytecodeValue::Exception(m2)) => m1 == m2,
+            _ => false,
         }
     }
 }
