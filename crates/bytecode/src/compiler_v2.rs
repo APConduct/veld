@@ -1984,6 +1984,9 @@ impl RegisterCompiler {
         let mut arm_jumps = Vec::new();
 
         for arm in arms {
+            // Begin a new scope for this match arm to prevent variable collisions
+            self.begin_scope();
+
             // Compile pattern match (simplified)
             let pattern_matches = self.compile_match_pattern(&arm.pat, match_value.register)?;
 
@@ -2009,6 +2012,9 @@ impl RegisterCompiler {
                 let arm_end_jump = self.chunk.jump(0);
                 arm_jumps.push(arm_end_jump);
 
+                // End the match arm scope
+                self.end_scope();
+
                 self.chunk.patch_jump(guard_jump);
                 self.chunk.patch_jump(next_arm_jump);
             } else {
@@ -2017,6 +2023,9 @@ impl RegisterCompiler {
 
                 let arm_end_jump = self.chunk.jump(0);
                 arm_jumps.push(arm_end_jump);
+
+                // End the match arm scope
+                self.end_scope();
 
                 self.chunk.patch_jump(next_arm_jump);
             }
@@ -2044,6 +2053,9 @@ impl RegisterCompiler {
         let mut arm_jumps = Vec::new();
 
         for arm in arms {
+            // Begin a new scope for this match arm to prevent variable collisions
+            self.begin_scope();
+
             // Compile pattern match
             let pattern_matches = self.compile_match_pattern(&arm.pat, match_value.register)?;
 
@@ -2074,6 +2086,9 @@ impl RegisterCompiler {
                 let arm_end_jump = self.chunk.jump(0);
                 arm_jumps.push(arm_end_jump);
 
+                // End the match arm scope
+                self.end_scope();
+
                 self.chunk.patch_jump(guard_jump);
                 self.chunk.patch_jump(next_arm_jump);
             } else {
@@ -2087,6 +2102,9 @@ impl RegisterCompiler {
 
                 let arm_end_jump = self.chunk.jump(0);
                 arm_jumps.push(arm_end_jump);
+
+                // End the match arm scope
+                self.end_scope();
 
                 self.chunk.patch_jump(next_arm_jump);
             }

@@ -600,9 +600,7 @@ let s2 = next_state(s1)
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ State machine pattern working"),
-        Err(e) => {
-            println!("Note: State machine pattern not fully implemented: {}", e);
-        }
+        Err(e) => panic!("State machine pattern failed: {}", e),
     }
 }
 
