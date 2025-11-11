@@ -7,6 +7,7 @@ use std::hash::{Hash, Hasher};
 use veld_error::{Result, VeldError};
 
 pub mod checker;
+pub mod exhaustiveness;
 
 // pub const U8_MAX: u8 = 255;
 // pub const U16_MAX: u16 = 65535;

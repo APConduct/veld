@@ -7,6 +7,7 @@ use super::super::ast::{
 use super::super::types::VarInfo;
 use super::super::types::{EnumVariant, ImplementationInfo, Type, Type::TypeVar, TypeEnvironment};
 use super::Value;
+use super::exhaustiveness::ExhaustivenessChecker;
 use std::collections::HashMap;
 use veld_error::{Result, VeldError};
 
@@ -14,6 +15,7 @@ pub struct TypeChecker {
     env: TypeEnvironment,
     current_function_return_type: Option<Type>,
     var_info: HashMap<String, VarInfo>,
+    exhaustiveness_checker: ExhaustivenessChecker,
 }
 
 impl TypeChecker {
@@ -27,6 +29,7 @@ impl TypeChecker {
         env.define("std", crate::types::Type::Module("std".to_string()));
 
         Self {
+            exhaustiveness_checker: ExhaustivenessChecker::new(),
             env,
             current_function_return_type: None,
             var_info: HashMap::new(),
@@ -335,6 +338,7 @@ impl TypeChecker {
                     generic_params: _,
                 } => {
                     let mut variant_map = std::collections::HashMap::new();
+                    let mut variant_names = Vec::new();
                     for variant in variants {
                         // For now, just register the variant name with a dummy EnumVariant
                         // Register the correct EnumVariant type for each variant
@@ -349,11 +353,15 @@ impl TypeChecker {
                             super::EnumVariant::Simple
                         };
                         variant_map.insert(variant.name.clone(), enum_variant);
+                        variant_names.push(variant.name.clone());
                     }
                     self.env.enums.insert(name.clone(), variant_map);
                     // Register enum name as an identifier of type EnumType
                     // so it can be used in expressions (e.g., for bytecode compilation)
                     self.env.define(name, Type::EnumType(name.clone()));
+                    // Register with exhaustiveness checker
+                    self.exhaustiveness_checker
+                        .register_enum(name.clone(), variant_names);
                 }
                 Statement::TypeDeclaration {
                     name,
@@ -771,6 +779,7 @@ impl TypeChecker {
             env: env.clone(),
             current_function_return_type: self.current_function_return_type.clone(),
             var_info: self.var_info.clone(),
+            exhaustiveness_checker: ExhaustivenessChecker::new(),
         };
         type_checker.infer_expression_type(expr)
     }
@@ -1783,6 +1792,30 @@ impl TypeChecker {
             Expr::Match { value, arms } => {
                 // Infer the type of the matched value
                 let value_type = self.infer_expression_type(value)?;
+
+                // Check exhaustiveness of the match
+                let patterns: Vec<_> = arms.iter().map(|arm| arm.pat.clone()).collect();
+                match self.exhaustiveness_checker.check_match_exhaustiveness(&value_type, &patterns) {
+                    Ok(super::exhaustiveness::ExhaustivenessResult::Exhaustive) => {
+                        // Match is exhaustive, all good
+                    }
+                    Ok(super::exhaustiveness::ExhaustivenessResult::NonExhaustive { missing }) => {
+                        let missing_patterns: Vec<String> = missing.iter().map(|p| format!("{}", p)).collect();
+                        tracing::warn!(
+                            "Non-exhaustive match patterns. Missing cases: {}",
+                            missing_patterns.join(", ")
+                        );
+                        // For now, just warn. Could be an error in strict mode.
+                        // return Err(VeldError::TypeError(format!(
+                        //     "Non-exhaustive match patterns. Missing cases: {}",
+                        //     missing_patterns.join(", ")
+                        // )));
+                    }
+                    Err(e) => {
+                        tracing::debug!("Failed to check exhaustiveness: {}", e);
+                        // Continue without exhaustiveness checking if it fails
+                    }
+                }
 
                 // All match arms should have the same return type
                 if arms.is_empty() {
