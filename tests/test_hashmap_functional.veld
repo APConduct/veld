@@ -1,0 +1,87 @@
+#| Test HashMap with functional-style mutation (methods return Self)
+
+import std.collections.hash_map.{HashMap}
+import std.io.{println}
+
+println("=== Testing HashMap with Functional Style ===")
+
+# Create a new HashMap
+let map = HashMap.new()
+println("✓ HashMap created")
+
+# Test 1: Set and get - functional style
+let map = map.set("name", "Alice")
+let map = map.set("age", 30)
+let map = map.set("city", "Portland")
+
+match map.get("name")
+    Option.Some(value) => println("✓ Get after set works: name = " + value.to_str()),
+    Option.None => println("✗ Get failed after set"),
+end
+
+match map.get("age")
+    Option.Some(value) => println("✓ Get age works: " + value.to_str()),
+    Option.None => println("✗ Get age failed"),
+end
+
+# Test 2: Check has()
+if map.has("city") then
+    println("✓ has() returns true for existing key")
+else
+    println("✗ has() failed for existing key")
+end
+
+if map.has("country") == false then
+    println("✓ has() returns false for non-existing key")
+else
+    println("✗ has() returned true for non-existing key")
+end
+
+# Test 3: Check length
+let len = map.len()
+if len == 3 then
+    println("✓ len() returns correct count: 3")
+else
+    println("✗ len() returned wrong count: " + len.to_str())
+end
+
+# Test 4: Remove key
+let map = map.remove("age")
+
+if map.has("age") == false then
+    println("✓ remove() works - key removed")
+else
+    println("✗ remove() failed - key still present")
+end
+
+let len_after = map.len()
+if len_after == 2 then
+    println("✓ len() after remove is correct: 2")
+else
+    println("✗ len() after remove is wrong: " + len_after.to_str())
+end
+
+# Test 5: Chaining operations
+let map2 = HashMap.new()
+    .set("a", 1)
+    .set("b", 2)
+    .set("c", 3)
+
+let len2 = map2.len()
+if len2 == 3 then
+    println("✓ Method chaining works")
+else
+    println("✗ Method chaining failed: len = " + len2.to_str())
+end
+
+# Test 6: Clear
+let map2 = map2.clear()
+
+if map2.is_empty() then
+    println("✓ clear() works - map is empty")
+else
+    println("✗ clear() failed - map not empty")
+end
+
+println("")
+println("All HashMap tests complete!")

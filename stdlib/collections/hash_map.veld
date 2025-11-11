@@ -21,7 +21,8 @@ impl<K, V> HashMap<K, V> <- Map<K, V>
     end
 
     # @Compiler.Builtin
-    fn set(mut self, key: K, value: V) -> ()
+    # Returns Self to enable functional-style chaining: map = map.set(key, value)
+    fn set(mut self, key: K, value: V) -> Self
     end
 
     # @Compiler.Builtin
@@ -29,11 +30,14 @@ impl<K, V> HashMap<K, V> <- Map<K, V>
     end
 
     # @Compiler.Builtin
-    fn remove(mut self, key: K) -> bool
+    # Returns Self to enable functional-style chaining
+    # To check if key was present, use has() before calling remove()
+    fn remove(mut self, key: K) -> Self
     end
 
     # @Compiler.Builtin
-    fn clear(mut self) -> ()
+    # Returns Self to enable functional-style chaining
+    fn clear(mut self) -> Self
     end
 
     # @Compiler.Builtin

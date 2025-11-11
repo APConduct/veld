@@ -72,17 +72,16 @@ impl<T> Option<T>
     #| without needing to check for None explicitly.
     #| It allows for a functional style of programming
     #| where operations can be applied to the contained value
-    # Temporarily commented out - generic method type parameters cause issues
-    # #| if it exists, or skipped if it does not.
-    # #| The function `f` should take a value of type T and return a value
-    # #| of type U, where U is the type of the new Option.
-    # #| The resulting Option will be of type Option<U>.
-    # pub fn map<U>(self, f: (T) -> U) -> Option<U>
-    #     match self
-    #         Option.Some(value) => Option.Some(f(value)),
-    #         Option.None => Option.None,
-    #     end
-    # end
+    #| if it exists, or skipped if it does not.
+    #| The function `f` should take a value of type T and return a value
+    #| of type U, where U is the type of the new Option.
+    #| The resulting Option will be of type Option<U>.
+    pub fn map<U>(self, f: (T) -> U) -> Option<U>
+        match self
+            Option.Some(value) => Option.Some(f(value)),
+            Option.None => Option.None,
+        end
+    end
 
     #| Return true if the option contains a value
     #| This method checks if the Option is of type Some

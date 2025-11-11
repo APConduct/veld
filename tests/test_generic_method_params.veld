@@ -1,0 +1,181 @@
+#| Test generic method-level type parameters
+#| Tests Option.map and Result.map which have method-level generics
+
+import std.option.{Option}
+import std.result.{Result}
+import std.io.{println}
+
+# Test 1: Option.map with simple transformation
+pub fn test_option_map() -> ()
+    println("=== Testing Option.map ===")
+
+    # Map Some(42) to Some(84)
+    let opt = Option.Some(42)
+    let doubled = opt.map(fn (x) -> x * 2 end)
+
+    match doubled
+        Option.Some(val) => do
+            if val == 84 then
+                println("✓ Option.map on Some works")
+            else
+                println("✗ Option.map on Some returned wrong value: " + val.to_str())
+            end
+        end,
+        Option.None => println("✗ Option.map returned None"),
+    end
+
+    # Map None should return None
+    let none_opt = Option.None
+    let mapped_none = none_opt.map(fn (x: i32) -> x * 2 end)
+
+    match mapped_none
+        Option.None => println("✓ Option.map on None returns None"),
+        Option.Some(_) => println("✗ Option.map on None returned Some"),
+    end
+end
+
+# Test 2: Option.map with type change (i32 -> str)
+pub fn test_option_map_type_change() -> ()
+    println("=== Testing Option.map with type change ===")
+
+    let opt = Option.Some(42)
+    let stringified = opt.map(fn (x) -> x.to_str() end)
+
+    match stringified
+        Option.Some(s) => do
+            if s == "42" then
+                println("✓ Option.map with type change (i32 -> str) works")
+            else
+                println("✗ Option.map returned wrong string: " + s)
+            end
+        end,
+        Option.None => println("✗ Option.map with type change returned None"),
+    end
+end
+
+# Test 3: Result.map with success case
+pub fn test_result_map() -> ()
+    println("=== Testing Result.map ===")
+
+    # Map Ok(100) to Ok(200)
+    let res = Result.Ok(100)
+    let doubled = res.map(fn (x) -> x * 2 end)
+
+    match doubled
+        Result.Ok(val) => do
+            if val == 200 then
+                println("✓ Result.map on Ok works")
+            else
+                println("✗ Result.map on Ok returned wrong value: " + val.to_str())
+            end
+        end,
+        Result.Err(_) => println("✗ Result.map returned Err"),
+    end
+end
+
+# Test 4: Result.map with error case (should preserve error)
+pub fn test_result_map_error() -> ()
+    println("=== Testing Result.map on Err ===")
+
+    let res = Result.Err("error message")
+    let mapped = res.map(fn (x: i32) -> x * 2 end)
+
+    match mapped
+        Result.Err(msg) => do
+            if msg == "error message" then
+                println("✓ Result.map on Err preserves error")
+            else
+                println("✗ Result.map changed error message")
+            end
+        end,
+        Result.Ok(_) => println("✗ Result.map on Err returned Ok"),
+    end
+end
+
+# Test 5: Result.map with type change
+pub fn test_result_map_type_change() -> ()
+    println("=== Testing Result.map with type change ===")
+
+    let res = Result.Ok(42)
+    let stringified = res.map(fn (x) -> x.to_str() end)
+
+    match stringified
+        Result.Ok(s) => do
+            if s == "42" then
+                println("✓ Result.map with type change (i32 -> str) works")
+            else
+                println("✗ Result.map returned wrong string: " + s)
+            end
+        end,
+        Result.Err(_) => println("✗ Result.map with type change returned Err"),
+    end
+end
+
+# Test 6: Chaining maps
+pub fn test_chained_maps() -> ()
+    println("=== Testing chained map calls ===")
+
+    let opt = Option.Some(5)
+    let result = opt
+        .map(fn (x) -> x * 2 end)      # 10
+        .map(fn (x) -> x + 5 end)       # 15
+        .map(fn (x) -> x * 3 end)       # 45
+
+    match result
+        Option.Some(val) => do
+            if val == 45 then
+                println("✓ Chained Option.map works")
+            else
+                println("✗ Chained map returned wrong value: " + val.to_str())
+            end
+        end,
+        Option.None => println("✗ Chained map returned None"),
+    end
+end
+
+# Test 7: Map with complex function
+pub fn test_map_complex_function() -> ()
+    println("=== Testing map with complex function ===")
+
+    let square = fn (x: i32) -> i32
+        x * x
+    end
+
+    let opt = Option.Some(7)
+    let squared = opt.map(square)
+
+    match squared
+        Option.Some(val) => do
+            if val == 49 then
+                println("✓ Option.map with named function works")
+            else
+                println("✗ Option.map with named function returned: " + val.to_str())
+            end
+        end,
+        Option.None => println("✗ Option.map with named function returned None"),
+    end
+end
+
+# Test 1: Option.map with simple transformation
+test_option_map()
+
+# Test 2: Option.map with type change (i32 -> str)
+test_option_map_type_change()
+
+# Test 3: Result.map with success case
+test_result_map()
+
+# Test 4: Result.map with error case (should preserve error)
+test_result_map_error()
+
+# Test 5: Result.map with type change
+test_result_map_type_change()
+
+# Test 6: Chaining maps
+test_chained_maps()
+
+# Test 7: Map with complex function
+test_map_complex_function()
+
+println("")
+println("All tests complete!")

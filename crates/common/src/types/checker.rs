@@ -224,6 +224,19 @@ impl TypeChecker {
         let _span = tracing::span!(tracing::Level::INFO, "Checking method type");
         let _guard = _span.enter();
 
+        // Push a new type parameter scope for method-level generics
+        if !method.generic_params.is_empty() {
+            self.env.push_type_param_scope();
+
+            // Register method-level type parameters
+            for generic_param in &method.generic_params {
+                // GenericArgument is a struct with type_annotation field
+                if let TypeAnnotation::Basic(type_name) = &generic_param.type_annotation {
+                    self.env.add_type_param(type_name);
+                }
+            }
+        }
+
         let mut param_types = Vec::new();
 
         for (_, type_annotation) in &method.params {
@@ -232,6 +245,11 @@ impl TypeChecker {
         }
 
         let return_type = self.env.from_annotation(&method.return_type, None)?;
+
+        // Pop the type parameter scope after processing the method
+        if !method.generic_params.is_empty() {
+            self.env.pop_type_param_scope();
+        }
 
         Ok(Type::Function {
             params: param_types,
@@ -243,6 +261,8 @@ impl TypeChecker {
         let _span = tracing::span!(tracing::Level::INFO, "Checking struct method type");
         let _guard = _span.enter();
 
+        // StructMethod doesn't have generic_params field
+        // Generic parameters for struct methods are handled at the struct level
         let mut param_types = Vec::new();
 
         for (_, type_annotation) in &method.params {
@@ -250,6 +270,7 @@ impl TypeChecker {
             param_types.push(param_type);
         }
         let return_type = self.env.from_annotation(&method.return_type, None)?;
+
         Ok(Type::Function {
             params: param_types,
             return_type: Box::new(return_type),
