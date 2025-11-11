@@ -23,7 +23,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use tracing::{trace, warn};
-use veld_common::bytecode_v2::{Chunk, ConstIdx, Constant, Instruction, JumpOffset, Reg};
+use veld_common::bytecode_v2::{
+    Chunk, ChunkMetadata, ConstIdx, Constant, FunctionProto, Instruction, JumpOffset, Reg,
+};
 
 /// The register-based virtual machine
 pub struct VirtualMachine {
@@ -42,6 +44,9 @@ pub struct VirtualMachine {
 
     /// Native function registry
     native_functions: HashMap<String, fn(&[BytecodeValue]) -> Result<BytecodeValue, RuntimeError>>,
+
+    /// Function prototypes registry (for user-defined functions)
+    function_protos: Vec<Rc<FunctionProto>>,
 
     /// Maximum register count to prevent overflow
     max_registers: usize,
@@ -74,6 +79,9 @@ pub struct CallFrame {
 
     /// Function name (for debugging)
     function_name: Option<String>,
+
+    /// Register to place return value (in caller's frame)
+    return_address: Reg,
 }
 
 /// Current state of the virtual machine
@@ -102,6 +110,7 @@ impl VirtualMachine {
             globals: HashMap::new(),
             open_upvalues: Vec::new(),
             native_functions: HashMap::new(),
+            function_protos: Vec::new(),
             max_registers: 1024 * 64, // 64K registers max
             state: VmState::Ready,
             debug_mode: false,
@@ -149,6 +158,7 @@ impl VirtualMachine {
             register_count,
             upvalues: Vec::new(),
             function_name: None,
+            return_address: 0, // Main frame doesn't return anywhere
         };
 
         self.frames.push(frame);
@@ -487,22 +497,33 @@ impl VirtualMachine {
                         self.get_register(first)?.clone()
                     };
 
+                    // Get return address before closing upvalues and popping frame
+                    let return_address = if !self.frames.is_empty() {
+                        Some(self.current_frame().return_address)
+                    } else {
+                        None
+                    };
+
                     // Close all upvalues in the current frame before returning
                     if !self.frames.is_empty() {
                         self.close_upvalues_at(0)?; // Close all upvalues in current frame
                     }
 
-                    // Pop frame
-                    self.frames.pop();
+                    // Pop frame and clean up registers
+                    if let Some(frame) = self.frames.pop() {
+                        // Remove this frame's registers
+                        self.registers.truncate(frame.register_base);
+                    }
 
                     if self.frames.is_empty() {
                         // Top-level return
                         self.state = VmState::Halted;
                         return Ok(result);
                     } else {
-                        // Return to caller - place result in appropriate register
-                        // This will be handled by call_function logic
-                        // For now, just continue execution
+                        // Return to caller - place result in return address register
+                        if let Some(ret_addr) = return_address {
+                            self.set_register(ret_addr, result)?;
+                        }
                         continue;
                     }
                 }
@@ -553,14 +574,66 @@ impl VirtualMachine {
                     // Get the function prototype from constants
                     let proto_const = self.read_constant(proto_idx)?;
 
-                    // Extract the FunctionProto
-                    match &proto_const {
-                        BytecodeValue::Function { .. } => {
-                            // For now, create a closure with empty upvalues
-                            // In a full implementation, we'd capture upvalues here
+                    // Extract the FunctionProto and register it
+                    match proto_const {
+                        BytecodeValue::Function {
+                            arity,
+                            upvalue_count,
+                            name,
+                            ..
+                        } => {
+                            // Get the actual FunctionProto from constants
+                            let constants = &self.current_frame().chunk.main.constants;
+                            let proto = if let Some(Constant::Function(proto_box)) =
+                                constants.get(proto_idx as usize)
+                            {
+                                Rc::new((**proto_box).clone())
+                            } else {
+                                return Err(RuntimeError::TypeError {
+                                    expected: "Function constant".to_string(),
+                                    actual: "unknown".to_string(),
+                                });
+                            };
+
+                            // Store the proto and get its index
+                            let proto_index = self.function_protos.len();
+                            self.function_protos.push(proto.clone());
+
+                            // Create the function value with the correct index
+                            let func_value = BytecodeValue::Function {
+                                chunk_index: proto_index,
+                                arity,
+                                upvalue_count,
+                                name,
+                            };
+
+                            // Capture upvalues if this function needs them
+                            let mut captured_upvalues = Vec::new();
+                            if upvalue_count > 0 {
+                                let proto_upvalues = &proto.upvalues;
+                                for upvalue_info in proto_upvalues {
+                                    if upvalue_info.is_local {
+                                        // Capture from current frame's registers
+                                        let register_index = self.current_frame().register_base
+                                            + upvalue_info.register as usize;
+                                        let upvalue_ref = self.capture_upvalue(register_index);
+                                        captured_upvalues.push(upvalue_ref);
+                                    } else {
+                                        // Capture from parent's upvalues
+                                        let frame = self.current_frame();
+                                        if let Some(parent_upvalue) =
+                                            frame.upvalues.get(upvalue_info.register as usize)
+                                        {
+                                            captured_upvalues.push(parent_upvalue.clone());
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Create closure with captured upvalues
                             let closure = BytecodeValue::Closure {
-                                function: Box::new(proto_const.clone()),
-                                upvalues: Vec::new(),
+                                function: Box::new(func_value),
+                                upvalues: captured_upvalues,
                             };
                             self.set_register(dest, closure)?;
                         }
@@ -1122,13 +1195,11 @@ impl VirtualMachine {
         arg_count: u8,
         result_count: u8,
     ) -> Result<(), RuntimeError> {
-        // TODO: Implement full function calling
-        // For now, just check for native functions
-        let func = self.get_register(func_reg)?;
+        let func = self.get_register(func_reg)?.clone();
 
         match func {
             BytecodeValue::NativeFunction { name, .. } => {
-                if let Some(native_fn) = self.native_functions.get(name).copied() {
+                if let Some(native_fn) = self.native_functions.get(&name).copied() {
                     // Collect arguments from registers
                     let mut args = Vec::new();
                     for i in 0..arg_count {
@@ -1149,11 +1220,100 @@ impl VirtualMachine {
                     Err(RuntimeError::UndefinedFunction(name.clone()))
                 }
             }
-            _ => {
-                // TODO: Implement Veld function calls
-                warn!("User-defined function calls not yet implemented");
+            BytecodeValue::Closure { function, upvalues } => {
+                // Extract function info
+                let (chunk_index, arity, name) = match function.as_ref() {
+                    BytecodeValue::Function {
+                        chunk_index,
+                        arity,
+                        name,
+                        ..
+                    } => (chunk_index, arity, name.clone()),
+                    _ => {
+                        return Err(RuntimeError::TypeError {
+                            expected: "Function".to_string(),
+                            actual: "invalid closure function".to_string(),
+                        });
+                    }
+                };
+
+                // Get the function prototype
+                let proto = self
+                    .function_protos
+                    .get(*chunk_index)
+                    .ok_or_else(|| {
+                        RuntimeError::MemoryError(format!(
+                            "Function prototype {} not found",
+                            chunk_index
+                        ))
+                    })?
+                    .clone();
+
+                // Verify argument count matches
+                if arg_count != *arity {
+                    return Err(RuntimeError::InvalidOperation {
+                        op: format!(
+                            "call function '{}'",
+                            name.unwrap_or_else(|| "<anonymous>".to_string())
+                        ),
+                        types: vec![
+                            format!("expected {} arguments", *arity),
+                            format!("got {} arguments", arg_count),
+                        ],
+                    });
+                }
+
+                // Calculate register base for the new frame
+                let register_base = self.registers.len();
+
+                // Copy arguments to new frame's registers
+                // Arguments start at func_reg + 1
+                for i in 0..arg_count {
+                    let arg_reg = func_reg + 1 + i;
+                    let arg_value = self.get_register(arg_reg)?.clone();
+                    self.registers.push(arg_value);
+                }
+
+                // Initialize remaining registers for the function
+                let remaining = proto.register_count.saturating_sub(arg_count);
+                for _ in 0..remaining {
+                    self.registers.push(BytecodeValue::Unit);
+                }
+
+                // Create a chunk from the proto
+                let chunk = Chunk {
+                    main: (*proto).clone(),
+                    source_file: format!(
+                        "<function {}>",
+                        name.clone().unwrap_or_else(|| "<anonymous>".to_string())
+                    ),
+                    metadata: ChunkMetadata {
+                        version: "0.1.0".to_string(),
+                        timestamp: 0,
+                        optimization_level: 0,
+                        has_debug_info: false,
+                    },
+                };
+
+                // Create new call frame
+                let frame = CallFrame {
+                    chunk,
+                    ip: 0,
+                    register_base,
+                    register_count: proto.register_count as usize,
+                    upvalues: upvalues.clone(),
+                    function_name: name.clone(),
+                    return_address: func_reg, // Return result to func_reg
+                };
+
+                self.frames.push(frame);
+
                 Ok(())
             }
+            _ => Err(RuntimeError::InvalidOperation {
+                op: "call".to_string(),
+                types: vec![self.type_name(&func)],
+            }),
         }
     }
 

@@ -930,6 +930,16 @@ impl RegisterCompiler {
         }
         lambda_compiler.end_scope();
 
+        // Set register count before building
+        let max_reg = lambda_compiler.allocator.max_register();
+        let register_count = if max_reg == 0 {
+            // Need at least enough registers for parameters
+            params.len().max(1) as u8
+        } else {
+            (max_reg + 1).max(params.len() as u8)
+        };
+        lambda_compiler.chunk.register_count(register_count);
+
         let lambda_chunk = lambda_compiler.chunk.build();
 
         // Create function proto from chunk
@@ -1014,6 +1024,16 @@ impl RegisterCompiler {
         func_compiler.chunk.return_vals(nil_reg, 1);
 
         func_compiler.end_scope();
+
+        // Set register count before building
+        let max_reg = func_compiler.allocator.max_register();
+        let register_count = if max_reg == 0 {
+            // Need at least enough registers for parameters
+            params.len().max(1) as u8
+        } else {
+            (max_reg + 1).max(params.len() as u8)
+        };
+        func_compiler.chunk.register_count(register_count);
 
         let func_chunk = func_compiler.chunk.build();
 
