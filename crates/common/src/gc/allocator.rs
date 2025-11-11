@@ -256,6 +256,10 @@ impl GcAllocator {
         }
     }
 
+    pub fn free_list(&mut self) -> &VecDeque<u64> {
+        &self.free_list
+    }
+
     /// Allocate a new object in the appropriate generation
     pub fn allocate(&mut self, value: Value) -> Result<GcHandle> {
         let object = GcObject::new(value);
@@ -565,7 +569,7 @@ fn estimate_value_size(value: &Value) -> usize {
 }
 
 /// Extract GC handles referenced by a value
-#[allow(dead_code)] // TODO: Implement this function
+#[allow(dead_code, unused)] // TODO: Implement this function
 fn extract_references(value: &Value) -> Vec<GcHandle> {
     // Note: In a real implementation, this would traverse the value
     // and extract any embedded GC handles. For now, we return empty

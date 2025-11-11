@@ -51,6 +51,32 @@ pub struct CallFrame {
     upvalues: Vec<UpvalueRef>,
 }
 
+impl CallFrame {
+    /// Create a new call frame
+    pub fn new(
+        chunk: Chunk,
+        stack_base: usize,
+        local_count: usize,
+        upvalues: Vec<UpvalueRef>,
+    ) -> Self {
+        Self {
+            chunk,
+            ip: 0,
+            stack_base,
+            local_count,
+            upvalues,
+        }
+    }
+
+    pub fn local_count(&self) -> usize {
+        self.local_count
+    }
+
+    pub fn upvalues(&self) -> &[UpvalueRef] {
+        &self.upvalues
+    }
+}
+
 /// Represents an upvalue (captured variable)
 #[derive(Debug, Clone)]
 pub struct Upvalue {
@@ -62,6 +88,30 @@ pub struct Upvalue {
 
     /// Whether this upvalue is closed
     is_closed: bool,
+}
+
+impl Upvalue {
+    /// Create a new upvalue
+    pub fn new(stack_index: usize) -> Self {
+        Self {
+            stack_index,
+            closed_value: None,
+            is_closed: false,
+        }
+    }
+
+    /// Get the value of the upvalue
+    pub fn value(&self) -> Option<&BytecodeValue> {
+        self.closed_value.as_ref()
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.is_closed
+    }
+
+    pub fn clone_value(&self) -> Option<BytecodeValue> {
+        self.closed_value.clone()
+    }
 }
 
 /// Current state of the virtual machine

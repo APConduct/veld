@@ -214,12 +214,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Enum tuple variant with wildcard fields working"),
-        Err(e) => {
-            println!(
-                "Note: Enum tuple variant with wildcard fields not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Enum tuple variant with wildcard fields failed: {}", e),
     }
 }
 

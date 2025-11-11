@@ -257,7 +257,7 @@ impl GcCollector {
         &mut self,
         allocator: &mut GcAllocator,
         roots: &RootSet,
-        config: &GcConfig,
+        _config: &GcConfig,
     ) -> Result<bool> {
         let start_time = Instant::now();
 
@@ -325,7 +325,11 @@ impl GcCollector {
 
     // Private methods
 
-    fn determine_strategy(&self, allocator: &GcAllocator, config: &GcConfig) -> CollectionStrategy {
+    fn determine_strategy(
+        &self,
+        allocator: &GcAllocator,
+        _config: &GcConfig,
+    ) -> CollectionStrategy {
         let heap_size = allocator.heap_size();
         let stats = allocator.generation_stats();
 

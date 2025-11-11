@@ -971,7 +971,7 @@ impl RegisterCompiler {
 
         let mut temp_regs = Vec::new();
 
-        for (i, (field_name, field_value)) in fields.iter().enumerate() {
+        for (_i, (field_name, field_value)) in fields.iter().enumerate() {
             // Compile field value to a temporary register
             let value_result = self.compile_expr_to_reg(field_value)?;
             temp_regs.push((field_name.clone(), value_result));
@@ -2130,36 +2130,43 @@ impl RegisterCompiler {
             }
 
             MatchPattern::Identifier(name) => {
-                // Variable binding - always matches
-                // Bind the matched value to the variable
-                let var_reg = self
-                    .allocator
-                    .allocate_variable(name.clone(), false)
-                    .map_err(|e| VeldError::CompileError {
-                        message: e,
-                        line: Some(self.current_line as usize),
-                        column: None,
-                    })?;
+                // Check if this is a wildcard pattern (_)
+                if name == "_" {
+                    // Wildcard - just always matches, don't bind
+                    let true_const = self.chunk.add_constant(Constant::Boolean(true));
+                    self.chunk.load_const(result, true_const);
+                } else {
+                    // Variable binding - always matches
+                    // Bind the matched value to the variable
+                    let var_reg = self
+                        .allocator
+                        .allocate_variable(name.clone(), false)
+                        .map_err(|e| VeldError::CompileError {
+                            message: e,
+                            line: Some(self.current_line as usize),
+                            column: None,
+                        })?;
 
-                // Move matched value to the variable register
-                self.chunk.move_reg(var_reg, match_reg);
+                    // Move matched value to the variable register
+                    self.chunk.move_reg(var_reg, match_reg);
 
-                // Register the variable in scope
-                self.variables.insert(
-                    name.clone(),
-                    VarInfo {
-                        register: var_reg,
-                        is_mutable: false,
-                        depth: self.scope_depth,
-                        is_captured: false,
-                        is_upvalue: false,
-                        is_type: false,
-                    },
-                );
+                    // Register the variable in scope
+                    self.variables.insert(
+                        name.clone(),
+                        VarInfo {
+                            register: var_reg,
+                            is_mutable: false,
+                            depth: self.scope_depth,
+                            is_captured: false,
+                            is_upvalue: false,
+                            is_type: false,
+                        },
+                    );
 
-                // Pattern always matches
-                let true_const = self.chunk.add_constant(Constant::Boolean(true));
-                self.chunk.load_const(result, true_const);
+                    // Pattern always matches
+                    let true_const = self.chunk.add_constant(Constant::Boolean(true));
+                    self.chunk.load_const(result, true_const);
+                }
             }
 
             MatchPattern::Enum {
@@ -2204,8 +2211,8 @@ impl RegisterCompiler {
                             self.free_temp(field_match.register);
                         }
                         self.free_temp(field_reg);
-                    } else if !field_name.is_empty() {
-                        // Bind field to variable name
+                    } else if !field_name.is_empty() && field_name != "_" {
+                        // Bind field to variable name (skip if it's a wildcard)
                         let field_reg = self.allocate_temp()?;
                         self.chunk.extract_field(field_reg, match_reg, i as u8);
 
@@ -2281,8 +2288,8 @@ impl RegisterCompiler {
                             self.free_temp(field_match.register);
                         }
                         self.free_temp(field_reg);
-                    } else {
-                        // Bind field to variable with same name
+                    } else if field_name != "_" {
+                        // Bind field to variable with same name (skip wildcards)
                         let field_reg = self.allocate_temp()?;
 
                         if is_enum_pattern {

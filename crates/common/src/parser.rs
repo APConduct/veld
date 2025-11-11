@@ -65,7 +65,7 @@ impl Parser {
         let generic_params = self.parse_generic_args_if_present()?; // Support generics
         self.consume(&Token::Equals(ZTUP), "Expected '=' after type name")?;
 
-        // New: Support 'type Foo = | Bar of T | Baz'
+        // Support 'type Foo = | Bar of T | Baz'
         if self.match_token(&[Token::PipeOr(ZTUP)]) {
             let mut variants = Vec::new();
             loop {

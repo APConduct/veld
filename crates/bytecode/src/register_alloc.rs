@@ -57,7 +57,7 @@ pub struct RegisterAllocator {
 
 /// Scope information
 #[derive(Debug, Clone)]
-struct Scope {
+pub struct Scope {
     /// Scope depth (0 = global, 1+ = nested)
     depth: usize,
 
@@ -69,6 +69,22 @@ struct Scope {
 
     /// Variables declared in this scope (name -> shadowed variable if any)
     variables: Vec<(String, Option<Variable>)>,
+}
+
+impl Scope {
+    /// Create a new scope
+    pub fn new(depth: usize, first_register: Reg) -> Self {
+        Self {
+            depth,
+            first_register,
+            registers: Vec::new(),
+            variables: Vec::new(),
+        }
+    }
+
+    pub fn depth(&self) -> usize {
+        self.depth
+    }
 }
 
 /// Variable information
@@ -503,7 +519,7 @@ mod tests {
     fn test_free_register() {
         let mut allocator = RegisterAllocator::new();
 
-        let r0 = allocator.allocate().unwrap();
+        let _r0 = allocator.allocate().unwrap();
         let r1 = allocator.allocate().unwrap();
 
         assert_eq!(allocator.next_free, 2);
