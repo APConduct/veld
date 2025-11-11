@@ -185,9 +185,33 @@ impl RegisterCompiler {
             debug!("Starting register-based compilation");
         }
 
+        // Track if the last statement is an expression that should be returned
+        let last_stmt_index = ast.statements.len().saturating_sub(1);
+        let mut last_expr_reg: Option<Reg> = None;
+
         // Compile all statements in the AST
-        for statement in &ast.statements {
-            self.compile_statement(statement)?;
+        for (i, statement) in ast.statements.iter().enumerate() {
+            if i == last_stmt_index {
+                // Check if last statement is an expression statement
+                if let Statement::ExprStatement(expr) = statement {
+                    // Compile the expression and keep its result
+                    let result = self.compile_expr_to_reg(expr)?;
+                    last_expr_reg = Some(result.register);
+                    // Don't free the temp - we need it for the final value
+                } else {
+                    self.compile_statement(statement)?;
+                }
+            } else {
+                self.compile_statement(statement)?;
+            }
+        }
+
+        // If we have a last expression value, place it in register 0 before Halt
+        // so the VM can return it
+        if let Some(expr_reg) = last_expr_reg {
+            if expr_reg != 0 {
+                self.chunk.move_reg(0, expr_reg);
+            }
         }
 
         // Emit Halt at the end

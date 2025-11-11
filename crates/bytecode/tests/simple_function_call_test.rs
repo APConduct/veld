@@ -25,21 +25,6 @@ fn compile_and_run(code: &str) -> Result<veld_bytecode::vm_v2::InterpretResult, 
         .compile(&ast)
         .map_err(|e| format!("Compile error: {:?}", e))?;
 
-    println!("\n=== Compilation Debug Info ===");
-    println!(
-        "Main function register_count: {}",
-        chunk.main.register_count
-    );
-    println!("Main function instructions:");
-    for (i, instr) in chunk.main.instructions.iter().enumerate() {
-        println!("  {}: {:?}", i, instr);
-    }
-    println!("Main function constants:");
-    for (i, constant) in chunk.main.constants.iter().enumerate() {
-        println!("  {}: {:?}", i, constant);
-    }
-    println!("========================\n");
-
     // Interpret
     let mut vm = VirtualMachineV2::new();
     Ok(vm.interpret(chunk))
