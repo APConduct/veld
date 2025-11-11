@@ -720,8 +720,6 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Deeply nested match working"),
-        Err(e) => {
-            println!("Note: Deeply nested match not fully implemented: {}", e);
-        }
+        Err(e) => panic!("Deeply nested match failed: {}", e),
     }
 }
