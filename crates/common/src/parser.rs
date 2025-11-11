@@ -452,7 +452,12 @@ impl Parser {
         );
 
         let res = if self.match_token(&[Token::Let(ZTUP)]) {
-            self.variable_declaration(VarKind::Let, false, ctx)
+            // Check if this is 'let mut'
+            if self.match_token(&[Token::Mut(ZTUP)]) {
+                self.variable_declaration(VarKind::LetMut, false, ctx)
+            } else {
+                self.variable_declaration(VarKind::Let, false, ctx)
+            }
         } else if self.match_token(&[Token::Var(ZTUP)]) {
             self.variable_declaration(VarKind::Var, false, ctx)
         } else if self.match_token(&[Token::Const(ZTUP)]) {

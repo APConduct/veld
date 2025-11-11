@@ -347,9 +347,19 @@ let result = base *^ exp
 }
 
 #[test]
-fn test_let_mut_variable() {
+fn test_var_variable() {
     let code = r#"
 var x = 10
+x = 20
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_let_mut_variable() {
+    let code = r#"
+let mut x = 10
 x = 20
 "#;
     let result = compile_and_run(code);
