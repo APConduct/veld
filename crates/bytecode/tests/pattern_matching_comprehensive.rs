@@ -429,12 +429,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Match expression returns value working"),
-        Err(e) => {
-            println!(
-                "Note: Match expression with enum patterns not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Match expression returns value failed: {}", e),
     }
 }
 
@@ -456,12 +451,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Match with complex expressions working"),
-        Err(e) => {
-            println!(
-                "Note: Match with complex expressions not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Match with complex expressions failed: {}", e),
     }
 }
 

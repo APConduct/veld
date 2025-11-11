@@ -626,6 +626,8 @@ impl RegisterCompiler {
                 Ok(result)
             }
 
+            Expr::Match { value, arms } => self.compile_match_expression(value, arms),
+
             _ => Err(VeldError::CompileError {
                 message: format!("Expression not yet implemented: {:?}", expr),
                 line: Some(self.current_line as usize),
@@ -2024,6 +2026,76 @@ impl RegisterCompiler {
         }
 
         Ok(())
+    }
+
+    /// Compile match expression (returns a value)
+    fn compile_match_expression(&mut self, value: &Expr, arms: &[MatchArm]) -> Result<ExprResult> {
+        let match_value = self.compile_expr_to_reg(value)?;
+
+        // Allocate a register to hold the result of the match expression
+        let result_reg = self.allocate_temp()?;
+
+        let mut arm_jumps = Vec::new();
+
+        for arm in arms {
+            // Compile pattern match
+            let pattern_matches = self.compile_match_pattern(&arm.pat, match_value.register)?;
+
+            // Jump to next arm if pattern doesn't match
+            let next_arm_jump = self.chunk.jump_if_not(pattern_matches.register, 0);
+
+            if pattern_matches.is_temp {
+                self.free_temp(pattern_matches.register);
+            }
+
+            // Compile guard if present
+            if let Some(guard) = &arm.guard {
+                let guard_result = self.compile_expr_to_reg(guard)?;
+                let guard_jump = self.chunk.jump_if_not(guard_result.register, 0);
+
+                if guard_result.is_temp {
+                    self.free_temp(guard_result.register);
+                }
+
+                // Compile arm body and store result
+                let body_result = self.compile_expr_to_reg(&arm.body)?;
+                self.chunk.move_reg(result_reg, body_result.register);
+
+                if body_result.is_temp {
+                    self.free_temp(body_result.register);
+                }
+
+                let arm_end_jump = self.chunk.jump(0);
+                arm_jumps.push(arm_end_jump);
+
+                self.chunk.patch_jump(guard_jump);
+                self.chunk.patch_jump(next_arm_jump);
+            } else {
+                // Compile arm body and store result
+                let body_result = self.compile_expr_to_reg(&arm.body)?;
+                self.chunk.move_reg(result_reg, body_result.register);
+
+                if body_result.is_temp {
+                    self.free_temp(body_result.register);
+                }
+
+                let arm_end_jump = self.chunk.jump(0);
+                arm_jumps.push(arm_end_jump);
+
+                self.chunk.patch_jump(next_arm_jump);
+            }
+        }
+
+        // Patch all arm end jumps to the end
+        for jump_idx in arm_jumps {
+            self.chunk.patch_jump(jump_idx);
+        }
+
+        if match_value.is_temp {
+            self.free_temp(match_value.register);
+        }
+
+        Ok(ExprResult::temp(result_reg))
     }
 
     /// Compile match pattern
