@@ -72,26 +72,41 @@ This document tracks the progress of migrating Veld's bytecode VM from stack-bas
 
 ---
 
-### 🟡 Phase 2: VM Core Refactor (NEXT - READY TO START)
+### 🟡 Phase 2: VM Core Refactor (IN PROGRESS)
 **Goal:** Rewrite VM execution engine for registers
 
-#### Planned Tasks
-- [ ] Design `VirtualMachine` structure with register file
-- [ ] Update `CallFrame` for register windows
-- [ ] Implement register allocation in frames
-- [ ] Rewrite instruction execution loop
-- [ ] Implement arithmetic operations (Add, Sub, Mul, Div, etc.)
-- [ ] Implement comparison operations (Eq, Lt, Le, etc.)
-- [ ] Implement logical operations (And, Or, Not)
-- [ ] Implement control flow operations (Jump, JumpIf, etc.)
-- [ ] Update function call mechanism (Call, TailCall, Return)
-- [ ] Implement global variable access (LoadGlobal, StoreGlobal)
-- [ ] Implement register move operations
-- [ ] Write VM unit tests
+#### Completed ✅
+- [x] Design `VirtualMachine` structure with register file
+- [x] Update `CallFrame` for register windows
+- [x] Implement register allocation in frames
+- [x] Rewrite instruction execution loop
+- [x] Implement arithmetic operations (Add, Sub, Mul, Div, Mod, Pow, Neg)
+- [x] Implement comparison operations (Eq, Neq, Lt, Le, Gt, Ge)
+- [x] Implement logical operations (And, Or, Not)
+- [x] Implement bitwise operations (BitAnd, BitOr, BitXor, BitNot, Shl, Shr)
+- [x] Implement control flow operations (Jump, JumpIf, JumpIfNot, JumpIfEq, JumpIfNeq)
+- [x] Implement basic function call mechanism (Call, TailCall, Return)
+- [x] Implement global variable access (LoadGlobal, StoreGlobal)
+- [x] Implement register move operations (Move, LoadConst, LoadBool, LoadNil)
+- [x] Create `vm_v2.rs` module (1,520 lines)
+- [x] Write VM unit tests (7 tests, all passing)
+- [x] Integrate into module system
 
+#### TODO (Advanced Features)
+- [ ] Implement full closure support (partial scaffolding done)
+- [ ] Implement upvalue operations (GetUpvalue, SetUpvalue, CloseUpvalues)
+- [ ] Implement data structure operations (arrays, structs, tuples, enums)
+- [ ] Implement pattern matching instructions
+- [ ] Implement iterator protocol
+- [ ] Implement exception handling (try/catch)
+- [ ] Implement proper multi-value returns
+- [ ] Add comprehensive integration tests
+- [ ] Optimize hot paths
+
+**Progress:** 60% complete (core execution working, advanced features pending)
 **Estimated Duration:** 1 week
 **Dependencies:** Phase 1 complete ✅
-**Ready to start:** Yes!
+**Status:** 🟡 In Progress - Core functionality implemented
 
 ---
 
@@ -228,6 +243,41 @@ This document tracks the progress of migrating Veld's bytecode VM from stack-bas
 
 ## Current Work Log
 
+### 2024-12-XX: Phase 2 Started! 🚀
+- ✅ Created register-based VM in `vm_v2.rs` (1,520 lines)
+- ✅ Implemented core VM structures:
+  - `VirtualMachine` with flat register file
+  - `CallFrame` with register windows
+  - `VmState` and `InterpretResult` types
+- ✅ Implemented full instruction execution for:
+  - Move/Load operations (Move, LoadConst, LoadBool, LoadNil, LoadNilRange)
+  - Arithmetic (Add, AddK, Sub, SubK, Mul, MulK, Div, DivK, Mod, ModK, Pow, Neg)
+  - Comparisons (Eq, Neq, Lt, Le, Gt, Ge)
+  - Logical operations (And, Or, Not)
+  - Bitwise operations (BitAnd, BitOr, BitXor, BitNot, Shl, Shr)
+  - Control flow (Jump, JumpIf, JumpIfNot, JumpIfEq, JumpIfNeq)
+  - Function calls (Call, TailCall, Return - basic implementation)
+  - Global variables (LoadGlobal, StoreGlobal)
+  - Type operations (TypeOf)
+  - Misc (Print, Halt, Nop, Assert)
+- ✅ Implemented helper methods:
+  - Register access with bounds checking
+  - Constant loading from chunk
+  - Arithmetic/comparison/bitwise operation helpers
+  - Array element access (basic)
+  - Type checking and truthiness
+  - Instruction tracing for debugging
+- ✅ Added stub implementations for advanced features:
+  - Closures and upvalues (scaffolding only)
+  - Data structures (arrays, structs, tuples, enums)
+  - Pattern matching
+  - Iterators
+  - Exception handling
+- ✅ All 7 unit tests passing
+- ✅ Code compiles with only warnings (for unimplemented features)
+
+**Next:** Implement closure support and data structure operations
+
 ### 2024-12-XX: Phase 1 Complete! 🎉
 - ✅ Created comprehensive instruction set in `bytecode_v2.rs` (872 lines)
 - ✅ Implemented 80+ instructions covering:
@@ -303,6 +353,7 @@ This document tracks the progress of migrating Veld's bytecode VM from stack-bas
 ### Created
 - ✅ `crates/common/src/bytecode_v2.rs` (1,200+ lines) - New instruction set + Chunk structures
 - ✅ `crates/bytecode/src/register_alloc.rs` (567 lines) - Register allocator
+- ✅ `crates/bytecode/src/vm_v2.rs` (1,520 lines) - Register-based VM
 - ✅ `docs/BYTECODE_ARCHITECTURE_ANALYSIS.md` (500 lines) - Technical analysis
 - ✅ `docs/BYTECODE_QUICK_COMPARISON.md` (386 lines) - Visual comparison
 - ✅ `docs/REGISTER_VM_MIGRATION_PLAN.md` (618 lines) - Migration plan
@@ -311,11 +362,12 @@ This document tracks the progress of migrating Veld's bytecode VM from stack-bas
 
 ### Modified
 - ✅ `crates/common/src/lib.rs` - Added bytecode_v2 module
-- ✅ `crates/bytecode/src/lib.rs` - Added register_alloc module
+- ✅ `crates/bytecode/src/lib.rs` - Added register_alloc and vm_v2 modules
 
 ### Pending
-- ⏳ `crates/bytecode/src/vm.rs` - Refactor for registers (Phase 2)
+- ⏳ `crates/bytecode/src/vm_v2.rs` - Complete advanced features (closures, data structures)
 - ⏳ `crates/bytecode/src/compiler.rs` - Refactor for register allocation (Phase 3)
+- ⏳ `crates/common/src/bytecode_v2.rs` - Add ChunkBuilder helper methods
 
 ---
 
@@ -368,20 +420,22 @@ Based on Lua's transition and academic research:
 
 ### Code Statistics
 - **Documentation:** ~2,500 lines (4 major documents)
-- **Implementation:** ~1,800 lines (instruction set + allocator + chunks)
-- **Tests:** ~200 lines (19 unit tests, all passing)
-- **Total:** ~4,500 lines
+- **Implementation:** ~3,300 lines (instruction set + allocator + chunks + VM core)
+- **Tests:** ~250 lines (26 unit tests, all passing)
+- **Total:** ~6,050 lines
 
 ### Time Investment
-- **Analysis & Planning:** 1 day
+- **Analysis & Planning:** 1 day ✅
 - **Phase 1 (Instruction Set + Allocator):** 1 day ✅
-- **Remaining Estimated:** 7-8 weeks
+- **Phase 2 (VM Core):** 1 day (in progress) 🟡
+- **Remaining Estimated:** 6-7 weeks
 
 ### Progress by Phase
 - Phase 0: ✅ 100%
 - Phase 1: ✅ 100% 
-- Phase 2-9: ⏳ 0%
-- **Overall:** 🟢 ~18% complete
+- Phase 2: 🟡 60% (core execution done, advanced features pending)
+- Phase 3-9: ⏳ 0%
+- **Overall:** 🟢 ~28% complete
 
 ---
 
@@ -391,14 +445,20 @@ Based on Lua's transition and academic research:
 1. ✅ Complete instruction set design
 2. ✅ Design Chunk structure for register bytecode
 3. ✅ Design register allocation strategy
-4. 🔄 Begin VM core refactor (Phase 2)
-5. ⏳ Implement register file in VM
+4. ✅ Begin VM core refactor (Phase 2)
+5. ✅ Implement register file in VM
+6. 🔄 Complete closure support in VM
+7. 🔄 Implement data structure operations
+8. ⏳ Add ChunkBuilder helper methods for testing
 
 ### Short Term (This Week)
-1. Begin VM refactor (Phase 2)
-2. Implement register file management
-3. Implement basic instruction execution
-4. Write initial VM tests
+1. ✅ Begin VM refactor (Phase 2)
+2. ✅ Implement register file management
+3. ✅ Implement basic instruction execution
+4. ✅ Write initial VM tests
+5. Complete advanced VM features (closures, data structures)
+6. Add comprehensive integration tests
+7. Begin compiler refactor (Phase 3)
 
 ### Medium Term (Next 2 Weeks)
 1. Complete VM core
@@ -468,5 +528,6 @@ The migration will be considered successful when:
 **Maintained by:** Veld Development Team
 **Started:** 2024
 **Target Completion:** Q1 2025 (2-3 months)
-**Current Phase:** Phase 2 - VM Core Refactor (Ready to Start!)
+**Current Phase:** Phase 2 - VM Core Refactor (In Progress - 60% complete)
 **Phase 1 Status:** ✅ Complete (1 day, 19 tests passing)
+**Phase 2 Status:** 🟡 In Progress (1 day, core execution done, 26 total tests passing)
