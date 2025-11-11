@@ -1,0 +1,175 @@
+# Comprehensive test for println~ macro
+# Testing string interpolation and formatting capabilities
+
+import std.io
+
+io.println("=== Print Macro Test Suite ===")
+io.println("")
+
+# Test 1: Basic string literals
+io.println("--- Test 1: Basic String Literals ---")
+println~("Simple string without interpolation")
+println~("Hello, World!")
+io.println("")
+
+# Test 2: Single variable interpolation
+io.println("--- Test 2: Single Variable Interpolation ---")
+let name = "Alice"
+println~("Hello, {name}!")
+let age = 30
+println~("Age: {age}")
+let pi = 3.14159
+println~("Pi: {pi}")
+let is_active = true
+println~("Active: {is_active}")
+io.println("")
+
+# Test 3: Multiple variable interpolation
+io.println("--- Test 3: Multiple Variable Interpolation ---")
+let first = "Bob"
+let last = "Smith"
+let year = 2024
+println~("Name: {first} {last}, Year: {year}")
+io.println("")
+
+# Test 4: Expressions in interpolation
+io.println("--- Test 4: Expression Interpolation ---")
+let x = 10
+let y = 20
+println~("Sum: {x + y}")
+println~("Product: {x * y}")
+println~("Comparison: {x < y}")
+io.println("")
+
+# Test 5: Nested expressions
+# Test 5: Complex Expressions ---
+io.println("--- Test 5: Complex Expressions ---")
+let a = 5
+let b = 3
+let sum = a + b
+let doubled = sum * 2
+println~("Complex: {doubled}")
+let nested = a * 10
+println~("Nested: {nested}")
+io.println("")
+
+# Test 6: Array interpolation
+io.println("--- Test 6: Array Interpolation ---")
+let numbers = [1, 2, 3, 4, 5]
+println~("Numbers: {numbers}")
+let words = ["hello", "world"]
+println~("Words: {words}")
+io.println("")
+
+# Test 7: Multiple interpolations with text
+io.println("--- Test 7: Complex Text with Multiple Interpolations ---")
+let user = "Charlie"
+let score = 95
+let level = 10
+println~("Player {user} achieved a score of {score} at level {level}!")
+io.println("")
+
+# Test 8: Interpolation at different positions
+io.println("--- Test 8: Interpolation Positions ---")
+let value = 42
+println~("{value} at start")
+println~("In the middle {value} here")
+println~("At the end {value}")
+println~("{value}")
+io.println("")
+
+# Test 9: Numeric types
+io.println("--- Test 9: Different Numeric Types ---")
+let int_val = 100
+let float_val = 3.14159
+let neg_val = -42
+println~("Integer: {int_val}")
+println~("Float: {float_val}")
+println~("Negative: {neg_val}")
+io.println("")
+
+# Test 10: Boolean types
+io.println("--- Test 10: Boolean Types ---")
+let flag = true
+let flag2 = false
+println~("True: {flag}")
+println~("False: {flag2}")
+io.println("")
+
+# Test 11: Empty string
+io.println("--- Test 11: Edge Cases ---")
+println~("")
+let empty = ""
+println~("Empty var: {empty}")
+println~("Text with empty: '{empty}'")
+io.println("")
+
+# Test 12: Many interpolations
+io.println("--- Test 12: Many Interpolations ---")
+let v1 = 1
+let v2 = 2
+let v3 = 3
+let v4 = 4
+let v5 = 5
+println~("{v1}, {v2}, {v3}, {v4}, {v5}")
+io.println("")
+
+# Test 13: Repeated variable interpolation
+io.println("--- Test 13: Repeated Variables ---")
+let repeat = "ABC"
+println~("Once: {repeat}, Twice: {repeat}, Thrice: {repeat}")
+io.println("")
+
+# Test 14: Mixed text and interpolation
+io.println("--- Test 14: Mixed Content ---")
+let temp = 72
+println~("The temperature is {temp} degrees Fahrenheit")
+let celsius = temp - 32
+println~("That's approximately {celsius} degrees Celsius")
+io.println("")
+
+# Test 15: Boolean expressions
+io.println("--- Test 15: Boolean Expressions ---")
+let num = 15
+println~("Is even: {num % 2 == 0}")
+println~("Is positive: {num > 0}")
+println~("In range: {num >= 10 and num <= 20}")
+io.println("")
+
+# Test 16: String concatenation in expressions
+io.println("--- Test 16: String Operations ---")
+let greeting = "Hello"
+let target = "World"
+println~("Concatenated: {greeting + \" \" + target}")
+io.println("")
+
+# Test 17: Comparison expressions
+io.println("--- Test 17: Comparison Results ---")
+let left = 10
+let right = 20
+println~("{left} < {right}: {left < right}")
+println~("{left} == {right}: {left == right}")
+println~("{left} > {right}: {left > right}")
+io.println("")
+
+# Test 18: Long strings
+io.println("--- Test 18: Long Strings ---")
+let long = "This is a very long string that contains a lot of text to test how the println macro handles longer content"
+println~("Long: {long}")
+io.println("")
+
+# Test 19: Special characters in variables
+io.println("--- Test 19: Special Content ---")
+let quoted = "with \"quotes\""
+println~("String with quotes: {quoted}")
+io.println("")
+
+# Test 20: Whitespace in interpolation
+io.println("--- Test 20: Whitespace Handling ---")
+let spaced = "value"
+println~("Tight{spaced}fit")
+println~("With spaces { spaced } here")
+println~("Mixed{spaced} and { spaced }")
+io.println("")
+
+io.println("=== Print Macro Test Suite Complete ===")

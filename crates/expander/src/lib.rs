@@ -73,6 +73,11 @@ pub enum ExpansionError {
         macro_name: String,
         call_site: NodeId,
     },
+
+    // Format string errors
+    InvalidFormatString {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone)]

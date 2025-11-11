@@ -375,6 +375,7 @@ impl Interpreter {
         // Register other native functions
         self.register_panic_function();
         self.register_math_functions();
+        self.register_to_str_function();
         self.register_io_functions();
         self.register_fs_functions();
         self.register_hashmap_methods();
@@ -767,6 +768,20 @@ impl Interpreter {
                         e
                     ))),
                 }
+            });
+    }
+
+    fn register_to_str_function(&mut self) {
+        // Convert any value to string representation
+        self.native_registry
+            .register("to_str", |interpreter, args| {
+                if args.len() != 1 {
+                    return Err(VeldError::RuntimeError(
+                        "to_str requires exactly one argument".to_string(),
+                    ));
+                }
+
+                interpreter.value_to_string(&args[0]).map(Value::String)
             });
     }
 
@@ -4974,6 +4989,56 @@ impl Interpreter {
             Value::String(s) => Ok(s.clone()),
             Value::Boolean(b) => Ok(b.to_string()),
             Value::Char(c) => Ok(c.to_string()),
+            Value::Numeric(numeric) => {
+                // Handle Numeric wrapper
+                use veld_common::value::numeric::{FloatValue, IntegerValue, NumericValue};
+                match numeric {
+                    NumericValue::Integer(int_val) => match int_val {
+                        IntegerValue::I8(v) => Ok(v.to_string()),
+                        IntegerValue::I16(v) => Ok(v.to_string()),
+                        IntegerValue::I32(v) => Ok(v.to_string()),
+                        IntegerValue::I64(v) => Ok(v.to_string()),
+                        IntegerValue::U8(v) => Ok(v.to_string()),
+                        IntegerValue::U16(v) => Ok(v.to_string()),
+                        IntegerValue::U32(v) => Ok(v.to_string()),
+                        IntegerValue::U64(v) => Ok(v.to_string()),
+                    },
+                    NumericValue::Float(float_val) => match float_val {
+                        FloatValue::F32(v) => Ok(v.to_string()),
+                        FloatValue::F64(v) => Ok(v.to_string()),
+                    },
+                }
+            }
+            // TODO: Handle GcRef by dereferencing - need to find correct method
+            // Value::GcRef(handle) => {
+            //     if let Some(gc_value) = self.gc_deref(handle) {
+            //         self.value_to_string(&gc_value)
+            //     } else {
+            //         Ok(format!("GcRef({:?})", handle))
+            //     }
+            // }
+            Value::Array(elements) => {
+                let elements_str = elements
+                    .iter()
+                    .map(|v| {
+                        self.value_to_string(v)
+                            .unwrap_or_else(|_| format!("{:?}", v))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Ok(format!("[{}]", elements_str))
+            }
+            Value::Tuple(elements) => {
+                let elements_str = elements
+                    .iter()
+                    .map(|v| {
+                        self.value_to_string(v)
+                            .unwrap_or_else(|_| format!("{:?}", v))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Ok(format!("({})", elements_str))
+            }
             Value::Struct { name, fields } => {
                 let fields_str = fields
                     .iter()
@@ -4982,6 +5047,26 @@ impl Interpreter {
                     .join(", ");
                 Ok(format!("{}({})", name, fields_str))
             }
+            Value::Enum {
+                enum_name,
+                variant_name,
+                fields,
+            } => {
+                if fields.is_empty() {
+                    Ok(format!("{}::{}", enum_name, variant_name))
+                } else {
+                    let fields_str = fields
+                        .iter()
+                        .map(|v| {
+                            self.value_to_string(v)
+                                .unwrap_or_else(|_| format!("{:?}", v))
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    Ok(format!("{}::{}({})", enum_name, variant_name, fields_str))
+                }
+            }
+            Value::Unit => Ok("()".to_string()),
             _ => Ok(format!("{:?}", value)),
         }
     }

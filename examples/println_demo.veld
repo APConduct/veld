@@ -1,0 +1,29 @@
+# Demo: println~ macro with string interpolation
+
+import std.io
+
+io.println("=== String Interpolation Demo ===")
+io.println("")
+
+# Basic variable interpolation
+let name = "Alice"
+let age = 30
+println~("Hello, {name}! You are {age} years old.")
+
+# Expression evaluation
+let x = 10
+let y = 20
+println~("The sum of {x} and {y} is {x + y}")
+
+# Multiple interpolations
+let product = "Widget"
+let quantity = 42
+let price = 9.99
+println~("Order: {quantity} {product}s at ${price} each")
+
+# Boolean expressions
+let is_valid = true
+println~("Status: {is_valid}")
+
+io.println("")
+io.println("=== Demo Complete ===")

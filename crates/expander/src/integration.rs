@@ -60,6 +60,16 @@ impl MacroSystem {
             },
         );
 
+        // print! macro
+        self.builtin_macros.insert(
+            "print".to_string(),
+            BuiltinMacro {
+                name: "print".to_string(),
+                expand_fn: expand_print_macro,
+                description: "Prints to stdout without newline".to_string(),
+            },
+        );
+
         // debug! macro
         self.builtin_macros.insert(
             "debug".to_string(),
@@ -474,6 +484,67 @@ fn expand_format_macro(args: &[Expr], call_site: NodeId) -> Result<Vec<Statement
     Ok(vec![Statement::ExprStatement(final_expr)])
 }
 
+fn expand_print_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>, ExpansionError> {
+    if args.is_empty() {
+        // print!() -> std.io.print("")
+        Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::Identifier("std".to_string())),
+                property: "io".to_string(),
+            }),
+            method: "print".to_string(),
+            arguments: vec![veld_common::ast::Argument::Positional(Expr::Literal(
+                veld_common::ast::Literal::String("".to_string()),
+            ))],
+        })])
+    } else if args.len() == 1 {
+        // Check if the argument is a string literal with interpolation
+        if let Expr::Literal(veld_common::ast::Literal::String(format_str)) = &args[0] {
+            // Check if the string contains interpolation placeholders
+            if format_str.contains('{') {
+                // Parse and expand interpolation
+                let expanded_expr = expand_string_interpolation(format_str)?;
+                return Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+                    object: Box::new(Expr::PropertyAccess {
+                        object: Box::new(Expr::Identifier("std".to_string())),
+                        property: "io".to_string(),
+                    }),
+                    method: "print".to_string(),
+                    arguments: vec![veld_common::ast::Argument::Positional(expanded_expr)],
+                })]);
+            }
+        }
+
+        // print!(expr) -> std.io.print(expr)
+        Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::Identifier("std".to_string())),
+                property: "io".to_string(),
+            }),
+            method: "print".to_string(),
+            arguments: vec![veld_common::ast::Argument::Positional(args[0].clone())],
+        })])
+    } else {
+        // print!("format", args...) -> print(format("format", args...))
+        let format_call = Expr::FunctionCall {
+            name: "format".to_string(),
+            arguments: args
+                .iter()
+                .map(|arg| veld_common::ast::Argument::Positional(arg.clone()))
+                .collect(),
+        };
+
+        Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+            object: Box::new(Expr::PropertyAccess {
+                object: Box::new(Expr::Identifier("std".to_string())),
+                property: "io".to_string(),
+            }),
+            method: "print".to_string(),
+            arguments: vec![veld_common::ast::Argument::Positional(format_call)],
+        })])
+    }
+}
+
 fn expand_println_macro(
     args: &[Expr],
     _call_site: NodeId,
@@ -491,6 +562,23 @@ fn expand_println_macro(
             ))],
         })])
     } else if args.len() == 1 {
+        // Check if the argument is a string literal with interpolation
+        if let Expr::Literal(veld_common::ast::Literal::String(format_str)) = &args[0] {
+            // Check if the string contains interpolation placeholders
+            if format_str.contains('{') {
+                // Parse and expand interpolation
+                let expanded_expr = expand_string_interpolation(format_str)?;
+                return Ok(vec![Statement::ExprStatement(Expr::MethodCall {
+                    object: Box::new(Expr::PropertyAccess {
+                        object: Box::new(Expr::Identifier("std".to_string())),
+                        property: "io".to_string(),
+                    }),
+                    method: "println".to_string(),
+                    arguments: vec![veld_common::ast::Argument::Positional(expanded_expr)],
+                })]);
+            }
+        }
+
         // println!(expr) -> std.io.println(expr)
         Ok(vec![Statement::ExprStatement(Expr::MethodCall {
             object: Box::new(Expr::PropertyAccess {
@@ -518,6 +606,337 @@ fn expand_println_macro(
             method: "println".to_string(),
             arguments: vec![veld_common::ast::Argument::Positional(format_call)],
         })])
+    }
+}
+
+/// Parse a format string and expand interpolation into a concatenation expression
+fn expand_string_interpolation(format_str: &str) -> Result<Expr, ExpansionError> {
+    let parts = parse_format_string(format_str)?;
+
+    if parts.is_empty() {
+        // Empty string
+        return Ok(Expr::Literal(veld_common::ast::Literal::String(
+            "".to_string(),
+        )));
+    }
+
+    if parts.len() == 1 {
+        // Single part - return it directly
+        return Ok(parts[0].clone());
+    }
+
+    // Multiple parts - concatenate them
+    let mut result = parts[0].clone();
+    for part in parts.into_iter().skip(1) {
+        result = Expr::BinaryOp {
+            left: Box::new(result),
+            operator: veld_common::ast::BinaryOperator::Add,
+            right: Box::new(part),
+        };
+    }
+
+    Ok(result)
+}
+
+/// Parse a format string into a list of expressions
+/// "Hello, {name}!" -> ["Hello, ", name, "!"]
+fn parse_format_string(format_str: &str) -> Result<Vec<Expr>, ExpansionError> {
+    let mut parts = Vec::new();
+    let mut current_str = String::new();
+    let mut chars = format_str.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '{' {
+            // Check for escaped brace {{
+            if chars.peek() == Some(&'{') {
+                chars.next(); // consume second {
+                current_str.push('{');
+                continue;
+            }
+
+            // Found interpolation start - save any accumulated string
+            if !current_str.is_empty() {
+                parts.push(Expr::Literal(veld_common::ast::Literal::String(
+                    current_str.clone(),
+                )));
+                current_str.clear();
+            }
+
+            // Parse the expression inside {}
+            let mut expr_str = String::new();
+            let mut brace_depth = 1;
+
+            while let Some(ch) = chars.next() {
+                if ch == '{' {
+                    brace_depth += 1;
+                    expr_str.push(ch);
+                } else if ch == '}' {
+                    brace_depth -= 1;
+                    if brace_depth == 0 {
+                        break;
+                    }
+                    expr_str.push(ch);
+                } else {
+                    expr_str.push(ch);
+                }
+            }
+
+            if brace_depth != 0 {
+                return Err(ExpansionError::InvalidFormatString {
+                    message: "Unclosed brace in format string".to_string(),
+                });
+            }
+
+            let expr_str = expr_str.trim();
+            if expr_str.is_empty() {
+                return Err(ExpansionError::InvalidFormatString {
+                    message: "Empty interpolation placeholder".to_string(),
+                });
+            }
+
+            // Parse the expression
+            let expr = parse_interpolation_expr(expr_str)?;
+
+            // For string literals, use them directly
+            // For other expressions, wrap in a function call that converts to string
+            let string_expr = if matches!(expr, Expr::Literal(veld_common::ast::Literal::String(_)))
+            {
+                expr
+            } else {
+                // Create a function call to convert value to string
+                // The runtime will need to handle this conversion
+                Expr::FunctionCall {
+                    name: "to_str".to_string(),
+                    arguments: vec![veld_common::ast::Argument::Positional(expr)],
+                }
+            };
+
+            parts.push(string_expr);
+        } else if ch == '}' {
+            // Check for escaped brace }}
+            if chars.peek() == Some(&'}') {
+                chars.next(); // consume second }
+                current_str.push('}');
+                continue;
+            }
+
+            return Err(ExpansionError::InvalidFormatString {
+                message: "Unmatched closing brace in format string".to_string(),
+            });
+        } else {
+            current_str.push(ch);
+        }
+    }
+
+    // Add any remaining string
+    if !current_str.is_empty() {
+        parts.push(Expr::Literal(veld_common::ast::Literal::String(
+            current_str,
+        )));
+    }
+
+    Ok(parts)
+}
+
+/// Parse an expression from a string (simple version)
+fn parse_interpolation_expr(expr_str: &str) -> Result<Expr, ExpansionError> {
+    // For now, we'll do a simple parser that handles:
+    // - Identifiers: name
+    // - Binary operations: x + y, x * 2, etc.
+    // - Property access: obj.field
+    // - Comparisons: x > y, x == y
+
+    // Try to parse as identifier first (most common case)
+    let trimmed = expr_str.trim();
+
+    // Check for binary operations (simple left-to-right parsing)
+    // Priority: comparisons, then arithmetic
+
+    // Check for comparison operators
+    for (op_str, op) in &[
+        ("==", veld_common::ast::BinaryOperator::EqualEqual),
+        ("!=", veld_common::ast::BinaryOperator::NotEqual),
+        ("<=", veld_common::ast::BinaryOperator::LessEq),
+        (">=", veld_common::ast::BinaryOperator::GreaterEq),
+        ("<", veld_common::ast::BinaryOperator::Less),
+        (">", veld_common::ast::BinaryOperator::Greater),
+    ] {
+        if let Some(pos) = trimmed.find(op_str) {
+            let left_str = &trimmed[..pos].trim();
+            let right_str = &trimmed[pos + op_str.len()..].trim();
+
+            if !left_str.is_empty() && !right_str.is_empty() {
+                let left = parse_interpolation_expr(left_str)?;
+                let right = parse_interpolation_expr(right_str)?;
+
+                return Ok(Expr::BinaryOp {
+                    left: Box::new(left),
+                    operator: op.clone(),
+                    right: Box::new(right),
+                });
+            }
+        }
+    }
+
+    // Check for logical operators
+    if let Some(pos) = trimmed.find(" and ") {
+        let left_str = &trimmed[..pos].trim();
+        let right_str = &trimmed[pos + 5..].trim();
+
+        let left = parse_interpolation_expr(left_str)?;
+        let right = parse_interpolation_expr(right_str)?;
+
+        return Ok(Expr::BinaryOp {
+            left: Box::new(left),
+            operator: veld_common::ast::BinaryOperator::And,
+            right: Box::new(right),
+        });
+    }
+
+    if let Some(pos) = trimmed.find(" or ") {
+        let left_str = &trimmed[..pos].trim();
+        let right_str = &trimmed[pos + 4..].trim();
+
+        let left = parse_interpolation_expr(left_str)?;
+        let right = parse_interpolation_expr(right_str)?;
+
+        return Ok(Expr::BinaryOp {
+            left: Box::new(left),
+            operator: veld_common::ast::BinaryOperator::Or,
+            right: Box::new(right),
+        });
+    }
+
+    // Check for arithmetic operators (lowest precedence first)
+    for (op_str, op) in &[
+        (" + ", veld_common::ast::BinaryOperator::Add),
+        (" - ", veld_common::ast::BinaryOperator::Subtract),
+    ] {
+        if let Some(pos) = trimmed.find(op_str) {
+            let left_str = &trimmed[..pos].trim();
+            let right_str = &trimmed[pos + op_str.len()..].trim();
+
+            if !left_str.is_empty() && !right_str.is_empty() {
+                let left = parse_interpolation_expr(left_str)?;
+                let right = parse_interpolation_expr(right_str)?;
+
+                return Ok(Expr::BinaryOp {
+                    left: Box::new(left),
+                    operator: op.clone(),
+                    right: Box::new(right),
+                });
+            }
+        }
+    }
+
+    // Check for multiplication/division (higher precedence)
+    for (op_str, op) in &[
+        (" * ", veld_common::ast::BinaryOperator::Multiply),
+        (" / ", veld_common::ast::BinaryOperator::Divide),
+        (" % ", veld_common::ast::BinaryOperator::Modulo),
+    ] {
+        if let Some(pos) = trimmed.find(op_str) {
+            let left_str = &trimmed[..pos].trim();
+            let right_str = &trimmed[pos + op_str.len()..].trim();
+
+            if !left_str.is_empty() && !right_str.is_empty() {
+                let left = parse_interpolation_expr(left_str)?;
+                let right = parse_interpolation_expr(right_str)?;
+
+                return Ok(Expr::BinaryOp {
+                    left: Box::new(left),
+                    operator: op.clone(),
+                    right: Box::new(right),
+                });
+            }
+        }
+    }
+
+    // Check for parentheses (but make sure they're balanced)
+    if trimmed.starts_with('(') {
+        let mut depth = 0;
+        let mut closes_at_end = false;
+
+        for (i, ch) in trimmed.chars().enumerate() {
+            if ch == '(' {
+                depth += 1;
+            } else if ch == ')' {
+                depth -= 1;
+                if depth == 0 && i == trimmed.len() - 1 {
+                    closes_at_end = true;
+                }
+            }
+        }
+
+        if closes_at_end {
+            let inner = &trimmed[1..trimmed.len() - 1];
+            return parse_interpolation_expr(inner);
+        }
+    }
+
+    // Check for property access
+    if let Some(dot_pos) = trimmed.find('.') {
+        let object_str = &trimmed[..dot_pos].trim();
+        let property_str = &trimmed[dot_pos + 1..].trim();
+
+        if !object_str.is_empty() && !property_str.is_empty() {
+            let object = parse_interpolation_expr(object_str)?;
+
+            // Check if property access or method call
+            if property_str.contains('(') {
+                // Method call (simplified - just method name without args for now)
+                let method_name = property_str.split('(').next().unwrap().trim();
+                return Ok(Expr::MethodCall {
+                    object: Box::new(object),
+                    method: method_name.to_string(),
+                    arguments: vec![],
+                });
+            } else {
+                return Ok(Expr::PropertyAccess {
+                    object: Box::new(object),
+                    property: property_str.to_string(),
+                });
+            }
+        }
+    }
+
+    // Check for string literal
+    if (trimmed.starts_with('"') && trimmed.ends_with('"'))
+        || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+    {
+        let content = &trimmed[1..trimmed.len() - 1];
+        return Ok(Expr::Literal(veld_common::ast::Literal::String(
+            content.to_string(),
+        )));
+    }
+
+    // Check for numeric literal
+    if let Ok(int_val) = trimmed.parse::<i32>() {
+        return Ok(Expr::Literal(veld_common::ast::Literal::Integer(
+            int_val as i64,
+        )));
+    }
+
+    if let Ok(float_val) = trimmed.parse::<f64>() {
+        return Ok(Expr::Literal(veld_common::ast::Literal::Float(float_val)));
+    }
+
+    // Check for boolean literal
+    if trimmed == "true" {
+        return Ok(Expr::Literal(veld_common::ast::Literal::Boolean(true)));
+    }
+
+    if trimmed == "false" {
+        return Ok(Expr::Literal(veld_common::ast::Literal::Boolean(false)));
+    }
+
+    // Default: treat as identifier
+    if trimmed.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        Ok(Expr::Identifier(trimmed.to_string()))
+    } else {
+        Err(ExpansionError::InvalidFormatString {
+            message: format!("Invalid expression in interpolation: {}", trimmed),
+        })
     }
 }
 
