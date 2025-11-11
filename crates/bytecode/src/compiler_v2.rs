@@ -83,6 +83,8 @@ struct VarInfo {
     depth: usize,
     /// If this variable is captured by a closure
     is_captured: bool,
+    /// If this variable is actually an upvalue (captured from parent scope)
+    is_upvalue: bool,
 }
 
 /// Upvalue information for closures (compiler-side tracking)
@@ -348,6 +350,7 @@ impl RegisterCompiler {
             is_mutable,
             depth: self.scope_depth,
             is_captured: false,
+            is_upvalue: false,
         };
 
         // Save the old variable if we're shadowing
@@ -599,10 +602,19 @@ impl RegisterCompiler {
 
     /// Compile an identifier (variable access)
     fn compile_identifier(&mut self, name: &str) -> Result<ExprResult> {
-        // First check if it's a local variable
+        // First check if it's a local variable or upvalue
         if let Some(var_info) = self.variables.get(name) {
-            // Variable is already in a register, return it (not a temp)
-            return Ok(ExprResult::var(var_info.register));
+            if var_info.is_upvalue {
+                // This is an upvalue, need to use GetUpvalue instruction
+                if let Some(upvalue_idx) = self.find_upvalue(name) {
+                    let dest = self.allocate_temp()?;
+                    self.chunk.get_upvalue(dest, upvalue_idx as u8);
+                    return Ok(ExprResult::temp(dest));
+                }
+            } else {
+                // Regular local variable, return its register
+                return Ok(ExprResult::var(var_info.register));
+            }
         }
 
         // Check if it's an upvalue (captured from parent scope)
@@ -742,37 +754,51 @@ impl RegisterCompiler {
         // Compile callee expression
         let func_result = self.compile_expr_to_reg(callee)?;
 
-        // Compile arguments to consecutive registers
+        // If the function is not a temp (e.g., it's a variable), we need to move it
+        // to a temp to preserve the original. Otherwise the return value will overwrite it.
+        let call_func_reg = if func_result.is_temp {
+            func_result.register
+        } else {
+            let temp_reg = self.allocate_temp()?;
+            self.chunk.move_reg(temp_reg, func_result.register);
+            temp_reg
+        };
+
+        // Compile arguments and move them to consecutive registers after func_reg
+        // VM expects arguments at func_reg+1, func_reg+2, etc.
         let mut arg_regs = Vec::new();
-        for arg in arguments {
+        for (i, arg) in arguments.iter().enumerate() {
             let arg_expr = match arg {
                 Argument::Positional(expr) => expr,
                 Argument::Named { value, .. } => value,
             };
             let arg_result = self.compile_expr_to_reg(arg_expr)?;
-            arg_regs.push(arg_result);
+
+            // Move argument to the expected position (func_reg + 1 + i)
+            let target_reg = call_func_reg + 1 + i as u8;
+            if arg_result.register != target_reg {
+                self.chunk.move_reg(target_reg, arg_result.register);
+            }
+
+            // Free the temp if it's not the target register
+            if arg_result.is_temp && arg_result.register != target_reg {
+                self.free_temp(arg_result.register);
+            }
+
+            arg_regs.push(target_reg);
         }
 
         // Call instruction: call(func, arg_count, ret_count)
-        // The VM will handle setting up arguments
         let arg_count = arg_regs.len() as u8;
+        self.chunk.call(call_func_reg, arg_count, 1);
 
-        self.chunk.call(func_result.register, arg_count, 1);
-
-        // Result is in func_result.register after call (convention)
+        // Result is in call_func_reg after call (convention)
         // We need to move it to a new temp
         let result_reg = self.allocate_temp()?;
-        self.chunk.move_reg(result_reg, func_result.register);
+        self.chunk.move_reg(result_reg, call_func_reg);
 
-        // Free temporaries
-        if func_result.is_temp {
-            self.free_temp(func_result.register);
-        }
-        for arg_result in arg_regs {
-            if arg_result.is_temp {
-                self.free_temp(arg_result.register);
-            }
-        }
+        // Free the temp we used for the call
+        self.free_temp(call_func_reg);
 
         Ok(ExprResult::temp(result_reg))
     }
@@ -914,6 +940,7 @@ impl RegisterCompiler {
                     is_mutable: false,
                     depth: 0,
                     is_captured: false,
+                    is_upvalue: false,
                 },
             );
         }
@@ -991,6 +1018,7 @@ impl RegisterCompiler {
                     is_mutable: false,
                     depth: 0,
                     is_captured: false,
+                    is_upvalue: false,
                 },
             );
         }
@@ -998,30 +1026,71 @@ impl RegisterCompiler {
         // Set up upvalues in the nested compiler
         for capture in &captures {
             func_compiler.upvalues.push(capture.clone());
-            // Also add the upvalue as a variable in the function scope
-            // so nested functions can see it
+            // Add upvalues to variables map so nested functions can find them
+            // Mark them as upvalues so they use GetUpvalue instruction
             func_compiler.variables.insert(
                 capture.name.clone(),
                 VarInfo {
-                    register: capture.register,
+                    register: capture.register, // This is the upvalue index in practice
                     is_mutable: capture.is_mutable,
                     depth: 0,
                     is_captured: false,
+                    is_upvalue: true, // This is an upvalue, not a local variable
                 },
             );
         }
 
         // Compile the body
         func_compiler.begin_scope();
-        for stmt in body {
-            func_compiler.compile_statement(stmt)?;
+
+        // Track if the last statement is an expression that should be returned
+        let last_stmt_index = body.len().saturating_sub(1);
+        let mut last_expr_reg: Option<Reg> = None;
+
+        for (i, stmt) in body.iter().enumerate() {
+            if i == last_stmt_index {
+                // Check if last statement is an expression statement or if/else
+                match stmt {
+                    Statement::ExprStatement(expr) => {
+                        // Compile the expression and keep its result
+                        let result = func_compiler.compile_expr_to_reg(expr)?;
+                        last_expr_reg = Some(result.register);
+                        // Don't free the temp - we need it for return
+                    }
+                    Statement::If {
+                        condition,
+                        then_branch,
+                        else_branch: Some(else_branch),
+                    } => {
+                        // If/else as expression - compile it and capture the result
+                        let result_reg = func_compiler.allocate_temp()?;
+                        func_compiler.compile_if_expression(
+                            condition,
+                            then_branch,
+                            else_branch,
+                            result_reg,
+                        )?;
+                        last_expr_reg = Some(result_reg);
+                    }
+                    _ => {
+                        func_compiler.compile_statement(stmt)?;
+                    }
+                }
+            } else {
+                func_compiler.compile_statement(stmt)?;
+            }
         }
 
-        // Add implicit return nil if no explicit return
-        let nil_const = func_compiler.chunk.add_constant(Constant::Nil);
-        let nil_reg = func_compiler.allocate_temp()?;
-        func_compiler.chunk.load_const(nil_reg, nil_const);
-        func_compiler.chunk.return_vals(nil_reg, 1);
+        // Return the last expression or nil
+        let return_reg = if let Some(reg) = last_expr_reg {
+            reg
+        } else {
+            let nil_const = func_compiler.chunk.add_constant(Constant::Nil);
+            let nil_reg = func_compiler.allocate_temp()?;
+            func_compiler.chunk.load_const(nil_reg, nil_const);
+            nil_reg
+        };
+        func_compiler.chunk.return_vals(return_reg, 1);
 
         func_compiler.end_scope();
 
@@ -1093,6 +1162,7 @@ impl RegisterCompiler {
                 is_mutable: false,
                 depth: self.scope_depth,
                 is_captured: false,
+                is_upvalue: false,
             },
         );
 
@@ -1318,6 +1388,86 @@ impl RegisterCompiler {
         }
     }
 
+    /// Compile if/else as an expression that produces a value
+    fn compile_if_expression(
+        &mut self,
+        condition: &Expr,
+        then_branch: &[Statement],
+        else_branch: &[Statement],
+        result_reg: Reg,
+    ) -> Result<()> {
+        // Compile condition
+        let cond_result = self.compile_expr_to_reg(condition)?;
+
+        // Jump to else if condition is false
+        let else_jump = self.chunk.jump_if_not(cond_result.register, 0);
+
+        if cond_result.is_temp {
+            self.free_temp(cond_result.register);
+        }
+
+        // Compile then branch - last expression goes to result_reg
+        self.begin_scope();
+        let then_last = then_branch.len().saturating_sub(1);
+        for (i, stmt) in then_branch.iter().enumerate() {
+            if i == then_last {
+                if let Statement::ExprStatement(expr) = stmt {
+                    let expr_result = self.compile_expr_to_reg(expr)?;
+                    if expr_result.register != result_reg {
+                        self.chunk.move_reg(result_reg, expr_result.register);
+                    }
+                    if expr_result.is_temp && expr_result.register != result_reg {
+                        self.free_temp(expr_result.register);
+                    }
+                } else {
+                    self.compile_statement(stmt)?;
+                    // No explicit value, use unit
+                    let unit_const = self.chunk.add_constant(Constant::Nil);
+                    self.chunk.load_const(result_reg, unit_const);
+                }
+            } else {
+                self.compile_statement(stmt)?;
+            }
+        }
+        self.end_scope();
+
+        // Jump over else branch
+        let end_jump = self.chunk.jump(0);
+
+        // Patch else jump
+        self.chunk.patch_jump(else_jump);
+
+        // Compile else branch - last expression goes to result_reg
+        self.begin_scope();
+        let else_last = else_branch.len().saturating_sub(1);
+        for (i, stmt) in else_branch.iter().enumerate() {
+            if i == else_last {
+                if let Statement::ExprStatement(expr) = stmt {
+                    let expr_result = self.compile_expr_to_reg(expr)?;
+                    if expr_result.register != result_reg {
+                        self.chunk.move_reg(result_reg, expr_result.register);
+                    }
+                    if expr_result.is_temp && expr_result.register != result_reg {
+                        self.free_temp(expr_result.register);
+                    }
+                } else {
+                    self.compile_statement(stmt)?;
+                    // No explicit value, use unit
+                    let unit_const = self.chunk.add_constant(Constant::Nil);
+                    self.chunk.load_const(result_reg, unit_const);
+                }
+            } else {
+                self.compile_statement(stmt)?;
+            }
+        }
+        self.end_scope();
+
+        // Patch end jump
+        self.chunk.patch_jump(end_jump);
+
+        Ok(())
+    }
+
     /// Compile if statement
     fn compile_if(
         &mut self,
@@ -1455,6 +1605,7 @@ impl RegisterCompiler {
                 is_mutable: false,
                 depth: self.scope_depth,
                 is_captured: false,
+                is_upvalue: false,
             },
         );
 

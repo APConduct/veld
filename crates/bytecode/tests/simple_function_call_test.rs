@@ -147,3 +147,65 @@ result
         }
     }
 }
+
+#[test]
+fn test_function_returning_closure() {
+    let code = r#"
+fn make_adder(x)
+    fn inner(y)
+        x + y
+    end
+    inner
+end
+
+let add5 = make_adder(5)
+let result = add5(10)
+result
+"#;
+
+    let result = compile_and_run(code).expect("Compilation failed");
+    match result {
+        veld_bytecode::vm_v2::InterpretResult::Ok(value) => {
+            println!("✅ Function returning closure result: {:?}", value);
+            println!("Expected Unit (last stmt is assignment), got: {:?}", value);
+        }
+        veld_bytecode::vm_v2::InterpretResult::RuntimeError(e) => {
+            panic!("Runtime error: {:?}", e);
+        }
+        veld_bytecode::vm_v2::InterpretResult::CompileError(e) => {
+            panic!("Compile error: {:?}", e);
+        }
+    }
+}
+
+#[test]
+fn test_function_call_in_loop() {
+    let code = r#"
+fn double(x)
+    x * 2
+end
+
+let numbers = [1, 2, 3]
+var sum = 0
+
+for n in numbers do
+    sum = sum + double(n)
+end
+
+sum
+"#;
+
+    let result = compile_and_run(code).expect("Compilation failed");
+    match result {
+        veld_bytecode::vm_v2::InterpretResult::Ok(value) => {
+            println!("✅ Function call in loop result: {:?}", value);
+            println!("Expected Unit (last stmt is assignment), got: {:?}", value);
+        }
+        veld_bytecode::vm_v2::InterpretResult::RuntimeError(e) => {
+            panic!("Runtime error: {:?}", e);
+        }
+        veld_bytecode::vm_v2::InterpretResult::CompileError(e) => {
+            panic!("Compile error: {:?}", e);
+        }
+    }
+}

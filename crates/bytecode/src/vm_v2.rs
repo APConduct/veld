@@ -479,6 +479,20 @@ impl VirtualMachine {
                     arg_count,
                     ret_count,
                 } => {
+                    if self.debug_mode {
+                        eprintln!(
+                            "DEBUG: Call instruction - func_reg={}, arg_count={}",
+                            func, arg_count
+                        );
+                        let func_val = self.get_register(func)?;
+                        eprintln!("DEBUG: Function value: {:?}", func_val);
+                        for i in 0..arg_count {
+                            let arg_reg = func + 1 + i;
+                            if let Ok(arg_val) = self.get_register(arg_reg) {
+                                eprintln!("DEBUG: Arg {} (reg {}): {:?}", i, arg_reg, arg_val);
+                            }
+                        }
+                    }
                     self.call_function(func, arg_count, ret_count)?;
                 }
 
@@ -614,8 +628,37 @@ impl VirtualMachine {
                                 for upvalue_info in proto_upvalues {
                                     if upvalue_info.is_local {
                                         // Capture from current frame's registers
-                                        let register_index = self.current_frame().register_base
-                                            + upvalue_info.register as usize;
+                                        let frame = self.current_frame();
+                                        let register_index =
+                                            frame.register_base + upvalue_info.register as usize;
+
+                                        if self.debug_mode {
+                                            eprintln!(
+                                                "DEBUG: Capturing upvalue '{}' from register_base={} + reg={} = absolute_index={}",
+                                                upvalue_info.name,
+                                                frame.register_base,
+                                                upvalue_info.register,
+                                                register_index
+                                            );
+                                            eprintln!("DEBUG: All registers: {:?}", self.registers);
+                                            eprintln!(
+                                                "DEBUG: Frame register_count: {}",
+                                                frame.register_count
+                                            );
+                                            if register_index < self.registers.len() {
+                                                eprintln!(
+                                                    "DEBUG: Value at index {}: {:?}",
+                                                    register_index, self.registers[register_index]
+                                                );
+                                            } else {
+                                                eprintln!(
+                                                    "DEBUG: Index {} out of bounds (registers.len={})",
+                                                    register_index,
+                                                    self.registers.len()
+                                                );
+                                            }
+                                        }
+
                                         let upvalue_ref = self.capture_upvalue(register_index);
                                         captured_upvalues.push(upvalue_ref);
                                     } else {
