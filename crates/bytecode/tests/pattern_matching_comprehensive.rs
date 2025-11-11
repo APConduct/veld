@@ -257,10 +257,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Literal integer patterns working"),
-        Err(e) => {
-            // Known limitation: literal patterns not yet supported in parser
-            println!("Note: Literal integer patterns not yet implemented: {}", e);
-        }
+        Err(e) => panic!("Literal integer patterns failed: {}", e),
     }
 }
 
@@ -278,10 +275,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Literal string patterns working"),
-        Err(e) => {
-            // Known limitation: literal patterns not yet supported in parser
-            println!("Note: Literal string patterns not yet implemented: {}", e);
-        }
+        Err(e) => panic!("Literal string patterns failed: {}", e),
     }
 }
 

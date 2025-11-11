@@ -2560,17 +2560,32 @@ impl Parser {
             return Ok(MatchPattern::Wildcard);
         }
 
-        // Check for literal patterns
-        if self.check(&Token::IntegerLiteral((0, ZTUP)))
-            || self.check(&Token::FloatLiteral((0.0, ZTUP)))
-            || self.check(&Token::StringLiteral(("".to_string(), ZTUP)))
-            || self.check(&Token::True(ZTUP))
-            || self.check(&Token::False(ZTUP))
-        {
-            let expr = self.postfix(ctx)?;
-            if let Expr::Literal(lit) = expr {
-                return Ok(MatchPattern::Literal(lit));
+        // Check for literal patterns - parse them directly
+        match self.peek() {
+            Token::IntegerLiteral((n, _)) => {
+                let value = *n;
+                self.advance();
+                return Ok(MatchPattern::Literal(Literal::Integer(value)));
             }
+            Token::FloatLiteral((f, _)) => {
+                let value = *f;
+                self.advance();
+                return Ok(MatchPattern::Literal(Literal::Float(value)));
+            }
+            Token::StringLiteral((s, _)) => {
+                let value = s.clone();
+                self.advance();
+                return Ok(MatchPattern::Literal(Literal::String(value)));
+            }
+            Token::True(_) => {
+                self.advance();
+                return Ok(MatchPattern::Literal(Literal::Boolean(true)));
+            }
+            Token::False(_) => {
+                self.advance();
+                return Ok(MatchPattern::Literal(Literal::Boolean(false)));
+            }
+            _ => {}
         }
 
         // Support qualified (dotted) names in match patterns, e.g., Shape.Circle
