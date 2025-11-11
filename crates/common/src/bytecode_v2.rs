@@ -1404,6 +1404,7 @@ impl ChunkBuilder {
             Instruction::JumpIfNot { offset: o, .. } => *o = offset,
             Instruction::JumpIfEq { offset: o, .. } => *o = offset,
             Instruction::JumpIfNeq { offset: o, .. } => *o = offset,
+            Instruction::ForIterator { offset: o, .. } => *o = offset,
             _ => panic!("Attempted to patch non-jump instruction"),
         }
     }
@@ -1478,6 +1479,37 @@ impl ChunkBuilder {
     /// Emit CloseUpvalues instruction
     pub fn close_upvalues(&mut self, start: Reg) -> &mut Self {
         self.emit(Instruction::CloseUpvalues { start })
+    }
+
+    // ============================================================
+    // ITERATOR INSTRUCTIONS
+    // ============================================================
+
+    /// Emit MakeIterator instruction
+    pub fn make_iterator(&mut self, dest: Reg, iterable: Reg) -> &mut Self {
+        self.emit(Instruction::MakeIterator { dest, iterable })
+    }
+
+    /// Emit IteratorNext instruction
+    pub fn iterator_next(&mut self, dest: Reg, iterator: Reg) -> &mut Self {
+        self.emit(Instruction::IteratorNext { dest, iterator })
+    }
+
+    /// Emit IteratorHasNext instruction
+    pub fn iterator_has_next(&mut self, dest: Reg, iterator: Reg) -> &mut Self {
+        self.emit(Instruction::IteratorHasNext { dest, iterator })
+    }
+
+    /// Emit ForIterator instruction
+    /// Returns the index of the jump to be patched
+    pub fn for_iterator(&mut self, iterator: Reg, loop_var: Reg, offset: JumpOffset) -> usize {
+        let idx = self.chunk.main.instructions.len();
+        self.emit(Instruction::ForIterator {
+            iterator,
+            loop_var,
+            offset,
+        });
+        idx
     }
 
     // ============================================================

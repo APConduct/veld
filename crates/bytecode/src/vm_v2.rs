@@ -625,13 +625,9 @@ impl VirtualMachine {
                 // DATA STRUCTURE INSTRUCTIONS
                 // ============================================================
                 Instruction::NewArray { dest, size } => {
-                    // Create a new array with the specified size
-                    // Elements are initialized from consecutive registers starting at dest+1
-                    let mut elements = Vec::with_capacity(size as usize);
-                    for i in 0..size {
-                        let reg = dest.wrapping_add(i + 1);
-                        elements.push(self.get_register(reg)?.clone());
-                    }
+                    // Create a new empty array with the specified capacity
+                    // Elements will be populated via SetIndex instructions
+                    let elements = Vec::with_capacity(size as usize);
                     self.set_register(dest, BytecodeValue::Array(elements))?;
                 }
 
@@ -831,21 +827,52 @@ impl VirtualMachine {
                 // ITERATOR INSTRUCTIONS
                 // ============================================================
                 Instruction::MakeIterator { dest, iterable } => {
-                    // TODO: Implement iterator creation
-                    self.set_register(dest, BytecodeValue::Unit)?;
-                    warn!("MakeIterator instruction not yet fully implemented");
+                    let iterable_value = self.get_register(iterable)?.clone();
+                    let iterator = self.make_iterator(iterable_value)?;
+                    self.set_register(dest, iterator)?;
                 }
 
                 Instruction::IteratorNext { dest, iterator } => {
-                    // TODO: Implement iterator advancement
-                    self.set_register(dest, BytecodeValue::Unit)?;
-                    warn!("IteratorNext instruction not yet fully implemented");
+                    let iter_value = self.get_register(iterator)?;
+                    match iter_value {
+                        BytecodeValue::Iterator { values, position } => {
+                            if *position < values.len() {
+                                let value = values[*position].clone();
+                                // Update the iterator position
+                                let new_iter = BytecodeValue::Iterator {
+                                    values: values.clone(),
+                                    position: position + 1,
+                                };
+                                self.set_register(iterator, new_iter)?;
+                                self.set_register(dest, value)?;
+                            } else {
+                                // Iterator exhausted, return Unit
+                                self.set_register(dest, BytecodeValue::Unit)?;
+                            }
+                        }
+                        _ => {
+                            return Err(RuntimeError::TypeError {
+                                expected: "Iterator".to_string(),
+                                actual: self.type_name(iter_value),
+                            });
+                        }
+                    }
                 }
 
                 Instruction::IteratorHasNext { dest, iterator } => {
-                    // TODO: Implement iterator checking
-                    self.set_register(dest, BytecodeValue::Boolean(false))?;
-                    warn!("IteratorHasNext instruction not yet fully implemented");
+                    let iter_value = self.get_register(iterator)?;
+                    match iter_value {
+                        BytecodeValue::Iterator { values, position } => {
+                            let has_next = *position < values.len();
+                            self.set_register(dest, BytecodeValue::Boolean(has_next))?;
+                        }
+                        _ => {
+                            return Err(RuntimeError::TypeError {
+                                expected: "Iterator".to_string(),
+                                actual: self.type_name(iter_value),
+                            });
+                        }
+                    }
                 }
 
                 Instruction::ForIterator {
@@ -853,8 +880,32 @@ impl VirtualMachine {
                     loop_var,
                     offset,
                 } => {
-                    // TODO: Implement for-loop iterator
-                    warn!("ForIterator instruction not yet fully implemented");
+                    // Check if iterator has next value
+                    let iter_value = self.get_register(iterator)?;
+                    let has_next = match iter_value {
+                        BytecodeValue::Iterator { values, position } => *position < values.len(),
+                        _ => false,
+                    };
+
+                    if has_next {
+                        // Get next value and store in loop variable
+                        let iter_value = self.get_register(iterator)?;
+                        if let BytecodeValue::Iterator { values, position } = iter_value {
+                            let value = values[*position].clone();
+                            // Update iterator
+                            let new_iter = BytecodeValue::Iterator {
+                                values: values.clone(),
+                                position: position + 1,
+                            };
+                            self.set_register(iterator, new_iter)?;
+                            // Store value in loop variable
+                            self.set_register(loop_var, value)?;
+                        }
+                        // Continue with loop body (don't jump)
+                    } else {
+                        // Iterator exhausted, jump to end of loop
+                        self.jump(offset)?;
+                    }
                 }
 
                 // ============================================================
@@ -1216,8 +1267,39 @@ impl VirtualMachine {
         }
     }
 
+    /// Create an iterator from an iterable value
+    fn make_iterator(&self, value: BytecodeValue) -> Result<BytecodeValue, RuntimeError> {
+        match value {
+            // Array -> Iterator
+            BytecodeValue::Array(elements) => Ok(BytecodeValue::Iterator {
+                values: elements,
+                position: 0,
+            }),
+            // String -> Iterator over characters
+            BytecodeValue::String(s) => {
+                let chars: Vec<BytecodeValue> = s.chars().map(|c| BytecodeValue::Char(c)).collect();
+                Ok(BytecodeValue::Iterator {
+                    values: chars,
+                    position: 0,
+                })
+            }
+            // Tuple -> Iterator
+            BytecodeValue::Tuple(elements) => Ok(BytecodeValue::Iterator {
+                values: elements,
+                position: 0,
+            }),
+            // Already an iterator
+            BytecodeValue::Iterator { .. } => Ok(value),
+            // Not iterable
+            _ => Err(RuntimeError::TypeError {
+                expected: "iterable (array, string, or tuple)".to_string(),
+                actual: self.type_name(&value),
+            }),
+        }
+    }
+
     // ============================================================
-    // ARITHMETIC OPERATIONS
+    // UPVALUE MANAGEMENT
     // ============================================================
 
     fn add_values(
@@ -1685,11 +1767,10 @@ impl VirtualMachine {
                     idx_val as usize
                 };
 
+                // Grow array if needed to accommodate index
                 if idx_usize >= arr.len() {
-                    return Err(RuntimeError::IndexOutOfBounds {
-                        index: idx_val,
-                        length: arr.len(),
-                    });
+                    // Resize array, filling with Unit for any gaps
+                    arr.resize(idx_usize + 1, BytecodeValue::Unit);
                 }
 
                 arr[idx_usize] = value.clone();
@@ -2082,16 +2163,28 @@ mod tests {
         let c1 = builder.add_constant(Constant::Integer(10));
         let c2 = builder.add_constant(Constant::Integer(20));
         let c3 = builder.add_constant(Constant::Integer(30));
-        let c_idx = builder.add_constant(Constant::Integer(1));
+        let c0 = builder.add_constant(Constant::Integer(0));
+        let c_idx1 = builder.add_constant(Constant::Integer(1));
+        let c_idx2 = builder.add_constant(Constant::Integer(2));
 
-        // Create array [10, 20, 30]
-        builder.load_const(1, c1);
-        builder.load_const(2, c2);
-        builder.load_const(3, c3);
-        builder.new_array(0, 3); // R0 = [10, 20, 30]
+        // Create empty array with capacity 3
+        builder.new_array(0, 3); // R0 = []
+
+        // Populate array [10, 20, 30]
+        builder.load_const(1, c1); // R1 = 10
+        builder.load_const(6, c0); // R6 = 0
+        builder.set_index(0, 6, 1); // R0[0] = 10
+
+        builder.load_const(2, c2); // R2 = 20
+        builder.load_const(6, c_idx1); // R6 = 1
+        builder.set_index(0, 6, 2); // R0[1] = 20
+
+        builder.load_const(3, c3); // R3 = 30
+        builder.load_const(6, c_idx2); // R6 = 2
+        builder.set_index(0, 6, 3); // R0[2] = 30
 
         // Get element at index 1
-        builder.load_const(4, c_idx); // R4 = 1
+        builder.load_const(4, c_idx1); // R4 = 1
         builder.get_index(5, 0, 4); // R5 = R0[R4] = 20
 
         builder.halt();
@@ -2577,14 +2670,27 @@ mod tests {
         let c1 = builder.add_constant(Constant::Integer(10));
         let c2 = builder.add_constant(Constant::Integer(20));
         let c3 = builder.add_constant(Constant::Integer(30));
+        let c0 = builder.add_constant(Constant::Integer(0));
+        let c_idx1 = builder.add_constant(Constant::Integer(1));
+        let c_idx2 = builder.add_constant(Constant::Integer(2));
         let neg1 = builder.add_constant(Constant::Integer(-1));
         let neg2 = builder.add_constant(Constant::Integer(-2));
 
-        // Create array [10, 20, 30]
-        builder.load_const(1, c1);
-        builder.load_const(2, c2);
-        builder.load_const(3, c3);
-        builder.new_array(0, 3); // R0 = [10, 20, 30]
+        // Create empty array with capacity 3
+        builder.new_array(0, 3); // R0 = []
+
+        // Populate array [10, 20, 30]
+        builder.load_const(1, c1); // R1 = 10
+        builder.load_const(8, c0); // R8 = 0
+        builder.set_index(0, 8, 1); // R0[0] = 10
+
+        builder.load_const(2, c2); // R2 = 20
+        builder.load_const(8, c_idx1); // R8 = 1
+        builder.set_index(0, 8, 2); // R0[1] = 20
+
+        builder.load_const(3, c3); // R3 = 30
+        builder.load_const(8, c_idx2); // R8 = 2
+        builder.set_index(0, 8, 3); // R0[2] = 30
 
         // Access with negative indices
         builder.load_const(4, neg1); // R4 = -1

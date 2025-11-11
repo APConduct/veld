@@ -1394,15 +1394,29 @@ impl RegisterCompiler {
         Ok(())
     }
 
-    /// Compile for loop (simplified)
+    /// Compile for loop with iterator protocol
     fn compile_for(&mut self, iterator: &str, iterable: &Expr, body: &[Statement]) -> Result<()> {
-        // Simplified: assume iterable is an array
-        // Real implementation would handle iterators properly
-
         self.begin_scope();
 
-        // Compile iterable
+        // Compile iterable expression
         let iter_result = self.compile_expr_to_reg(iterable)?;
+
+        // Allocate iterator register as a variable (not temp) so it persists through loop
+        let iter_reg = self
+            .allocator
+            .allocate_variable(format!("$iter_{}", iterator), false)
+            .map_err(|e| VeldError::CompileError {
+                message: e,
+                line: Some(self.current_line as usize),
+                column: None,
+            })?;
+
+        // Create iterator from iterable
+        self.chunk.make_iterator(iter_reg, iter_result.register);
+
+        if iter_result.is_temp {
+            self.free_temp(iter_result.register);
+        }
 
         // Allocate loop variable
         let loop_var = self
@@ -1424,15 +1438,39 @@ impl RegisterCompiler {
             },
         );
 
-        // For now, emit a placeholder (full iterator support needed)
-        warn!("For loop compilation is simplified");
+        // Push loop context for break/continue
+        let loop_start = self.chunk.current_index();
+        self.loop_stack.push(LoopContext {
+            start_index: loop_start,
+            break_jumps: Vec::new(),
+            depth: self.scope_depth,
+        });
 
-        if iter_result.is_temp {
-            self.free_temp(iter_result.register);
-        }
+        // Check if iterator has next (ForIterator instruction)
+        // This will jump to end if iterator is exhausted
+        let end_jump = self.chunk.for_iterator(iter_reg, loop_var, 0);
 
+        // Compile loop body
         for stmt in body {
             self.compile_statement(stmt)?;
+        }
+
+        // Jump back to loop start
+        // current_index() is where the Jump will be placed
+        // After fetching Jump, PC will be at current_index() + 1
+        // We want to jump to loop_start
+        // offset = loop_start - (current_index() + 1)
+        let current = self.chunk.current_index();
+        let jump_offset = (loop_start as i32 - current as i32 - 1) as i16;
+        self.chunk.jump(jump_offset);
+
+        // Patch the end jump
+        self.chunk.patch_jump(end_jump);
+
+        // Patch break jumps
+        let loop_ctx = self.loop_stack.pop().unwrap();
+        for break_jump in loop_ctx.break_jumps {
+            self.chunk.patch_jump(break_jump);
         }
 
         self.end_scope();
