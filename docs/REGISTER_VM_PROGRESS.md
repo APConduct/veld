@@ -938,6 +938,67 @@ Based on Lua's transition and academic research:
 
 ## Phase 7 Work Log
 
+### 2024-12-11: Enum Field Extraction FIX - Pattern Matching Now 62% Working! 🎉✅
+
+**Objective**: Fix enum field extraction in pattern matching to enable realistic use cases (Option, Result, state machines).
+
+**What Was Done**:
+1. **Root Cause Identified** ✅
+   - Parser creates `MatchPattern::Struct` for both struct and enum patterns
+   - Pattern `Option.some(x)` parsed as `MatchPattern::Struct { name: "Option.some", fields: ... }`
+   - Compiler used `GetField` (for structs) instead of `ExtractField` (for enums)
+   - `GetField` instruction only handled structs, rejected enums with error
+
+2. **Solution Implemented** ✅
+   - Detect enum patterns by checking for dotted names (e.g., "Option.some")
+   - Use `ExtractField` with numeric field indices for enum patterns
+   - Use `GetField` with string field names for struct patterns
+   - Modified `compile_match_pattern` in compiler_v2.rs
+
+3. **Code Changes** ✅
+   - File: `crates/bytecode/src/compiler_v2.rs`
+   - Lines 2168-2230: Added enum pattern detection
+   - Check `name.contains('.')` to distinguish enum vs struct patterns
+   - Route to appropriate instruction (ExtractField vs GetField)
+
+**Test Results**:
+- ✅ 16/26 pattern matching tests now fully working (62%, up from 35%)!
+- ✅ 179 total bytecode tests passing (no regressions)
+- ✅ Enum tuple variant patterns: WORKING
+- ✅ Variable binding in patterns: WORKING
+- ✅ Multiple fields extraction: WORKING
+- ✅ Option/Result patterns: WORKING
+- ✅ State machine patterns: WORKING (mostly)
+
+**Tests Fixed (7 additional tests now pass)**:
+1. test_enum_tuple_variant_match ✅
+2. test_enum_tuple_variant_multiple_fields ✅
+3. test_enum_tuple_variant_mixed_binding ✅
+4. test_variable_binding_in_enum_pattern ✅
+5. test_multiple_variable_bindings ✅
+6. test_match_single_arm ✅
+7. test_result_pattern_matching ✅
+
+**Remaining Limitations (10 tests)**:
+- Match as expression (2 tests) - `Expr::Match` not compiled
+- Literal patterns (2 tests) - Parser limitation
+- Multiple wildcards (1 test) - Name collision issue
+- Nested patterns (2 tests) - Parser limitation
+- State machine with duplicate vars (1 test) - Compiler issue
+- Option use case (1 test) - Different issue (type mismatch)
+- Complex expression in match (1 test) - Expr::Match not compiled
+
+**Impact**:
+- **MAJOR UNBLOCK** - Pattern matching now usable for realistic code!
+- Option/Result patterns work
+- Enum destructuring works
+- Variable binding from enum fields works
+- ~27% improvement in pattern matching test success rate
+
+**Time**: ~30 minutes (diagnosis + fix + validation)
+
+---
+
 ### 2024-12-11: Pattern Matching Comprehensive Testing COMPLETE! 🎉✅
 
 **Objective**: Create comprehensive test suite to validate Phase 6 pattern matching implementation and identify remaining work items.
@@ -1393,11 +1454,11 @@ let x_val = p1.x  # Field access works!
 
 ### Short Term (Next) - Phase 7 Continuation
 
-1. **Fix Enum Field Extraction** (2-3 hours) - HIGH PRIORITY
-   - Implement ExtractField for enum types in VM
-   - Enable field access on enum variants
-   - Unblocks 11+ pattern matching tests
-   - Makes Option/Result patterns work
+1. ✅ **COMPLETE - Fix Enum Field Extraction** (30 minutes actual)
+   - Detect enum patterns vs struct patterns in compiler
+   - Use ExtractField for enums, GetField for structs
+   - Unblocked 7 pattern matching tests
+   - Option/Result patterns now working!
 
 2. **Compile Match as Expression** (1-2 hours) - HIGH PRIORITY
    - Implement Expr::Match compilation in compiler_v2

@@ -170,13 +170,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Enum tuple variant match working"),
-        Err(e) => {
-            // Known limitation: enum field extraction in patterns needs work
-            println!(
-                "Note: Enum tuple variant matching not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Enum tuple variant match failed: {}", e),
     }
 }
 
@@ -198,12 +192,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Enum tuple variant with multiple fields working"),
-        Err(e) => {
-            println!(
-                "Note: Enum tuple variant with multiple fields not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Enum tuple variant with multiple fields failed: {}", e),
     }
 }
 
@@ -250,12 +239,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Enum tuple variant with mixed binding working"),
-        Err(e) => {
-            println!(
-                "Note: Enum tuple variant with mixed binding not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Enum tuple variant with mixed binding failed: {}", e),
     }
 }
 
@@ -399,12 +383,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Variable binding in enum pattern working"),
-        Err(e) => {
-            println!(
-                "Note: Variable binding in enum pattern not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Variable binding in enum pattern failed: {}", e),
     }
 }
 
@@ -424,12 +403,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Multiple variable bindings working"),
-        Err(e) => {
-            println!(
-                "Note: Multiple variable bindings not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Multiple variable bindings failed: {}", e),
     }
 }
 
@@ -511,9 +485,7 @@ end
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Match with single arm working"),
-        Err(e) => {
-            println!("Note: Match with single arm not fully implemented: {}", e);
-        }
+        Err(e) => panic!("Match with single arm failed: {}", e),
     }
 }
 
@@ -620,12 +592,7 @@ let result2 = process(failure)
 
     match compile_and_run_code(code) {
         Ok(_) => println!("✓ Result pattern matching use case working"),
-        Err(e) => {
-            println!(
-                "Note: Result pattern matching use case not fully implemented: {}",
-                e
-            );
-        }
+        Err(e) => panic!("Result pattern matching use case failed: {}", e),
     }
 }
 

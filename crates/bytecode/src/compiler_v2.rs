@@ -2168,16 +2168,27 @@ impl RegisterCompiler {
                 let true_const = self.chunk.add_constant(Constant::Boolean(true));
                 self.chunk.load_const(result, true_const);
 
+                // Detect if this is an enum pattern (dotted name like "Option.some")
+                // vs a struct pattern (simple name like "Point")
+                let is_enum_pattern = name.contains('.');
+
                 // Extract and bind fields
-                for (field_name, field_pattern) in fields {
+                for (i, (field_name, field_pattern)) in fields.iter().enumerate() {
                     if let Some(pat) = field_pattern {
                         // Get field value
                         let field_reg = self.allocate_temp()?;
-                        let field_name_const = self
-                            .chunk
-                            .add_constant(Constant::String(field_name.clone()));
-                        self.chunk
-                            .get_field(field_reg, match_reg, field_name_const as u8);
+
+                        if is_enum_pattern {
+                            // For enum patterns, use ExtractField with numeric index
+                            self.chunk.extract_field(field_reg, match_reg, i as u8);
+                        } else {
+                            // For struct patterns, use GetField with field name
+                            let field_name_const = self
+                                .chunk
+                                .add_constant(Constant::String(field_name.clone()));
+                            self.chunk
+                                .get_field(field_reg, match_reg, field_name_const as u8);
+                        }
 
                         // Recursively match the field pattern
                         let field_match = self.compile_match_pattern(pat, field_reg)?;
@@ -2195,11 +2206,18 @@ impl RegisterCompiler {
                     } else {
                         // Bind field to variable with same name
                         let field_reg = self.allocate_temp()?;
-                        let field_name_const = self
-                            .chunk
-                            .add_constant(Constant::String(field_name.clone()));
-                        self.chunk
-                            .get_field(field_reg, match_reg, field_name_const as u8);
+
+                        if is_enum_pattern {
+                            // For enum patterns, use ExtractField with numeric index
+                            self.chunk.extract_field(field_reg, match_reg, i as u8);
+                        } else {
+                            // For struct patterns, use GetField with field name
+                            let field_name_const = self
+                                .chunk
+                                .add_constant(Constant::String(field_name.clone()));
+                            self.chunk
+                                .get_field(field_reg, match_reg, field_name_const as u8);
+                        }
 
                         // Allocate variable
                         let var_reg = self
