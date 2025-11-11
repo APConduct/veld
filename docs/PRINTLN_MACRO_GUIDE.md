@@ -144,10 +144,11 @@ println~("Use {{braces}} for literal")
 
 ## Limitations
 
-1. **Arrays** - Currently show as GcRef
-2. **Nested parens** - May not parse correctly
-3. **Method args** - Only zero-argument methods work
-4. **Format specs** - Not yet implemented (`:?`, etc.)
+1. ~~**Arrays** - Currently show as GcRef~~ ✅ **FIXED** - Arrays now display their contents correctly
+2. ~~**Operator precedence** - `and`/`or` with comparisons may not parse correctly~~ ✅ **FIXED** - Logical operators now have correct precedence
+3. **Nested parens** - Complex nested parenthesized expressions may not parse correctly
+4. **Method args** - Only zero-argument methods work
+5. **Format specs** - Not yet implemented (`:?`, etc.)
 
 ## Migration from Old Code
 

@@ -5009,14 +5009,15 @@ impl Interpreter {
                     },
                 }
             }
-            // TODO: Handle GcRef by dereferencing - need to find correct method
-            // Value::GcRef(handle) => {
-            //     if let Some(gc_value) = self.gc_deref(handle) {
-            //         self.value_to_string(&gc_value)
-            //     } else {
-            //         Ok(format!("GcRef({:?})", handle))
-            //     }
-            // }
+            Value::GcRef(handle) => {
+                // Dereference GcRef and recursively convert the actual value to string
+                let allocator = self.allocator.read().unwrap();
+                if let Some(actual_value) = allocator.get_value(handle) {
+                    self.value_to_string(actual_value)
+                } else {
+                    Ok(format!("GcRef({:?})", handle))
+                }
+            }
             Value::Array(elements) => {
                 let elements_str = elements
                     .iter()

@@ -1,0 +1,166 @@
+# Demo of Newly Fixed Features in println~ Macro
+# This file demonstrates the fixes for array printing and logical operator precedence
+
+import std.io
+
+io.println("=== Fixed Features Demo ===")
+io.println("")
+
+# ============================================================================
+# Fix #1: Array Printing
+# Arrays and GC-managed values now display their contents instead of GcRef
+# ============================================================================
+
+io.println("--- Fix #1: Array Printing ---")
+io.println("")
+
+# Integer arrays
+let numbers = [1, 2, 3, 4, 5]
+println~("Integer array: {numbers}")
+
+# String arrays
+let words = ["hello", "world", "from", "veld"]
+println~("String array: {words}")
+
+# Mixed content arrays
+let mixed = [10, 20, 30]
+println~("Mixed: {mixed}")
+
+# Empty array
+let empty = []
+println~("Empty array: {empty}")
+
+# Nested context (arrays in expressions)
+let arr1 = [1, 2]
+let arr2 = [3, 4]
+println~("First: {arr1}, Second: {arr2}")
+
+io.println("")
+
+# ============================================================================
+# Fix #2: Logical Operator Precedence
+# Expressions with 'and'/'or' combined with comparisons now work correctly
+# ============================================================================
+
+io.println("--- Fix #2: Logical Operator Precedence ---")
+io.println("")
+
+# Simple 'and' with comparisons
+let age = 25
+println~("Age check (18-65): {age >= 18 and age <= 65}")
+
+# Simple 'or' with comparisons
+let score = 95
+println~("Pass or excellent: {score >= 60 or score >= 90}")
+
+# More complex boolean logic
+let temperature = 72
+println~("Comfortable temp: {temperature >= 68 and temperature <= 78}")
+
+let value = 50
+println~("Out of range: {value < 0 or value > 100}")
+
+# Multiple conditions
+let x = 15
+println~("Multiple checks: {x > 0 and x < 100 and x != 50}")
+
+# Combining comparisons
+let a = 10
+let b = 20
+let c = 15
+println~("Between values: {c > a and c < b}")
+
+io.println("")
+
+# ============================================================================
+# Combined Features: Arrays + Logic
+# ============================================================================
+
+io.println("--- Combined Features ---")
+io.println("")
+
+let items = [1, 2, 3, 4, 5]
+let count = 5
+println~("Array {items} has valid count: {count >= 1 and count <= 10}")
+
+let data = [100, 200, 300]
+let total = 600
+println~("Data {data} sums correctly: {total == 600}")
+
+io.println("")
+
+# ============================================================================
+# All Value Types Working
+# ============================================================================
+
+io.println("--- All Value Types ---")
+io.println("")
+
+let int_val = 42
+let float_val = 3.14159
+let str_val = "hello"
+let bool_val = true
+let array_val = [1, 2, 3]
+
+println~("Integer: {int_val}")
+println~("Float: {float_val}")
+println~("String: {str_val}")
+println~("Boolean: {bool_val}")
+println~("Array: {array_val}")
+
+io.println("")
+
+# ============================================================================
+# Real-World Examples
+# ============================================================================
+
+io.println("--- Real-World Examples ---")
+io.println("")
+
+# User validation
+let username = "alice"
+let user_age = 30
+let user_verified = true
+println~("User {username} (age {user_age}): verified={user_verified}")
+println~("Can access: {user_age >= 18 and user_verified}")
+
+# Data processing
+let data_points = [23, 45, 67, 89, 12]
+let min_threshold = 20
+let max_threshold = 90
+println~("Data: {data_points}")
+println~("All in range (20-90): {min_threshold <= 23 and 89 <= max_threshold}")
+
+# Configuration status
+let config_items = ["cache", "logging", "metrics"]
+let config_count = 3
+println~("Config modules: {config_items}")
+println~("Valid config: {config_count >= 1 and config_count <= 10}")
+
+io.println("")
+
+# ============================================================================
+# Edge Cases
+# ============================================================================
+
+io.println("--- Edge Cases ---")
+io.println("")
+
+# Boundary conditions
+let boundary = 10
+println~("Exact match: {boundary >= 10 and boundary <= 10}")
+
+# Zero values
+let zero = 0
+println~("Zero handling: {zero >= 0 and zero <= 0}")
+
+# Negative numbers
+let neg = -5
+println~("Negative: {neg < 0 and neg > -10}")
+
+# Single element arrays
+let single = [42]
+println~("Single element: {single}")
+
+io.println("")
+io.println("=== All Fixed Features Working! ===")

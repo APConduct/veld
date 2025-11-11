@@ -745,40 +745,19 @@ fn parse_interpolation_expr(expr_str: &str) -> Result<Expr, ExpansionError> {
     // - Binary operations: x + y, x * 2, etc.
     // - Property access: obj.field
     // - Comparisons: x > y, x == y
+    // - Logical operators: and, or
 
     // Try to parse as identifier first (most common case)
     let trimmed = expr_str.trim();
 
     // Check for binary operations (simple left-to-right parsing)
-    // Priority: comparisons, then arithmetic
+    // Priority order (lowest to highest precedence):
+    // 1. Logical operators (and, or)
+    // 2. Comparisons (==, !=, <, >, <=, >=)
+    // 3. Arithmetic (+, -)
+    // 4. Multiplication/Division (*, /, %)
 
-    // Check for comparison operators
-    for (op_str, op) in &[
-        ("==", veld_common::ast::BinaryOperator::EqualEqual),
-        ("!=", veld_common::ast::BinaryOperator::NotEqual),
-        ("<=", veld_common::ast::BinaryOperator::LessEq),
-        (">=", veld_common::ast::BinaryOperator::GreaterEq),
-        ("<", veld_common::ast::BinaryOperator::Less),
-        (">", veld_common::ast::BinaryOperator::Greater),
-    ] {
-        if let Some(pos) = trimmed.find(op_str) {
-            let left_str = &trimmed[..pos].trim();
-            let right_str = &trimmed[pos + op_str.len()..].trim();
-
-            if !left_str.is_empty() && !right_str.is_empty() {
-                let left = parse_interpolation_expr(left_str)?;
-                let right = parse_interpolation_expr(right_str)?;
-
-                return Ok(Expr::BinaryOp {
-                    left: Box::new(left),
-                    operator: op.clone(),
-                    right: Box::new(right),
-                });
-            }
-        }
-    }
-
-    // Check for logical operators
+    // Check for logical operators FIRST (lowest precedence)
     if let Some(pos) = trimmed.find(" and ") {
         let left_str = &trimmed[..pos].trim();
         let right_str = &trimmed[pos + 5..].trim();
@@ -805,6 +784,32 @@ fn parse_interpolation_expr(expr_str: &str) -> Result<Expr, ExpansionError> {
             operator: veld_common::ast::BinaryOperator::Or,
             right: Box::new(right),
         });
+    }
+
+    // Check for comparison operators
+    for (op_str, op) in &[
+        ("==", veld_common::ast::BinaryOperator::EqualEqual),
+        ("!=", veld_common::ast::BinaryOperator::NotEqual),
+        ("<=", veld_common::ast::BinaryOperator::LessEq),
+        (">=", veld_common::ast::BinaryOperator::GreaterEq),
+        ("<", veld_common::ast::BinaryOperator::Less),
+        (">", veld_common::ast::BinaryOperator::Greater),
+    ] {
+        if let Some(pos) = trimmed.find(op_str) {
+            let left_str = &trimmed[..pos].trim();
+            let right_str = &trimmed[pos + op_str.len()..].trim();
+
+            if !left_str.is_empty() && !right_str.is_empty() {
+                let left = parse_interpolation_expr(left_str)?;
+                let right = parse_interpolation_expr(right_str)?;
+
+                return Ok(Expr::BinaryOp {
+                    left: Box::new(left),
+                    operator: op.clone(),
+                    right: Box::new(right),
+                });
+            }
+        }
     }
 
     // Check for arithmetic operators (lowest precedence first)
