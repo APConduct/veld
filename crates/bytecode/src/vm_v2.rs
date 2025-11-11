@@ -861,9 +861,40 @@ impl VirtualMachine {
                     variant_idx,
                     field_count,
                 } => {
-                    // TODO: Implement enum variant creation
-                    self.set_register(dest, BytecodeValue::Unit)?;
-                    warn!("NewEnum instruction not yet fully implemented");
+                    // Get the variant metadata from constants
+                    let variant_const = self.read_constant(variant_idx)?;
+
+                    // Parse variant metadata to get enum type name and variant name
+                    let (type_name, variant_name) = match &variant_const {
+                        BytecodeValue::String(s) => {
+                            // Expected format: "EnumType::VariantName" or just "VariantName"
+                            if let Some(idx) = s.rfind("::") {
+                                let enum_name = s[..idx].to_string();
+                                let var_name = s[idx + 2..].to_string();
+                                (enum_name, var_name)
+                            } else {
+                                ("Unknown".to_string(), s.clone())
+                            }
+                        }
+                        _ => ("Unknown".to_string(), "Unknown".to_string()),
+                    };
+
+                    // Collect field values from consecutive registers
+                    let mut fields = Vec::with_capacity(field_count as usize);
+                    for i in 0..field_count {
+                        let field_reg = dest.wrapping_add(i + 1);
+                        fields.push(self.get_register(field_reg)?.clone());
+                    }
+
+                    // Create the enum value
+                    self.set_register(
+                        dest,
+                        BytecodeValue::Enum {
+                            type_name,
+                            variant: variant_name,
+                            fields,
+                        },
+                    )?;
                 }
 
                 // ============================================================

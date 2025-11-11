@@ -1,0 +1,38 @@
+# Phase 6 Test: Simple Enum Operations
+# Testing basic enum functionality
+
+# Test 1: Simple enum with no fields
+enum Status
+    Pending,
+    Active,
+    Complete
+end
+
+# Test 2: Enum with fields
+enum Shape
+    Circle(i64),
+    Rectangle(i64, i64),
+    Triangle(i64, i64, i64)
+end
+
+# Test 3: Create enum variants
+let status1 = Status.Pending
+let status2 = Status.Active
+
+# Test 4: Create enum variants with fields
+let circle = Shape.Circle(10)
+let rect = Shape.Rectangle(20, 30)
+let tri = Shape.Triangle(3, 4, 5)
+
+# Test 5: More complex enum
+enum Result
+    Ok(i64),
+    Err(i64)
+end
+
+let success = Result.Ok(42)
+let failure = Result.Err(1)
+
+# For now, just return a simple value since we can't pattern match yet
+# Once pattern matching is implemented, we can extract and test the values
+100

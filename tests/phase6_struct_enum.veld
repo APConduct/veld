@@ -1,0 +1,58 @@
+# Phase 6 Test: Struct and Enum Operations
+# Testing basic struct and enum functionality
+
+# Test 1: Basic struct declaration and creation
+struct Point
+    x: i64,
+    y: i64
+end
+
+let p1 = Point(x: 10, y: 20)
+
+# Test 2: Struct field access
+let x_val = p1.x
+let y_val = p1.y
+
+# Test 3: Nested struct
+struct Rectangle
+    top_left: Point,
+    width: i64,
+    height: i64
+end
+
+let rect = Rectangle(
+    top_left: Point(x: 0, y: 0),
+    width: 100,
+    height: 50
+)
+
+let rect_x = rect.top_left.x
+
+# Test 4: Basic enum declaration
+enum Color
+    Red,
+    Green,
+    Blue
+end
+
+# Test 5: Enum with fields
+enum Shape
+    Circle(i64),
+    Rectangle(i64, i64)
+end
+
+let circle = Shape.Circle(10)
+let square = Shape.Rectangle(20, 20)
+
+# Test 6: Tuple creation
+let tuple1 = (1, 2, 3)
+let tuple2 = ("hello", 42, true)
+
+# Test 7: Simple pattern matching (commented out until pattern matching is ready)
+# match circle
+#     Shape.Circle(r) => r,
+#     Shape.Rectangle(w, h) => w * h
+# end
+
+# Return test result
+x_val + y_val + rect_x

@@ -325,6 +325,25 @@ impl RegisterCompiler {
                 self.end_scope();
             }
 
+            Statement::StructDeclaration {
+                name,
+                fields,
+                generic_params: _,
+                methods: _,
+                is_public: _,
+            } => {
+                self.compile_struct_declaration(name, fields)?;
+            }
+
+            Statement::EnumDeclaration {
+                name,
+                variants,
+                generic_params: _,
+                is_public: _,
+            } => {
+                self.compile_enum_declaration(name, variants)?;
+            }
+
             _ => {
                 return Err(VeldError::CompileError {
                     message: format!("Statement not yet implemented: {:?}", statement),
@@ -556,6 +575,13 @@ impl RegisterCompiler {
                 struct_name,
                 fields,
             } => self.compile_struct(struct_name, fields),
+
+            Expr::EnumVariant {
+                enum_name,
+                variant_name,
+                fields,
+                type_args: _,
+            } => self.compile_enum_variant(enum_name, variant_name, fields),
 
             Expr::Lambda {
                 params,
@@ -919,25 +945,44 @@ impl RegisterCompiler {
     fn compile_struct(&mut self, name: &str, fields: &[(String, Expr)]) -> Result<ExprResult> {
         let dest = self.allocate_temp()?;
 
-        let name_const = self.chunk.add_constant(Constant::String(name.to_string()));
-        let field_count = fields.len() as u8;
+        // VM expects fields in consecutive registers after dest:
+        // dest+1: field_name_1, dest+2: field_value_1, dest+3: field_name_2, dest+4: field_value_2, ...
 
-        self.chunk.new_struct(dest, name_const, field_count);
+        let mut temp_regs = Vec::new();
 
-        // Set each field
-        for (field_name, field_value) in fields {
+        for (i, (field_name, field_value)) in fields.iter().enumerate() {
+            // Compile field value to a temporary register
             let value_result = self.compile_expr_to_reg(field_value)?;
-            let field_const = self
+            temp_regs.push((field_name.clone(), value_result));
+        }
+
+        // Now move field names and values into consecutive registers after dest
+        for (i, (field_name, value_result)) in temp_regs.iter().enumerate() {
+            // Load field name into dest + (i*2) + 1
+            let name_reg = dest.wrapping_add((i as u8 * 2) + 1);
+            let name_const = self
                 .chunk
                 .add_constant(Constant::String(field_name.clone()));
+            self.chunk.load_const(name_reg, name_const);
 
-            self.chunk
-                .set_field(dest, field_const as u8, value_result.register);
+            // Move field value into dest + (i*2) + 2
+            let value_reg = dest.wrapping_add((i as u8 * 2) + 2);
+            if value_result.register != value_reg {
+                self.chunk.move_reg(value_reg, value_result.register);
+            }
+        }
 
+        // Free temporary registers used for values
+        for (_, value_result) in temp_regs {
             if value_result.is_temp {
                 self.free_temp(value_result.register);
             }
         }
+
+        // Emit NewStruct instruction
+        let name_const = self.chunk.add_constant(Constant::String(name.to_string()));
+        let field_count = fields.len() as u8;
+        self.chunk.new_struct(dest, name_const, field_count);
 
         Ok(ExprResult::temp(dest))
     }
@@ -1193,6 +1238,113 @@ impl RegisterCompiler {
         Ok(())
     }
 
+    /// Compile struct declaration
+    fn compile_struct_declaration(
+        &mut self,
+        name: &str,
+        fields: &[veld_common::ast::StructField],
+    ) -> Result<()> {
+        // For now, struct declarations are type-level metadata
+        // They don't generate runtime code, just register the type
+        // When we create struct instances, we use the type name
+
+        // Store struct metadata as a constant for runtime validation
+        let field_names: Vec<String> = fields.iter().map(|f| f.name.clone()).collect();
+        let metadata_json = serde_json::json!({
+            "type": "struct",
+            "name": name,
+            "fields": field_names,
+        });
+        let metadata_str = metadata_json.to_string();
+
+        // Add as a constant (not directly used, but available for inspection)
+        let _metadata_const = self.chunk.add_constant(Constant::String(metadata_str));
+
+        // Struct declarations don't create runtime values or variables
+        // The type is used when creating instances via StructCreate expressions
+
+        Ok(())
+    }
+
+    /// Compile enum declaration
+    fn compile_enum_declaration(
+        &mut self,
+        name: &str,
+        variants: &[veld_common::ast::EnumVariant],
+    ) -> Result<()> {
+        // Similar to structs, enum declarations are type-level metadata
+        // They don't generate runtime code
+
+        // Store enum metadata as a constant
+        let variant_info: Vec<serde_json::Value> = variants
+            .iter()
+            .map(|v| {
+                let field_count = v.fields.as_ref().map(|f| f.len()).unwrap_or(0);
+                serde_json::json!({
+                    "name": v.name.clone(),
+                    "field_count": field_count,
+                })
+            })
+            .collect();
+
+        let metadata_json = serde_json::json!({
+            "type": "enum",
+            "name": name,
+            "variants": variant_info,
+        });
+        let metadata_str = metadata_json.to_string();
+
+        // Add as a constant (not directly used, but available for inspection)
+        let _metadata_const = self.chunk.add_constant(Constant::String(metadata_str));
+
+        // Enum declarations don't create runtime values
+        // Variants are constructed via EnumVariant expressions
+
+        Ok(())
+    }
+
+    /// Compile enum variant expression
+    fn compile_enum_variant(
+        &mut self,
+        enum_name: &str,
+        variant_name: &str,
+        fields: &[Expr],
+    ) -> Result<ExprResult> {
+        let dest = self.allocate_temp()?;
+
+        // Compile all field values to temporary registers
+        let mut temp_results = Vec::new();
+        for field_expr in fields {
+            let result = self.compile_expr_to_reg(field_expr)?;
+            temp_results.push(result);
+        }
+
+        // Move field values into consecutive registers after dest
+        for (i, result) in temp_results.iter().enumerate() {
+            let target_reg = dest.wrapping_add((i as u8) + 1);
+            if result.register != target_reg {
+                self.chunk.move_reg(target_reg, result.register);
+            }
+        }
+
+        // Free temporary registers
+        for result in temp_results {
+            if result.is_temp {
+                self.free_temp(result.register);
+            }
+        }
+
+        // Create variant metadata string "EnumName::VariantName"
+        let variant_metadata = format!("{}::{}", enum_name, variant_name);
+        let variant_const = self.chunk.add_constant(Constant::String(variant_metadata));
+
+        // Emit NewEnum instruction
+        let field_count = fields.len() as u8;
+        self.chunk.new_enum(dest, variant_const, field_count);
+
+        Ok(ExprResult::temp(dest))
+    }
+
     /// Resolve an upvalue by name
     /// Returns the index in the upvalue list if found
     fn resolve_upvalue(&mut self, name: &str) -> Option<usize> {
@@ -1325,6 +1477,12 @@ impl RegisterCompiler {
             }
             Statement::BlockScope { body } => {
                 self.find_captured_vars_in_statements(body, parent_vars, captures);
+            }
+            Statement::StructDeclaration { .. } => {
+                // Struct declarations don't capture variables
+            }
+            Statement::EnumDeclaration { .. } => {
+                // Enum declarations don't capture variables
             }
             _ => {}
         }

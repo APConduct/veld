@@ -1,6 +1,6 @@
 # Register VM Migration - Progress Tracker
 
-## Status: ✅ Phase 5 COMPLETE - Iterators & For Loops Working!
+## Status: 🚧 Phase 6 IN PROGRESS - Advanced Features (Structs ✅, Enums ⚠️)
 
 Last Updated: 2024-12-XX
 
@@ -318,21 +318,103 @@ Created `compiler_v2.rs` with RegisterCompiler that:
 
 ---
 
-### ⏳ Phase 6: Advanced Features (NOT STARTED)
+### 🚧 Phase 6: Advanced Features (IN PROGRESS)
 **Goal:** Implement remaining language features
+**Status:** Structs working! Enums need parser/scope fixes
 
-#### Planned Tasks
-- [ ] Pattern matching compilation
-- [ ] Struct operations
-- [ ] Array operations
-- [ ] Tuple operations
-- [ ] Enum variant creation
-- [ ] Exception handling (try/catch)
-- [ ] Iterator protocol
-- [ ] Type checking/casting
+#### Implementation Plan (Priority Order)
 
-**Estimated Duration:** 1 week
-**Dependencies:** Phase 5 complete
+**Priority 1: Struct Operations** ✅ COMPLETE
+- [x] Complete VM NewStruct implementation with proper field storage
+- [x] Complete VM GetField/SetField with field name resolution
+- [x] Implement StructDeclaration compilation
+- [x] Support struct literal compilation (fixed register allocation)
+- [x] Test struct creation, field access, and mutation (200 test passing!)
+- [x] Add struct field count validation
+
+**Priority 2: Tuple Operations**
+- [ ] Complete VM NewTuple implementation
+- [ ] Add TupleAccess instruction handling in VM
+- [ ] Implement tuple element access compilation
+- [ ] Test tuple creation and destructuring
+- [ ] Support tuple pattern matching
+
+**Priority 3: Enum Variant Creation** ⚠️ PARTIAL (Blocked by Parser/Scope Issue)
+- [x] Complete VM NewEnum implementation (format: "EnumType::Variant")
+- [x] Store enum metadata in constant pool
+- [x] Implement EnumDeclaration compilation
+- [x] Support EnumVariant expression compilation
+- [ ] **BLOCKED:** Enum names not in scope - parser treats EnumName.Variant as property access
+- [ ] Need to register enum type as a namespace/type value in scope
+- [ ] Add ExtractField instruction for enum unpacking (deferred to pattern matching)
+- [ ] Test enum creation and variant checking (blocked by scope issue)
+
+**Priority 4: Pattern Matching** (Most Complex)
+- [ ] Complete VM MatchPattern implementation (currently TODO)
+- [ ] Support all MatchPattern variants:
+  - [ ] Literal patterns
+  - [ ] Identifier (binding) patterns
+  - [ ] Struct destructuring patterns
+  - [ ] Enum variant patterns
+  - [ ] Tuple patterns
+  - [ ] Wildcard patterns
+  - [ ] Range patterns
+- [ ] Implement variable binding from patterns
+- [ ] Support nested pattern matching
+- [ ] Add guard expression evaluation
+- [ ] Test comprehensive pattern matching scenarios
+
+**Priority 5: Array Operations Enhancement**
+- [ ] Array methods (len, push, pop, etc.)
+- [ ] Array slicing support
+- [ ] Multi-dimensional array access
+
+**Deferred to Phase 7:**
+- Exception handling (try/catch) - requires new instructions
+- Type checking/casting - requires runtime type system
+- Advanced iterator protocol - basic support already works
+
+#### Current Implementation Status
+
+**Existing (From Previous Phases):**
+✅ Basic array operations (NewArray, GetIndex, SetIndex)
+✅ Iterator support (MakeIterator, IteratorNext, ForIterator)
+✅ Function calls and closures
+✅ Control flow (if/else, loops)
+
+**Partially Complete:**
+⚠️ Struct operations - instructions exist, VM/compiler need completion
+⚠️ Tuple operations - NewTuple exists, access needs implementation
+⚠️ Match statements - basic framework exists, needs full implementation
+
+**TODO:**
+❌ Enum variant creation - VM shows TODO
+❌ Pattern matching - VM shows TODO
+❌ Struct/Enum declarations in compiler
+
+#### Technical Approach
+
+**Struct Implementation:**
+1. Store struct metadata (type name, field names) in constant pool
+2. VM creates struct as a map/dictionary of field_name -> value
+3. GetField/SetField use field names for lookup
+4. Compiler maps StructDeclaration to metadata + type registration
+
+**Enum Implementation:**
+1. Store enum metadata (enum name, variant names, field info) in constants
+2. VM creates enum as tagged union (variant_id + field values)
+3. Pattern matching extracts variant and fields
+4. Compiler maps EnumDeclaration to metadata + variant constructors
+
+**Pattern Matching:**
+1. MatchStart prepares value for matching
+2. For each arm: MatchPattern tests pattern and binds variables
+3. ExtractField pulls out matched values
+4. Guards evaluated after successful pattern match
+5. First matching arm executes, others skipped
+
+**Estimated Duration:** 1-2 weeks
+**Dependencies:** Phase 5 complete ✅
 
 ---
 
@@ -823,7 +905,7 @@ Based on Lua's transition and academic research:
 
 ## Metrics
 
-### Code Statistics (Phase 5 Complete)
+### Code Statistics (Phase 6 Partial)
 - **Documentation:** ~4,500 lines (6 major documents + progress tracking + integration docs)
 - **Implementation:** ~6,450 lines (instruction set + allocator + chunks + VM core + data structures + closures + compiler_v2)
 - **Tests:** ~1,800 lines (59 unit tests + 30 integration tests + 7 e2e tests = 96 total)
@@ -833,7 +915,7 @@ Based on Lua's transition and academic research:
 - **Overall:** 93/96 passing ✅ (96.9%)
 - **Total Lines:** ~12,750 lines
 
-### Time Investment (Phase 5 Complete)
+### Time Investment (Phase 6 Partial)
 - **Analysis & Planning:** 1 day ✅
 - **Phase 1 (Instruction Set + Allocator):** 1 day ✅
 - **Phase 2 (VM Core + Data Structures + Closures):** 1 day ✅
@@ -841,12 +923,109 @@ Based on Lua's transition and academic research:
 - **Total:** 4.5 days (highly productive!)
 - **Remaining Estimated:** 5-6 weeks
 
-### Progress by Phase (Updated)
+### Progress by Phase (Phase 6 Update)
 - Phase 0: ✅ 100%
 - Phase 1: ✅ 100% 
 - Phase 2: ✅ 100% (core execution + data structures + closures complete!)
 - Phase 3-9: ⏳ 0%
 - **Overall:** 🟢 ~40% complete
+
+---
+
+## Phase 6 Work Log
+
+### 2024-12-XX: Struct Implementation COMPLETE! ✅
+
+**Achievement:** Full struct support working end-to-end!
+
+**Implemented:**
+- ✅ VM NewStruct instruction - creates HashMap-based struct with field storage
+- ✅ VM GetField/SetField - field name lookup and modification working
+- ✅ Compiler StructDeclaration - stores metadata as JSON in constants
+- ✅ Compiler compile_struct - fixed to use consecutive registers for field data
+- ✅ Nested struct support - Point inside Rectangle works perfectly
+- ✅ Test passing - `tests/phase6_struct_simple.veld` returns 200 as expected
+
+**Test Results:**
+```veld
+struct Point
+    x: i64, y: i64
+end
+let p1 = Point(x: 10, y: 20)
+let x_val = p1.x  # Field access works!
+# ... nested structs, multiple instances ...
+# Result: 200 ✅
+```
+
+**Technical Details:**
+- Structs stored as `BytecodeValue::Struct { type_name, fields: HashMap<String, Value> }`
+- NewStruct expects fields in consecutive registers: dest+1=name1, dest+2=value1, dest+3=name2, dest+4=value2
+- Compiler allocates temps, moves to consecutive registers, then emits NewStruct
+- Field access uses constant pool for field names
+- Metadata stored as JSON for potential future introspection
+
+### 2024-12-XX: Enum Implementation - Partial Success ⚠️
+
+**Implemented:**
+- ✅ VM NewEnum instruction - creates tagged enum with variant name and field values
+- ✅ Enum metadata stored as JSON in constant pool
+- ✅ EnumDeclaration compilation (stores metadata, no runtime code)
+- ✅ compile_enum_variant - generates "EnumType::Variant" metadata string
+- ✅ Added serde_json dependency for metadata serialization
+
+**Discovered Issue - BLOCKED:**
+The parser treats enum variant creation `Status.Pending` as property access on a variable `Status`.
+However, `Status` is a type name, not a variable, so it's not in the variable scope.
+
+**Error:** `Compile error: Undefined variable: Status`
+
+**Root Cause:**
+- Enum declarations create type metadata but don't register the enum name in variable scope
+- Parser interprets `EnumName.VariantName` as `Expr::PropertyAccess`
+- Compiler looks up `EnumName` as a variable and fails
+
+**Solutions to Consider:**
+1. Register enum names as special type values in scope during compilation
+2. Change parser to recognize `EnumName.VariantName` as `Expr::EnumVariant` directly
+3. Add a type namespace separate from variable namespace
+4. Make enum declarations create a runtime "type object" variable
+
+**Decision Needed:** This requires coordination between parser and compiler architecture.
+For now, struct implementation is complete and working perfectly.
+
+---
+
+### 2024-12-XX: Phase 6 Started - Architecture & Planning 🚀
+
+**Current Focus:** Implementing complete struct support
+
+**Analysis Complete:**
+- ✅ Reviewed existing instruction set (NewStruct, GetField, SetField exist)
+- ✅ Audited VM implementation (partial implementations found)
+- ✅ Examined compiler code (compile_struct exists but incomplete)
+- ✅ Analyzed AST structures (StructDeclaration, StructField defined)
+- ✅ Created comprehensive Phase 6 implementation plan
+
+**Architecture Decisions:**
+- Structs will be stored as HashMap<String, BytecodeValue> in VM
+- Struct metadata (type name, field names, types) in constant pool
+- Field access by name lookup (not index) for flexibility
+- Struct declarations register type info globally
+- Struct literals compile to NewStruct + SetField sequence
+
+**Next Actions:**
+1. Complete VM struct creation (NewStruct instruction)
+2. Implement VM field access (GetField/SetField with name lookup)
+3. Add struct type to BytecodeValue enum
+4. Compile StructDeclaration statements
+5. Add comprehensive struct tests
+
+**Files to Modify:**
+- `crates/bytecode/src/value.rs` - Add Struct variant
+- `crates/bytecode/src/vm_v2.rs` - Complete struct instructions
+- `crates/bytecode/src/compiler_v2.rs` - Add StructDeclaration handling
+- `crates/common/src/bytecode_v2.rs` - May need struct metadata types
+- Tests: Add struct operation tests
 
 ---
 
@@ -923,7 +1102,24 @@ Based on Lua's transition and academic research:
 20. ✅ Phase 4 (Closures & Upvalues)
 21. ✅ Phase 5 (Iterators & For Loops)
 
-### Short Term (This Week) - Phase 6 Implementation
+### ✅ COMPLETE - Struct Operations (Phase 6 Part 1)
+- [x] Complete VM struct operations (NewStruct, GetField, SetField)
+- [x] Implement StructDeclaration compilation with metadata
+- [x] Fix compile_struct register allocation for consecutive fields
+- [x] Test struct creation and nested structs
+- [x] Verify field access works correctly
+- **Result:** Structs fully working! Test passing with correct output.
+
+### Current - Enum & Pattern Matching (Phase 6 Part 2)
+- [x] Implement VM NewEnum instruction
+- [x] Implement EnumDeclaration and compile_enum_variant
+- [ ] **BLOCKED:** Fix enum name scoping issue (parser treats as property access)
+- [ ] Decide on architecture for type vs variable namespace
+- [ ] Once unblocked: Test enum variant creation
+- [ ] Implement pattern matching (MatchPattern instruction)
+- [ ] Add ExtractField for enum destructuring
+
+### Short Term (Next) - Phase 6 Completion
 1. **Standard Library** (Days 1-3)
    - Array operations (map, filter, reduce, etc.)
    - String operations (split, join, trim, etc.)
@@ -994,7 +1190,49 @@ Based on Lua's transition and academic research:
 
 ---
 
-## Questions & Decisions Needed
+## Phase 6 Questions & Decisions (UPDATED)
+
+### Open Questions (URGENT)
+
+- **CRITICAL: Enum name scoping** - How should enum type names be accessible?
+  - Current issue: `Status.Pending` fails with "Undefined variable: Status"
+  - Parser interprets as property access, not enum variant
+  - Options:
+    1. Register enum names as variables with special "Type" value
+    2. Add type namespace separate from variable namespace
+    3. Change parser to detect EnumName.Variant pattern earlier
+    4. Require explicit imports/declarations for enum usage
+  - **Recommendation:** Option 1 - create Type value and register in variable scope
+
+### Open Questions (Original)
+- **Struct field visibility:** Should we support public/private fields now or defer?
+  - Decision: Defer to type system phase, treat all fields as public for now
+  
+- **Struct methods:** When to implement? Part of Phase 6 or later?
+  - Decision: Defer to Phase 7, focus on data structures first
+  
+- **Enum representation:** Tagged union vs. boxed variants?
+  - Decision: Use tagged union (variant_index + Vec<Value>) for simplicity
+  
+- **Pattern matching exhaustiveness:** Check at compile time or runtime?
+  - Decision: Runtime for now, compile-time checks in Phase 7
+
+- **Tuple size limits:** Set maximum tuple size?
+  - Decision: Use u8 (max 255 elements) matching other size limits
+
+### Resolved Decisions (Phase 6)
+- ✅ Structs use HashMap for field storage (name-based, not index-based) - **WORKING**
+- ✅ Struct metadata stored in constant pool as JSON string - **IMPLEMENTED**
+- ✅ Field access uses name lookup for flexibility - **WORKING**
+- ✅ Struct fields placed in consecutive registers for NewStruct - **IMPLEMENTED**
+- ✅ Enum variants stored as (type_name, variant_name, fields: Vec<Value>) - **IMPLEMENTED**
+- ✅ Enum metadata format: "EnumType::VariantName" string - **IMPLEMENTED**
+- ⚠️ Pattern matching uses MatchPattern instruction per arm - **DEFERRED** (needs enum scope fix first)
+- ⚠️ Variable binding in patterns handled by ExtractField + local assignment - **DEFERRED**
+
+---
+
+## Questions & Decisions Needed (General)
 
 ### Open Questions
 - [ ] Should we keep old stack-based VM for comparison?
