@@ -1,0 +1,343 @@
+#| Simpler test for extended Option and Result methods
+#| Avoids parser issues with inline lambdas in if conditions
+
+import std.option.{Option}
+import std.result.{Result}
+import std.io.{println}
+
+println("╔════════════════════════════════════════╗")
+println("║  Extended Option & Result Test Suite  ║")
+println("╚════════════════════════════════════════╝")
+println("")
+
+# ============================================================================
+# Option.and_then Tests
+# ============================================================================
+
+println("=== Testing Option.and_then ===")
+
+let opt1 = Option.Some(5)
+let result1 = opt1.and_then(fn (x) -> Option.Some(x * 2) end)
+
+match result1
+    Option.Some(val) => do
+        if val == 10 then
+            println("✓ Option.and_then on Some works")
+        else
+            println("✗ Option.and_then returned wrong value: " + val.to_str())
+        end
+    end,
+    Option.None => println("✗ Option.and_then returned None"),
+end
+
+let opt2 = Option.None
+let result2 = opt2.and_then(fn (x: i32) -> Option.Some(x * 2) end)
+
+match result2
+    Option.None => println("✓ Option.and_then on None returns None"),
+    Option.Some(_) => println("✗ Option.and_then on None returned Some"),
+end
+
+# ============================================================================
+# Option.or Tests
+# ============================================================================
+
+println("")
+println("=== Testing Option.or ===")
+
+let opt3 = Option.Some(42)
+let opt4 = Option.Some(99)
+let result3 = opt3.or(opt4)
+
+match result3
+    Option.Some(val) => do
+        if val == 42 then
+            println("✓ Option.or with Some returns first value")
+        else
+            println("✗ Option.or returned wrong value")
+        end
+    end,
+    Option.None => println("✗ Option.or returned None"),
+end
+
+# ============================================================================
+# Option.filter Tests
+# ============================================================================
+
+println("")
+println("=== Testing Option.filter ===")
+
+let opt8 = Option.Some(42)
+let pred_match = fn (x) -> x > 40 end
+let result6 = opt8.filter(pred_match)
+
+match result6
+    Option.Some(val) => do
+        if val == 42 then
+            println("✓ Option.filter keeps value matching predicate")
+        else
+            println("✗ Option.filter returned wrong value")
+        end
+    end,
+    Option.None => println("✗ Option.filter incorrectly filtered out value"),
+end
+
+let opt9 = Option.Some(30)
+let result7 = opt9.filter(pred_match)
+
+match result7
+    Option.None => println("✓ Option.filter removes value not matching predicate"),
+    Option.Some(_) => println("✗ Option.filter kept value that should be filtered"),
+end
+
+# ============================================================================
+# Option.ok_or Tests
+# ============================================================================
+
+println("")
+println("=== Testing Option.ok_or ===")
+
+let opt11 = Option.Some(123)
+let res1 = opt11.ok_or("error")
+
+match res1
+    Result.Ok(val) => do
+        if val == 123 then
+            println("✓ Option.ok_or converts Some to Ok")
+        else
+            println("✗ Option.ok_or returned wrong value")
+        end
+    end,
+    Result.Err(_) => println("✗ Option.ok_or returned Err"),
+end
+
+let opt12 = Option.None
+let res2 = opt12.ok_or("my error")
+
+match res2
+    Result.Err(msg) => do
+        if msg == "my error" then
+            println("✓ Option.ok_or converts None to Err")
+        else
+            println("✗ Option.ok_or returned wrong error")
+        end
+    end,
+    Result.Ok(_) => println("✗ Option.ok_or returned Ok"),
+end
+
+# ============================================================================
+# Option.zip Tests
+# ============================================================================
+
+println("")
+println("=== Testing Option.zip ===")
+
+let opt14 = Option.Some(1)
+let opt15 = Option.Some(2)
+let result8 = opt14.zip(opt15)
+
+match result8
+    Option.Some(tuple) => println("✓ Option.zip creates tuple from two Some values"),
+    Option.None => println("✗ Option.zip returned None"),
+end
+
+let opt16 = Option.Some(1)
+let opt17 = Option.None
+let result9 = opt16.zip(opt17)
+
+match result9
+    Option.None => println("✓ Option.zip returns None when one is None"),
+    Option.Some(_) => println("✗ Option.zip should return None"),
+end
+
+# ============================================================================
+# Result.and_then Tests
+# ============================================================================
+
+println("")
+println("=== Testing Result.and_then ===")
+
+let res4 = Result.Ok(5)
+let result10 = res4.and_then(fn (x) -> Result.Ok(x * 3) end)
+
+match result10
+    Result.Ok(val) => {
+        if val == 15 then
+            println("✓ Result.and_then on Ok works")
+        else
+            println("✗ Result.and_then returned wrong value: " + val.to_str())
+        end
+    },
+    Result.Err(_) => println("✗ Result.and_then returned Err"),
+end
+
+let res5 = Result.Err("error")
+let result11 = res5.and_then(fn (x: i32) -> Result.Ok(x * 3) end)
+
+match result11
+    Result.Err(msg) => {
+        if msg == "error" then
+            println("✓ Result.and_then on Err preserves error")
+        else
+            println("✗ Result.and_then changed error")
+        end
+    },
+    Result.Ok(_) => println("✗ Result.and_then returned Ok"),
+end
+
+# ============================================================================
+# Result.map_err Tests
+# ============================================================================
+
+println("")
+println("=== Testing Result.map_err ===")
+
+let res6 = Result.Err("fail")
+let result12 = res6.map_err(fn (e) -> "Error: " + e end)
+
+match result12
+    Result.Err(msg) => {
+        if msg == "Error: fail" then
+            println("✓ Result.map_err transforms error")
+        else
+            println("✗ Result.map_err returned wrong error: " + msg)
+        end
+    },
+    Result.Ok(_) => println("✗ Result.map_err returned Ok"),
+end
+
+let res7 = Result.Ok(42)
+let result13 = res7.map_err(fn (e: str) -> "Error: " + e end)
+
+match result13
+    Result.Ok(val) => {
+        if val == 42 then
+            println("✓ Result.map_err leaves Ok unchanged")
+        else
+            println("✗ Result.map_err changed Ok value")
+        end
+    },
+    Result.Err(_) => println("✗ Result.map_err returned Err"),
+end
+
+# ============================================================================
+# Result.or Tests
+# ============================================================================
+
+println("")
+println("=== Testing Result.or ===")
+
+let res8 = Result.Err("error1")
+let res9 = Result.Ok(999)
+let result14 = res8.or(res9)
+
+match result14
+    Result.Ok(val) => {
+        if val == 999 then
+            println("✓ Result.or returns alternative on Err")
+        else
+            println("✗ Result.or returned wrong value")
+        end
+    },
+    Result.Err(_) => println("✗ Result.or returned Err"),
+end
+
+# ============================================================================
+# Result.ok / Result.err Tests
+# ============================================================================
+
+println("")
+println("=== Testing Result.ok ===")
+
+let res15 = Result.Ok(777)
+let opt_result1 = res15.ok()
+
+match opt_result1
+    Option.Some(val) => {
+        if val == 777 then
+            println("✓ Result.ok converts Ok to Some")
+        else
+            println("✗ Result.ok returned wrong value")
+        end
+    },
+    Option.None => println("✗ Result.ok returned None"),
+end
+
+let res16 = Result.Err("error")
+let opt_result2 = res16.ok()
+
+match opt_result2
+    Option.None => println("✓ Result.ok converts Err to None"),
+    Option.Some(_) => println("✗ Result.ok should return None"),
+end
+
+println("")
+println("=== Testing Result.err ===")
+
+let res17 = Result.Err("my error")
+let opt_result3 = res17.err()
+
+match opt_result3
+    Option.Some(msg) => {
+        if msg == "my error" then
+            println("✓ Result.err extracts error value")
+        else
+            println("✗ Result.err returned wrong error")
+        end
+    },
+    Option.None => println("✗ Result.err returned None"),
+end
+
+let res18 = Result.Ok(42)
+let opt_result4 = res18.err()
+
+match opt_result4
+    Option.None => println("✓ Result.err returns None for Ok"),
+    Option.Some(_) => println("✗ Result.err should return None"),
+end
+
+# ============================================================================
+# Result.unwrap_or_else Tests
+# ============================================================================
+
+println("")
+println("=== Testing Result.unwrap_or_else ===")
+
+let res19 = Result.Err("compute default")
+let val1 = res19.unwrap_or_else(fn (e) -> 555 end)
+
+if val1 == 555 then
+    println("✓ Result.unwrap_or_else computes default on Err")
+else
+    println("✗ Result.unwrap_or_else returned wrong value: " + val1.to_str())
+end
+
+let res20 = Result.Ok(333)
+let val2 = res20.unwrap_or_else(fn (e: str) -> 0 end)
+
+if val2 == 333 then
+    println("✓ Result.unwrap_or_else returns Ok value")
+else
+    println("✗ Result.unwrap_or_else returned wrong value")
+end
+
+# ============================================================================
+# Result.expect Tests
+# ============================================================================
+
+println("")
+println("=== Testing Result.expect ===")
+
+let res21 = Result.Ok(444)
+let val3 = res21.expect("should have value")
+
+if val3 == 444 then
+    println("✓ Result.expect returns Ok value")
+else
+    println("✗ Result.expect returned wrong value")
+end
+
+println("")
+println("╔════════════════════════════════════════╗")
+println("║  All Extended Methods Tests Complete   ║")
+println("╚════════════════════════════════════════╝")

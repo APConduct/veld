@@ -2020,11 +2020,28 @@ impl Parser {
         // Parse optional generic parameters for the method (e.g., <U>)
         let method_generic_params = self.parse_generic_args_if_present()?;
 
+        tracing::debug!(
+            "parse_impl_method: method_name={}, about to parse params, current_token={:?}",
+            method_name,
+            self.peek()
+        );
         self.consume(&Token::LParen(ZTUP), "Expected '(' after method name")?;
+        tracing::debug!(
+            "parse_impl_method: consumed LParen, current_token={:?}",
+            self.peek()
+        );
 
         let params = self.parse_impl_method_params(type_name)?;
 
+        tracing::debug!(
+            "parse_impl_method: back from parse_impl_method_params, current_token={:?}",
+            self.peek()
+        );
         self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
+        tracing::debug!(
+            "parse_impl_method: consumed RParen, current_token={:?}",
+            self.peek()
+        );
 
         let return_type = if self.match_token(&[Token::Arrow(ZTUP)]) {
             self.parse_type()?
@@ -2152,24 +2169,65 @@ impl Parser {
         &mut self,
         type_name: String,
     ) -> Result<Vec<(String, TypeAnnotation)>> {
+        tracing::debug!(
+            "parse_impl_method_params: type_name={}, current_token={:?}",
+            type_name,
+            self.peek()
+        );
         let mut params = Vec::new();
         if !self.check(&Token::RParen(ZTUP)) {
             loop {
+                tracing::debug!(
+                    "parse_impl_method_params: parsing param, current_token={:?}",
+                    self.peek()
+                );
                 let param_name = self.consume_parameter_name("Expected parameter name")?;
+                tracing::debug!(
+                    "parse_impl_method_params: got param_name={}, current_token={:?}",
+                    param_name,
+                    self.peek()
+                );
                 let param_type = if self.match_token(&[Token::Colon(ZTUP)]) {
-                    self.parse_type()?
+                    tracing::debug!("parse_impl_method_params: parsing type annotation");
+                    let typ = self.parse_type()?;
+                    tracing::debug!(
+                        "parse_impl_method_params: got type={:?}, current_token={:?}",
+                        typ,
+                        self.peek()
+                    );
+                    typ
                 } else {
                     // For 'self' parameter without type
+                    tracing::debug!(
+                        "parse_impl_method_params: no type annotation, using Basic({})",
+                        type_name
+                    );
                     TypeAnnotation::Basic(type_name.clone())
                 };
 
-                params.push((param_name, param_type));
+                params.push((param_name.clone(), param_type.clone()));
+                tracing::debug!(
+                    "parse_impl_method_params: added param ({}, {:?}), current_token={:?}",
+                    param_name,
+                    param_type,
+                    self.peek()
+                );
 
                 if !self.match_token(&[Token::Comma(ZTUP)]) {
+                    tracing::debug!(
+                        "parse_impl_method_params: no comma, breaking. current_token={:?}",
+                        self.peek()
+                    );
                     break;
                 }
+                tracing::debug!("parse_impl_method_params: found comma, continuing loop");
             }
         }
+        tracing::debug!(
+            "parse_impl_method_params: done, params={:?}, current_token={:?}",
+            params,
+            self.peek()
+        );
         Ok(params)
     }
 
@@ -2183,8 +2241,16 @@ impl Parser {
                 let mut types = Vec::new();
                 let mut saw_comma = false;
 
-                // Empty tuple: ()
+                // Empty tuple: () or function type () -> T
                 if self.match_token(&[Token::RParen(ZTUP)]) {
+                    // Check if this is a function type with no parameters: () -> T
+                    if self.match_token(&[Token::Arrow(ZTUP)]) {
+                        let return_type = Box::new(self.parse_type()?);
+                        return Ok(TypeAnnotation::Function {
+                            params: vec![],
+                            return_type,
+                        });
+                    }
                     return Ok(TypeAnnotation::Unit);
                 }
 
@@ -2227,7 +2293,16 @@ impl Parser {
                         types[0].clone()
                     }
                 } else {
-                    TypeAnnotation::Tuple(types)
+                    // Check if this is a function type with multiple parameters: (T, U) -> R
+                    if self.match_token(&[Token::Arrow(ZTUP)]) {
+                        let return_type = Box::new(self.parse_type()?);
+                        TypeAnnotation::Function {
+                            params: types,
+                            return_type,
+                        }
+                    } else {
+                        TypeAnnotation::Tuple(types)
+                    }
                 }
             } else if self.match_token(&[Token::LBrace(ZTUP)]) {
                 // Record type annotation: { field1: Type1, field2: Type2 }

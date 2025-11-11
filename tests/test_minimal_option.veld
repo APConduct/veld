@@ -1,0 +1,11 @@
+#| Minimal test to isolate parser error
+
+import std.option.{Option}
+import std.io.{println}
+
+println("Testing Option.and_then...")
+
+let opt1 = Option.Some(5)
+let result1 = opt1.and_then(fn (x) -> Option.Some(x * 2) end)
+
+println("✓ Test complete")

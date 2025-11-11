@@ -1,13 +1,9 @@
-#| Result type for Veld
-#| Represents a computation that may succeed or fail
-
 pub enum Result<T, E>
     Ok(T),
     Err(E),
 end
 
 impl<T, E> Result<T, E>
-    # Return the contained value or a default
     pub fn unwrap_or(self, default: T) -> T
         match self
             Result.Ok(value) => value,
@@ -15,16 +11,6 @@ impl<T, E> Result<T, E>
         end
     end
 
-    #| Unwrap the result, returning the contained Ok value
-    #| Panics if the result is Err
-    #| # Example:
-    #| ```
-    #| let result = Result.Ok(42)
-    #| let value = result.unwrap()  # value will be 42
-    #| ```
-    #| If the result is Err, this will cause a runtime error.
-    #| Use this method only when you are certain the result is Ok,
-    #| or use unwrap_or for a safer alternative with a default value.
     pub fn unwrap(self) -> T
         match self
             Result.Ok(value) => value,
@@ -32,7 +18,6 @@ impl<T, E> Result<T, E>
         end
     end
 
-    # Transform the result with a function if it's Ok
     pub fn map<U>(self, f: (T) -> U) -> Result<U, E>
         match self
             Result.Ok(value) => Result.Ok(f(value)),
@@ -40,7 +25,6 @@ impl<T, E> Result<T, E>
         end
     end
 
-    # Return true if the result is Ok
     pub fn is_ok(self) -> bool
         match self
             Result.Ok(_) => true,
@@ -48,19 +32,80 @@ impl<T, E> Result<T, E>
         end
     end
 
-    # Return true if the result is Err
     pub fn is_err(self) -> bool
         match self
             Result.Ok(_) => false,
             Result.Err(_) => true,
         end
     end
-end
 
-pub fn ok<T, E>(value: T) -> Result<T, E>
-    Result.Ok(value)
-end
+    pub fn and_then<U>(self, f: (T) -> Result<U, E>) -> Result<U, E>
+        match self
+            Result.Ok(value) => f(value),
+            Result.Err(err) => Result.Err(err),
+        end
+    end
 
-pub fn err<T, E>(error: E) -> Result<T, E>
-    Result.Err(error)
+    pub fn map_err<F>(self, f: (E) -> F) -> Result<T, F>
+        match self
+            Result.Ok(value) => Result.Ok(value),
+            Result.Err(err) => Result.Err(f(err)),
+        end
+    end
+
+    pub fn or_else<F>(self, f: (E) -> Result<T, F>) -> Result<T, F>
+        match self
+            Result.Ok(value) => Result.Ok(value),
+            Result.Err(err) => f(err),
+        end
+    end
+
+    pub fn is_ok_and(self, predicate: (T) -> bool) -> bool
+        match self
+            Result.Ok(value) => predicate(value),
+            Result.Err(_) => false,
+        end
+    end
+
+    pub fn is_err_and(self, predicate: (E) -> bool) -> bool
+        match self
+            Result.Ok(_) => false,
+            Result.Err(err) => predicate(err),
+        end
+    end
+
+    pub fn ok(self) -> Option<T>
+        match self
+            Result.Ok(value) => Option.Some(value),
+            Result.Err(_) => Option.None,
+        end
+    end
+
+    pub fn err(self) -> Option<E>
+        match self
+            Result.Ok(_) => Option.None,
+            Result.Err(err) => Option.Some(err),
+        end
+    end
+
+    pub fn unwrap_or_else(self, f: (E) -> T) -> T
+        match self
+            Result.Ok(value) => value,
+            Result.Err(err) => f(err),
+        end
+    end
+
+    pub fn expect(self, message: str) -> T
+        match self
+            Result.Ok(value) => value,
+            Result.Err(_) => panic~(message),
+        end
+    end
+
+    pub fn expect_err(self, message: str) -> E
+        match self
+            Result.Ok(_) => panic~(message),
+            Result.Err(err) => err,
+        end
+    end
 end

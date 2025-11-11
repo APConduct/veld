@@ -1,0 +1,113 @@
+#| Test for new Option and Result methods
+#| Tests stdlib methods work correctly
+
+import std.option.{Option}
+import std.result.{Result}
+import std.io.{println}
+
+println("Testing new Option methods...")
+
+# Option.and_then
+let opt1 = Option.Some(5)
+let result1 = opt1.and_then((x) => Option.Some(x * 2))
+println("✓ Option.and_then compiles")
+
+# Option.or_else
+let opt4 = Option.None
+let result3 = opt4.or_else(() => Option.Some(777))
+println("✓ Option.or_else compiles")
+
+# Option.filter
+let opt5 = Option.Some(42)
+let result4 = opt5.filter((x) => x > 40)
+println("✓ Option.filter compiles")
+
+# Option.is_some_and
+let opt6 = Option.Some(50)
+let pred = (x) => x > 40
+let check1 = opt6.is_some_and(pred)
+println("✓ Option.is_some_and compiles")
+
+# Option.ok_or
+let opt7 = Option.Some(123)
+let res1 = opt7.ok_or("error")
+println("✓ Option.ok_or compiles")
+
+# Option.ok_or_else
+let opt8 = Option.None
+let res2 = opt8.ok_or_else(() => "computed error")
+println("✓ Option.ok_or_else compiles")
+
+# Option.xor
+let opt9 = Option.Some(1)
+let opt10 = Option.None
+let result5 = opt9.xor(opt10)
+println("✓ Option.xor compiles")
+
+# Option.zip
+let opt11 = Option.Some(1)
+let opt12 = Option.Some(2)
+let result6 = opt11.zip(opt12)
+println("✓ Option.zip compiles")
+
+# Option.zip_with
+let opt13 = Option.Some(2)
+let opt14 = Option.Some(3)
+let result7 = opt13.zip_with(opt14, (x, y) => x + y end)
+println("✓ Option.zip_with compiles")
+
+println("")
+println("Testing new Result methods...")
+
+# Result.and_then
+let res3 = Result.Ok(5)
+let result8 = res3.and_then( (x) => Result.Ok(x * 3) )
+println("✓ Result.and_then compiles")
+
+# Result.map_err
+let res4 = Result.Err("fail")
+let result9 = res4.map_err( (e) => "Error: " + e )
+println("✓ Result.map_err compiles")
+
+# Result.or_else
+let res7 = Result.Err("failure")
+let result11 = res7.or_else( (e) => Result.Ok(888) )
+println("✓ Result.or_else compiles")
+
+# Result.is_ok_and
+let res8 = Result.Ok(60)
+let check2 = res8.is_ok_and( (x) => x > 50 )
+println("✓ Result.is_ok_and compiles")
+
+# Result.is_err_and
+let res9 = Result.Err("bad")
+let check3 = res9.is_err_and( (e) => e == "bad" )
+println("✓ Result.is_err_and compiles")
+
+# Result.ok
+let res10 = Result.Ok(777)
+let opt_result1 = res10.ok()
+println("✓ Result.ok compiles")
+
+# Result.err
+let res11 = Result.Err("my error")
+let opt_result2 = res11.err()
+println("✓ Result.err compiles")
+
+# Result.unwrap_or_else
+let res12 = Result.Err("compute default")
+let val1 = res12.unwrap_or_else( (e) => 555 )
+println("✓ Result.unwrap_or_else compiles")
+
+# Result.expect
+let res13 = Result.Ok(444)
+let val2 = res13.expect("should have value")
+println("✓ Result.expect compiles")
+
+# Result.expect_err
+let res14 = Result.Err("expected error")
+let err1 = res14.expect_err("should be error")
+println("✓ Result.expect_err compiles")
+
+println("")
+println("All new methods compile and run successfully!")

@@ -1,0 +1,13 @@
+pub enum Option<T>
+    Some(T),
+    None,
+end
+
+impl<T> Option<T>
+    pub fn unwrap(self) -> T
+        match self
+            Option.Some(value) => value,
+            Option.None => panic~("Called unwrap() on None"),
+        end
+    end
+end
