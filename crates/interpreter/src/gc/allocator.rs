@@ -8,7 +8,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use super::GcConfig;
-use super::handle::{GcHandle, Generation, HandlePool};
+use super::handle::{Generation, HandlePool};
+use veld_common::gc::handle::GcHandle;
 use veld_common::value::Value;
 use veld_error::{Result, VeldError};
 
@@ -560,10 +561,12 @@ fn estimate_value_size(value: &Value) -> usize {
 }
 
 /// Extract GC handles referenced by a value
-fn extract_references(value: &Value) -> Vec<GcHandle> {
-    // Note: In a real implementation, this would traverse the value
-    // and extract any embedded GC handles. For now, we return empty
-    // since the current Value enum doesn't contain GC handles directly.
+/// NOTE: This function is not used - the interpreter uses veld_common::gc::allocator::GcAllocator
+/// which has its own implementation of extract_references.
+#[allow(dead_code)]
+fn extract_references(_value: &Value) -> Vec<GcHandle> {
+    // This implementation is disabled as it conflicts with the veld_common GC types
+    // The actual extract_references used is in veld/crates/common/src/gc/allocator.rs
     Vec::new()
 }
 

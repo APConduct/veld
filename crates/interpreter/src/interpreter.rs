@@ -164,7 +164,7 @@ impl Interpreter {
     fn add_value_roots(roots: &mut RootSet, value: &Value) {
         match value {
             Value::GcRef(handle) => {
-                roots.add_stack_root(handle.clone()).ok();
+                roots.add_root(handle.clone());
             }
             Value::Array(elements) | Value::Tuple(elements) => {
                 for v in elements {
@@ -180,6 +180,24 @@ impl Interpreter {
             _ => {}
         }
     }
+
+    /// Perform garbage collection with the given strategy
+    pub fn perform_gc(
+        &self,
+        strategy: veld_common::gc::collector::CollectionStrategy,
+    ) -> Result<veld_common::gc::collector::CollectionResult> {
+        let roots = self.collect_gc_roots();
+        let mut allocator = self.allocator.write().unwrap();
+        let mut collector = self.collector.write().unwrap();
+
+        collector.collect(strategy, &mut allocator, &roots, &self.gc_config)
+    }
+
+    /// Perform a full garbage collection
+    pub fn perform_full_gc(&self) -> Result<veld_common::gc::collector::CollectionResult> {
+        self.perform_gc(veld_common::gc::collector::CollectionStrategy::Full)
+    }
+
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
         let span = tracing::debug_span!("interpreter_new", root_dir = ?root_dir.as_ref());
         let _enter = span.enter();

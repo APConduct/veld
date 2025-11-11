@@ -571,10 +571,67 @@ fn estimate_value_size(value: &Value) -> usize {
 /// Extract GC handles referenced by a value
 #[allow(dead_code, unused)] // TODO: Implement this function
 fn extract_references(value: &Value) -> Vec<GcHandle> {
-    // Note: In a real implementation, this would traverse the value
-    // and extract any embedded GC handles. For now, we return empty
-    // since the current Value enum doesn't contain GC handles directly.
-    Vec::new()
+    let mut refs = Vec::new();
+    extract_references_recursive(value, &mut refs);
+    refs
+}
+
+fn extract_references_recursive(value: &Value, refs: &mut Vec<GcHandle>) {
+    match value {
+        Value::GcRef(handle) => {
+            refs.push(handle.clone());
+        }
+        Value::Array(elements) | Value::Tuple(elements) => {
+            for elem in elements {
+                extract_references_recursive(elem, refs);
+            }
+        }
+        Value::Struct { fields, .. } => {
+            for field_value in fields.values() {
+                extract_references_recursive(field_value, refs);
+            }
+        }
+        Value::Enum { fields, .. } => {
+            for field_value in fields {
+                extract_references_recursive(field_value, refs);
+            }
+        }
+        Value::Function { captured_vars, .. } => {
+            for captured_value in captured_vars.values() {
+                extract_references_recursive(captured_value, refs);
+            }
+        }
+        Value::Record(fields) => {
+            for field_value in fields.values() {
+                extract_references_recursive(field_value, refs);
+            }
+        }
+        Value::Return(inner) => {
+            extract_references_recursive(inner, refs);
+        }
+        // EnumType and StructType can contain methods (which are Values)
+        Value::EnumType { methods, .. } | Value::StructType { methods, .. } => {
+            if let Some(method_map) = methods {
+                for method_value in method_map.values() {
+                    extract_references_recursive(method_value, refs);
+                }
+            }
+        }
+        // Primitive types don't contain GC references
+        Value::Integer(_)
+        | Value::Float(_)
+        | Value::Boolean(_)
+        | Value::Char(_)
+        | Value::String(_)
+        | Value::Unit
+        | Value::Break
+        | Value::Continue
+        | Value::Numeric(_)
+        | Value::CompiledFunction { .. }
+        | Value::Module(_) => {
+            // No GC references in these types
+        }
+    }
 }
 
 #[cfg(test)]

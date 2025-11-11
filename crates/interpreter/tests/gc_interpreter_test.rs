@@ -16,7 +16,9 @@ fn stack_roots_survive_gc() {
     interpreter.set_stack_var("b".to_string(), value_b.clone());
     // value_c is not rooted
 
-    let root_set = interpreter.collect_gc_roots();
+    // Perform garbage collection to remove unreachable value_c
+    interpreter.perform_full_gc().unwrap();
+
     let allocator = interpreter.allocator.read().unwrap();
 
     if let Value::GcRef(handle_a) = value_a {
@@ -49,7 +51,9 @@ fn closure_captured_roots_survive_gc() {
 
     interpreter.set_stack_var("closure".to_string(), closure_value.clone());
 
-    let root_set = interpreter.collect_gc_roots();
+    // Perform garbage collection
+    interpreter.perform_full_gc().unwrap();
+
     let allocator = interpreter.allocator.read().unwrap();
 
     if let Value::GcRef(closure_handle) = closure_value {
@@ -80,7 +84,9 @@ fn nested_gc_values_survive_gc() {
 
     interpreter.set_stack_var("struct".to_string(), struct_value.clone());
 
-    let root_set = interpreter.collect_gc_roots();
+    // Perform garbage collection
+    interpreter.perform_full_gc().unwrap();
+
     let allocator = interpreter.allocator.read().unwrap();
 
     if let Value::GcRef(struct_handle) = struct_value {
@@ -112,9 +118,11 @@ fn unreachable_nested_gc_values_are_collected() {
         })
         .unwrap();
 
-    // No roots set
+    // No roots set - all values should be collected
 
-    let root_set = interpreter.collect_gc_roots();
+    // Perform garbage collection to collect unreachable values
+    interpreter.perform_full_gc().unwrap();
+
     let allocator = interpreter.allocator.read().unwrap();
 
     if let Value::GcRef(struct_handle) = struct_value {
