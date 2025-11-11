@@ -300,6 +300,9 @@ impl TypeChecker {
                         }
                         self.env.add_struct(name, field_types);
                     }
+                    // Register struct name as an identifier of type StructType
+                    // so it can be used in expressions (e.g., for bytecode compilation)
+                    self.env.define(name, Type::StructType(name.clone()));
                 }
                 Statement::FunctionDeclaration {
                     name,
@@ -348,6 +351,9 @@ impl TypeChecker {
                         variant_map.insert(variant.name.clone(), enum_variant);
                     }
                     self.env.enums.insert(name.clone(), variant_map);
+                    // Register enum name as an identifier of type EnumType
+                    // so it can be used in expressions (e.g., for bytecode compilation)
+                    self.env.define(name, Type::EnumType(name.clone()));
                 }
                 Statement::TypeDeclaration {
                     name,
@@ -1546,8 +1552,37 @@ impl TypeChecker {
                 type_args,
             } => self.infer_enum_variant_type(enum_name, variant_name, fields, type_args.as_ref()),
             Expr::SelfReference { .. } => todo!("Self reference in expression"),
-            Expr::TupleLiteral(_) => todo!("Tuple literal type inference"),
-            Expr::TupleAccess { .. } => todo!("Tuple access type inference"),
+            Expr::TupleLiteral(elements) => {
+                // Infer the type of each element in the tuple
+                let element_types = elements
+                    .iter()
+                    .map(|elem| self.infer_expression_type(elem))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Type::Tuple(element_types))
+            }
+            Expr::TupleAccess { tuple, index } => {
+                // Infer the type of the tuple
+                let tuple_type = self.infer_expression_type(tuple)?;
+
+                // Extract the type at the given index
+                match tuple_type {
+                    Type::Tuple(element_types) => {
+                        if *index < element_types.len() {
+                            Ok(element_types[*index].clone())
+                        } else {
+                            Err(VeldError::TypeError(format!(
+                                "Tuple index {} out of bounds for tuple of length {}",
+                                index,
+                                element_types.len()
+                            )))
+                        }
+                    }
+                    _ => Err(VeldError::TypeError(format!(
+                        "Cannot index non-tuple type: {:?}",
+                        tuple_type
+                    ))),
+                }
+            }
             Expr::MacroExpr { .. } => todo!("Macro expression type inference"),
             Expr::MacroVar(_) => todo!("Macro variable type inference"),
             Expr::Call { callee, arguments } => {
