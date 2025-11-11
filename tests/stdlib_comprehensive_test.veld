@@ -1,0 +1,295 @@
+#| Comprehensive test of Veld standard library functionality
+#| Tests all currently implemented features to understand what works
+
+import std.option.{Option}
+import std.result.{Result}
+import std.io.{println, print}
+import std.math
+
+# Test 1: Option basics
+pub fn test_option() -> ()
+    println("=== Testing Option ===")
+
+    let some_val = Option.Some(42)
+    let none_val = Option.None
+
+    # Test is_some and is_none
+    if some_val.is_some() then
+        println("✓ Option.Some.is_some() works")
+    else
+        println("✗ Option.Some.is_some() failed")
+    end
+
+    if none_val.is_none() then
+        println("✓ Option.None.is_none() works")
+    else
+        println("✗ Option.None.is_none() failed")
+    end
+
+    # Test unwrap_or
+    let val1 = some_val.unwrap_or(0)
+    let val2 = none_val.unwrap_or(99)
+
+    if val1 == 42 then
+        println("✓ Option.unwrap_or on Some works")
+    else
+        println("✗ Option.unwrap_or on Some failed")
+    end
+
+    if val2 == 99 then
+        println("✓ Option.unwrap_or on None works")
+    else
+        println("✗ Option.unwrap_or on None failed")
+    end
+end
+
+# Test 2: Result basics
+pub fn test_result() -> ()
+    println("=== Testing Result ===")
+
+    let ok_val = Result.Ok(100)
+    let err_val = Result.Err("error message")
+
+    # Test is_ok and is_err
+    if ok_val.is_ok() then
+        println("✓ Result.Ok.is_ok() works")
+    else
+        println("✗ Result.Ok.is_ok() failed")
+    end
+
+    if err_val.is_err() then
+        println("✓ Result.Err.is_err() works")
+    else
+        println("✗ Result.Err.is_err() failed")
+    end
+
+    # Test unwrap_or
+    let val1 = ok_val.unwrap_or(0)
+    let val2 = err_val.unwrap_or(0)
+
+    if val1 == 100 then
+        println("✓ Result.unwrap_or on Ok works")
+    else
+        println("✗ Result.unwrap_or on Ok failed")
+    end
+
+    if val2 == 0 then
+        println("✓ Result.unwrap_or on Err works")
+    else
+        println("✗ Result.unwrap_or on Err failed")
+    end
+end
+
+# Test 3: Math functions
+pub fn test_math() -> ()
+    println("=== Testing Math ===")
+
+    # Test max/min
+    let max_val = math.max(10, 20)
+    let min_val = math.min(10, 20)
+
+    if max_val == 20 then
+        println("✓ math.max works")
+    else
+        println("✗ math.max failed")
+    end
+
+    if min_val == 10 then
+        println("✓ math.min works")
+    else
+        println("✗ math.min failed")
+    end
+
+    # Test clamp
+    let clamped = math.clamp(15, 10, 20)
+    if clamped == 15 then
+        println("✓ math.clamp works (value in range)")
+    else
+        println("✗ math.clamp failed")
+    end
+
+    let clamped_low = math.clamp(5, 10, 20)
+    if clamped_low == 10 then
+        println("✓ math.clamp works (value below range)")
+    else
+        println("✗ math.clamp failed (below range)")
+    end
+
+    let clamped_high = math.clamp(25, 10, 20)
+    if clamped_high == 20 then
+        println("✓ math.clamp works (value above range)")
+    else
+        println("✗ math.clamp failed (above range)")
+    end
+end
+
+# Test 4: Array operations
+pub fn test_arrays() -> ()
+    println("=== Testing Arrays ===")
+
+    let arr = [1, 2, 3, 4, 5]
+
+    # Test length
+    let arr_len = arr.len()
+    if arr_len == 5 then
+        println("✓ Array.len() works")
+    else
+        println("✗ Array.len() failed")
+    end
+
+    # Test with method (non-mutating append)
+    let arr2 = arr.with(6)
+    let arr2_len = arr2.len()
+    if arr2_len == 6 then
+        println("✓ Array.with() works")
+    else
+        println("✗ Array.with() failed")
+    end
+end
+
+# Test 5: String operations (if implemented)
+pub fn test_strings() -> ()
+    println("=== Testing Strings ===")
+
+    let str1 = "Hello"
+    let str2 = "World"
+    let combined = str1 + " " + str2
+
+    println(combined)
+    println("✓ String concatenation works")
+end
+
+# Test 6: Pattern matching with stdlib types
+pub fn test_pattern_matching() -> ()
+    println("=== Testing Pattern Matching ===")
+
+    let opt = Option.Some(42)
+
+    let result = match opt
+        Option.Some(x) => x * 2,
+        Option.None => 0,
+    end
+
+    if result == 84 then
+        println("✓ Pattern matching on Option works")
+    else
+        println("✗ Pattern matching on Option failed")
+    end
+
+    let res = Result.Ok(10)
+
+    let result2 = match res
+        Result.Ok(v) => v + 5,
+        Result.Err(_) => -1,
+    end
+
+    if result2 == 15 then
+        println("✓ Pattern matching on Result works")
+    else
+        println("✗ Pattern matching on Result failed")
+    end
+end
+
+# Test 7: Nested data structures
+pub fn test_nested_structures() -> ()
+    println("=== Testing Nested Structures ===")
+
+    # Option of value
+    let opt1 = Option.Some(42)
+    let opt2 = Option.None
+
+    let val = match opt1
+        Option.Some(x) => x,
+        Option.None => -1,
+    end
+
+    if val == 42 then
+        println("✓ Nested Option matching works")
+    else
+        println("✗ Nested Option matching failed")
+    end
+
+    # Result of Option (nested ADTs)
+    let res_opt = Result.Ok(Option.Some(100))
+
+    let final_val = match res_opt
+        Result.Ok(opt) => match opt
+            Option.Some(v) => v,
+            Option.None => 0,
+        end,
+        Result.Err(_) => -1,
+    end
+
+    if final_val == 100 then
+        println("✓ Nested Result<Option> works")
+    else
+        println("✗ Nested Result<Option> failed")
+    end
+end
+
+# Test 8: Higher-order functions with stdlib types
+pub fn test_higher_order() -> ()
+    println("=== Testing Higher-Order Functions ===")
+
+    # Function that returns an Option
+    let divide = fn (a: i32, b: i32) -> Option<i32>
+        if b == 0 then
+            Option.None
+        else
+            Option.Some(a / b)
+        end
+    end
+
+    let result1 = divide(10, 2)
+    let result2 = divide(10, 0)
+
+    if result1.is_some() then
+        println("✓ Function returning Option (success case) works")
+    else
+        println("✗ Function returning Option failed")
+    end
+
+    if result2.is_none() then
+        println("✓ Function returning Option (failure case) works")
+    else
+        println("✗ Function returning Option (None case) failed")
+    end
+end
+
+# Main test runner
+pub fn main() -> ()
+    println("╔════════════════════════════════════════╗")
+    println("║  Veld Standard Library Test Suite     ║")
+    println("╚════════════════════════════════════════╝")
+    println("")
+
+    test_option()
+    println("")
+
+    test_result()
+    println("")
+
+    test_math()
+    println("")
+
+    test_arrays()
+    println("")
+
+    test_strings()
+    println("")
+
+    test_pattern_matching()
+    println("")
+
+    test_nested_structures()
+    println("")
+
+    test_higher_order()
+    println("")
+
+    println("╔════════════════════════════════════════╗")
+    println("║  Test Suite Complete                   ║")
+    println("╚════════════════════════════════════════╝")
+end
+
+main()

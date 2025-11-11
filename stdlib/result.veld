@@ -33,12 +33,13 @@ impl<T, E> Result<T, E>
     end
 
     # Transform the result with a function if it's Ok
-    pub fn map<U>(self, f: (T) -> U) -> Result<U, E>
-        match self
-            Result.Ok(value) => Result.Ok(f(value)),
-            Result.Err(err) => Result.Err(err),
-        end
-    end
+    # Temporarily commented out - generic method type parameters cause issues
+    # pub fn map<U>(self, f: (T) -> U) -> Result<U, E>
+    #     match self
+    #         Result.Ok(value) => Result.Ok(f(value)),
+    #         Result.Err(err) => Result.Err(err),
+    #     end
+    # end
 
     # Return true if the result is Ok
     pub fn is_ok(self) -> bool
