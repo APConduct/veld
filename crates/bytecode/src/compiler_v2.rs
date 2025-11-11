@@ -76,6 +76,7 @@ pub struct RegisterCompiler {
 }
 
 /// Variable information
+#[allow(dead_code)] // TODO: Remove this once all fields are used
 #[derive(Debug, Clone)]
 struct VarInfo {
     register: Reg,
@@ -91,6 +92,7 @@ struct VarInfo {
 
 /// Upvalue information for closures (compiler-side tracking)
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // TODO: Remove this once all fields are used
 struct CompilerUpvalueInfo {
     /// The name of the captured variable
     name: String,
@@ -106,6 +108,7 @@ struct CompilerUpvalueInfo {
 
 /// Scope tracking for variable shadowing
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // TODO: Remove this once all fields are used
 struct ScopeInfo {
     depth: usize,
     /// Variables declared in this scope with their shadowed values
@@ -114,6 +117,7 @@ struct ScopeInfo {
 
 /// Loop context for break/continue
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // TODO: Remove this once all fields are used
 struct LoopContext {
     start_index: usize,
     break_jumps: Vec<usize>, // indices of Jump instructions to patch
@@ -1430,6 +1434,7 @@ impl RegisterCompiler {
 
     /// Resolve an upvalue by name
     /// Returns the index in the upvalue list if found
+    #[allow(dead_code)] // Note that this is unused; check again later
     fn resolve_upvalue(&mut self, name: &str) -> Option<usize> {
         // Check if we already have this upvalue
         if let Some(idx) = self.upvalues.iter().position(|u| u.name == name) {
@@ -1452,6 +1457,7 @@ impl RegisterCompiler {
     }
 
     /// Add an upvalue to the closure
+    #[allow(dead_code)] // Note that this is unused; check again later
     fn add_upvalue(
         &mut self,
         name: String,
@@ -2381,7 +2387,6 @@ impl Default for RegisterCompiler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veld_common::ast::*;
 
     #[test]
     fn test_compile_literal() {

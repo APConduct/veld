@@ -5,7 +5,7 @@
 //! and collection frequency analysis.
 
 use std::collections::VecDeque;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime};
 
 use super::allocator::ObjectGeneration;
 use super::collector::CollectionResult;

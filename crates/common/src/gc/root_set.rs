@@ -7,7 +7,7 @@
 //! - Stack frames
 //! - Native function references
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread::ThreadId;
 
@@ -408,7 +408,7 @@ mod tests {
         let mut root_set = RootSet::new();
 
         // Push frame and add root
-        let frame_id = root_set.push_stack_frame();
+        let _frame_id = root_set.push_stack_frame();
         let handle = create_test_handle(1);
         root_set.add_stack_root(handle.clone()).unwrap();
 

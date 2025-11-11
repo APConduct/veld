@@ -3,11 +3,11 @@
 //! The marking phase traverses all reachable objects from the root set
 //! and marks them as live. This is the first phase of mark-and-sweep collection.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 use super::super::value::Value;
-use super::allocator::{GcAllocator, ObjectGeneration};
+use super::allocator::GcAllocator;
 
 use super::root_set::RootSet;
 use veld_error::{Result, VeldError};
@@ -288,12 +288,16 @@ impl MarkPhase {
             }
 
             // Handle numeric values
-            Value::Numeric(numeric_val) => {
+            Value::Numeric(_numeric_val) => {
                 // Numeric values are typically primitives, but check for any embedded references
                 // In the current implementation, NumericValue doesn't contain GC references
             }
-            Value::GcRef(handle) => {}
-            Value::CompiledFunction { chunk, arity, name } => {
+            Value::GcRef(_handle) => {}
+            Value::CompiledFunction {
+                chunk: _,
+                arity: _,
+                name: _,
+            } => {
                 todo!("Implement reference extraction for compiled functions")
             }
         }

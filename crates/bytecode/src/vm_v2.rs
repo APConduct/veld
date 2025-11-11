@@ -18,7 +18,7 @@
 //! - Fewer instructions needed for most operations
 //! - More efficient function calls (register windows)
 
-use crate::value::{BytecodeValue, RuntimeError, TypeInfo, Upvalue, UpvalueRef};
+use crate::value::{BytecodeValue, RuntimeError, Upvalue, UpvalueRef};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -61,6 +61,7 @@ pub struct VirtualMachine {
 
 /// A call frame represents a function call context
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // TODO: Remove this once all fields are used
 pub struct CallFrame {
     /// The chunk being executed
     chunk: Chunk,
@@ -900,7 +901,7 @@ impl VirtualMachine {
                 // ============================================================
                 // PATTERN MATCHING INSTRUCTIONS
                 // ============================================================
-                Instruction::MatchStart { value } => {
+                Instruction::MatchStart { value: _ } => {
                     // MatchStart prepares a value for pattern matching
                     // For now, this is a no-op as we handle matching inline
                     // The value is already in the register
@@ -1086,7 +1087,10 @@ impl VirtualMachine {
                 // ============================================================
                 // TYPE INSTRUCTIONS
                 // ============================================================
-                Instruction::TypeCheck { value, type_idx } => {
+                Instruction::TypeCheck {
+                    value: _,
+                    type_idx: _,
+                } => {
                     // TODO: Implement runtime type checking
                     warn!("TypeCheck instruction not yet fully implemented");
                 }
@@ -1094,7 +1098,7 @@ impl VirtualMachine {
                 Instruction::TypeCast {
                     dest,
                     src,
-                    type_idx,
+                    type_idx: _,
                 } => {
                     // TODO: Implement type casting
                     let val = self.get_register(src)?.clone();
@@ -1116,7 +1120,7 @@ impl VirtualMachine {
                     return Err(RuntimeError::MemoryError(format!("Thrown: {:?}", val)));
                 }
 
-                Instruction::TryStart { handler_offset } => {
+                Instruction::TryStart { handler_offset: _ } => {
                     // TODO: Implement try/catch mechanism
                     warn!("TryStart instruction not yet fully implemented");
                 }
@@ -1151,7 +1155,10 @@ impl VirtualMachine {
                     // Do nothing
                 }
 
-                Instruction::Import { dest, module_idx } => {
+                Instruction::Import {
+                    dest,
+                    module_idx: _,
+                } => {
                     // TODO: Implement module import
                     self.set_register(dest, BytecodeValue::Unit)?;
                     warn!("Import instruction not yet fully implemented");

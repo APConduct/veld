@@ -3,16 +3,14 @@
 //! This module implements a mark-and-sweep collector with generational optimization,
 //! incremental collection, and support for Veld's value system.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
-use super::super::value::Value;
 use super::GcConfig;
 use super::allocator::{GcAllocator, ObjectGeneration};
 use super::handle::GcHandle;
-use super::mark::{MarkPhase, MarkState};
 use super::root_set::RootSet;
-use veld_error::{Result, VeldError};
+use veld_error::Result;
 
 /// Result of a garbage collection cycle
 #[derive(Debug, Clone, Default)]

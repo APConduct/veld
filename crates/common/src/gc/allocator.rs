@@ -179,6 +179,7 @@ impl GenerationRegion {
     }
 
     /// Get all objects mutably
+    #[allow(dead_code)] // Not hurting anything
     fn objects_mut(&mut self) -> impl Iterator<Item = (&u64, &mut GcObject)> {
         self.objects.iter_mut()
     }
@@ -346,7 +347,7 @@ impl GcAllocator {
         }
         .ok_or_else(|| VeldError::RuntimeError("Object not found".to_string()))?;
 
-        let old_size = object.metadata.size;
+        let _old_size = object.metadata.size;
         object.update_value(new_value);
 
         // Update heap size tracking
@@ -564,6 +565,7 @@ fn estimate_value_size(value: &Value) -> usize {
 }
 
 /// Extract GC handles referenced by a value
+#[allow(dead_code)] // TODO: Implement this function
 fn extract_references(value: &Value) -> Vec<GcHandle> {
     // Note: In a real implementation, this would traverse the value
     // and extract any embedded GC handles. For now, we return empty

@@ -42,7 +42,7 @@ pub use statistics::GcStatistics;
 pub use value_ref::GcValueRef;
 
 use super::value::Value;
-use veld_error::{Result, VeldError};
+use veld_error::Result;
 
 /// Configuration for the garbage collector
 #[derive(Debug, Clone)]
@@ -318,7 +318,7 @@ impl Clone for SafeGc {
     }
 }
 
-/// Thread-local GC context for performance
+// Thread-local GC context for performance
 thread_local! {
     static GC_CONTEXT: std::cell::RefCell<Option<SafeGc>> = std::cell::RefCell::new(None);
 }

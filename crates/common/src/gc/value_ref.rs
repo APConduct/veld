@@ -347,7 +347,7 @@ pub mod gc_value_utils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gc::{GarbageCollector, GcConfig};
+    use crate::gc::GarbageCollector;
 
     #[test]
     fn test_direct_value_ref() {
