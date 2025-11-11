@@ -598,9 +598,14 @@ impl VirtualMachine {
                 // DATA STRUCTURE INSTRUCTIONS
                 // ============================================================
                 Instruction::NewArray { dest, size } => {
-                    // TODO: Implement array creation
-                    self.set_register(dest, BytecodeValue::Unit)?;
-                    warn!("NewArray instruction not yet fully implemented");
+                    // Create a new array with the specified size
+                    // Elements are initialized from consecutive registers starting at dest+1
+                    let mut elements = Vec::with_capacity(size as usize);
+                    for i in 0..size {
+                        let reg = dest.wrapping_add(i + 1);
+                        elements.push(self.get_register(reg)?.clone());
+                    }
+                    self.set_register(dest, BytecodeValue::Array(elements))?;
                 }
 
                 Instruction::GetIndex { dest, array, index } => {
@@ -615,10 +620,9 @@ impl VirtualMachine {
                     index,
                     value,
                 } => {
-                    let arr = self.get_register(array)?;
-                    let idx = self.get_register(index)?;
-                    let val = self.get_register(value)?;
-                    self.set_array_element(arr, idx, val)?;
+                    let idx = self.get_register(index)?.clone();
+                    let val = self.get_register(value)?.clone();
+                    self.set_array_element(array, &idx, &val)?;
                 }
 
                 Instruction::GetField {
@@ -626,9 +630,37 @@ impl VirtualMachine {
                     object,
                     field_idx,
                 } => {
-                    // TODO: Implement struct field access
-                    self.set_register(dest, BytecodeValue::Unit)?;
-                    warn!("GetField instruction not yet fully implemented");
+                    let obj = self.get_register(object)?;
+                    match obj {
+                        BytecodeValue::Struct { fields, .. } => {
+                            // field_idx is an index into the constant pool containing the field name
+                            let field_name_const = self.read_constant(field_idx as ConstIdx)?;
+                            let field_name = match &field_name_const {
+                                BytecodeValue::String(s) => s.clone(),
+                                _ => {
+                                    return Err(RuntimeError::TypeError {
+                                        expected: "String".to_string(),
+                                        actual: self.type_name(&field_name_const),
+                                    });
+                                }
+                            };
+
+                            let value = fields.get(&field_name).cloned().ok_or_else(|| {
+                                RuntimeError::FieldNotFound {
+                                    field: field_name.clone(),
+                                    type_name: "struct".to_string(),
+                                }
+                            })?;
+
+                            self.set_register(dest, value)?;
+                        }
+                        _ => {
+                            return Err(RuntimeError::InvalidOperation {
+                                op: "get_field".to_string(),
+                                types: vec![self.type_name(obj)],
+                            });
+                        }
+                    }
                 }
 
                 Instruction::SetField {
@@ -636,8 +668,51 @@ impl VirtualMachine {
                     field_idx,
                     value,
                 } => {
-                    // TODO: Implement struct field assignment
-                    warn!("SetField instruction not yet fully implemented");
+                    let val = self.get_register(value)?.clone();
+
+                    // Read field name before getting mutable access
+                    let field_name_const = self.read_constant(field_idx as ConstIdx)?;
+                    let field_name = match &field_name_const {
+                        BytecodeValue::String(s) => s.clone(),
+                        _ => {
+                            return Err(RuntimeError::TypeError {
+                                expected: "String".to_string(),
+                                actual: self.type_name(&field_name_const),
+                            });
+                        }
+                    };
+
+                    // Get mutable access to the struct
+                    let frame = self.current_frame();
+                    let absolute_index = frame.register_base + object as usize;
+
+                    if absolute_index >= self.registers.len() {
+                        return Err(RuntimeError::MemoryError(format!(
+                            "Register index {} out of bounds",
+                            absolute_index
+                        )));
+                    }
+
+                    // Check type before mutable borrow
+                    let is_struct = matches!(
+                        &self.registers[absolute_index],
+                        BytecodeValue::Struct { .. }
+                    );
+
+                    if !is_struct {
+                        let obj_type = self.type_name(&self.registers[absolute_index]);
+                        return Err(RuntimeError::InvalidOperation {
+                            op: "set_field".to_string(),
+                            types: vec![obj_type],
+                        });
+                    }
+
+                    match &mut self.registers[absolute_index] {
+                        BytecodeValue::Struct { fields, .. } => {
+                            fields.insert(field_name, val);
+                        }
+                        _ => unreachable!(),
+                    }
                 }
 
                 Instruction::NewStruct {
@@ -645,15 +720,42 @@ impl VirtualMachine {
                     type_idx,
                     field_count,
                 } => {
-                    // TODO: Implement struct creation
-                    self.set_register(dest, BytecodeValue::Unit)?;
-                    warn!("NewStruct instruction not yet fully implemented");
+                    // Get the type name from constants
+                    let type_name_const = self.read_constant(type_idx)?;
+                    let type_name = match &type_name_const {
+                        BytecodeValue::String(s) => s.clone(),
+                        BytecodeValue::Type(ti) => ti.name.clone(),
+                        _ => "Unknown".to_string(),
+                    };
+
+                    // Create struct with fields from consecutive registers
+                    // Fields are expected to be alternating: name, value, name, value...
+                    let mut fields = std::collections::HashMap::new();
+                    for i in 0..field_count {
+                        let name_reg = dest.wrapping_add((i * 2) + 1);
+                        let value_reg = dest.wrapping_add((i * 2) + 2);
+
+                        let name_val = self.get_register(name_reg)?;
+                        let field_name = match name_val {
+                            BytecodeValue::String(s) => s.clone(),
+                            _ => format!("field_{}", i),
+                        };
+
+                        let value = self.get_register(value_reg)?.clone();
+                        fields.insert(field_name, value);
+                    }
+
+                    self.set_register(dest, BytecodeValue::Struct { type_name, fields })?;
                 }
 
                 Instruction::NewTuple { dest, size } => {
-                    // TODO: Implement tuple creation
-                    self.set_register(dest, BytecodeValue::Unit)?;
-                    warn!("NewTuple instruction not yet fully implemented");
+                    // Create a new tuple with elements from consecutive registers
+                    let mut elements = Vec::with_capacity(size as usize);
+                    for i in 0..size {
+                        let reg = dest.wrapping_add(i + 1);
+                        elements.push(self.get_register(reg)?.clone());
+                    }
+                    self.set_register(dest, BytecodeValue::Tuple(elements))?;
                 }
 
                 Instruction::NewEnum {
@@ -1409,10 +1511,16 @@ impl VirtualMachine {
         match (array, index) {
             (BytecodeValue::Array(arr), BytecodeValue::Integer(idx)) => {
                 let idx_usize = if *idx < 0 {
-                    return Err(RuntimeError::IndexOutOfBounds {
-                        index: *idx,
-                        length: arr.len(),
-                    });
+                    // Support negative indexing (from the end)
+                    let len = arr.len() as i64;
+                    let actual_idx = len + idx;
+                    if actual_idx < 0 {
+                        return Err(RuntimeError::IndexOutOfBounds {
+                            index: *idx,
+                            length: arr.len(),
+                        });
+                    }
+                    actual_idx as usize
                 } else {
                     *idx as usize
                 };
@@ -1422,6 +1530,24 @@ impl VirtualMachine {
                     .ok_or(RuntimeError::IndexOutOfBounds {
                         index: *idx,
                         length: arr.len(),
+                    })
+            }
+            (BytecodeValue::Tuple(tuple), BytecodeValue::Integer(idx)) => {
+                let idx_usize = if *idx < 0 {
+                    return Err(RuntimeError::IndexOutOfBounds {
+                        index: *idx,
+                        length: tuple.len(),
+                    });
+                } else {
+                    *idx as usize
+                };
+
+                tuple
+                    .get(idx_usize)
+                    .cloned()
+                    .ok_or(RuntimeError::IndexOutOfBounds {
+                        index: *idx,
+                        length: tuple.len(),
                     })
             }
             (BytecodeValue::Reference(inner), idx)
@@ -1434,23 +1560,67 @@ impl VirtualMachine {
     }
 
     fn set_array_element(
-        &self,
-        array: &BytecodeValue,
+        &mut self,
+        array_reg: Reg,
         index: &BytecodeValue,
-        _value: &BytecodeValue,
+        value: &BytecodeValue,
     ) -> Result<(), RuntimeError> {
-        match (array, index) {
-            (BytecodeValue::MutableReference(_inner), _idx) => {
-                // For now, we can't mutate through boxed references easily
-                // This is a limitation we'll need to address with proper GC
-                Err(RuntimeError::MemoryError(
-                    "Cannot mutate through MutableReference yet".to_string(),
-                ))
+        // Get the array from the register (we need mutable access)
+        let frame = self.current_frame();
+        let absolute_index = frame.register_base + array_reg as usize;
+
+        if absolute_index >= self.registers.len() {
+            return Err(RuntimeError::MemoryError(format!(
+                "Register index {} out of bounds",
+                absolute_index
+            )));
+        }
+
+        // Extract index value before mutable borrow
+        let idx_val = match index {
+            BytecodeValue::Integer(i) => *i,
+            _ => {
+                let index_type = self.type_name(index);
+                return Err(RuntimeError::InvalidOperation {
+                    op: "set_index".to_string(),
+                    types: vec!["Array".to_string(), index_type],
+                });
             }
-            _ => Err(RuntimeError::InvalidOperation {
+        };
+
+        // Check if it's an array before mutable borrow
+        let is_array = matches!(&self.registers[absolute_index], BytecodeValue::Array(_));
+
+        if !is_array {
+            let obj_type = self.type_name(&self.registers[absolute_index]);
+            return Err(RuntimeError::InvalidOperation {
                 op: "set_index".to_string(),
-                types: vec![self.type_name(array), self.type_name(index)],
-            }),
+                types: vec![obj_type, "Integer".to_string()],
+            });
+        }
+
+        match &mut self.registers[absolute_index] {
+            BytecodeValue::Array(arr) => {
+                let idx_usize = if idx_val < 0 {
+                    return Err(RuntimeError::IndexOutOfBounds {
+                        index: idx_val,
+                        length: arr.len(),
+                    });
+                } else {
+                    idx_val as usize
+                };
+
+                if idx_usize >= arr.len() {
+                    return Err(RuntimeError::IndexOutOfBounds {
+                        index: idx_val,
+                        length: arr.len(),
+                    });
+                }
+
+                arr[idx_usize] = value.clone();
+                Ok(())
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -1468,6 +1638,7 @@ impl Default for VirtualMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use veld_common::bytecode_v2::{ChunkBuilder, Constant};
 
     #[test]
     fn test_vm_creation() {
@@ -1479,44 +1650,880 @@ mod tests {
 
     #[test]
     fn test_load_const() {
-        // TODO: Add builder helper methods to ChunkBuilder
-        // For now just test VM creation
-        let vm = VirtualMachine::new();
-        assert_eq!(vm.state, VmState::Ready);
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(3);
+
+        let const_idx = builder.add_constant(Constant::Integer(42));
+        builder.load_const(0, const_idx);
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
     }
 
     #[test]
     fn test_arithmetic_add() {
-        // TODO: Implement once ChunkBuilder has helper methods
-        let vm = VirtualMachine::new();
-        assert_eq!(vm.state, VmState::Ready);
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        let c1 = builder.add_constant(Constant::Integer(10));
+        let c2 = builder.add_constant(Constant::Integer(32));
+
+        builder.load_const(0, c1);
+        builder.load_const(1, c2);
+        builder.add(2, 0, 1);
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_arithmetic_operations() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c5 = builder.add_constant(Constant::Integer(5));
+        let c3 = builder.add_constant(Constant::Integer(3));
+
+        // Load constants
+        builder.load_const(0, c5); // R0 = 5
+        builder.load_const(1, c3); // R1 = 3
+
+        // Test operations
+        builder.add(2, 0, 1); // R2 = 5 + 3 = 8
+        builder.sub(3, 0, 1); // R3 = 5 - 3 = 2
+        builder.mul(4, 0, 1); // R4 = 5 * 3 = 15
+        builder.div(5, 0, 1); // R5 = 5 / 3 = 1
+        builder.mod_op(6, 0, 1); // R6 = 5 % 3 = 2
+        builder.neg(7, 0); // R7 = -5
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
     }
 
     #[test]
     fn test_move_instruction() {
-        // TODO: Implement once ChunkBuilder has helper methods
-        let vm = VirtualMachine::new();
-        assert_eq!(vm.state, VmState::Ready);
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        let const_idx = builder.add_constant(Constant::Integer(100));
+
+        builder.load_const(0, const_idx);
+        builder.move_reg(1, 0);
+        builder.move_reg(2, 1);
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
     }
 
     #[test]
     fn test_comparison_eq() {
-        // TODO: Implement once ChunkBuilder has helper methods
-        let vm = VirtualMachine::new();
-        assert_eq!(vm.state, VmState::Ready);
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        let c1 = builder.add_constant(Constant::Integer(42));
+
+        builder.load_const(0, c1);
+        builder.load_const(1, c1);
+        builder.eq(2, 0, 1); // R2 = (R0 == R1) = true
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_comparison_operations() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c5 = builder.add_constant(Constant::Integer(5));
+        let c10 = builder.add_constant(Constant::Integer(10));
+
+        builder.load_const(0, c5); // R0 = 5
+        builder.load_const(1, c10); // R1 = 10
+
+        builder.lt(2, 0, 1); // R2 = 5 < 10 = true
+        builder.le(3, 0, 1); // R3 = 5 <= 10 = true
+        builder.gt(4, 0, 1); // R4 = 5 > 10 = false
+        builder.ge(5, 0, 1); // R5 = 5 >= 10 = false
+        builder.eq(6, 0, 1); // R6 = 5 == 10 = false
+        builder.neq(7, 0, 1); // R7 = 5 != 10 = true
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
     }
 
     #[test]
     fn test_logical_not() {
-        // TODO: Implement once ChunkBuilder has helper methods
-        let vm = VirtualMachine::new();
-        assert_eq!(vm.state, VmState::Ready);
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        builder.load_bool(0, true);
+        builder.not(1, 0); // R1 = !true = false
+        builder.not(2, 1); // R2 = !false = true
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_logical_operations() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        builder.load_bool(0, true);
+        builder.load_bool(1, false);
+
+        builder.and(2, 0, 1); // R2 = true && false = false
+        builder.or(3, 0, 1); // R3 = true || false = true
+        builder.not(4, 0); // R4 = !true = false
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
     }
 
     #[test]
     fn test_jump() {
-        // TODO: Implement once ChunkBuilder has helper methods
-        let vm = VirtualMachine::new();
-        assert_eq!(vm.state, VmState::Ready);
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        builder.load_bool(0, true);
+        builder.jump(2); // Skip next 2 instructions
+        builder.load_bool(0, false); // Should be skipped
+        builder.load_bool(0, false); // Should be skipped
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_conditional_jump() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        builder.load_bool(0, true);
+        builder.jump_if(0, 1); // Jump if R0 is true (skip next)
+        builder.load_bool(1, false); // Should be skipped
+        builder.load_bool(2, true); // Should execute
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_jump_if_not() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        builder.load_bool(0, false);
+        builder.jump_if_not(0, 1); // Jump if R0 is false (skip next)
+        builder.load_bool(1, true); // Should be skipped
+        builder.load_bool(2, true); // Should execute
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_bitwise_operations() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c15 = builder.add_constant(Constant::Integer(15)); // 0b1111
+        let c7 = builder.add_constant(Constant::Integer(7)); // 0b0111
+
+        builder.load_const(0, c15);
+        builder.load_const(1, c7);
+
+        builder.bit_and(2, 0, 1); // R2 = 15 & 7 = 7
+        builder.bit_or(3, 0, 1); // R3 = 15 | 7 = 15
+        builder.bit_xor(4, 0, 1); // R4 = 15 ^ 7 = 8
+        builder.bit_not(5, 0); // R5 = ~15 = -16
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        let s1 = builder.add_constant(Constant::String("Hello, ".to_string()));
+        let s2 = builder.add_constant(Constant::String("World!".to_string()));
+
+        builder.load_const(0, s1);
+        builder.load_const(1, s2);
+        builder.add(2, 0, 1); // String concatenation via Add
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_load_nil() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        builder.load_nil(0);
+        builder.load_nil(1);
+        builder.load_nil_range(2, 3); // Load nil into R2, R3, R4
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_mixed_types() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let int_val = builder.add_constant(Constant::Integer(42));
+        let float_val = builder.add_constant(Constant::Float(3.14));
+        let str_val = builder.add_constant(Constant::String("test".to_string()));
+
+        builder.load_const(0, int_val);
+        builder.load_const(1, float_val);
+        builder.load_const(2, str_val);
+        builder.load_bool(3, true);
+        builder.load_nil(4);
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_constant_deduplication() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(5);
+
+        let idx1 = builder.add_constant(Constant::Integer(42));
+        let idx2 = builder.add_constant(Constant::Integer(42)); // Same value
+        let idx3 = builder.add_constant(Constant::Integer(99)); // Different value
+
+        // idx1 and idx2 should be the same
+        assert_eq!(idx1, idx2);
+        assert_ne!(idx1, idx3);
+
+        builder.halt();
+        let _chunk = builder.build();
+    }
+
+    #[test]
+    fn test_array_creation() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c1 = builder.add_constant(Constant::Integer(1));
+        let c2 = builder.add_constant(Constant::Integer(2));
+        let c3 = builder.add_constant(Constant::Integer(3));
+
+        // Load values into consecutive registers
+        builder.load_const(1, c1); // R1 = 1
+        builder.load_const(2, c2); // R2 = 2
+        builder.load_const(3, c3); // R3 = 3
+
+        // Create array from R1, R2, R3
+        builder.new_array(0, 3); // R0 = [1, 2, 3]
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_array_indexing() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c1 = builder.add_constant(Constant::Integer(10));
+        let c2 = builder.add_constant(Constant::Integer(20));
+        let c3 = builder.add_constant(Constant::Integer(30));
+        let c_idx = builder.add_constant(Constant::Integer(1));
+
+        // Create array [10, 20, 30]
+        builder.load_const(1, c1);
+        builder.load_const(2, c2);
+        builder.load_const(3, c3);
+        builder.new_array(0, 3); // R0 = [10, 20, 30]
+
+        // Get element at index 1
+        builder.load_const(4, c_idx); // R4 = 1
+        builder.get_index(5, 0, 4); // R5 = R0[R4] = 20
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_array_set_index() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c1 = builder.add_constant(Constant::Integer(10));
+        let c2 = builder.add_constant(Constant::Integer(20));
+        let c3 = builder.add_constant(Constant::Integer(30));
+        let c_idx = builder.add_constant(Constant::Integer(1));
+        let c_new = builder.add_constant(Constant::Integer(99));
+
+        // Create array [10, 20, 30]
+        builder.load_const(1, c1);
+        builder.load_const(2, c2);
+        builder.load_const(3, c3);
+        builder.new_array(0, 3); // R0 = [10, 20, 30]
+
+        // Set element at index 1 to 99
+        builder.load_const(4, c_idx); // R4 = 1
+        builder.load_const(5, c_new); // R5 = 99
+        builder.set_index(0, 4, 5); // R0[R4] = R5, so R0 = [10, 99, 30]
+
+        // Read it back
+        builder.get_index(6, 0, 4); // R6 = R0[1] = 99
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_tuple_creation() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c1 = builder.add_constant(Constant::Integer(42));
+        let c2 = builder.add_constant(Constant::String("hello".to_string()));
+        let c3 = builder.add_constant(Constant::Boolean(true));
+
+        // Load values into consecutive registers
+        builder.load_const(1, c1); // R1 = 42
+        builder.load_const(2, c2); // R2 = "hello"
+        builder.load_const(3, c3); // R3 = true
+
+        // Create tuple from R1, R2, R3
+        builder.new_tuple(0, 3); // R0 = (42, "hello", true)
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_tuple_indexing() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c1 = builder.add_constant(Constant::Integer(10));
+        let c2 = builder.add_constant(Constant::Integer(20));
+        let c3 = builder.add_constant(Constant::Integer(30));
+        let c_idx = builder.add_constant(Constant::Integer(1));
+
+        // Create tuple (10, 20, 30)
+        builder.load_const(1, c1);
+        builder.load_const(2, c2);
+        builder.load_const(3, c3);
+        builder.new_tuple(0, 3); // R0 = (10, 20, 30)
+
+        // Get element at index 1
+        builder.load_const(4, c_idx); // R4 = 1
+        builder.get_index(5, 0, 4); // R5 = R0[1] = 20
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_struct_creation() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(15);
+
+        let type_name = builder.add_constant(Constant::String("Person".to_string()));
+        let name_field = builder.add_constant(Constant::String("name".to_string()));
+        let name_val = builder.add_constant(Constant::String("Alice".to_string()));
+        let age_field = builder.add_constant(Constant::String("age".to_string()));
+        let age_val = builder.add_constant(Constant::Integer(30));
+
+        // Load field names and values into consecutive registers
+        builder.load_const(1, name_field); // R1 = "name"
+        builder.load_const(2, name_val); // R2 = "Alice"
+        builder.load_const(3, age_field); // R3 = "age"
+        builder.load_const(4, age_val); // R4 = 30
+
+        // Create struct with 2 fields
+        builder.new_struct(0, type_name, 2); // R0 = Person { name: "Alice", age: 30 }
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_struct_field_access() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(15);
+
+        let type_name = builder.add_constant(Constant::String("Point".to_string()));
+        let x_field = builder.add_constant(Constant::String("x".to_string()));
+        let x_val = builder.add_constant(Constant::Integer(10));
+        let y_field = builder.add_constant(Constant::String("y".to_string()));
+        let y_val = builder.add_constant(Constant::Integer(20));
+
+        // Create struct Point { x: 10, y: 20 }
+        builder.load_const(1, x_field);
+        builder.load_const(2, x_val);
+        builder.load_const(3, y_field);
+        builder.load_const(4, y_val);
+        builder.new_struct(0, type_name, 2); // R0 = Point { x: 10, y: 20 }
+
+        // Access x field
+        builder.get_field(5, 0, x_field as u8); // R5 = R0.x = 10
+
+        // Access y field
+        builder.get_field(6, 0, y_field as u8); // R6 = R0.y = 20
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_struct_field_mutation() {
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(15);
+
+        let type_name = builder.add_constant(Constant::String("Counter".to_string()));
+        let count_field = builder.add_constant(Constant::String("count".to_string()));
+        let count_val = builder.add_constant(Constant::Integer(0));
+        let new_count = builder.add_constant(Constant::Integer(42));
+
+        // Create struct Counter { count: 0 }
+        builder.load_const(1, count_field);
+        builder.load_const(2, count_val);
+        builder.new_struct(0, type_name, 1); // R0 = Counter { count: 0 }
+
+        // Set count to 42
+        builder.load_const(3, new_count);
+        builder.set_field(0, count_field as u8, 3); // R0.count = 42
+
+        // Read it back
+        builder.get_field(4, 0, count_field as u8); // R4 = R0.count = 42
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_complex_arithmetic() {
+        // Test: compute (5 + 3) * (10 - 2) / 4
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c5 = builder.add_constant(Constant::Integer(5));
+        let c3 = builder.add_constant(Constant::Integer(3));
+        let c10 = builder.add_constant(Constant::Integer(10));
+        let c2 = builder.add_constant(Constant::Integer(2));
+        let c4 = builder.add_constant(Constant::Integer(4));
+
+        builder.load_const(0, c5); // R0 = 5
+        builder.load_const(1, c3); // R1 = 3
+        builder.load_const(2, c10); // R2 = 10
+        builder.load_const(3, c2); // R3 = 2
+        builder.load_const(4, c4); // R4 = 4
+
+        builder.add(5, 0, 1); // R5 = 5 + 3 = 8
+        builder.sub(6, 2, 3); // R6 = 10 - 2 = 8
+        builder.mul(7, 5, 6); // R7 = 8 * 8 = 64
+        builder.div(8, 7, 4); // R8 = 64 / 4 = 16
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_nested_arrays() {
+        // Test: create array of arrays [[1, 2], [3, 4]]
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(15);
+
+        let c1 = builder.add_constant(Constant::Integer(1));
+        let c2 = builder.add_constant(Constant::Integer(2));
+        let c3 = builder.add_constant(Constant::Integer(3));
+        let c4 = builder.add_constant(Constant::Integer(4));
+
+        // Create first inner array [1, 2]
+        builder.load_const(1, c1);
+        builder.load_const(2, c2);
+        builder.new_array(0, 2); // R0 = [1, 2]
+
+        // Create second inner array [3, 4]
+        builder.load_const(4, c3);
+        builder.load_const(5, c4);
+        builder.new_array(3, 2); // R3 = [3, 4]
+
+        // Create outer array containing R0 and R3
+        builder.move_reg(7, 0); // R7 = R0
+        builder.move_reg(8, 3); // R8 = R3
+        builder.new_array(6, 2); // R6 = [[1, 2], [3, 4]]
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_conditional_logic() {
+        // Test: if (x > 5) then y = 100 else y = 200
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let x_val = builder.add_constant(Constant::Integer(7));
+        let c5 = builder.add_constant(Constant::Integer(5));
+        let c100 = builder.add_constant(Constant::Integer(100));
+        let c200 = builder.add_constant(Constant::Integer(200));
+
+        builder.load_const(0, x_val); // R0 = 7 (x)
+        builder.load_const(1, c5); // R1 = 5
+
+        // Compare x > 5
+        builder.gt(2, 0, 1); // R2 = (7 > 5) = true
+
+        // Jump if not true to else branch
+        let else_jump = builder.jump_if_not(2, 0); // placeholder offset
+
+        // Then branch: y = 100
+        builder.load_const(3, c100); // R3 = 100 (y)
+        let end_jump = builder.jump(0); // jump to end
+
+        // Else branch: y = 200
+        builder.patch_jump(else_jump);
+        builder.load_const(3, c200); // R3 = 200 (y)
+
+        // End
+        builder.patch_jump(end_jump);
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_loop_sum() {
+        // Test: sum = 0; for i in 0..5: sum += i
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c0 = builder.add_constant(Constant::Integer(0));
+        let c1 = builder.add_constant(Constant::Integer(1));
+        let c5 = builder.add_constant(Constant::Integer(5));
+
+        builder.load_const(0, c0); // R0 = 0 (sum)
+        builder.load_const(1, c0); // R1 = 0 (i)
+        builder.load_const(2, c5); // R2 = 5 (limit)
+        builder.load_const(3, c1); // R3 = 1 (increment)
+
+        // Loop start
+        let loop_start = builder.current_index();
+
+        // Check if i < 5
+        builder.lt(4, 1, 2); // R4 = (i < 5)
+        let exit_jump = builder.jump_if_not(4, 0); // exit if i >= 5
+
+        // sum += i
+        builder.add(0, 0, 1); // R0 = sum + i
+
+        // i += 1
+        builder.add(1, 1, 3); // R1 = i + 1
+
+        // Jump back to loop start
+        builder.jump_back(loop_start);
+
+        // Loop exit
+        builder.patch_jump(exit_jump);
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_mixed_data_structures() {
+        // Test: create a struct containing an array and tuple
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(20);
+
+        let type_name = builder.add_constant(Constant::String("Container".to_string()));
+        let items_field = builder.add_constant(Constant::String("items".to_string()));
+        let meta_field = builder.add_constant(Constant::String("meta".to_string()));
+
+        let c1 = builder.add_constant(Constant::Integer(1));
+        let c2 = builder.add_constant(Constant::Integer(2));
+        let c3 = builder.add_constant(Constant::Integer(3));
+        let name = builder.add_constant(Constant::String("data".to_string()));
+
+        // Create array [1, 2, 3]
+        builder.load_const(1, c1);
+        builder.load_const(2, c2);
+        builder.load_const(3, c3);
+        builder.new_array(4, 3); // R4 = [1, 2, 3]
+
+        // Create tuple ("data", 42)
+        builder.load_const(5, name);
+        builder.load_const(6, c1);
+        builder.new_tuple(7, 2); // R7 = ("data", 42)
+
+        // Create struct Container { items: [1,2,3], meta: ("data", 42) }
+        builder.load_const(8, items_field); // R8 = "items"
+        builder.move_reg(9, 4); // R9 = [1, 2, 3]
+        builder.load_const(10, meta_field); // R10 = "meta"
+        builder.move_reg(11, 7); // R11 = ("data", 42)
+        builder.new_struct(0, type_name, 2); // R0 = Container { ... }
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_string_operations() {
+        // Test: concatenate multiple strings and compare
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let hello = builder.add_constant(Constant::String("Hello".to_string()));
+        let space = builder.add_constant(Constant::String(" ".to_string()));
+        let world = builder.add_constant(Constant::String("World".to_string()));
+        let expected = builder.add_constant(Constant::String("Hello World".to_string()));
+
+        // Build "Hello World"
+        builder.load_const(0, hello); // R0 = "Hello"
+        builder.load_const(1, space); // R1 = " "
+        builder.load_const(2, world); // R2 = "World"
+
+        builder.add(3, 0, 1); // R3 = "Hello "
+        builder.add(4, 3, 2); // R4 = "Hello World"
+
+        // Compare with expected
+        builder.load_const(5, expected); // R5 = "Hello World"
+        builder.eq(6, 4, 5); // R6 = (R4 == R5) = true
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_bitwise_logic() {
+        // Test: complex bitwise operations
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c255 = builder.add_constant(Constant::Integer(255)); // 0xFF
+        let c15 = builder.add_constant(Constant::Integer(15)); // 0x0F
+
+        builder.load_const(0, c255); // R0 = 255
+        builder.load_const(1, c15); // R1 = 15
+
+        // Test various bitwise ops
+        builder.bit_and(2, 0, 1); // R2 = 255 & 15 = 15
+        builder.bit_or(3, 0, 1); // R3 = 255 | 15 = 255
+        builder.bit_xor(4, 0, 1); // R4 = 255 ^ 15 = 240
+        builder.bit_not(5, 1); // R5 = ~15 = -16
+
+        // Shift operations
+        builder.shl(6, 1, 1); // R6 = 15 << 15 (lots of bits)
+        builder.shr(7, 0, 1); // R7 = 255 >> 15 = 0
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_type_checking() {
+        // Test: check types of various values
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let int_val = builder.add_constant(Constant::Integer(42));
+        let str_val = builder.add_constant(Constant::String("test".to_string()));
+
+        // Load different types
+        builder.load_const(0, int_val); // R0 = 42
+        builder.load_const(1, str_val); // R1 = "test"
+        builder.load_bool(2, true); // R2 = true
+        builder.load_nil(3); // R3 = nil
+
+        // Get type of each
+        builder.type_of(4, 0); // R4 = "i64"
+        builder.type_of(5, 1); // R5 = "str"
+        builder.type_of(6, 2); // R6 = "bool"
+        builder.type_of(7, 3); // R7 = "unit"
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
+    }
+
+    #[test]
+    fn test_integration_negative_array_indexing() {
+        // Test: use negative indices to access array from end
+        let mut builder = ChunkBuilder::new();
+        builder.register_count(10);
+
+        let c1 = builder.add_constant(Constant::Integer(10));
+        let c2 = builder.add_constant(Constant::Integer(20));
+        let c3 = builder.add_constant(Constant::Integer(30));
+        let neg1 = builder.add_constant(Constant::Integer(-1));
+        let neg2 = builder.add_constant(Constant::Integer(-2));
+
+        // Create array [10, 20, 30]
+        builder.load_const(1, c1);
+        builder.load_const(2, c2);
+        builder.load_const(3, c3);
+        builder.new_array(0, 3); // R0 = [10, 20, 30]
+
+        // Access with negative indices
+        builder.load_const(4, neg1); // R4 = -1
+        builder.get_index(5, 0, 4); // R5 = R0[-1] = 30
+
+        builder.load_const(6, neg2); // R6 = -2
+        builder.get_index(7, 0, 6); // R7 = R0[-2] = 20
+
+        builder.halt();
+
+        let chunk = builder.build();
+        let mut vm = VirtualMachine::new();
+        let result = vm.interpret(chunk);
+
+        assert!(matches!(result, InterpretResult::Ok(_)));
     }
 }

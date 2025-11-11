@@ -1088,6 +1088,7 @@ impl Default for ChunkMetadata {
 /// Builder for creating chunks
 pub struct ChunkBuilder {
     chunk: Chunk,
+    current_line: u32,
 }
 
 impl ChunkBuilder {
@@ -1095,6 +1096,7 @@ impl ChunkBuilder {
     pub fn new() -> Self {
         Self {
             chunk: Chunk::default(),
+            current_line: 1,
         }
     }
 
@@ -1120,6 +1122,476 @@ impl ChunkBuilder {
     pub fn debug_info(mut self, enabled: bool) -> Self {
         self.chunk.metadata.has_debug_info = enabled;
         self
+    }
+
+    /// Set number of registers needed
+    pub fn register_count(&mut self, count: u8) -> &mut Self {
+        self.chunk.main.register_count = count;
+        self
+    }
+
+    /// Set current line number (for debug info)
+    pub fn line(&mut self, line: u32) -> &mut Self {
+        self.current_line = line;
+        self
+    }
+
+    /// Add a constant to the constant pool and return its index
+    pub fn add_constant(&mut self, constant: Constant) -> ConstIdx {
+        // Check if constant already exists (deduplication)
+        for (i, existing) in self.chunk.main.constants.iter().enumerate() {
+            if existing == &constant {
+                return i as ConstIdx;
+            }
+        }
+        let idx = self.chunk.main.constants.len() as ConstIdx;
+        self.chunk.main.constants.push(constant);
+        idx
+    }
+
+    /// Add an instruction
+    fn emit(&mut self, instr: Instruction) -> &mut Self {
+        self.chunk.main.instructions.push(instr);
+        self.chunk.main.line_info.push(self.current_line);
+        self
+    }
+
+    // ============================================================
+    // MOVE AND LOAD INSTRUCTIONS
+    // ============================================================
+
+    /// Emit Move instruction
+    pub fn move_reg(&mut self, dest: Reg, src: Reg) -> &mut Self {
+        self.emit(Instruction::Move { dest, src })
+    }
+
+    /// Emit LoadConst instruction
+    pub fn load_const(&mut self, dest: Reg, const_idx: ConstIdx) -> &mut Self {
+        self.emit(Instruction::LoadConst { dest, const_idx })
+    }
+
+    /// Emit LoadBool instruction
+    pub fn load_bool(&mut self, dest: Reg, value: bool) -> &mut Self {
+        self.emit(Instruction::LoadBool { dest, value })
+    }
+
+    /// Emit LoadNil instruction
+    pub fn load_nil(&mut self, dest: Reg) -> &mut Self {
+        self.emit(Instruction::LoadNil { dest })
+    }
+
+    /// Emit LoadNilRange instruction
+    pub fn load_nil_range(&mut self, start: Reg, count: u8) -> &mut Self {
+        self.emit(Instruction::LoadNilRange { start, count })
+    }
+
+    // ============================================================
+    // ARITHMETIC INSTRUCTIONS
+    // ============================================================
+
+    /// Emit Add instruction
+    pub fn add(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Add { dest, lhs, rhs })
+    }
+
+    /// Emit AddK instruction
+    pub fn add_k(&mut self, dest: Reg, lhs: Reg, const_idx: u8) -> &mut Self {
+        self.emit(Instruction::AddK {
+            dest,
+            lhs,
+            const_idx,
+        })
+    }
+
+    /// Emit Sub instruction
+    pub fn sub(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Sub { dest, lhs, rhs })
+    }
+
+    /// Emit SubK instruction
+    pub fn sub_k(&mut self, dest: Reg, lhs: Reg, const_idx: u8) -> &mut Self {
+        self.emit(Instruction::SubK {
+            dest,
+            lhs,
+            const_idx,
+        })
+    }
+
+    /// Emit Mul instruction
+    pub fn mul(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Mul { dest, lhs, rhs })
+    }
+
+    /// Emit MulK instruction
+    pub fn mul_k(&mut self, dest: Reg, lhs: Reg, const_idx: u8) -> &mut Self {
+        self.emit(Instruction::MulK {
+            dest,
+            lhs,
+            const_idx,
+        })
+    }
+
+    /// Emit Div instruction
+    pub fn div(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Div { dest, lhs, rhs })
+    }
+
+    /// Emit DivK instruction
+    pub fn div_k(&mut self, dest: Reg, lhs: Reg, const_idx: u8) -> &mut Self {
+        self.emit(Instruction::DivK {
+            dest,
+            lhs,
+            const_idx,
+        })
+    }
+
+    /// Emit Mod instruction
+    pub fn mod_op(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Mod { dest, lhs, rhs })
+    }
+
+    /// Emit ModK instruction
+    pub fn mod_k(&mut self, dest: Reg, lhs: Reg, const_idx: u8) -> &mut Self {
+        self.emit(Instruction::ModK {
+            dest,
+            lhs,
+            const_idx,
+        })
+    }
+
+    /// Emit Pow instruction
+    pub fn pow(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Pow { dest, lhs, rhs })
+    }
+
+    /// Emit Neg instruction
+    pub fn neg(&mut self, dest: Reg, src: Reg) -> &mut Self {
+        self.emit(Instruction::Neg { dest, src })
+    }
+
+    // ============================================================
+    // COMPARISON INSTRUCTIONS
+    // ============================================================
+
+    /// Emit Eq instruction
+    pub fn eq(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Eq { dest, lhs, rhs })
+    }
+
+    /// Emit Neq instruction
+    pub fn neq(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Neq { dest, lhs, rhs })
+    }
+
+    /// Emit Lt instruction
+    pub fn lt(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Lt { dest, lhs, rhs })
+    }
+
+    /// Emit Le instruction
+    pub fn le(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Le { dest, lhs, rhs })
+    }
+
+    /// Emit Gt instruction
+    pub fn gt(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Gt { dest, lhs, rhs })
+    }
+
+    /// Emit Ge instruction
+    pub fn ge(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Ge { dest, lhs, rhs })
+    }
+
+    // ============================================================
+    // LOGICAL INSTRUCTIONS
+    // ============================================================
+
+    /// Emit And instruction
+    pub fn and(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::And { dest, lhs, rhs })
+    }
+
+    /// Emit Or instruction
+    pub fn or(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Or { dest, lhs, rhs })
+    }
+
+    /// Emit Not instruction
+    pub fn not(&mut self, dest: Reg, src: Reg) -> &mut Self {
+        self.emit(Instruction::Not { dest, src })
+    }
+
+    // ============================================================
+    // BITWISE INSTRUCTIONS
+    // ============================================================
+
+    /// Emit BitAnd instruction
+    pub fn bit_and(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::BitAnd { dest, lhs, rhs })
+    }
+
+    /// Emit BitOr instruction
+    pub fn bit_or(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::BitOr { dest, lhs, rhs })
+    }
+
+    /// Emit BitXor instruction
+    pub fn bit_xor(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::BitXor { dest, lhs, rhs })
+    }
+
+    /// Emit BitNot instruction
+    pub fn bit_not(&mut self, dest: Reg, src: Reg) -> &mut Self {
+        self.emit(Instruction::BitNot { dest, src })
+    }
+
+    /// Emit Shl instruction
+    pub fn shl(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Shl { dest, lhs, rhs })
+    }
+
+    /// Emit Shr instruction
+    pub fn shr(&mut self, dest: Reg, lhs: Reg, rhs: Reg) -> &mut Self {
+        self.emit(Instruction::Shr { dest, lhs, rhs })
+    }
+
+    // ============================================================
+    // CONTROL FLOW INSTRUCTIONS
+    // ============================================================
+
+    /// Emit Jump instruction and return instruction index for patching
+    pub fn jump(&mut self, offset: JumpOffset) -> usize {
+        let idx = self.chunk.main.instructions.len();
+        self.emit(Instruction::Jump { offset });
+        idx
+    }
+
+    /// Emit JumpIf instruction
+    pub fn jump_if(&mut self, condition: Reg, offset: JumpOffset) -> usize {
+        let idx = self.chunk.main.instructions.len();
+        self.emit(Instruction::JumpIf { condition, offset });
+        idx
+    }
+
+    /// Emit JumpIfNot instruction
+    pub fn jump_if_not(&mut self, condition: Reg, offset: JumpOffset) -> usize {
+        let idx = self.chunk.main.instructions.len();
+        self.emit(Instruction::JumpIfNot { condition, offset });
+        idx
+    }
+
+    /// Emit JumpIfEq instruction
+    pub fn jump_if_eq(&mut self, lhs: Reg, rhs: Reg, offset: JumpOffset) -> usize {
+        let idx = self.chunk.main.instructions.len();
+        self.emit(Instruction::JumpIfEq { lhs, rhs, offset });
+        idx
+    }
+
+    /// Emit JumpIfNeq instruction
+    pub fn jump_if_neq(&mut self, lhs: Reg, rhs: Reg, offset: JumpOffset) -> usize {
+        let idx = self.chunk.main.instructions.len();
+        self.emit(Instruction::JumpIfNeq { lhs, rhs, offset });
+        idx
+    }
+
+    /// Patch a jump instruction at the given index with the correct offset
+    pub fn patch_jump(&mut self, jump_idx: usize) {
+        let offset = (self.chunk.main.instructions.len() as i32 - jump_idx as i32 - 1) as i16;
+        match &mut self.chunk.main.instructions[jump_idx] {
+            Instruction::Jump { offset: o } => *o = offset,
+            Instruction::JumpIf { offset: o, .. } => *o = offset,
+            Instruction::JumpIfNot { offset: o, .. } => *o = offset,
+            Instruction::JumpIfEq { offset: o, .. } => *o = offset,
+            Instruction::JumpIfNeq { offset: o, .. } => *o = offset,
+            _ => panic!("Attempted to patch non-jump instruction"),
+        }
+    }
+
+    /// Get current instruction index (for loop jumps)
+    pub fn current_index(&self) -> usize {
+        self.chunk.main.instructions.len()
+    }
+
+    /// Emit a backward jump to a specific instruction index
+    pub fn jump_back(&mut self, target_idx: usize) -> &mut Self {
+        let offset = (target_idx as i32 - self.chunk.main.instructions.len() as i32 - 1) as i16;
+        self.emit(Instruction::Jump { offset })
+    }
+
+    // ============================================================
+    // FUNCTION CALL INSTRUCTIONS
+    // ============================================================
+
+    /// Emit Call instruction
+    pub fn call(&mut self, func: Reg, arg_count: u8, ret_count: u8) -> &mut Self {
+        self.emit(Instruction::Call {
+            func,
+            arg_count,
+            ret_count,
+        })
+    }
+
+    /// Emit TailCall instruction
+    pub fn tail_call(&mut self, func: Reg, arg_count: u8) -> &mut Self {
+        self.emit(Instruction::TailCall { func, arg_count })
+    }
+
+    /// Emit Return instruction
+    pub fn return_vals(&mut self, first: Reg, count: u8) -> &mut Self {
+        self.emit(Instruction::Return { first, count })
+    }
+
+    // ============================================================
+    // GLOBAL VARIABLE INSTRUCTIONS
+    // ============================================================
+
+    /// Emit LoadGlobal instruction
+    pub fn load_global(&mut self, dest: Reg, name_idx: ConstIdx) -> &mut Self {
+        self.emit(Instruction::LoadGlobal { dest, name_idx })
+    }
+
+    /// Emit StoreGlobal instruction
+    pub fn store_global(&mut self, name_idx: ConstIdx, src: Reg) -> &mut Self {
+        self.emit(Instruction::StoreGlobal { name_idx, src })
+    }
+
+    // ============================================================
+    // CLOSURE AND UPVALUE INSTRUCTIONS
+    // ============================================================
+
+    /// Emit Closure instruction
+    pub fn closure(&mut self, dest: Reg, proto_idx: ConstIdx) -> &mut Self {
+        self.emit(Instruction::Closure { dest, proto_idx })
+    }
+
+    /// Emit GetUpvalue instruction
+    pub fn get_upvalue(&mut self, dest: Reg, upvalue_idx: u8) -> &mut Self {
+        self.emit(Instruction::GetUpvalue { dest, upvalue_idx })
+    }
+
+    /// Emit SetUpvalue instruction
+    pub fn set_upvalue(&mut self, upvalue_idx: u8, src: Reg) -> &mut Self {
+        self.emit(Instruction::SetUpvalue { upvalue_idx, src })
+    }
+
+    /// Emit CloseUpvalues instruction
+    pub fn close_upvalues(&mut self, start: Reg) -> &mut Self {
+        self.emit(Instruction::CloseUpvalues { start })
+    }
+
+    // ============================================================
+    // DATA STRUCTURE INSTRUCTIONS
+    // ============================================================
+
+    /// Emit NewArray instruction
+    pub fn new_array(&mut self, dest: Reg, size: u8) -> &mut Self {
+        self.emit(Instruction::NewArray { dest, size })
+    }
+
+    /// Emit GetIndex instruction
+    pub fn get_index(&mut self, dest: Reg, array: Reg, index: Reg) -> &mut Self {
+        self.emit(Instruction::GetIndex { dest, array, index })
+    }
+
+    /// Emit SetIndex instruction
+    pub fn set_index(&mut self, array: Reg, index: Reg, value: Reg) -> &mut Self {
+        self.emit(Instruction::SetIndex {
+            array,
+            index,
+            value,
+        })
+    }
+
+    /// Emit NewStruct instruction
+    pub fn new_struct(&mut self, dest: Reg, type_idx: ConstIdx, field_count: u8) -> &mut Self {
+        self.emit(Instruction::NewStruct {
+            dest,
+            type_idx,
+            field_count,
+        })
+    }
+
+    /// Emit GetField instruction
+    pub fn get_field(&mut self, dest: Reg, object: Reg, field_idx: u8) -> &mut Self {
+        self.emit(Instruction::GetField {
+            dest,
+            object,
+            field_idx,
+        })
+    }
+
+    /// Emit SetField instruction
+    pub fn set_field(&mut self, object: Reg, field_idx: u8, value: Reg) -> &mut Self {
+        self.emit(Instruction::SetField {
+            object,
+            field_idx,
+            value,
+        })
+    }
+
+    /// Emit NewTuple instruction
+    pub fn new_tuple(&mut self, dest: Reg, size: u8) -> &mut Self {
+        self.emit(Instruction::NewTuple { dest, size })
+    }
+
+    /// Emit NewEnum instruction
+    pub fn new_enum(&mut self, dest: Reg, variant_idx: ConstIdx, field_count: u8) -> &mut Self {
+        self.emit(Instruction::NewEnum {
+            dest,
+            variant_idx,
+            field_count,
+        })
+    }
+
+    // ============================================================
+    // TYPE INSTRUCTIONS
+    // ============================================================
+
+    /// Emit TypeOf instruction
+    pub fn type_of(&mut self, dest: Reg, value: Reg) -> &mut Self {
+        self.emit(Instruction::TypeOf { dest, value })
+    }
+
+    /// Emit TypeCheck instruction
+    pub fn type_check(&mut self, value: Reg, type_idx: ConstIdx) -> &mut Self {
+        self.emit(Instruction::TypeCheck { value, type_idx })
+    }
+
+    /// Emit TypeCast instruction
+    pub fn type_cast(&mut self, dest: Reg, src: Reg, type_idx: ConstIdx) -> &mut Self {
+        self.emit(Instruction::TypeCast {
+            dest,
+            src,
+            type_idx,
+        })
+    }
+
+    // ============================================================
+    // MISCELLANEOUS INSTRUCTIONS
+    // ============================================================
+
+    /// Emit Print instruction
+    pub fn print(&mut self, value: Reg) -> &mut Self {
+        self.emit(Instruction::Print { value })
+    }
+
+    /// Emit Halt instruction
+    pub fn halt(&mut self) -> &mut Self {
+        self.emit(Instruction::Halt)
+    }
+
+    /// Emit Nop instruction
+    pub fn nop(&mut self) -> &mut Self {
+        self.emit(Instruction::Nop)
+    }
+
+    /// Emit Assert instruction
+    pub fn assert(&mut self, condition: Reg, message_idx: ConstIdx) -> &mut Self {
+        self.emit(Instruction::Assert {
+            condition,
+            message_idx,
+        })
     }
 
     /// Build the chunk
