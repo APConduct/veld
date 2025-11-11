@@ -1,0 +1,48 @@
+# Phase 6 Test: Simple Pattern Matching
+# Testing basic pattern matching with enums
+
+# Test 1: Simple enum for pattern matching
+enum Status
+    Pending,
+    Active,
+    Complete
+end
+
+let status = Status.Active
+
+# Test 2: Match with literal patterns
+match status
+    Status.Pending => 1,
+    Status.Active => 2,
+    Status.Complete => 3
+end
+
+# Test 3: Enum with fields
+enum Shape
+    Circle(i64),
+    Rectangle(i64, i64)
+end
+
+let circle = Shape.Circle(10)
+
+# Test 4: Match with field extraction
+let area = match circle
+    Shape.Circle(r) => r * r * 3,
+    Shape.Rectangle(w, h) => w * h
+end
+
+# Test 5: Match with wildcard
+enum Result
+    Ok(i64),
+    Err(i64)
+end
+
+let result = Result.Ok(42)
+
+let value = match result
+    Result.Ok(v) => v,
+    _ => 0
+end
+
+# Return success - should be 42 from the Ok variant
+value

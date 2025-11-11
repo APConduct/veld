@@ -1638,6 +1638,15 @@ impl ChunkBuilder {
         })
     }
 
+    /// Emit ExtractField instruction
+    pub fn extract_field(&mut self, dest: Reg, enum_value: Reg, field_idx: u8) -> &mut Self {
+        self.emit(Instruction::ExtractField {
+            dest,
+            enum_value,
+            field_idx,
+        })
+    }
+
     // ============================================================
     // TYPE INSTRUCTIONS
     // ============================================================

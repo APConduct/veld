@@ -901,8 +901,9 @@ impl VirtualMachine {
                 // PATTERN MATCHING INSTRUCTIONS
                 // ============================================================
                 Instruction::MatchStart { value } => {
-                    // TODO: Implement pattern matching
-                    warn!("MatchStart instruction not yet fully implemented");
+                    // MatchStart prepares a value for pattern matching
+                    // For now, this is a no-op as we handle matching inline
+                    // The value is already in the register
                 }
 
                 Instruction::MatchPattern {
@@ -910,13 +911,35 @@ impl VirtualMachine {
                     pattern_idx,
                     offset,
                 } => {
-                    // TODO: Implement pattern matching
-                    warn!("MatchPattern instruction not yet fully implemented");
+                    // Read the pattern from constants
+                    let pattern_const = self.read_constant(pattern_idx)?;
+                    let pattern_str = match &pattern_const {
+                        BytecodeValue::String(s) => s.clone(),
+                        _ => {
+                            return Err(RuntimeError::TypeError {
+                                expected: "String".to_string(),
+                                actual: self.type_name(&pattern_const),
+                            });
+                        }
+                    };
+
+                    // Get the value to match against
+                    let match_value = self.get_register(value)?;
+
+                    // Parse pattern and check if it matches
+                    let matches = self.match_pattern(&pattern_str, match_value)?;
+
+                    // If pattern doesn't match, jump
+                    if !matches {
+                        let current_ip = self.current_frame().ip;
+                        self.current_frame_mut().ip = (current_ip as i32 + offset as i32) as usize;
+                    }
                 }
 
                 Instruction::MatchEnd => {
-                    // TODO: Implement pattern matching
-                    warn!("MatchEnd instruction not yet fully implemented");
+                    // MatchEnd marks the end of match statement
+                    // If we reach here, no pattern matched - could throw error or continue
+                    // For now, just continue (match is non-exhaustive)
                 }
 
                 Instruction::ExtractField {
@@ -924,9 +947,55 @@ impl VirtualMachine {
                     enum_value,
                     field_idx,
                 } => {
-                    // TODO: Implement field extraction
-                    self.set_register(dest, BytecodeValue::Unit)?;
-                    warn!("ExtractField instruction not yet fully implemented");
+                    // Extract a field from an enum variant or struct
+                    let value = self.get_register(enum_value)?;
+
+                    match value {
+                        BytecodeValue::Enum { fields, .. } => {
+                            // Extract field by index
+                            let idx = field_idx as usize;
+                            if idx < fields.len() {
+                                let field_value = fields[idx].clone();
+                                self.set_register(dest, field_value)?;
+                            } else {
+                                return Err(RuntimeError::IndexOutOfBounds {
+                                    index: idx as i64,
+                                    length: fields.len(),
+                                });
+                            }
+                        }
+                        BytecodeValue::Struct { fields, .. } => {
+                            // For structs, we'd need the field name from constants
+                            // For now, treat field_idx as the nth field
+                            let field_values: Vec<_> = fields.values().cloned().collect();
+                            let idx = field_idx as usize;
+                            if idx < field_values.len() {
+                                self.set_register(dest, field_values[idx].clone())?;
+                            } else {
+                                return Err(RuntimeError::IndexOutOfBounds {
+                                    index: idx as i64,
+                                    length: field_values.len(),
+                                });
+                            }
+                        }
+                        BytecodeValue::Tuple(elements) => {
+                            let idx = field_idx as usize;
+                            if idx < elements.len() {
+                                self.set_register(dest, elements[idx].clone())?;
+                            } else {
+                                return Err(RuntimeError::IndexOutOfBounds {
+                                    index: idx as i64,
+                                    length: elements.len(),
+                                });
+                            }
+                        }
+                        _ => {
+                            return Err(RuntimeError::TypeError {
+                                expected: "Enum, Struct, or Tuple".to_string(),
+                                actual: self.type_name(value),
+                            });
+                        }
+                    }
                 }
 
                 // ============================================================
@@ -1418,6 +1487,64 @@ impl VirtualMachine {
     }
 
     /// Get the type name of a value
+    /// Match a pattern string against a value
+    fn match_pattern(&self, pattern: &str, value: &BytecodeValue) -> Result<bool, RuntimeError> {
+        // Pattern format examples:
+        // "_" - wildcard, matches anything
+        // "42" - literal integer
+        // "true" - literal boolean
+        // "\"hello\"" - literal string
+        // "Status::Pending" - enum variant without fields
+        // "Shape::Circle" - enum variant (fields checked separately)
+
+        // Wildcard always matches
+        if pattern == "_" {
+            return Ok(true);
+        }
+
+        // Try to match enum variant pattern
+        if pattern.contains("::") {
+            if let BytecodeValue::Enum {
+                type_name, variant, ..
+            } = value
+            {
+                let expected = format!("{}::{}", type_name, variant);
+                return Ok(pattern == expected);
+            }
+            return Ok(false);
+        }
+
+        // Try to match literal values
+        match value {
+            BytecodeValue::Integer(i) => {
+                if let Ok(pattern_int) = pattern.parse::<i64>() {
+                    return Ok(*i == pattern_int);
+                }
+            }
+            BytecodeValue::Boolean(b) => {
+                if pattern == "true" {
+                    return Ok(*b);
+                } else if pattern == "false" {
+                    return Ok(!*b);
+                }
+            }
+            BytecodeValue::String(s) => {
+                // Pattern should be quoted string
+                if pattern.starts_with('"') && pattern.ends_with('"') {
+                    let pattern_str = &pattern[1..pattern.len() - 1];
+                    return Ok(s == pattern_str);
+                }
+            }
+            BytecodeValue::Unit => {
+                return Ok(pattern == "()" || pattern == "nil");
+            }
+            _ => {}
+        }
+
+        // Default: no match
+        Ok(false)
+    }
+
     fn type_name(&self, value: &BytecodeValue) -> String {
         match value {
             BytecodeValue::Unit => "unit".to_string(),
