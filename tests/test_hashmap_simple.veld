@@ -1,0 +1,38 @@
+#| Simple HashMap test to verify basic functionality
+
+import std.collections.hash_map.{HashMap}
+import std.io.{println}
+
+println("Testing HashMap basic operations...")
+
+# Create a new HashMap
+var map = HashMap.new()
+
+# Set a single value (should mutate in place since map is var)
+map.set("key1", "value1")
+
+# Get the value back
+match map.get("key1")
+    Option.Some(value) => println("Got value: " + value.to_str()),
+    Option.None => println("ERROR: Key not found"),
+end
+
+# Check if key exists
+if map.has("key1") then
+    println("Key exists!")
+else
+    println("ERROR: Key should exist")
+end
+
+# Check length
+let length = map.len()
+println("Map length: " + length.to_str())
+
+# Set another value (should mutate in place)
+map.set("key2", "value2")
+
+# Check new length
+let length2 = map.len()
+println("Map length after second insert: " + length2.to_str())
+
+println("HashMap test complete")

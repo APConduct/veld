@@ -289,6 +289,12 @@ impl Type {
         current_kind: Option<&str>,
     ) -> Result<Type> {
         match annotation {
+            TypeAnnotation::Self_ => {
+                // Self in this context needs more information
+                // Return a placeholder type variable for now
+                // TODO: Implement proper handling of Self type
+                Ok(Type::Any)
+            }
             TypeAnnotation::Enum {
                 name,
                 variants: _variants,
@@ -645,6 +651,7 @@ pub struct TypeEnvironment {
     pub generic_struct_names: HashSet<String>,
     type_aliases: HashMap<String, Type>,
     generic_type_aliases: HashMap<String, (Type, Vec<String>)>, // name -> (definition, type_params)
+    self_type: Option<Type>, // The type currently being implemented (for Self resolution)
 }
 
 #[derive(Debug, Clone)]
@@ -672,7 +679,20 @@ impl TypeEnvironment {
             generic_struct_names: HashSet::new(),
             type_aliases: HashMap::new(),
             generic_type_aliases: HashMap::new(),
+            self_type: None,
         }
+    }
+
+    pub fn set_self_type(&mut self, ty: Type) {
+        self.self_type = Some(ty);
+    }
+
+    pub fn clear_self_type(&mut self) {
+        self.self_type = None;
+    }
+
+    pub fn get_self_type(&self) -> Option<Type> {
+        self.self_type.clone()
     }
 
     pub fn struct_methods(&self) -> &HashMap<String, HashMap<String, Type>> {
@@ -928,6 +948,16 @@ impl TypeEnvironment {
         current_kind: Option<&str>,
     ) -> Result<Type> {
         match annotation {
+            TypeAnnotation::Self_ => {
+                // Self refers to the type being implemented
+                // We need to look up what type is currently being processed
+                // For now, check if there's a self_type in the environment
+                if let Some(self_type) = self.get_self_type() {
+                    return Ok(self_type);
+                }
+                // Fallback: treat as a type variable
+                Ok(self.fresh_type_var())
+            }
             TypeAnnotation::Enum { name, variants } => {
                 // Convert ast::EnumVariant to types::EnumVariant
                 fn convert_ast_enum_variant_to_types_enum_variant(
@@ -973,6 +1003,15 @@ impl TypeEnvironment {
             }
             TypeAnnotation::Unit => Ok(Type::Unit),
             TypeAnnotation::Basic(name) => {
+                // Handle "Self" as a string (for backwards compatibility)
+                if name == "Self" {
+                    if let Some(self_type) = self.get_self_type() {
+                        return Ok(self_type);
+                    }
+                    // Fallback
+                    return Ok(self.fresh_type_var());
+                }
+
                 if self.is_type_param_in_scope(name) {
                     return Ok(Type::TypeParam(name.clone()));
                 }

@@ -117,6 +117,7 @@ impl Display for Argument {
 pub enum TypeAnnotation {
     Basic(String),
     Unit,
+    Self_, // Self type (refers to the type being implemented)
     Function {
         params: Vec<TypeAnnotation>,
         return_type: Box<TypeAnnotation>,

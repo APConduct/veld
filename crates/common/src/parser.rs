@@ -2302,6 +2302,12 @@ impl Parser {
                 } else {
                     // Support qualified (dotted) type names like std.io.Result
                     let mut base_type = self.consume_identifier("Expected type name")?;
+
+                    // Check if this is the Self keyword
+                    if base_type == "Self" && !self.check(&Token::Dot(ZTUP)) {
+                        return Ok(TypeAnnotation::Self_);
+                    }
+
                     while self.match_token(&[Token::Dot(ZTUP)]) {
                         let next =
                             self.consume_identifier("Expected identifier after '.' in type name")?;

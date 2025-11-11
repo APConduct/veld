@@ -5927,13 +5927,37 @@ impl TypeChecker {
                     }
                 }
 
+                // Set the self_type so Self resolves correctly in method signatures
+                let self_type = if generic_args.is_empty() {
+                    // Non-generic type
+                    Type::Struct {
+                        name: type_name.clone(),
+                        fields: HashMap::new(),
+                    }
+                } else {
+                    // Generic type
+                    Type::Generic {
+                        base: type_name.clone(),
+                        type_args: generic_args
+                            .iter()
+                            .map(|arg| {
+                                self.env
+                                    .from_annotation(&arg.type_annotation, None)
+                                    .unwrap_or(Type::Any)
+                            })
+                            .collect(),
+                    }
+                };
+                self.env.set_self_type(self_type);
+
                 let mut impl_method_types = HashMap::new();
                 for method in methods {
                     let method_type = self.method_to_type(method)?;
                     impl_method_types.insert(method.name.clone(), method_type);
                 }
 
-                // Pop the type parameter scope after processing methods
+                // Clear the self_type and pop the type parameter scope after processing methods
+                self.env.clear_self_type();
                 self.env.pop_type_param_scope();
 
                 for (method_name, required_type) in &kind.methods {
@@ -5976,6 +6000,27 @@ impl TypeChecker {
                     }
                 }
 
+                // Set the self_type for inherent impls too
+                let self_type = if generic_args.is_empty() {
+                    Type::Struct {
+                        name: type_name.clone(),
+                        fields: HashMap::new(),
+                    }
+                } else {
+                    Type::Generic {
+                        base: type_name.clone(),
+                        type_args: generic_args
+                            .iter()
+                            .map(|arg| {
+                                self.env
+                                    .from_annotation(&arg.type_annotation, None)
+                                    .unwrap_or(Type::Any)
+                            })
+                            .collect(),
+                    }
+                };
+                self.env.set_self_type(self_type);
+
                 for method in methods {
                     let method_type = self.method_to_type(method)?;
                     let struct_methods = self
@@ -5987,7 +6032,8 @@ impl TypeChecker {
                     struct_methods.insert(method.name.clone(), method_type);
                 }
 
-                // Pop the type parameter scope after processing methods
+                // Clear the self_type and pop the type parameter scope after processing methods
+                self.env.clear_self_type();
                 self.env.pop_type_param_scope();
             }
         }
