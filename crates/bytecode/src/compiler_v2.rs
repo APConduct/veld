@@ -148,6 +148,16 @@ impl RegisterCompiler {
         // Emit Halt at the end
         self.chunk.halt();
 
+        // Set register count before building (important for VM frame initialization)
+        let max_reg = self.allocator.max_register();
+        let register_count = if max_reg == 0 && self.allocator.max_register() == 0 {
+            // Empty program, need at least 1 register
+            1
+        } else {
+            max_reg + 1
+        };
+        self.chunk.register_count(register_count);
+
         // Build the final chunk
         let chunk = std::mem::replace(&mut self.chunk, ChunkBuilder::new());
         Ok(chunk.build())
@@ -344,6 +354,12 @@ impl RegisterCompiler {
         value: &Expr,
     ) -> Result<()> {
         match target {
+            Expr::Identifier(name) => {
+                // Simple variable assignment via PropertyAssignment
+                // This happens when parser generates PropertyAssignment for simple assignments
+                return self.compile_simple_assignment(name, value);
+            }
+
             Expr::IndexAccess { object, index } => {
                 // Array/tuple index assignment: obj[idx] = value
                 let obj_result = self.compile_expr_to_reg(object)?;
@@ -453,6 +469,32 @@ impl RegisterCompiler {
                 let nil_const = self.chunk.add_constant(Constant::Nil);
                 self.chunk.load_const(reg, nil_const);
                 Ok(ExprResult::temp(reg))
+            }
+
+            Expr::BlockExpression {
+                statements,
+                final_expr,
+            } => {
+                self.begin_scope();
+
+                // Compile all statements in the block
+                for stmt in statements {
+                    self.compile_statement(stmt)?;
+                }
+
+                // Compile the final expression or return nil
+                let result = if let Some(expr) = final_expr {
+                    self.compile_expr_to_reg(expr)?
+                } else {
+                    // No final expression, return nil
+                    let reg = self.allocate_temp()?;
+                    let nil_const = self.chunk.add_constant(Constant::Nil);
+                    self.chunk.load_const(reg, nil_const);
+                    ExprResult::temp(reg)
+                };
+
+                self.end_scope();
+                Ok(result)
             }
 
             _ => Err(VeldError::CompileError {
@@ -916,10 +958,12 @@ impl RegisterCompiler {
             self.free_temp(cond_result.register);
         }
 
-        // Compile then branch
+        // Compile then branch (with its own scope)
+        self.begin_scope();
         for stmt in then_branch {
             self.compile_statement(stmt)?;
         }
+        self.end_scope();
 
         if let Some(else_stmts) = else_branch {
             // Jump over else branch
@@ -928,10 +972,12 @@ impl RegisterCompiler {
             // Patch then_jump to here (else branch start)
             self.chunk.patch_jump(then_jump);
 
-            // Compile else branch
+            // Compile else branch (with its own scope)
+            self.begin_scope();
             for stmt in else_stmts {
                 self.compile_statement(stmt)?;
             }
+            self.end_scope();
 
             // Patch else_jump to end
             self.chunk.patch_jump(else_jump);
