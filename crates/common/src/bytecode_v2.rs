@@ -30,6 +30,7 @@
 //! Most instructions follow 3-address code format:
 //! `INSTRUCTION R(A), R(B), R(C)` means `R(A) = R(B) op R(C)`
 
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Register index (0-255)
@@ -42,7 +43,7 @@ pub type ConstIdx = u16;
 pub type JumpOffset = i16;
 
 /// Register-based instruction set
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Instruction {
     // ============================================================
     // MOVE AND LOAD INSTRUCTIONS
@@ -794,7 +795,7 @@ impl fmt::Display for Instruction {
 }
 
 /// Function prototype - represents a function definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunctionProto {
     /// Function name (for debugging)
     pub name: String,
@@ -914,7 +915,7 @@ impl Default for FunctionProto {
 }
 
 /// Constant value in the constant pool
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Constant {
     /// Nil/Unit value
     Nil,
@@ -953,7 +954,7 @@ impl fmt::Display for Constant {
 }
 
 /// Upvalue information
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpvalueInfo {
     /// Register index (in parent frame)
     pub register: Reg,
@@ -966,7 +967,7 @@ pub struct UpvalueInfo {
 }
 
 /// Bytecode chunk - top-level container
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Chunk {
     /// Main function prototype
     pub main: FunctionProto,
@@ -1058,8 +1059,52 @@ impl Default for Chunk {
     }
 }
 
+impl Chunk {
+    /// Magic bytes to identify Veld bytecode files: "VELDC" + version
+    pub const MAGIC: &'static [u8] = b"VELDC\x00\x01\x00";
+
+    /// Serialize the chunk to bytes for storage
+    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
+        let mut bytes = Vec::new();
+
+        // Write magic bytes
+        bytes.extend_from_slice(Self::MAGIC);
+
+        // Serialize the chunk using bincode
+        let chunk_bytes =
+            bincode::serialize(self).map_err(|e| format!("Failed to serialize chunk: {}", e))?;
+
+        bytes.extend_from_slice(&chunk_bytes);
+
+        Ok(bytes)
+    }
+
+    /// Deserialize a chunk from bytes
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        // Check magic bytes
+        if bytes.len() < Self::MAGIC.len() {
+            return Err("Invalid bytecode file: too short".to_string());
+        }
+
+        if &bytes[..Self::MAGIC.len()] != Self::MAGIC {
+            return Err("Invalid bytecode file: bad magic bytes".to_string());
+        }
+
+        // Deserialize the chunk
+        let chunk: Chunk = bincode::deserialize(&bytes[Self::MAGIC.len()..])
+            .map_err(|e| format!("Failed to deserialize chunk: {}", e))?;
+
+        Ok(chunk)
+    }
+
+    /// Check if bytes look like a Veld bytecode file
+    pub fn is_bytecode(bytes: &[u8]) -> bool {
+        bytes.len() >= Self::MAGIC.len() && &bytes[..Self::MAGIC.len()] == Self::MAGIC
+    }
+}
+
 /// Chunk metadata
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChunkMetadata {
     /// Veld version that compiled this chunk
     pub version: String,

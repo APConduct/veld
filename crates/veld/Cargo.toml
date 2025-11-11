@@ -23,3 +23,4 @@ ratatui = "0.29.0"
 "veld-error" = { path = "../error" }   # Path to your AST library
 "veld-repl" = { path = "../repl" }
 "veld-compiler" = { path = "../compiler/inkveld" }
+"veld-bytecode" = { path = "../bytecode" }
