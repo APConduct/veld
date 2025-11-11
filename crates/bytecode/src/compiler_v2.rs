@@ -51,6 +51,9 @@ pub struct RegisterCompiler {
     /// Variable name to register mapping
     variables: HashMap<String, VarInfo>,
 
+    /// Scope stack for tracking variable shadowing
+    scope_stack: Vec<ScopeInfo>,
+
     /// Loop context stack (for break/continue)
     loop_stack: Vec<LoopContext>,
 
@@ -67,6 +70,14 @@ struct VarInfo {
     register: Reg,
     is_mutable: bool,
     depth: usize,
+}
+
+/// Scope tracking for variable shadowing
+#[derive(Debug, Clone)]
+struct ScopeInfo {
+    depth: usize,
+    /// Variables declared in this scope with their shadowed values
+    variables: Vec<(String, Option<VarInfo>)>,
 }
 
 /// Loop context for break/continue
@@ -128,6 +139,7 @@ impl RegisterCompiler {
             allocator: RegisterAllocator::new(),
             scope_depth: 0,
             variables: HashMap::new(),
+            scope_stack: Vec::new(),
             loop_stack: Vec::new(),
             current_line: 1,
             options,
@@ -299,15 +311,20 @@ impl RegisterCompiler {
             self.free_temp(result.register);
         }
 
-        // Track variable
-        self.variables.insert(
-            name.to_string(),
-            VarInfo {
-                register: var_reg,
-                is_mutable,
-                depth: self.scope_depth,
-            },
-        );
+        // Track variable with shadowing support
+        let var_info = VarInfo {
+            register: var_reg,
+            is_mutable,
+            depth: self.scope_depth,
+        };
+
+        // Save the old variable if we're shadowing
+        let shadowed = self.variables.insert(name.to_string(), var_info);
+
+        // Add to current scope with shadowed variable
+        if let Some(scope) = self.scope_stack.last_mut() {
+            scope.variables.push((name.to_string(), shadowed));
+        }
 
         Ok(())
     }
@@ -1241,13 +1258,28 @@ impl RegisterCompiler {
     fn begin_scope(&mut self) {
         self.scope_depth += 1;
         self.allocator.begin_scope();
+
+        // Push a new scope for tracking variable shadowing
+        self.scope_stack.push(ScopeInfo {
+            depth: self.scope_depth,
+            variables: Vec::new(),
+        });
     }
 
     /// End the current scope
     fn end_scope(&mut self) {
-        // Remove variables in this scope
-        self.variables
-            .retain(|_, info| info.depth < self.scope_depth);
+        // Pop the scope and restore shadowed variables
+        if let Some(scope) = self.scope_stack.pop() {
+            for (var_name, shadowed) in scope.variables {
+                if let Some(old_var) = shadowed {
+                    // Restore the shadowed variable
+                    self.variables.insert(var_name, old_var);
+                } else {
+                    // Remove the variable (it wasn't shadowing anything)
+                    self.variables.remove(&var_name);
+                }
+            }
+        }
 
         self.allocator.end_scope();
         self.scope_depth -= 1;
