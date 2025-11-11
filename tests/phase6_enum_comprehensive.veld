@@ -1,0 +1,74 @@
+# Phase 6 Test: Comprehensive Enum Operations
+# Testing enum variant creation with fields
+
+# Test 1: Simple enum with no fields
+enum Status
+    Pending,
+    Active,
+    Complete
+end
+
+let s1 = Status.Pending
+let s2 = Status.Active
+let s3 = Status.Complete
+
+# Test 2: Enum with single field
+enum Shape
+    Circle(i64),
+    Square(i64),
+    Rectangle(i64, i64)
+end
+
+let circle = Shape.Circle(10)
+let square = Shape.Square(20)
+let rect = Shape.Rectangle(30, 40)
+
+# Test 3: Enum variants as function returns (no type annotations)
+fn make_circle(radius)
+    Shape.Circle(radius)
+end
+
+fn make_square(side)
+    Shape.Square(side)
+end
+
+let c1 = make_circle(5)
+let sq1 = make_square(15)
+
+# Test 4: More complex enum
+enum Result
+    Ok(i64),
+    Err(i64)
+end
+
+let success = Result.Ok(42)
+let failure = Result.Err(1)
+
+# Test 5: Enum in struct
+struct Container
+    status: Status,
+    shape: Shape,
+    value: i64
+end
+
+let container = Container(
+    status: Status.Active,
+    shape: Shape.Circle(25),
+    value: 100
+)
+
+# Test 6: Nested enum creation
+let nested = Container(
+    status: Status.Complete,
+    shape: Shape.Rectangle(10, 20),
+    value: 50
+)
+
+# Test 7: Enum as variable that can be reassigned
+var current_status = Status.Pending
+current_status = Status.Active
+current_status = Status.Complete
+
+# Return test value to verify execution
+# Since we can't pattern match yet, just return a constant
+200

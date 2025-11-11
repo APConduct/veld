@@ -1,0 +1,21 @@
+# Phase 6 Test: Basic Enum Operations
+# Minimal test for enum variant creation
+
+# Test 1: Simple enum with no fields
+enum Status
+    Pending,
+    Active,
+    Complete
+end
+
+let s1 = Status.Pending
+
+# Test 2: Enum with fields
+enum Shape
+    Circle(i64)
+end
+
+let circle = Shape.Circle(10)
+
+# Return success value
+42

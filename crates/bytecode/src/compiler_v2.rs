@@ -85,6 +85,8 @@ struct VarInfo {
     is_captured: bool,
     /// If this variable is actually an upvalue (captured from parent scope)
     is_upvalue: bool,
+    /// If this variable holds a type value (for enums/structs)
+    is_type: bool,
 }
 
 /// Upvalue information for closures (compiler-side tracking)
@@ -394,6 +396,7 @@ impl RegisterCompiler {
             depth: self.scope_depth,
             is_captured: false,
             is_upvalue: false,
+            is_type: false,
         };
 
         // Save the old variable if we're shadowing
@@ -875,6 +878,18 @@ impl RegisterCompiler {
 
     /// Compile property access
     fn compile_property_access(&mut self, object: &Expr, property: &str) -> Result<ExprResult> {
+        // Special case: Check if this is enum variant access (EnumType.Variant)
+        // If the object is an identifier that refers to an enum type, compile as enum variant
+        if let Expr::Identifier(name) = object {
+            if let Some(var_info) = self.variables.get(name) {
+                if var_info.is_type {
+                    // This is an enum type - compile as enum variant with no fields
+                    return self.compile_enum_variant(name, property, &[]);
+                }
+            }
+        }
+
+        // Regular property access
         let obj_result = self.compile_expr_to_reg(object)?;
         let dest = self.allocate_temp()?;
 
@@ -1010,6 +1025,7 @@ impl RegisterCompiler {
                     depth: 0,
                     is_captured: false,
                     is_upvalue: false,
+                    is_type: false,
                 },
             );
         }
@@ -1088,6 +1104,7 @@ impl RegisterCompiler {
                     depth: 0,
                     is_captured: false,
                     is_upvalue: false,
+                    is_type: false,
                 },
             );
         }
@@ -1105,6 +1122,7 @@ impl RegisterCompiler {
                     depth: 0,
                     is_captured: false,
                     is_upvalue: true, // This is an upvalue, not a local variable
+                    is_type: false,
                 },
             );
         }
@@ -1232,6 +1250,7 @@ impl RegisterCompiler {
                 depth: self.scope_depth,
                 is_captured: false,
                 is_upvalue: false,
+                is_type: false,
             },
         );
 
@@ -1244,24 +1263,54 @@ impl RegisterCompiler {
         name: &str,
         fields: &[veld_common::ast::StructField],
     ) -> Result<()> {
-        // For now, struct declarations are type-level metadata
-        // They don't generate runtime code, just register the type
-        // When we create struct instances, we use the type name
-
-        // Store struct metadata as a constant for runtime validation
+        // Extract field names
         let field_names: Vec<String> = fields.iter().map(|f| f.name.clone()).collect();
+
+        // Create TypeInfo for this struct
+        let type_info = veld_common::bytecode_v2::TypeInfo {
+            name: name.to_string(),
+            kind: veld_common::bytecode_v2::TypeKind::Struct {
+                fields: field_names.clone(),
+            },
+        };
+
+        // Add TypeInfo as a constant
+        let type_const = self.chunk.add_constant(Constant::Type(type_info.clone()));
+
+        // Allocate a register for the struct type value and load it
+        let type_reg = self
+            .allocator
+            .allocate_variable(name.to_string(), false)
+            .map_err(|e| VeldError::CompileError {
+                message: e,
+                line: Some(self.current_line as usize),
+                column: None,
+            })?;
+
+        // Load the type constant into the register
+        self.chunk.load_const(type_reg, type_const);
+
+        // Register the struct name as a variable holding the Type value
+        self.variables.insert(
+            name.to_string(),
+            VarInfo {
+                register: type_reg,
+                is_mutable: false,
+                depth: self.scope_depth,
+                is_captured: false,
+                is_upvalue: false,
+                is_type: true, // Mark as a type value
+            },
+        );
+
+        // Also store metadata as JSON for backward compatibility
         let metadata_json = serde_json::json!({
             "type": "struct",
             "name": name,
             "fields": field_names,
         });
         let metadata_str = metadata_json.to_string();
-
-        // Add as a constant (not directly used, but available for inspection)
         let _metadata_const = self.chunk.add_constant(Constant::String(metadata_str));
-
-        // Struct declarations don't create runtime values or variables
-        // The type is used when creating instances via StructCreate expressions
 
         Ok(())
     }
@@ -1272,10 +1321,47 @@ impl RegisterCompiler {
         name: &str,
         variants: &[veld_common::ast::EnumVariant],
     ) -> Result<()> {
-        // Similar to structs, enum declarations are type-level metadata
-        // They don't generate runtime code
+        // Extract variant names
+        let variant_names: Vec<String> = variants.iter().map(|v| v.name.clone()).collect();
 
-        // Store enum metadata as a constant
+        // Create TypeInfo for this enum
+        let type_info = veld_common::bytecode_v2::TypeInfo {
+            name: name.to_string(),
+            kind: veld_common::bytecode_v2::TypeKind::Enum {
+                variants: variant_names.clone(),
+            },
+        };
+
+        // Add TypeInfo as a constant
+        let type_const = self.chunk.add_constant(Constant::Type(type_info.clone()));
+
+        // Allocate a register for the enum type value and load it
+        let type_reg = self
+            .allocator
+            .allocate_variable(name.to_string(), false)
+            .map_err(|e| VeldError::CompileError {
+                message: e,
+                line: Some(self.current_line as usize),
+                column: None,
+            })?;
+
+        // Load the type constant into the register
+        self.chunk.load_const(type_reg, type_const);
+
+        // Register the enum name as a variable holding the Type value
+        self.variables.insert(
+            name.to_string(),
+            VarInfo {
+                register: type_reg,
+                is_mutable: false,
+                depth: self.scope_depth,
+                is_captured: false,
+                is_upvalue: false,
+                is_type: true, // Mark as a type value
+            },
+        );
+
+        // Also store metadata as JSON for backward compatibility
         let variant_info: Vec<serde_json::Value> = variants
             .iter()
             .map(|v| {
@@ -1293,12 +1379,7 @@ impl RegisterCompiler {
             "variants": variant_info,
         });
         let metadata_str = metadata_json.to_string();
-
-        // Add as a constant (not directly used, but available for inspection)
         let _metadata_const = self.chunk.add_constant(Constant::String(metadata_str));
-
-        // Enum declarations don't create runtime values
-        // Variants are constructed via EnumVariant expressions
 
         Ok(())
     }
@@ -1788,6 +1869,7 @@ impl RegisterCompiler {
                 depth: self.scope_depth,
                 is_captured: false,
                 is_upvalue: false,
+                is_type: false,
             },
         );
 

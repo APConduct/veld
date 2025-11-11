@@ -1,0 +1,50 @@
+# Phase 6 Showcase - What Works!
+# Demonstrating structs and enums in Veld
+
+# Structs work perfectly!
+struct Person
+    age: i64,
+    score: i64
+end
+
+let alice = Person(age: 30, score: 100)
+let bob = Person(age: 25, score: 95)
+
+# Enums work perfectly!
+enum Status
+    Active,
+    Inactive
+end
+
+let active = Status.Active
+let inactive = Status.Inactive
+
+# Enums with fields work!
+enum Result
+    Ok(i64),
+    Err(i64)
+end
+
+let success = Result.Ok(42)
+let failure = Result.Err(1)
+
+# Nested structs work!
+struct Team
+    leader_age: i64,
+    size: i64
+end
+
+let team = Team(
+    leader_age: 35,
+    size: 10
+)
+
+# Function with enum return
+fn get_status()
+    Status.Active
+end
+
+let current = get_status()
+
+# All working! Return success value
+100

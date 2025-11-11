@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::rc::Rc;
+pub use veld_common::bytecode_v2::{TypeInfo, TypeKind};
 use veld_common::value::Value as InterpreterValue;
 
 /// Runtime values used by the bytecode virtual machine
@@ -116,13 +117,6 @@ impl Upvalue {
         self.is_closed = true;
         self.location = None;
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TypeInfo {
-    pub name: String,
-    pub size: usize,
-    pub alignment: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -42,6 +42,23 @@ pub type ConstIdx = u16;
 /// Jump offset (signed, relative to next instruction)
 pub type JumpOffset = i16;
 
+/// Type information for runtime type representation
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TypeInfo {
+    pub name: String,
+    pub kind: TypeKind,
+}
+
+/// Kind of type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TypeKind {
+    Struct { fields: Vec<String> },
+    Enum { variants: Vec<String> },
+    Primitive,
+    Function,
+    Module,
+}
+
 /// Register-based instruction set
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Instruction {
@@ -935,8 +952,8 @@ pub enum Constant {
     /// Function prototype
     Function(Box<FunctionProto>),
 
-    /// Type name
-    Type(String),
+    /// Type information
+    Type(TypeInfo),
 }
 
 impl fmt::Display for Constant {
@@ -948,7 +965,7 @@ impl fmt::Display for Constant {
             Constant::Float(fl) => write!(f, "{}", fl),
             Constant::String(s) => write!(f, "{:?}", s),
             Constant::Function(proto) => write!(f, "<function {}>", proto.name),
-            Constant::Type(t) => write!(f, "<type {}>", t),
+            Constant::Type(t) => write!(f, "<type {}>", t.name),
         }
     }
 }

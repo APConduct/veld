@@ -1151,11 +1151,7 @@ impl VirtualMachine {
                 upvalue_count: proto.upvalues.len() as u8,
                 name: Some(proto.name.clone()),
             },
-            Constant::Type(t) => BytecodeValue::Type(TypeInfo {
-                name: t.clone(),
-                size: 0,
-                alignment: 0,
-            }),
+            Constant::Type(t) => BytecodeValue::Type(t.clone()),
         }
     }
 
