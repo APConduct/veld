@@ -1,5 +1,6 @@
 pub mod ast;
 pub mod bytecode;
+pub mod bytecode_v2;
 pub mod gc;
 pub mod lexer;
 pub mod parser;
