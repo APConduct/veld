@@ -6,4 +6,4 @@ fn arrow_block_func(x: i32) -> i32 => do
 end
 
 let result = arrow_block_func(5)
-std.io.println("Result: " + result.to_string())
+std.io.println("Result: " + result.to_str())

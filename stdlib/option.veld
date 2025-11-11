@@ -123,24 +123,24 @@ end
 # This should use: impl<T> Option<T> <- ToString where T: ToString
 # Currently the where clause syntax is parsed but not enforced by the type checker.
 # The implementation below will work for any T, but should only be available when T: ToString
-impl<T> Option<T> <- ToString
+impl<T> Option<T> <- ToStr
     #| Convert the option to a string representation
-    #| This method is only available if T implements ToString
-    #| Returns "Some(value_string)" for Some(value) where value_string is value.to_string()
+    #| This method is only available if T implements ToStr
+    #| Returns "Some(value_string)" for Some(value) where value_string is value.to_str()
     #| Returns "None" for None
     #| # Example:
     #| ```
     #| let opt = Option.Some(42)
-    #| let str_repr = opt.to_string()  # str_repr will be "Some(42)"
+    #| let str_repr = opt.to_str()  # str_repr will be "Some(42)"
     #| ```
     #| # Example:
     #| ```
     #| let opt = Option.None
-    #| let str_repr = opt.to_string()  # str_repr will be "None"
+    #| let str_repr = opt.to_str()  # str_repr will be "None"
     #| ```
-    pub fn to_string(self) -> str
+    pub fn to_str(self) -> str
         match self
-            Option.Some(value) => "Some(" + value.to_string() + ")",
+            Option.Some(value) => "Some(" + value.to_str() + ")",
             Option.None => "None",
         end
     end

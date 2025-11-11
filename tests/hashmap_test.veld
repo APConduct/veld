@@ -12,7 +12,7 @@ io.println("1. Created new HashMap")
 
 # Test 2: Set and get values
 my_map.set("name", "Alice")
-my_map.set("age", 30.to_string())
+my_map.set("age", 30.to_str())
 my_map.set("city", "New York")
 
 io.println("2. Set three key-value pairs")

@@ -6,8 +6,8 @@ pub struct Container
 end
 
 # Simple trait implementation using existing ToString trait
-impl Container <- std.ToString
-    pub fn to_string(self) -> str
+impl Container <- std.ToStr
+    pub fn to_str(self) -> str
         return "Container: " + self.value
     end
 end

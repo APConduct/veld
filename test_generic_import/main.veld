@@ -6,19 +6,19 @@ import std.io.{println}
 fn main()
     # Test importing generic some function
     let str_option = some("hello")
-    println("String option is some: " + str_option.is_some().to_string())
+    println("String option is some: " + str_option.is_some().to_str())
 
     let num_option = some(42)
-    println("Number option is some: " + num_option.is_some().to_string())
+    println("Number option is some: " + num_option.is_some().to_str())
 
     # Test importing generic none function
     let empty_option: Option<str> = none()
-    println("Empty option is none: " + empty_option.is_none().to_string())
+    println("Empty option is none: " + empty_option.is_none().to_str())
 
     # Try calling methods on the results
     let unwrapped = str_option.unwrap_or("default")
     println("Unwrapped: " + unwrapped)
 
     let value = num_option.unwrap_or(0)
-    println("Unwrapped number: " + value.to_string())
+    println("Unwrapped number: " + value.to_str())
 end

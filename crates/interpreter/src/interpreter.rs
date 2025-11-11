@@ -5306,63 +5306,63 @@ impl Interpreter {
 
         // String - just return self
         self.native_method_registry
-            .register("str", "to_string", |_, args| {
+            .register("str", "to_str", |_, args| {
                 if let Some(Value::String(s)) = args.get(0) {
                     Ok(Value::String(s.clone()))
                 } else {
                     Err(VeldError::RuntimeError(
-                        "to_string called on non-string".to_string(),
+                        "to_str called on non-string".to_string(),
                     ))
                 }
             });
 
         // All integer types - handle both old Value::Integer and new Value::Numeric
-        let register_integer_to_string =
-            |registry: &mut crate::native::NativeMethodRegistry, type_name: &str| {
-                let type_name_owned = type_name.to_string();
-                registry.register(type_name, "to_string", move |_, args| match args.get(0) {
-                    Some(Value::Integer(n)) => Ok(Value::String(n.to_string())),
-                    Some(Value::Numeric(numeric_val)) => {
-                        let s = match numeric_val {
-                            NumericValue::Integer(iv) => match iv {
-                                IntegerValue::I8(v) => v.to_string(),
-                                IntegerValue::I16(v) => v.to_string(),
-                                IntegerValue::I32(v) => v.to_string(),
-                                IntegerValue::I64(v) => v.to_string(),
-                                IntegerValue::U8(v) => v.to_string(),
-                                IntegerValue::U16(v) => v.to_string(),
-                                IntegerValue::U32(v) => v.to_string(),
-                                IntegerValue::U64(v) => v.to_string(),
-                            },
-                            NumericValue::Float(fv) => match fv {
-                                FloatValue::F32(v) => v.to_string(),
-                                FloatValue::F64(v) => v.to_string(),
-                            },
-                        };
-                        Ok(Value::String(s))
-                    }
-                    _ => Err(VeldError::RuntimeError(format!(
-                        "to_string called on non-numeric value for type {}",
-                        type_name_owned
-                    ))),
-                });
-            };
+        let register_integer_to_str = |registry: &mut crate::native::NativeMethodRegistry,
+                                       type_name: &str| {
+            let type_name_owned = type_name.to_string();
+            registry.register(type_name, "to_str", move |_, args| match args.get(0) {
+                Some(Value::Integer(n)) => Ok(Value::String(n.to_string())),
+                Some(Value::Numeric(numeric_val)) => {
+                    let s = match numeric_val {
+                        NumericValue::Integer(iv) => match iv {
+                            IntegerValue::I8(v) => v.to_string(),
+                            IntegerValue::I16(v) => v.to_string(),
+                            IntegerValue::I32(v) => v.to_string(),
+                            IntegerValue::I64(v) => v.to_string(),
+                            IntegerValue::U8(v) => v.to_string(),
+                            IntegerValue::U16(v) => v.to_string(),
+                            IntegerValue::U32(v) => v.to_string(),
+                            IntegerValue::U64(v) => v.to_string(),
+                        },
+                        NumericValue::Float(fv) => match fv {
+                            FloatValue::F32(v) => v.to_string(),
+                            FloatValue::F64(v) => v.to_string(),
+                        },
+                    };
+                    Ok(Value::String(s))
+                }
+                _ => Err(VeldError::RuntimeError(format!(
+                    "to_str called on non-numeric value for type {}",
+                    type_name_owned
+                ))),
+            });
+        };
 
-        // Register to_string for all integer types
-        register_integer_to_string(&mut self.native_method_registry, "i8");
-        register_integer_to_string(&mut self.native_method_registry, "i16");
-        register_integer_to_string(&mut self.native_method_registry, "i32");
-        register_integer_to_string(&mut self.native_method_registry, "i64");
-        register_integer_to_string(&mut self.native_method_registry, "u8");
-        register_integer_to_string(&mut self.native_method_registry, "u16");
-        register_integer_to_string(&mut self.native_method_registry, "u32");
-        register_integer_to_string(&mut self.native_method_registry, "u64");
+        // Register to_str for all integer types
+        register_integer_to_str(&mut self.native_method_registry, "i8");
+        register_integer_to_str(&mut self.native_method_registry, "i16");
+        register_integer_to_str(&mut self.native_method_registry, "i32");
+        register_integer_to_str(&mut self.native_method_registry, "i64");
+        register_integer_to_str(&mut self.native_method_registry, "u8");
+        register_integer_to_str(&mut self.native_method_registry, "u16");
+        register_integer_to_str(&mut self.native_method_registry, "u32");
+        register_integer_to_str(&mut self.native_method_registry, "u64");
 
         // Float types
-        let register_float_to_string = |registry: &mut crate::native::NativeMethodRegistry,
-                                        type_name: &str| {
+        let register_float_to_str = |registry: &mut crate::native::NativeMethodRegistry,
+                                     type_name: &str| {
             let type_name_owned = type_name.to_string();
-            registry.register(type_name, "to_string", move |_, args| match args.get(0) {
+            registry.register(type_name, "to_str", move |_, args| match args.get(0) {
                 Some(Value::Float(n)) => Ok(Value::String(n.to_string())),
                 Some(Value::Numeric(numeric_val)) => {
                     let s = match numeric_val {
@@ -5384,76 +5384,70 @@ impl Interpreter {
                     Ok(Value::String(s))
                 }
                 _ => Err(VeldError::RuntimeError(format!(
-                    "to_string called on non-numeric value for type {}",
+                    "to_str called on non-numeric value for type {}",
                     type_name_owned
                 ))),
             });
         };
 
-        register_float_to_string(&mut self.native_method_registry, "f32");
-        register_float_to_string(&mut self.native_method_registry, "f64");
+        register_float_to_str(&mut self.native_method_registry, "f32");
+        register_float_to_str(&mut self.native_method_registry, "f64");
 
         // Boolean
         self.native_method_registry
-            .register("bool", "to_string", |_, args| {
+            .register("bool", "to_str", |_, args| {
                 if let Some(Value::Boolean(b)) = args.get(0) {
                     Ok(Value::String(if *b { "true" } else { "false" }.to_string()))
                 } else {
                     Err(VeldError::RuntimeError(
-                        "to_string called on non-boolean".to_string(),
+                        "to_str called on non-boolean".to_string(),
                     ))
                 }
             });
 
         // Character
         self.native_method_registry
-            .register("char", "to_string", |_, args| {
+            .register("char", "to_str", |_, args| {
                 if let Some(Value::Char(c)) = args.get(0) {
                     Ok(Value::String(c.to_string()))
                 } else {
                     Err(VeldError::RuntimeError(
-                        "to_string called on non-character".to_string(),
+                        "to_str called on non-character".to_string(),
                     ))
                 }
             });
 
         // --- Register method types for type checker ---
 
-        // to_string method type: (self) -> str
-        let to_string_method_type = Type::Function {
+        // to_str method type: (self) -> str
+        let to_str_method_type = Type::Function {
             params: vec![Type::Any], // self parameter
             return_type: Box::new(Type::String),
         };
 
-        // Register to_string for built-in types in type checker
-        self.type_checker.env().add_struct_method(
-            "str",
-            "to_string",
-            to_string_method_type.clone(),
-        );
-        // Register to_string method type for all numeric types in type checker
+        // Register to_str for built-in types in type checker
+        self.type_checker
+            .env()
+            .add_struct_method("str", "to_str", to_str_method_type.clone());
+        // Register to_str method type for all numeric types in type checker
         let numeric_types = [
             "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
         ];
         for numeric_type in &numeric_types {
             self.type_checker.env().add_struct_method(
                 numeric_type,
-                "to_string",
-                to_string_method_type.clone(),
+                "to_str",
+                to_str_method_type.clone(),
             );
         }
 
-        self.type_checker.env().add_struct_method(
-            "bool",
-            "to_string",
-            to_string_method_type.clone(),
-        );
+        self.type_checker
+            .env()
+            .add_struct_method("bool", "to_str", to_str_method_type.clone());
 
-        self.type_checker.env().add_struct_method(
-            "char",
-            "to_string",
-            to_string_method_type.clone(),
-        );
+        self.type_checker
+            .env()
+            .add_struct_method("char", "to_str", to_str_method_type.clone());
 
         // --- Implement Sized for collection types ---
 

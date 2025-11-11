@@ -3265,10 +3265,10 @@ impl TypeChecker {
                                             }
                                             _ => {
                                                 if !self
-                                                    .type_has_to_string_method(&resolved_inner_type)
+                                                    .type_has_to_str_method(&resolved_inner_type)
                                                 {
                                                     return Err(VeldError::TypeError(format!(
-                                                        "Option<{}>.to_string() is not available because {} does not implement to_string()",
+                                                        "Option<{}>.to_str() is not available because {} does not implement to_str()",
                                                         self.type_to_string(&resolved_inner_type),
                                                         self.type_to_string(&resolved_inner_type)
                                                     )));
@@ -5259,10 +5259,10 @@ impl TypeChecker {
         }
     }
 
-    /// Check if a type has a to_string method available
-    fn type_has_to_string_method(&self, type_: &Type) -> bool {
+    /// Check if a type has a to_str method available
+    fn type_has_to_str_method(&self, type_: &Type) -> bool {
         match type_ {
-            // Primitive types that have built-in to_string methods
+            // Primitive types that have built-in to_str methods
             Type::Bool
             | Type::I32
             | Type::I64
@@ -5277,10 +5277,10 @@ impl TypeChecker {
             | Type::Char
             | Type::String => true,
 
-            // Check if struct/enum has to_string method registered
+            // Check if struct/enum has to_str method registered
             Type::Struct { name, .. } => {
                 if let Some(methods) = self.env.struct_methods().get(name) {
-                    methods.contains_key("to_string")
+                    methods.contains_key("to_str")
                 } else {
                     false
                 }
@@ -5288,7 +5288,7 @@ impl TypeChecker {
 
             Type::Enum { name, .. } => {
                 if let Some(methods) = self.env.get_enum_methods(name) {
-                    methods.contains_key("to_string")
+                    methods.contains_key("to_str")
                 } else {
                     false
                 }
@@ -5296,21 +5296,20 @@ impl TypeChecker {
 
             // Generic types - recursively check if they have to_string
             Type::Generic { base, type_args } => {
-                // Check if the base type has to_string method registered
-                let base_has_to_string = if let Some(methods) = self.env.struct_methods().get(base)
-                {
-                    methods.contains_key("to_string")
+                // Check if the base type has to_str method registered
+                let base_has_to_str = if let Some(methods) = self.env.struct_methods().get(base) {
+                    methods.contains_key("to_str")
                 } else if let Some(methods) = self.env.get_enum_methods(base) {
-                    methods.contains_key("to_string")
+                    methods.contains_key("to_str")
                 } else {
                     false
                 };
 
                 // For Option<T>, to_string is conditionally available
                 if base == "Option" && type_args.len() >= 1 {
-                    base_has_to_string && self.type_has_to_string_method(&type_args[0])
+                    base_has_to_str && self.type_has_to_str_method(&type_args[0])
                 } else {
-                    base_has_to_string
+                    base_has_to_str
                 }
             }
 

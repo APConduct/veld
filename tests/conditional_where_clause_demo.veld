@@ -11,8 +11,8 @@ pub struct Container
 end
 
 # Basic implementation (non-conditional)
-impl Container <- std.ToString
-    pub fn to_string(self) -> str
+impl Container <- std.ToStr
+    pub fn to_str(self) -> str
         return "Container: " + self.value
     end
 end
@@ -27,9 +27,9 @@ end
 # - Generic type parameters: <T>
 # - Qualified trait name: std.ToString
 # - Where clause with qualified trait: T: std.ToString
-impl<T> GenericContainer<T> <- std.ToString where T: std.ToString
-    pub fn to_string(self) -> str
-        return "Generic[" + self.item.to_string() + "]"
+impl<T> GenericContainer<T> <- std.ToStr where T: std.ToStr
+    pub fn to_str(self) -> str
+        return "Generic[" + self.item.to_str() + "]"
     end
 end
 
