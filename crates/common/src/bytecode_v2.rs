@@ -793,6 +793,347 @@ impl fmt::Display for Instruction {
     }
 }
 
+/// Function prototype - represents a function definition
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionProto {
+    /// Function name (for debugging)
+    pub name: String,
+
+    /// Number of parameters
+    pub param_count: u8,
+
+    /// Number of registers needed
+    pub register_count: u8,
+
+    /// Instructions
+    pub instructions: Vec<Instruction>,
+
+    /// Constant pool
+    pub constants: Vec<Constant>,
+
+    /// Line number information (for debugging)
+    pub line_info: Vec<u32>,
+
+    /// Nested function prototypes (for closures)
+    pub prototypes: Vec<FunctionProto>,
+
+    /// Upvalue information
+    pub upvalues: Vec<UpvalueInfo>,
+
+    /// Is this a variadic function?
+    pub is_variadic: bool,
+}
+
+impl FunctionProto {
+    /// Create a new function prototype
+    pub fn new(name: String, param_count: u8) -> Self {
+        Self {
+            name,
+            param_count,
+            register_count: param_count, // Start with params
+            instructions: Vec::new(),
+            constants: Vec::new(),
+            line_info: Vec::new(),
+            prototypes: Vec::new(),
+            upvalues: Vec::new(),
+            is_variadic: false,
+        }
+    }
+
+    /// Add an instruction and return its index
+    pub fn add_instruction(&mut self, instr: Instruction, line: u32) -> usize {
+        let idx = self.instructions.len();
+        self.instructions.push(instr);
+        self.line_info.push(line);
+        idx
+    }
+
+    /// Add a constant and return its index
+    pub fn add_constant(&mut self, constant: Constant) -> ConstIdx {
+        // Check if constant already exists
+        for (i, c) in self.constants.iter().enumerate() {
+            if c == &constant {
+                return i as ConstIdx;
+            }
+        }
+
+        let idx = self.constants.len();
+        self.constants.push(constant);
+        idx as ConstIdx
+    }
+
+    /// Add a nested function prototype
+    pub fn add_prototype(&mut self, proto: FunctionProto) -> ConstIdx {
+        let idx = self.prototypes.len();
+        self.prototypes.push(proto);
+        idx as ConstIdx
+    }
+
+    /// Get instruction at index
+    pub fn get_instruction(&self, idx: usize) -> Option<&Instruction> {
+        self.instructions.get(idx)
+    }
+
+    /// Get constant at index
+    pub fn get_constant(&self, idx: ConstIdx) -> Option<&Constant> {
+        self.constants.get(idx as usize)
+    }
+
+    /// Patch a jump instruction at the given index
+    pub fn patch_jump(&mut self, idx: usize, offset: JumpOffset) -> Result<(), String> {
+        if idx >= self.instructions.len() {
+            return Err(format!("Invalid instruction index: {}", idx));
+        }
+
+        let instr = &mut self.instructions[idx];
+        match instr {
+            Instruction::Jump { offset: o } => *o = offset,
+            Instruction::JumpIf { offset: o, .. } => *o = offset,
+            Instruction::JumpIfNot { offset: o, .. } => *o = offset,
+            Instruction::JumpIfEq { offset: o, .. } => *o = offset,
+            Instruction::JumpIfNeq { offset: o, .. } => *o = offset,
+            _ => return Err("Instruction is not a jump".to_string()),
+        }
+
+        Ok(())
+    }
+
+    /// Allocate registers (update register count if needed)
+    pub fn allocate_registers(&mut self, count: u8) {
+        let needed = self.param_count + count;
+        if needed > self.register_count {
+            self.register_count = needed;
+        }
+    }
+}
+
+impl Default for FunctionProto {
+    fn default() -> Self {
+        Self::new("<main>".to_string(), 0)
+    }
+}
+
+/// Constant value in the constant pool
+#[derive(Debug, Clone, PartialEq)]
+pub enum Constant {
+    /// Nil/Unit value
+    Nil,
+
+    /// Boolean value
+    Boolean(bool),
+
+    /// Integer value
+    Integer(i64),
+
+    /// Float value
+    Float(f64),
+
+    /// String value
+    String(String),
+
+    /// Function prototype
+    Function(Box<FunctionProto>),
+
+    /// Type name
+    Type(String),
+}
+
+impl fmt::Display for Constant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Constant::Nil => write!(f, "nil"),
+            Constant::Boolean(b) => write!(f, "{}", b),
+            Constant::Integer(i) => write!(f, "{}", i),
+            Constant::Float(fl) => write!(f, "{}", fl),
+            Constant::String(s) => write!(f, "{:?}", s),
+            Constant::Function(proto) => write!(f, "<function {}>", proto.name),
+            Constant::Type(t) => write!(f, "<type {}>", t),
+        }
+    }
+}
+
+/// Upvalue information
+#[derive(Debug, Clone, PartialEq)]
+pub struct UpvalueInfo {
+    /// Register index (in parent frame)
+    pub register: Reg,
+
+    /// Is this upvalue in the parent frame (true) or parent's upvalue (false)?
+    pub is_local: bool,
+
+    /// Upvalue name (for debugging)
+    pub name: String,
+}
+
+/// Bytecode chunk - top-level container
+#[derive(Debug, Clone, PartialEq)]
+pub struct Chunk {
+    /// Main function prototype
+    pub main: FunctionProto,
+
+    /// Source file name
+    pub source_file: String,
+
+    /// Chunk metadata
+    pub metadata: ChunkMetadata,
+}
+
+impl Chunk {
+    /// Create a new chunk
+    pub fn new(source_file: String) -> Self {
+        Self {
+            main: FunctionProto::default(),
+            source_file,
+            metadata: ChunkMetadata::default(),
+        }
+    }
+
+    /// Create chunk with a specific main function name
+    pub fn with_name(source_file: String, name: String) -> Self {
+        Self {
+            main: FunctionProto::new(name, 0),
+            source_file,
+            metadata: ChunkMetadata::default(),
+        }
+    }
+
+    /// Disassemble the chunk for debugging
+    pub fn disassemble(&self) -> String {
+        let mut output = String::new();
+        output.push_str(&format!("=== {} ===\n", self.source_file));
+        output.push_str(&self.disassemble_function(&self.main, 0));
+        output
+    }
+
+    fn disassemble_function(&self, func: &FunctionProto, indent: usize) -> String {
+        let mut output = String::new();
+        let indent_str = "  ".repeat(indent);
+
+        output.push_str(&format!(
+            "{}function {} ({} params, {} registers)\n",
+            indent_str, func.name, func.param_count, func.register_count
+        ));
+
+        // Constants
+        if !func.constants.is_empty() {
+            output.push_str(&format!("{}  Constants:\n", indent_str));
+            for (i, c) in func.constants.iter().enumerate() {
+                output.push_str(&format!("{}    K{}: {}\n", indent_str, i, c));
+            }
+        }
+
+        // Upvalues
+        if !func.upvalues.is_empty() {
+            output.push_str(&format!("{}  Upvalues:\n", indent_str));
+            for (i, u) in func.upvalues.iter().enumerate() {
+                output.push_str(&format!(
+                    "{}    U{}: {} (R{}, local={})\n",
+                    indent_str, i, u.name, u.register, u.is_local
+                ));
+            }
+        }
+
+        // Instructions
+        output.push_str(&format!("{}  Code:\n", indent_str));
+        for (i, instr) in func.instructions.iter().enumerate() {
+            let line = func.line_info.get(i).copied().unwrap_or(0);
+            output.push_str(&format!(
+                "{}    {:04}  {:>4}  {}\n",
+                indent_str, i, line, instr
+            ));
+        }
+
+        // Nested functions
+        for proto in &func.prototypes {
+            output.push_str(&self.disassemble_function(proto, indent + 1));
+        }
+
+        output
+    }
+}
+
+impl Default for Chunk {
+    fn default() -> Self {
+        Self::new("<unknown>".to_string())
+    }
+}
+
+/// Chunk metadata
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChunkMetadata {
+    /// Veld version that compiled this chunk
+    pub version: String,
+
+    /// Compilation timestamp
+    pub timestamp: u64,
+
+    /// Optimization level
+    pub optimization_level: u8,
+
+    /// Debug information included?
+    pub has_debug_info: bool,
+}
+
+impl Default for ChunkMetadata {
+    fn default() -> Self {
+        Self {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            timestamp: 0,
+            optimization_level: 0,
+            has_debug_info: true,
+        }
+    }
+}
+
+/// Builder for creating chunks
+pub struct ChunkBuilder {
+    chunk: Chunk,
+}
+
+impl ChunkBuilder {
+    /// Create a new chunk builder
+    pub fn new() -> Self {
+        Self {
+            chunk: Chunk::default(),
+        }
+    }
+
+    /// Set source file
+    pub fn source_file(mut self, source_file: String) -> Self {
+        self.chunk.source_file = source_file;
+        self
+    }
+
+    /// Set main function name
+    pub fn main_name(mut self, name: String) -> Self {
+        self.chunk.main.name = name;
+        self
+    }
+
+    /// Set optimization level
+    pub fn optimization_level(mut self, level: u8) -> Self {
+        self.chunk.metadata.optimization_level = level;
+        self
+    }
+
+    /// Enable/disable debug info
+    pub fn debug_info(mut self, enabled: bool) -> Self {
+        self.chunk.metadata.has_debug_info = enabled;
+        self
+    }
+
+    /// Build the chunk
+    pub fn build(self) -> Chunk {
+        self.chunk
+    }
+}
+
+impl Default for ChunkBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -865,5 +1206,61 @@ mod tests {
 
         let jump = Instruction::Jump { offset: -5 };
         assert_eq!(format!("{}", jump), "JUMP -5");
+    }
+
+    #[test]
+    fn test_function_proto() {
+        let mut proto = FunctionProto::new("test".to_string(), 2);
+
+        assert_eq!(proto.param_count, 2);
+        assert_eq!(proto.register_count, 2);
+
+        // Add instruction
+        let idx = proto.add_instruction(
+            Instruction::Add {
+                dest: 2,
+                lhs: 0,
+                rhs: 1,
+            },
+            1,
+        );
+        assert_eq!(idx, 0);
+        assert_eq!(proto.instructions.len(), 1);
+
+        // Add constant
+        let const_idx = proto.add_constant(Constant::Integer(42));
+        assert_eq!(const_idx, 0);
+
+        // Adding same constant returns same index
+        let const_idx2 = proto.add_constant(Constant::Integer(42));
+        assert_eq!(const_idx2, 0);
+        assert_eq!(proto.constants.len(), 1);
+    }
+
+    #[test]
+    fn test_chunk_builder() {
+        let chunk = ChunkBuilder::new()
+            .source_file("test.veld".to_string())
+            .main_name("main".to_string())
+            .optimization_level(2)
+            .build();
+
+        assert_eq!(chunk.source_file, "test.veld");
+        assert_eq!(chunk.main.name, "main");
+        assert_eq!(chunk.metadata.optimization_level, 2);
+    }
+
+    #[test]
+    fn test_constant_deduplication() {
+        let mut proto = FunctionProto::new("test".to_string(), 0);
+
+        let idx1 = proto.add_constant(Constant::String("hello".to_string()));
+        let idx2 = proto.add_constant(Constant::Integer(42));
+        let idx3 = proto.add_constant(Constant::String("hello".to_string()));
+
+        assert_eq!(idx1, 0);
+        assert_eq!(idx2, 1);
+        assert_eq!(idx3, 0); // Deduplicated!
+        assert_eq!(proto.constants.len(), 2);
     }
 }
