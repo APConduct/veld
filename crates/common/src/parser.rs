@@ -2612,12 +2612,12 @@ impl Parser {
         }
 
         // Look ahead to find an assignment operator
-        let mut i = self.current;
+        let mut _i = self.current;
 
         // Handle property access like self.data = value or obj.field = value
         // and array indexing like array[index] = value
-        match &self.tokens[i] {
-            Token::Identifier(_) | Token::SelfToken(_) => self.check_identifier_assignment(i),
+        match &self.tokens[_i] {
+            Token::Identifier(_) | Token::SelfToken(_) => self.check_identifier_assignment(_i),
             _ => false,
         }
     }
