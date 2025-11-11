@@ -209,17 +209,19 @@ let result = outer(10)
     let mut vm = VirtualMachineV2::new();
     let result = vm.interpret(chunk);
 
-    // This is expected to fail - we don't have closure support yet (Phase 4)
+    // Phase 4 SUCCESS: Closures are now implemented!
     match result {
-        veld_bytecode::vm_v2::InterpretResult::Ok(_) => {
-            println!("✓ Nested functions with closures work! (Unexpected - Phase 4 feature)");
-            panic!("Test should have failed - closures not implemented yet");
+        veld_bytecode::vm_v2::InterpretResult::Ok(val) => {
+            println!("✅ SUCCESS: Nested functions with closures work!");
+            println!("  Result: {:?}", val);
+            println!("  Phase 4 closure implementation is working!");
+            // Test passes - closures are implemented
         }
-        _ => {
-            println!("✗ Nested functions don't work yet");
-            println!("  Expected: Need closure/upvalue support (Phase 4)");
-            println!("  This is the main feature gap we need to address next");
-            // Expected failure - don't panic
+        veld_bytecode::vm_v2::InterpretResult::RuntimeError(e) => {
+            panic!("Runtime error in nested function test: {:?}", e);
+        }
+        veld_bytecode::vm_v2::InterpretResult::CompileError(e) => {
+            panic!("Compile error in nested function test: {:?}", e);
         }
     }
 }

@@ -32,7 +32,9 @@ use veld_common::ast::{
     AST, Argument, BinaryOperator, Expr, Literal, MatchArm, MatchPattern, Statement,
     TypeAnnotation, UnaryOperator, VarKind,
 };
-use veld_common::bytecode_v2::{Chunk, ChunkBuilder, Constant, FunctionProto};
+use veld_common::bytecode_v2::{
+    Chunk, ChunkBuilder, Constant, FunctionProto, UpvalueInfo as BytecodeUpvalueInfo,
+};
 use veld_error::{Result, VeldError};
 
 use crate::register_alloc::{Reg, RegisterAllocator};
@@ -62,6 +64,15 @@ pub struct RegisterCompiler {
 
     /// Compilation options
     options: CompilerOptions,
+
+    /// Upvalue tracking for closures
+    upvalues: Vec<CompilerUpvalueInfo>,
+
+    /// Parent compiler (for nested function compilation)
+    parent: Option<Box<RegisterCompiler>>,
+
+    /// Function depth (0 = top level, 1 = first function, etc.)
+    function_depth: usize,
 }
 
 /// Variable information
@@ -70,6 +81,23 @@ struct VarInfo {
     register: Reg,
     is_mutable: bool,
     depth: usize,
+    /// If this variable is captured by a closure
+    is_captured: bool,
+}
+
+/// Upvalue information for closures (compiler-side tracking)
+#[derive(Debug, Clone)]
+struct CompilerUpvalueInfo {
+    /// The name of the captured variable
+    name: String,
+    /// Register index in the enclosing function
+    register: Reg,
+    /// Is this upvalue itself from an enclosing function's upvalue?
+    is_upvalue: bool,
+    /// Index in the parent's upvalue list (if is_upvalue = true)
+    parent_upvalue_index: Option<usize>,
+    /// Is the captured variable mutable?
+    is_mutable: bool,
 }
 
 /// Scope tracking for variable shadowing
@@ -143,6 +171,9 @@ impl RegisterCompiler {
             loop_stack: Vec::new(),
             current_line: 1,
             options,
+            upvalues: Vec::new(),
+            parent: None,
+            function_depth: 0,
         }
     }
 
@@ -316,6 +347,7 @@ impl RegisterCompiler {
             register: var_reg,
             is_mutable,
             depth: self.scope_depth,
+            is_captured: false,
         };
 
         // Save the old variable if we're shadowing
@@ -331,36 +363,60 @@ impl RegisterCompiler {
 
     /// Compile a simple assignment (variable = value)
     fn compile_simple_assignment(&mut self, name: &str, value: &Expr) -> Result<()> {
-        let var_info = self
-            .variables
-            .get(name)
-            .ok_or_else(|| VeldError::CompileError {
-                message: format!("Undefined variable: {}", name),
-                line: Some(self.current_line as usize),
-                column: None,
-            })?
-            .clone();
+        // Check if it's a local variable
+        if let Some(var_info) = self.variables.get(name).cloned() {
+            if !var_info.is_mutable {
+                return Err(VeldError::CompileError {
+                    message: format!("Cannot assign to immutable variable: {}", name),
+                    line: Some(self.current_line as usize),
+                    column: None,
+                });
+            }
 
-        if !var_info.is_mutable {
-            return Err(VeldError::CompileError {
-                message: format!("Cannot assign to immutable variable: {}", name),
-                line: Some(self.current_line as usize),
-                column: None,
-            });
+            let result = self.compile_expr_to_reg(value)?;
+
+            // Move to variable's register
+            if result.register != var_info.register {
+                self.chunk.move_reg(var_info.register, result.register);
+            }
+
+            if result.is_temp {
+                self.free_temp(result.register);
+            }
+
+            return Ok(());
         }
 
-        let result = self.compile_expr_to_reg(value)?;
+        // Check if it's an upvalue
+        if let Some(upvalue_idx) = self.find_upvalue(name) {
+            let upvalue_info = &self.upvalues[upvalue_idx];
 
-        // Move to variable's register
-        if result.register != var_info.register {
-            self.chunk.move_reg(var_info.register, result.register);
+            if !upvalue_info.is_mutable {
+                return Err(VeldError::CompileError {
+                    message: format!("Cannot assign to immutable upvalue: {}", name),
+                    line: Some(self.current_line as usize),
+                    column: None,
+                });
+            }
+
+            let result = self.compile_expr_to_reg(value)?;
+
+            // Set the upvalue
+            self.chunk.set_upvalue(upvalue_idx as u8, result.register);
+
+            if result.is_temp {
+                self.free_temp(result.register);
+            }
+
+            return Ok(());
         }
 
-        if result.is_temp {
-            self.free_temp(result.register);
-        }
-
-        Ok(())
+        // Variable not found
+        Err(VeldError::CompileError {
+            message: format!("Undefined variable: {}", name),
+            line: Some(self.current_line as usize),
+            column: None,
+        })
     }
 
     /// Compile a property assignment (obj.field = value or obj[idx] = value)
@@ -543,18 +599,26 @@ impl RegisterCompiler {
 
     /// Compile an identifier (variable access)
     fn compile_identifier(&mut self, name: &str) -> Result<ExprResult> {
-        let var_info = self
-            .variables
-            .get(name)
-            .ok_or_else(|| VeldError::CompileError {
-                message: format!("Undefined variable: {}", name),
-                line: Some(self.current_line as usize),
-                column: None,
-            })?
-            .clone();
+        // First check if it's a local variable
+        if let Some(var_info) = self.variables.get(name) {
+            // Variable is already in a register, return it (not a temp)
+            return Ok(ExprResult::var(var_info.register));
+        }
 
-        // Variable is already in a register, return it (not a temp)
-        Ok(ExprResult::var(var_info.register))
+        // Check if it's an upvalue (captured from parent scope)
+        if let Some(upvalue_idx) = self.find_upvalue(name) {
+            // Allocate a temp register for the upvalue
+            let dest = self.allocate_temp()?;
+            self.chunk.get_upvalue(dest, upvalue_idx as u8);
+            return Ok(ExprResult::temp(dest));
+        }
+
+        // Variable not found
+        Err(VeldError::CompileError {
+            message: format!("Undefined variable: {}", name),
+            line: Some(self.current_line as usize),
+            column: None,
+        })
     }
 
     /// Compile a binary operation
@@ -849,6 +913,7 @@ impl RegisterCompiler {
                     register: i as Reg,
                     is_mutable: false,
                     depth: 0,
+                    is_captured: false,
                 },
             );
         }
@@ -891,9 +956,21 @@ impl RegisterCompiler {
         params: &[(String, TypeAnnotation)],
         body: &[Statement],
     ) -> Result<()> {
+        // Analyze captures before creating the function compiler
+        let captures = self.analyze_captures(body, &self.variables);
+
+        // Mark captured variables (need to do this separately to avoid borrow issues)
+        let capture_names: Vec<String> = captures.iter().map(|c| c.name.clone()).collect();
+        for name in capture_names {
+            if let Some(var) = self.variables.get_mut(&name) {
+                var.is_captured = true;
+            }
+        }
+
         // Create a new compiler for the function body
         let mut func_compiler = RegisterCompiler::with_options(self.options.clone());
         func_compiler.allocator = RegisterAllocator::with_params(params.len() as u8);
+        func_compiler.function_depth = self.function_depth + 1;
 
         // Register parameter variables
         for (i, (param_name, _)) in params.iter().enumerate() {
@@ -903,6 +980,23 @@ impl RegisterCompiler {
                     register: i as Reg,
                     is_mutable: false,
                     depth: 0,
+                    is_captured: false,
+                },
+            );
+        }
+
+        // Set up upvalues in the nested compiler
+        for capture in &captures {
+            func_compiler.upvalues.push(capture.clone());
+            // Also add the upvalue as a variable in the function scope
+            // so nested functions can see it
+            func_compiler.variables.insert(
+                capture.name.clone(),
+                VarInfo {
+                    register: capture.register,
+                    is_mutable: capture.is_mutable,
+                    depth: 0,
+                    is_captured: false,
                 },
             );
         }
@@ -923,12 +1017,22 @@ impl RegisterCompiler {
 
         let func_chunk = func_compiler.chunk.build();
 
-        // Create function proto
+        // Create function proto with upvalue count
         let mut proto = FunctionProto::new(name.to_string(), params.len() as u8);
         proto.instructions = func_chunk.main.instructions;
         proto.constants = func_chunk.main.constants;
         proto.line_info = func_chunk.main.line_info;
         proto.register_count = func_chunk.main.register_count;
+
+        // Convert compiler upvalue info to bytecode upvalue info
+        proto.upvalues = captures
+            .iter()
+            .map(|c| BytecodeUpvalueInfo {
+                register: c.register,
+                is_local: !c.is_upvalue,
+                name: c.name.clone(),
+            })
+            .collect();
 
         // Add as constant
         let proto_const = self.chunk.add_constant(Constant::Function(Box::new(proto)));
@@ -943,8 +1047,23 @@ impl RegisterCompiler {
                 column: None,
             })?;
 
-        // Create closure
-        self.chunk.closure(func_reg, proto_const);
+        // Create closure with captured upvalues
+        if captures.is_empty() {
+            // No upvalues, simple closure
+            self.chunk.closure(func_reg, proto_const);
+        } else {
+            // Emit closure with upvalue setup
+            self.chunk.closure(func_reg, proto_const);
+
+            // For each captured variable, we need to set up the upvalue
+            // This is done by the VM when it executes the Closure instruction
+            // The VM will look at the upvalue_count in the FunctionProto
+            // and capture the appropriate registers/upvalues from the parent frame
+
+            // NOTE: The actual upvalue capture happens at runtime in the VM
+            // We just need to ensure the captures are tracked and the proto
+            // knows how many upvalues to expect
+        }
 
         // Track function variable
         self.variables.insert(
@@ -953,10 +1072,230 @@ impl RegisterCompiler {
                 register: func_reg,
                 is_mutable: false,
                 depth: self.scope_depth,
+                is_captured: false,
             },
         );
 
         Ok(())
+    }
+
+    /// Resolve an upvalue by name
+    /// Returns the index in the upvalue list if found
+    fn resolve_upvalue(&mut self, name: &str) -> Option<usize> {
+        // Check if we already have this upvalue
+        if let Some(idx) = self.upvalues.iter().position(|u| u.name == name) {
+            return Some(idx);
+        }
+
+        // If no parent, this is not an upvalue
+        if self.parent.is_none() {
+            return None;
+        }
+
+        // Check if it's a local in the parent
+        // For now, we'll use a simpler approach and check at compile time
+        None
+    }
+
+    /// Find an upvalue index for a variable name
+    fn find_upvalue(&self, name: &str) -> Option<usize> {
+        self.upvalues.iter().position(|u| u.name == name)
+    }
+
+    /// Add an upvalue to the closure
+    fn add_upvalue(
+        &mut self,
+        name: String,
+        register: Reg,
+        is_mutable: bool,
+        is_upvalue: bool,
+        parent_upvalue_index: Option<usize>,
+    ) -> usize {
+        // Check if we already have this upvalue
+        if let Some(idx) = self.upvalues.iter().position(|u| u.name == name) {
+            return idx;
+        }
+
+        // Add new upvalue
+        let idx = self.upvalues.len();
+        self.upvalues.push(CompilerUpvalueInfo {
+            name,
+            register,
+            is_upvalue,
+            parent_upvalue_index,
+            is_mutable,
+        });
+        idx
+    }
+
+    /// Analyze a function body to determine which variables are captured
+    fn analyze_captures(
+        &self,
+        body: &[Statement],
+        parent_vars: &HashMap<String, VarInfo>,
+    ) -> Vec<CompilerUpvalueInfo> {
+        let mut captures = Vec::new();
+        self.find_captured_vars_in_statements(body, parent_vars, &mut captures);
+        captures
+    }
+
+    /// Recursively find captured variables in statements
+    fn find_captured_vars_in_statements(
+        &self,
+        statements: &[Statement],
+        parent_vars: &HashMap<String, VarInfo>,
+        captures: &mut Vec<CompilerUpvalueInfo>,
+    ) {
+        for stmt in statements {
+            self.find_captured_vars_in_statement(stmt, parent_vars, captures);
+        }
+    }
+
+    /// Find captured variables in a single statement
+    fn find_captured_vars_in_statement(
+        &self,
+        statement: &Statement,
+        parent_vars: &HashMap<String, VarInfo>,
+        captures: &mut Vec<CompilerUpvalueInfo>,
+    ) {
+        match statement {
+            Statement::VariableDeclaration { value, .. } => {
+                self.find_captured_vars_in_expr(value, parent_vars, captures);
+            }
+            Statement::FunctionDeclaration { body, .. } => {
+                // Nested function - analyze its body too
+                self.find_captured_vars_in_statements(body, parent_vars, captures);
+            }
+            Statement::ExprStatement(expr) => {
+                self.find_captured_vars_in_expr(expr, parent_vars, captures);
+            }
+            Statement::Assignment { value, .. } => {
+                self.find_captured_vars_in_expr(value, parent_vars, captures);
+            }
+            Statement::PropertyAssignment { target, value, .. } => {
+                self.find_captured_vars_in_expr(target, parent_vars, captures);
+                self.find_captured_vars_in_expr(value, parent_vars, captures);
+            }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                self.find_captured_vars_in_expr(condition, parent_vars, captures);
+                self.find_captured_vars_in_statements(then_branch, parent_vars, captures);
+                if let Some(else_stmts) = else_branch {
+                    self.find_captured_vars_in_statements(else_stmts, parent_vars, captures);
+                }
+            }
+            Statement::While { condition, body } => {
+                self.find_captured_vars_in_expr(condition, parent_vars, captures);
+                self.find_captured_vars_in_statements(body, parent_vars, captures);
+            }
+            Statement::For { iterable, body, .. } => {
+                self.find_captured_vars_in_expr(iterable, parent_vars, captures);
+                self.find_captured_vars_in_statements(body, parent_vars, captures);
+            }
+            Statement::Return(value) => {
+                if let Some(expr) = value {
+                    self.find_captured_vars_in_expr(expr, parent_vars, captures);
+                }
+            }
+            Statement::Match { value, arms } => {
+                self.find_captured_vars_in_expr(value, parent_vars, captures);
+                for arm in arms {
+                    self.find_captured_vars_in_expr(&arm.body, parent_vars, captures);
+                    if let Some(guard) = &arm.guard {
+                        self.find_captured_vars_in_expr(guard, parent_vars, captures);
+                    }
+                }
+            }
+            Statement::BlockScope { body } => {
+                self.find_captured_vars_in_statements(body, parent_vars, captures);
+            }
+            _ => {}
+        }
+    }
+
+    /// Find captured variables in an expression
+    fn find_captured_vars_in_expr(
+        &self,
+        expr: &Expr,
+        parent_vars: &HashMap<String, VarInfo>,
+        captures: &mut Vec<CompilerUpvalueInfo>,
+    ) {
+        match expr {
+            Expr::Identifier(name) => {
+                // Check if this variable is from the parent scope
+                if let Some(var_info) = parent_vars.get(name) {
+                    // Check if we already captured this variable
+                    if !captures.iter().any(|c| c.name == *name) {
+                        captures.push(CompilerUpvalueInfo {
+                            name: name.clone(),
+                            register: var_info.register,
+                            is_upvalue: false,
+                            parent_upvalue_index: None,
+                            is_mutable: var_info.is_mutable,
+                        });
+                    }
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.find_captured_vars_in_expr(left, parent_vars, captures);
+                self.find_captured_vars_in_expr(right, parent_vars, captures);
+            }
+            Expr::UnaryOp { operand, .. } => {
+                self.find_captured_vars_in_expr(operand, parent_vars, captures);
+            }
+            Expr::FunctionCall { name: _, arguments } => {
+                // Function name is not an expression in this variant
+                for arg in arguments {
+                    if let Argument::Positional(e) = arg {
+                        self.find_captured_vars_in_expr(e, parent_vars, captures);
+                    }
+                }
+            }
+            Expr::Lambda { body, .. } => {
+                // Lambda body is an expression, not statements
+                self.find_captured_vars_in_expr(body, parent_vars, captures);
+            }
+            Expr::BlockLambda { body, .. } => {
+                // BlockLambda body is statements
+                self.find_captured_vars_in_statements(body, parent_vars, captures);
+            }
+            Expr::IfExpression {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                self.find_captured_vars_in_expr(condition, parent_vars, captures);
+                self.find_captured_vars_in_expr(then_expr, parent_vars, captures);
+                if let Some(else_e) = else_expr {
+                    self.find_captured_vars_in_expr(else_e, parent_vars, captures);
+                }
+            }
+            Expr::BlockExpression {
+                statements,
+                final_expr,
+            } => {
+                self.find_captured_vars_in_statements(statements, parent_vars, captures);
+                if let Some(final_e) = final_expr {
+                    self.find_captured_vars_in_expr(final_e, parent_vars, captures);
+                }
+            }
+            Expr::ArrayLiteral(elements) => {
+                for elem in elements {
+                    self.find_captured_vars_in_expr(elem, parent_vars, captures);
+                }
+            }
+            Expr::IndexAccess { object, index } => {
+                self.find_captured_vars_in_expr(object, parent_vars, captures);
+                self.find_captured_vars_in_expr(index, parent_vars, captures);
+            }
+            Expr::PropertyAccess { object, .. } => {
+                self.find_captured_vars_in_expr(object, parent_vars, captures);
+            }
+            _ => {}
+        }
     }
 
     /// Compile if statement
@@ -1081,6 +1420,7 @@ impl RegisterCompiler {
                 register: loop_var,
                 is_mutable: false,
                 depth: self.scope_depth,
+                is_captured: false,
             },
         );
 
