@@ -886,20 +886,118 @@ impl Parser {
 
         // Handle 'fn' keyword if present
         if self.match_token(&[Token::Fn((0, 0))]) {
-            // Parse optional generic parameters after 'fn'
-            generic_params = self
-                .parse_generic_args_if_present()
-                .expect("Failed to parse generic parameters");
+            self.consume_explicit_fn_lambda(
+                &mut params,
+                &mut return_type_anno,
+                &mut is_block_demi,
+                _is_expr_demi,
+                &mut generic_params,
+            )?;
+        } else if self.check(&Token::Less(ZTUP)) {
+            self.consume_implicit_generic_lambda(
+                &mut params,
+                &mut return_type_anno,
+                &mut generic_params,
+            )?;
+        } else {
+            // Handle parameters without 'fn' keyword or generics
+            if self.check(&Token::LParen(ZTUP)) {
+                self.consume_lambda_parameters(&mut params)?;
+            } else {
+                // Single parameter without parentheses: x =>
+                let param_name = self.consume_identifier("Expected parameter name")?;
+                params.push((param_name, None));
+            }
+        }
 
-            tracing::debug!(
-                "After parsing generic params, current token: {:?}, generic_params.len(): {}",
-                self.peek(),
-                generic_params.len()
-            );
+        // Handle different lambda body syntaxes
+        if is_block_demi {
+            // fn() body end syntax (no =>)
+            return self.parse_block_demi_lambda(params, return_type_anno, generic_params, ctx);
+        } else {
+            self.parse_lambda_expression_body(ctx, start, params, return_type_anno, generic_params)
+        }
+    }
 
-            self.consume(&Token::LParen(ZTUP), "Expected '(' after 'fn'")?;
+    fn parse_lambda_expression_body(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+        start: Position,
+        params: Vec<(String, Option<TypeAnnotation>)>,
+        return_type_anno: Option<TypeAnnotation>,
+        generic_params: Vec<GenericArgument>,
+    ) -> std::result::Result<Expr, VeldError> {
+        // Expect fat arrow for other lambda forms
+        self.consume(
+            &Token::FatArrow(ZTUP),
+            "Expected '=>' after lambda parameters",
+        )?;
 
-            if !self.check(&Token::RParen(ZTUP)) {
+        // Check for block syntax with `do`
+        if self.match_token(&[Token::Do(ZTUP)]) {
+            return self.parse_block_lambda(params, return_type_anno, generic_params, ctx);
+        }
+
+        // Single expression lambda
+        let expr = self.expression(ctx)?;
+        let inferred_return_type =
+            return_type_anno.or_else(|| self.infer_lambda_return_type(&expr));
+
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
+
+        Ok(Expr::Lambda {
+            params,
+            body: Box::new(expr),
+            return_type: inferred_return_type,
+            generic_params,
+        })
+    }
+
+    fn consume_lambda_parameters(
+        &mut self,
+        params: &mut Vec<(String, Option<TypeAnnotation>)>,
+    ) -> Result<()> {
+        self.advance();
+        Ok(if self.match_token(&[Token::RParen(ZTUP)]) {
+            // Leave params empty
+        } else {
+            // Multiple parameters
+            loop {
+                let param_name = self.consume_identifier("Expected parameter name")?;
+                let type_annotation = if self.match_token(&[Token::Colon(ZTUP)]) {
+                    Some(self.parse_type()?)
+                } else {
+                    None
+                };
+                params.push((param_name, type_annotation)); // No type annotation for now
+
+                if !self.match_token(&[Token::Comma(ZTUP)]) {
+                    break;
+                }
+            }
+            self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
+        })
+    }
+
+    fn consume_implicit_generic_lambda(
+        &mut self,
+        params: &mut Vec<(String, Option<TypeAnnotation>)>,
+        return_type_anno: &mut Option<TypeAnnotation>,
+        generic_params: &mut Vec<GenericArgument>,
+    ) -> Result<()> {
+        *generic_params = self.parse_generic_args_if_present()?;
+        Ok(if self.check(&Token::LParen(ZTUP)) {
+            self.advance(); // Consume '('
+
+            // Check for empty parameter list: () =>
+            if self.match_token(&[Token::RParen(ZTUP)]) {
+                // Leave params empty
+            } else {
+                // Multiple parameters
                 loop {
                     let param_name = self.consume_identifier("Expected parameter name")?;
                     let type_annotation = if self.match_token(&[Token::Colon(ZTUP)]) {
@@ -913,126 +1011,63 @@ impl Parser {
                         break;
                     }
                 }
+                self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
             }
-            self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
 
             // Optional return type annotation
             if self.match_token(&[Token::Arrow(ZTUP)]) {
-                return_type_anno = Some(self.parse_type()?);
-            }
-
-            // Check if this is fn() => syntax or fn() body end syntax
-            if !self.check(&Token::FatArrow(ZTUP)) {
-                // This is fn() body end syntax (block demi lambda)
-                is_block_demi = true;
-            } else {
-                is_block_demi = false;
-                _is_expr_demi = true;
-            }
-        } else if self.check(&Token::Less(ZTUP)) {
-            // Handle generic lambda shorthand <T>(...) => syntax
-            generic_params = self.parse_generic_args_if_present()?;
-
-            // Now expect parameter list
-            if self.check(&Token::LParen(ZTUP)) {
-                self.advance(); // Consume '('
-
-                // Check for empty parameter list: () =>
-                if self.match_token(&[Token::RParen(ZTUP)]) {
-                    // Leave params empty
-                } else {
-                    // Multiple parameters
-                    loop {
-                        let param_name = self.consume_identifier("Expected parameter name")?;
-                        let type_annotation = if self.match_token(&[Token::Colon(ZTUP)]) {
-                            Some(self.parse_type()?)
-                        } else {
-                            None
-                        };
-                        params.push((param_name, type_annotation));
-
-                        if !self.match_token(&[Token::Comma(ZTUP)]) {
-                            break;
-                        }
-                    }
-                    self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
-                }
-
-                // Optional return type annotation
-                if self.match_token(&[Token::Arrow(ZTUP)]) {
-                    return_type_anno = Some(self.parse_type()?);
-                }
-            } else {
-                return Err(VeldError::ParserError(
-                    "Expected '(' after generic parameters in lambda".to_string(),
-                ));
+                *return_type_anno = Some(self.parse_type()?);
             }
         } else {
-            // Handle parameters without 'fn' keyword or generics
-            if self.check(&Token::LParen(ZTUP)) {
-                self.advance(); // Consume '('
+            return Err(VeldError::ParserError(
+                "Expected '(' after generic parameters in lambda".to_string(),
+            ));
+        })
+    }
 
-                // Check for empty parameter list: () =>
-                if self.match_token(&[Token::RParen(ZTUP)]) {
-                    // Leave params empty
-                } else {
-                    // Multiple parameters
-                    loop {
-                        let param_name = self.consume_identifier("Expected parameter name")?;
-                        let type_annotation = if self.match_token(&[Token::Colon(ZTUP)]) {
-                            Some(self.parse_type()?)
-                        } else {
-                            None
-                        };
-                        params.push((param_name, type_annotation)); // No type annotation for now
-
-                        if !self.match_token(&[Token::Comma(ZTUP)]) {
-                            break;
-                        }
-                    }
-                    self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
-                }
-            } else {
-                // Single parameter without parentheses: x =>
+    fn consume_explicit_fn_lambda(
+        &mut self,
+        params: &mut Vec<(String, Option<TypeAnnotation>)>,
+        return_type_anno: &mut Option<TypeAnnotation>,
+        is_block_demi: &mut bool,
+        mut _is_expr_demi: bool,
+        generic_params: &mut Vec<GenericArgument>,
+    ) -> Result<()> {
+        *generic_params = self
+            .parse_generic_args_if_present()
+            .expect("Failed to parse generic parameters");
+        tracing::debug!(
+            "After parsing generic params, current token: {:?}, generic_params.len(): {}",
+            self.peek(),
+            generic_params.len()
+        );
+        self.consume(&Token::LParen(ZTUP), "Expected '(' after 'fn'")?;
+        if !self.check(&Token::RParen(ZTUP)) {
+            loop {
                 let param_name = self.consume_identifier("Expected parameter name")?;
-                params.push((param_name, None));
+                let type_annotation = if self.match_token(&[Token::Colon(ZTUP)]) {
+                    Some(self.parse_type()?)
+                } else {
+                    None
+                };
+                params.push((param_name, type_annotation));
+
+                if !self.match_token(&[Token::Comma(ZTUP)]) {
+                    break;
+                }
             }
         }
-
-        // Handle different lambda body syntaxes
-        if is_block_demi {
-            // fn() body end syntax (no =>)
-            return self.parse_block_demi_lambda(params, return_type_anno, generic_params, ctx);
+        self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
+        if self.match_token(&[Token::Arrow(ZTUP)]) {
+            *return_type_anno = Some(self.parse_type()?);
+        }
+        Ok(if !self.check(&Token::FatArrow(ZTUP)) {
+            // This is fn() body end syntax (block demi lambda)
+            *is_block_demi = true;
         } else {
-            // Expect fat arrow for other lambda forms
-            self.consume(
-                &Token::FatArrow(ZTUP),
-                "Expected '=>' after lambda parameters",
-            )?;
-
-            // Check for block syntax with `do`
-            if self.match_token(&[Token::Do(ZTUP)]) {
-                return self.parse_block_lambda(params, return_type_anno, generic_params, ctx);
-            }
-
-            // Single expression lambda
-            let expr = self.expression(ctx)?;
-            let inferred_return_type =
-                return_type_anno.or_else(|| self.infer_lambda_return_type(&expr));
-
-            let end = self.get_current_position();
-
-            if let Some(ctx) = ctx {
-                ctx.add_span(NodeId::new(), start, end);
-            }
-
-            Ok(Expr::Lambda {
-                params,
-                body: Box::new(expr),
-                return_type: inferred_return_type,
-                generic_params,
-            })
-        }
+            *is_block_demi = false;
+            _is_expr_demi = true;
+        })
     }
 
     // Parse block demi lambda: fn() body end (no =>)
@@ -1167,55 +1202,9 @@ impl Parser {
 
         // Check for parentheses style
         if self.match_token(&[Token::LParen(ZTUP)]) {
-            if !self.check(&Token::RParen(ZTUP)) {
-                loop {
-                    let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
-                    let field_name = self.consume_identifier("Expected field name")?;
-                    self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
-                    let field_type = self.parse_type()?;
-                    fields.push((field_name, field_type, field_visibility));
-
-                    if !self.match_token(&[Token::Comma(ZTUP)]) {
-                        break;
-                    }
-                }
-            }
-
-            self.consume(&Token::RParen(ZTUP), "Expected ')' after struct fields")?;
-            self.consume(
-                &Token::Semicolon(ZTUP),
-                "Expected ';' after struct declaration",
-            )?;
+            self.parse_paren_style_struct_with_visibility(&mut fields)?;
         } else {
-            // Block style struct declaration
-            while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                if self.match_token(&[Token::Fn((0, 0))]) {
-                    methods.push(self.parse_struct_method(name.clone(), ctx)?);
-                } else if self.match_token(&[Token::Impl(ZTUP)]) {
-                    while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                        if self.match_token(&[Token::Fn((0, 0))]) {
-                            methods.push(self.parse_struct_method(name.clone(), ctx)?);
-                        } else {
-                            return Err(VeldError::ParserError(
-                                "Expected method definition".to_string(),
-                            ));
-                        }
-                    }
-                    break;
-                } else {
-                    // Parse field
-                    let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
-                    let field_name = self.consume_identifier("Expected field name")?;
-                    self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
-                    let field_type = self.parse_type()?;
-                    fields.push((field_name, field_type, field_visibility));
-
-                    // Optional comma after field
-                    self.match_token(&[Token::Comma(ZTUP)]);
-                }
-            }
-
-            self.consume(&Token::End(ZTUP), "Expected 'end' after struct definition")?;
+            self.parse_block_style_struct_with_visibility(ctx, &name, &mut fields, &mut methods)?;
         }
 
         let res = Ok(Statement::StructDeclaration {
@@ -1240,6 +1229,68 @@ impl Parser {
         }
 
         res
+    }
+
+    fn parse_block_style_struct_with_visibility(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+        name: &String,
+        fields: &mut Vec<(String, TypeAnnotation, bool)>,
+        methods: &mut Vec<StructMethod>,
+    ) -> Result<()> {
+        while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+            if self.match_token(&[Token::Fn((0, 0))]) {
+                methods.push(self.parse_struct_method(name.clone(), ctx)?);
+            } else if self.match_token(&[Token::Impl(ZTUP)]) {
+                while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+                    if self.match_token(&[Token::Fn((0, 0))]) {
+                        methods.push(self.parse_struct_method(name.clone(), ctx)?);
+                    } else {
+                        return Err(VeldError::ParserError(
+                            "Expected method definition".to_string(),
+                        ));
+                    }
+                }
+                break;
+            } else {
+                // Parse field
+                let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
+                let field_name = self.consume_identifier("Expected field name")?;
+                self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
+                let field_type = self.parse_type()?;
+                fields.push((field_name, field_type, field_visibility));
+
+                // Optional comma after field
+                self.match_token(&[Token::Comma(ZTUP)]);
+            }
+        }
+        self.consume(&Token::End(ZTUP), "Expected 'end' after struct definition")?;
+        Ok(())
+    }
+
+    fn parse_paren_style_struct_with_visibility(
+        &mut self,
+        fields: &mut Vec<(String, TypeAnnotation, bool)>,
+    ) -> Result<()> {
+        if !self.check(&Token::RParen(ZTUP)) {
+            loop {
+                let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
+                let field_name = self.consume_identifier("Expected field name")?;
+                self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
+                let field_type = self.parse_type()?;
+                fields.push((field_name, field_type, field_visibility));
+
+                if !self.match_token(&[Token::Comma(ZTUP)]) {
+                    break;
+                }
+            }
+        }
+        self.consume(&Token::RParen(ZTUP), "Expected ')' after struct fields")?;
+        self.consume(
+            &Token::Semicolon(ZTUP),
+            "Expected ';' after struct declaration",
+        )?;
+        Ok(())
     }
 
     fn function_declaration(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Statement> {
@@ -1320,20 +1371,6 @@ impl Parser {
         result
     }
 
-    // fn block_scope_statement(&mut self) -> Result<Statement> {
-    //     let _span = tracing::span!(tracing::Level::TRACE, "block_scope_statement");
-    //     let _span = _span.enter();
-
-    //     let mut body = Vec::new();
-    //     while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-    //         body.push(self.statement()?);
-    //     }
-
-    //     self.consume(&Token::End(ZTUP), "Expected 'end' after block scope")?;
-
-    //     Ok(Statement::BlockScope { body })
-    // }
-
     fn check_statement_start(&self) -> bool {
         self.check(&Token::If(ZTUP))
             || self.check(&Token::While(ZTUP))
@@ -1380,57 +1417,9 @@ impl Parser {
 
         // Check for parentheses style
         if self.match_token(&[Token::LParen(ZTUP)]) {
-            if !self.check(&Token::RParen(ZTUP)) {
-                loop {
-                    // Check for pub keyword before field name
-                    let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
-                    let field_name = self.consume_identifier("Expected field name")?;
-                    self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
-                    let field_type = self.parse_type()?;
-                    // Store visibility along with field name and type
-                    fields.push((field_name, field_type, field_visibility));
-
-                    if !self.match_token(&[Token::Comma(ZTUP)]) {
-                        break;
-                    }
-                }
-            }
-
-            self.consume(&Token::RParen(ZTUP), "Expected ')' after struct fields")?;
-            self.consume(
-                &Token::Semicolon(ZTUP),
-                "Expected ';' after struct declaration",
-            )?;
+            self.parse_paren_style_struct(&mut fields)?;
         } else {
-            // Block style struct declaration
-            while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                if self.match_token(&[Token::Fn((0, 0))]) {
-                    methods.push(self.parse_struct_method(name.clone(), ctx)?);
-                } else if self.match_token(&[Token::Impl(ZTUP)]) {
-                    while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                        if self.match_token(&[Token::Fn((0, 0))]) {
-                            methods.push(self.parse_struct_method(name.clone(), ctx)?);
-                        } else {
-                            return Err(VeldError::ParserError(
-                                "Expected method definition".to_string(),
-                            ));
-                        }
-                    }
-                    break;
-                } else {
-                    // Parse field
-                    let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
-                    let field_name = self.consume_identifier("Expected field name")?;
-                    self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
-                    let field_type = self.parse_type()?;
-                    fields.push((field_name, field_type, field_visibility));
-
-                    // Optional comma after field
-                    self.match_token(&[Token::Comma(ZTUP)]);
-                }
-            }
-
-            self.consume(&Token::End(ZTUP), "Expected 'end' after struct definition")?;
+            self.parse_block_style_struct(ctx, &name, &mut fields, &mut methods)?;
         }
 
         let res = Ok(Statement::StructDeclaration {
@@ -1455,6 +1444,70 @@ impl Parser {
         }
 
         res
+    }
+
+    fn parse_block_style_struct(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+        name: &String,
+        fields: &mut Vec<(String, TypeAnnotation, bool)>,
+        methods: &mut Vec<StructMethod>,
+    ) -> Result<()> {
+        while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+            if self.match_token(&[Token::Fn((0, 0))]) {
+                methods.push(self.parse_struct_method(name.clone(), ctx)?);
+            } else if self.match_token(&[Token::Impl(ZTUP)]) {
+                while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+                    if self.match_token(&[Token::Fn((0, 0))]) {
+                        methods.push(self.parse_struct_method(name.clone(), ctx)?);
+                    } else {
+                        return Err(VeldError::ParserError(
+                            "Expected method definition".to_string(),
+                        ));
+                    }
+                }
+                break;
+            } else {
+                // Parse field
+                let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
+                let field_name = self.consume_identifier("Expected field name")?;
+                self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
+                let field_type = self.parse_type()?;
+                fields.push((field_name, field_type, field_visibility));
+
+                // Optional comma after field
+                self.match_token(&[Token::Comma(ZTUP)]);
+            }
+        }
+        self.consume(&Token::End(ZTUP), "Expected 'end' after struct definition")?;
+        Ok(())
+    }
+
+    fn parse_paren_style_struct(
+        &mut self,
+        fields: &mut Vec<(String, TypeAnnotation, bool)>,
+    ) -> Result<()> {
+        if !self.check(&Token::RParen(ZTUP)) {
+            loop {
+                // Check for pub keyword before field name
+                let field_visibility = self.match_token(&[Token::Pub(ZTUP)]);
+                let field_name = self.consume_identifier("Expected field name")?;
+                self.consume(&Token::Colon(ZTUP), "Expected ':' after field name")?;
+                let field_type = self.parse_type()?;
+                // Store visibility along with field name and type
+                fields.push((field_name, field_type, field_visibility));
+
+                if !self.match_token(&[Token::Comma(ZTUP)]) {
+                    break;
+                }
+            }
+        }
+        self.consume(&Token::RParen(ZTUP), "Expected ')' after struct fields")?;
+        self.consume(
+            &Token::Semicolon(ZTUP),
+            "Expected ';' after struct declaration",
+        )?;
+        Ok(())
     }
 
     fn parse_struct_method(
@@ -1682,61 +1735,57 @@ impl Parser {
 
         // Check if there are type arguments in angle brackets
         if self.match_token(&[Token::Less(ZTUP)]) {
-            let mut type_args = Vec::new();
-
-            // Keep parsing type arguments until we reach the closing '>'
-            if !self.check(&Token::Greater(ZTUP)) {
-                loop {
-                    // Check for named arguments like "Output = T"
-                    if self.peek_next_token_is(&Token::Equals(ZTUP)) {
-                        let arg_name = self.consume_identifier("Expected argument name")?;
-                        self.consume(&Token::Equals(ZTUP), "Expected '=' after argument name")?;
-
-                        // Parse the argument's type
-                        let arg_type = self.parse_type()?;
-
-                        // Create a named type argument
-                        type_args.push(TypeAnnotation::Generic {
-                            base: arg_name,
-                            type_args: vec![arg_type],
-                        });
-                    } else {
-                        // Regular type argument
-                        type_args.push(self.parse_type()?);
-                    }
-
-                    if !self.match_token(&[Token::Comma(ZTUP)]) {
-                        break;
-                    }
-                }
-            }
-
-            self.consume(
-                &Token::Greater(ZTUP),
-                "Expected '>' after constraint type arguments",
-            )?;
-
-            // Return the complete constraint with its type arguments
-            Ok(TypeAnnotation::Generic {
-                base: base_name,
-                type_args,
-            })
+            self.parse_generic_type_args(&base_name)
         } else {
             // Simple constraint without type arguments
             Ok(TypeAnnotation::Basic(base_name))
         }
     }
 
-    // fn peek_next_is_identifier(&self) -> bool {
-    //     if self.current + 1 >= self.tokens.len() {
-    //         return false;
-    //     }
+    fn parse_generic_type_args(
+        &mut self,
+        base_name: &String,
+    ) -> std::result::Result<TypeAnnotation, VeldError> {
+        let mut type_args = Vec::new();
 
-    //     match &self.tokens[self.current + 1] {
-    //         Token::Identifier(_) => true,
-    //         _ => false,
-    //     }
-    // }
+        // Keep parsing type arguments until we reach the closing '>'
+        if !self.check(&Token::Greater(ZTUP)) {
+            loop {
+                // Check for named arguments like "Output = T"
+                if self.peek_next_token_is(&Token::Equals(ZTUP)) {
+                    let arg_name = self.consume_identifier("Expected argument name")?;
+                    self.consume(&Token::Equals(ZTUP), "Expected '=' after argument name")?;
+
+                    // Parse the argument's type
+                    let arg_type = self.parse_type()?;
+
+                    // Create a named type argument
+                    type_args.push(TypeAnnotation::Generic {
+                        base: arg_name,
+                        type_args: vec![arg_type],
+                    });
+                } else {
+                    // Regular type argument
+                    type_args.push(self.parse_type()?);
+                }
+
+                if !self.match_token(&[Token::Comma(ZTUP)]) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(
+            &Token::Greater(ZTUP),
+            "Expected '>' after constraint type arguments",
+        )?;
+
+        // Return the complete constraint with its type arguments
+        Ok(TypeAnnotation::Generic {
+            base: base_name.clone(),
+            type_args,
+        })
+    }
 
     fn parse_where_clause(&mut self) -> Result<Option<WhereClause>> {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_where_clause");
@@ -1860,37 +1909,13 @@ impl Parser {
 
                 // Check for trait/kind implementation
                 if self.match_token(&[Token::LeftArrow(ZTUP)]) {
-                    // Parse qualified identifier for kind name (e.g., std.ToString)
-                    let mut kind_name_str =
-                        self.consume_identifier("Expected kind name after '<-'")?;
-                    while self.match_token(&[Token::Dot(ZTUP)]) {
-                        let next_part = self.consume_identifier("Expected identifier after '.'")?;
-                        kind_name_str = format!("{}.{}", kind_name_str, next_part);
-                    }
-                    let kind_name = Some(kind_name_str);
-                    let generic_args = self.parse_generic_args_if_present()?;
-                    let where_clause = self.parse_where_clause()?;
-                    let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
-                    Ok(Statement::Implementation {
-                        type_name,
-                        kind_name,
-                        methods,
-                        generic_args,
-                        where_clause,
-                    })
+                    self.parse_kind_implementation_declaration(ctx, &type_name)?
                 } else if self.match_token(&[Token::For(ZTUP)]) {
-                    // impl KindName for TypeName
-                    let kind_name = Some(type_name.clone());
-                    let type_name = self.consume_identifier("Expected type name after 'for'")?;
-                    let where_clause = self.parse_where_clause()?;
-                    let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
-                    Ok(Statement::Implementation {
-                        type_name,
-                        kind_name,
-                        methods,
-                        generic_args: generic_params,
-                        where_clause,
-                    })
+                    self.parse_inherent_implementation_declaration(
+                        ctx,
+                        &generic_params,
+                        &type_name,
+                    )?
                 } else {
                     // Inherent impl block
                     let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
@@ -1938,6 +1963,48 @@ impl Parser {
         res
     }
 
+    fn parse_inherent_implementation_declaration(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+        generic_params: &Vec<GenericArgument>,
+        type_name: &String,
+    ) -> Result<std::result::Result<Statement, VeldError>> {
+        let kind_name = Some(type_name.clone());
+        let type_name = self.consume_identifier("Expected type name after 'for'")?;
+        let where_clause = self.parse_where_clause()?;
+        let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
+        Ok(Ok(Statement::Implementation {
+            type_name,
+            kind_name,
+            methods,
+            generic_args: generic_params.to_owned(),
+            where_clause,
+        }))
+    }
+
+    fn parse_kind_implementation_declaration(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+        type_name: &String,
+    ) -> Result<std::result::Result<Statement, VeldError>> {
+        let mut kind_name_str = self.consume_identifier("Expected kind name after '<-'")?;
+        while self.match_token(&[Token::Dot(ZTUP)]) {
+            let next_part = self.consume_identifier("Expected identifier after '.'")?;
+            kind_name_str = format!("{}.{}", kind_name_str, next_part);
+        }
+        let kind_name = Some(kind_name_str);
+        let generic_args = self.parse_generic_args_if_present()?;
+        let where_clause = self.parse_where_clause()?;
+        let methods = self.parse_implementation_methods(type_name.clone(), ctx)?;
+        Ok(Ok(Statement::Implementation {
+            type_name: type_name.to_owned(),
+            kind_name,
+            methods,
+            generic_args,
+            where_clause,
+        }))
+    }
+
     fn parse_impl_method(
         &mut self,
         type_name: String,
@@ -1955,6 +2022,136 @@ impl Parser {
 
         self.consume(&Token::LParen(ZTUP), "Expected '(' after method name")?;
 
+        let params = self.parse_impl_method_params(type_name)?;
+
+        self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
+
+        let return_type = if self.match_token(&[Token::Arrow(ZTUP)]) {
+            self.parse_type()?
+        } else {
+            TypeAnnotation::Unit
+        };
+
+        // Support '=>' for method bodies (single-expression or block)
+        let result = self.parse_impl_method_expression_body(
+            ctx,
+            method_name,
+            method_generic_params,
+            params,
+            return_type,
+        )?;
+
+        let end = self.get_current_position();
+
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), start, end);
+        }
+
+        result
+    }
+
+    fn parse_impl_method_expression_body(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+        method_name: String,
+        method_generic_params: Vec<GenericArgument>,
+        params: Vec<(String, TypeAnnotation)>,
+        return_type: TypeAnnotation,
+    ) -> Result<std::result::Result<MethodImpl, VeldError>> {
+        let result = if self.match_token(&[Token::FatArrow(ZTUP)]) {
+            // Support block body: => do ... end
+            if self.match_token(&[Token::Do(ZTUP)]) {
+                // Parse statements until 'end'
+                let statements = self.consume_statements(ctx)?;
+                self.consume(&Token::End(ZTUP), "Expected 'end' after block body")?;
+
+                Ok(MethodImpl {
+                    name: method_name,
+                    generic_params: method_generic_params.clone(),
+                    params,
+                    return_type,
+                    body: statements,
+                    is_public: false, // Will be set by caller
+                })
+            } else {
+                self.parse_single_expr_impl_method_body(
+                    ctx,
+                    method_name,
+                    method_generic_params,
+                    params,
+                    return_type,
+                )?
+            }
+        } else {
+            self.parse_immediate_inherent_impl_body(
+                ctx,
+                method_name,
+                method_generic_params,
+                params,
+                return_type,
+            )?
+        };
+        Ok(result)
+    }
+
+    fn parse_immediate_inherent_impl_body(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+        method_name: String,
+        method_generic_params: Vec<GenericArgument>,
+        params: Vec<(String, TypeAnnotation)>,
+        return_type: TypeAnnotation,
+    ) -> Result<std::result::Result<MethodImpl, VeldError>> {
+        let mut statements = Vec::new();
+        while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+            statements.push(self.statement(ctx)?);
+        }
+        self.consume(&Token::End(ZTUP), "Expected 'end' after method body")?;
+        Ok(Ok(MethodImpl {
+            name: method_name,
+            generic_params: method_generic_params,
+            params,
+            return_type,
+            body: statements,
+            is_public: false, // Will be set by caller
+        }))
+    }
+
+    fn parse_single_expr_impl_method_body(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+        method_name: String,
+        method_generic_params: Vec<GenericArgument>,
+        params: Vec<(String, TypeAnnotation)>,
+        return_type: TypeAnnotation,
+    ) -> Result<std::result::Result<MethodImpl, VeldError>> {
+        let expr = self.expression(ctx)?;
+        if self.match_token(&[Token::Semicolon(ZTUP)]) {}
+        Ok(Ok(MethodImpl {
+            name: method_name,
+            generic_params: method_generic_params,
+            params,
+            return_type,
+            body: vec![Statement::ExprStatement(expr)],
+            is_public: false, // Will be set by caller
+        }))
+    }
+
+    fn consume_statements(
+        &mut self,
+        ctx: &mut Option<&mut ParseContext<'_>>,
+    ) -> Result<Vec<Statement>> {
+        let mut statements = Vec::new();
+        while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+            statements.push(self.statement(ctx)?);
+        }
+        Ok(statements)
+    }
+
+    fn parse_impl_method_params(
+        &mut self,
+        type_name: String,
+    ) -> Result<Vec<(String, TypeAnnotation)>> {
         let mut params = Vec::new();
         if !self.check(&Token::RParen(ZTUP)) {
             loop {
@@ -1973,74 +2170,7 @@ impl Parser {
                 }
             }
         }
-
-        self.consume(&Token::RParen(ZTUP), "Expected ')' after parameters")?;
-
-        let return_type = if self.match_token(&[Token::Arrow(ZTUP)]) {
-            self.parse_type()?
-        } else {
-            TypeAnnotation::Unit
-        };
-
-        // Support '=>' for method bodies (single-expression or block)
-        let result = if self.match_token(&[Token::FatArrow(ZTUP)]) {
-            // Support block body: => do ... end
-            if self.match_token(&[Token::Do(ZTUP)]) {
-                // Parse statements until 'end'
-                let mut statements = Vec::new();
-                while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                    statements.push(self.statement(ctx)?);
-                }
-                self.consume(&Token::End(ZTUP), "Expected 'end' after block body")?;
-
-                Ok(MethodImpl {
-                    name: method_name,
-                    generic_params: method_generic_params.clone(),
-                    params,
-                    return_type,
-                    body: statements,
-                    is_public: false, // Will be set by caller
-                })
-            } else {
-                // Single-expression body: => expr
-                let expr = self.expression(ctx)?;
-                // Optional semicolon after expression
-                if self.match_token(&[Token::Semicolon(ZTUP)]) {}
-
-                Ok(MethodImpl {
-                    name: method_name,
-                    generic_params: method_generic_params.clone(),
-                    params,
-                    return_type,
-                    body: vec![Statement::ExprStatement(expr)],
-                    is_public: false, // Will be set by caller
-                })
-            }
-        } else {
-            // Allow method body to start immediately after signature (for inherent impls)
-            // Parse as a block until 'end'
-            let mut statements = Vec::new();
-            while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-                statements.push(self.statement(ctx)?);
-            }
-            self.consume(&Token::End(ZTUP), "Expected 'end' after method body")?;
-            Ok(MethodImpl {
-                name: method_name,
-                generic_params: method_generic_params,
-                params,
-                return_type,
-                body: statements,
-                is_public: false, // Will be set by caller
-            })
-        };
-
-        let end = self.get_current_position();
-
-        if let Some(ctx) = ctx {
-            ctx.add_span(NodeId::new(), start, end);
-        }
-
-        result
+        Ok(params)
     }
 
     fn parse_type(&mut self) -> Result<TypeAnnotation> {
@@ -2487,11 +2617,37 @@ impl Parser {
         // Handle property access like self.data = value or obj.field = value
         // and array indexing like array[index] = value
         match &self.tokens[i] {
-            Token::Identifier(_) | Token::SelfToken(_) => {
-                i += 1;
+            Token::Identifier(_) | Token::SelfToken(_) => self.check_identifier_assignment(i),
+            _ => false,
+        }
+    }
 
-                // Handle array indexing first (e.g., array[index])
-                while i < self.tokens.len() && matches!(self.tokens[i], Token::LBracket(ZTUP)) {
+    fn check_identifier_assignment(&self, mut i: usize) -> bool {
+        i += 1;
+
+        // Handle array indexing first (e.g., array[index])
+        while i < self.tokens.len() && matches!(self.tokens[i], Token::LBracket(ZTUP)) {
+            i += 1; // Skip [
+            // Skip through the index expression until we find ]
+            let mut bracket_depth = 1;
+            while i < self.tokens.len() && bracket_depth > 0 {
+                match self.tokens[i] {
+                    Token::LBracket(_) => bracket_depth += 1,
+                    Token::RBracket(_) => bracket_depth -= 1,
+                    _ => {}
+                }
+                i += 1;
+            }
+        }
+
+        // Then handle property access chain (e.g., obj.field.subfield)
+        while i + 1 < self.tokens.len() && matches!(self.tokens[i], Token::Dot(_)) {
+            i += 1; // Skip dot
+            if i < self.tokens.len() && matches!(self.tokens[i], Token::Identifier(_)) {
+                i += 1; // Skip identifier
+
+                // Handle array indexing after property access
+                while i < self.tokens.len() && matches!(self.tokens[i], Token::LBracket(_)) {
                     i += 1; // Skip [
                     // Skip through the index expression until we find ]
                     let mut bracket_depth = 1;
@@ -2504,48 +2660,23 @@ impl Parser {
                         i += 1;
                     }
                 }
-
-                // Then handle property access chain (e.g., obj.field.subfield)
-                while i + 1 < self.tokens.len() && matches!(self.tokens[i], Token::Dot(_)) {
-                    i += 1; // Skip dot
-                    if i < self.tokens.len() && matches!(self.tokens[i], Token::Identifier(_)) {
-                        i += 1; // Skip identifier
-
-                        // Handle array indexing after property access
-                        while i < self.tokens.len() && matches!(self.tokens[i], Token::LBracket(_))
-                        {
-                            i += 1; // Skip [
-                            // Skip through the index expression until we find ]
-                            let mut bracket_depth = 1;
-                            while i < self.tokens.len() && bracket_depth > 0 {
-                                match self.tokens[i] {
-                                    Token::LBracket(_) => bracket_depth += 1,
-                                    Token::RBracket(_) => bracket_depth -= 1,
-                                    _ => {}
-                                }
-                                i += 1;
-                            }
-                        }
-                    } else {
-                        return false; // Invalid property access
-                    }
-                }
-
-                // Check if next token is an assignment operator
-                if i < self.tokens.len() {
-                    matches!(
-                        self.tokens[i],
-                        Token::Equals(_)
-                            | Token::PlusEq(_)
-                            | Token::MinusEq(_)
-                            | Token::StarEq(_)
-                            | Token::SlashEq(_)
-                    )
-                } else {
-                    false
-                }
+            } else {
+                return false; // Invalid property access
             }
-            _ => false,
+        }
+
+        // Check if next token is an assignment operator
+        if i < self.tokens.len() {
+            matches!(
+                self.tokens[i],
+                Token::Equals(_)
+                    | Token::PlusEq(_)
+                    | Token::MinusEq(_)
+                    | Token::StarEq(_)
+                    | Token::SlashEq(_)
+            )
+        } else {
+            false
         }
     }
 
