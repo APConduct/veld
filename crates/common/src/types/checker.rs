@@ -1,5 +1,7 @@
 use tracing::Level;
 
+use crate::value::numeric::{FloatValue, IntegerValue, NumericValue};
+
 use super::super::ast::{
     Argument, BinaryOperator, Expr, GenericArgument, Literal, MatchPattern, MethodImpl, Statement,
     StructMethod, TypeAnnotation, UnaryOperator, VarKind,
@@ -929,12 +931,256 @@ impl TypeChecker {
             }
             Expr::BinaryOp {
                 left,
-                operator: _,
+                operator,
                 right,
             } => {
-                let _left_val = self.evaluate_const_expr(left)?;
-                let _right_val = self.evaluate_const_expr(right)?;
-                todo!("implement const binary operations")
+                let left_val = self.evaluate_const_expr(left)?;
+                let right_val = self.evaluate_const_expr(right)?;
+
+                // Evaluate the binary operation on constant values
+                use super::super::ast::BinaryOperator;
+                match operator {
+                    BinaryOperator::Add => match (left_val, right_val) {
+                        // Handle simple Value::Integer
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a + b)),
+                        // Handle simple Value::Float
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I8(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I8(b))),
+                        ) => {
+                            if let Some(result) = a.checked_add(b) {
+                                Ok(Value::Numeric(NumericValue::Integer(IntegerValue::I8(
+                                    result,
+                                ))))
+                            } else {
+                                Ok(Value::Numeric(NumericValue::Integer(IntegerValue::I16(
+                                    (a as i16) + (b as i16),
+                                ))))
+                            }
+                        }
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F32(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F32(b))),
+                        ) => {
+                            if a.is_nan() || b.is_nan() {
+                                Err(VeldError::TypeError("Cannot add NaN values".to_string()))
+                            } else if a.is_infinite() || b.is_infinite() {
+                                Err(VeldError::TypeError(
+                                    "Cannot add infinite values".to_string(),
+                                ))
+                            } else {
+                                Ok(Value::Numeric(NumericValue::Float(FloatValue::F32(a + b))))
+                            }
+                        }
+                        _ => Err(VeldError::TypeError(
+                            "Cannot add non-numeric constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::Subtract => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a - b)),
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a - b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => Ok(Value::Numeric(NumericValue::Integer(IntegerValue::I64(
+                            a - b,
+                        )))),
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Numeric(NumericValue::Float(FloatValue::F64(a - b)))),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot subtract non-numeric constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::Multiply => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a * b)),
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => Ok(Value::Numeric(NumericValue::Integer(IntegerValue::I64(
+                            a * b,
+                        )))),
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Numeric(NumericValue::Float(FloatValue::F64(a * b)))),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot multiply non-numeric constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::Divide => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => {
+                            if b == 0 {
+                                Err(VeldError::TypeError(
+                                    "Division by zero in constant expression".to_string(),
+                                ))
+                            } else {
+                                Ok(Value::Integer(a / b))
+                            }
+                        }
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a / b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => {
+                            if b == 0 {
+                                Err(VeldError::TypeError(
+                                    "Division by zero in constant expression".to_string(),
+                                ))
+                            } else {
+                                Ok(Value::Numeric(NumericValue::Integer(IntegerValue::I64(
+                                    a / b,
+                                ))))
+                            }
+                        }
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Numeric(NumericValue::Float(FloatValue::F64(a / b)))),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot divide non-numeric constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::Modulo => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => {
+                            if b == 0 {
+                                Err(VeldError::TypeError(
+                                    "Modulo by zero in constant expression".to_string(),
+                                ))
+                            } else {
+                                Ok(Value::Integer(a % b))
+                            }
+                        }
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => {
+                            if b == 0 {
+                                Err(VeldError::TypeError(
+                                    "Modulo by zero in constant expression".to_string(),
+                                ))
+                            } else {
+                                Ok(Value::Numeric(NumericValue::Integer(IntegerValue::I64(
+                                    a % b,
+                                ))))
+                            }
+                        }
+                        _ => Err(VeldError::TypeError(
+                            "Cannot modulo non-integer constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::EqualEqual => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Boolean(a == b)),
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a == b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => Ok(Value::Boolean(a == b)),
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Boolean(a == b)),
+                        (Value::Boolean(a), Value::Boolean(b)) => Ok(Value::Boolean(a == b)),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot compare incompatible constant types".to_string(),
+                        )),
+                    },
+                    BinaryOperator::NotEqual => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Boolean(a != b)),
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a != b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => Ok(Value::Boolean(a != b)),
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Boolean(a != b)),
+                        (Value::Boolean(a), Value::Boolean(b)) => Ok(Value::Boolean(a != b)),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot compare incompatible constant types".to_string(),
+                        )),
+                    },
+                    BinaryOperator::Less => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Boolean(a < b)),
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a < b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => Ok(Value::Boolean(a < b)),
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Boolean(a < b)),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot compare non-numeric constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::LessEq => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Boolean(a <= b)),
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a <= b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => Ok(Value::Boolean(a <= b)),
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Boolean(a <= b)),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot compare non-numeric constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::Greater => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Boolean(a > b)),
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a > b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => Ok(Value::Boolean(a > b)),
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Boolean(a > b)),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot compare non-numeric constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::GreaterEq => match (left_val, right_val) {
+                        (Value::Integer(a), Value::Integer(b)) => Ok(Value::Boolean(a >= b)),
+                        (Value::Float(a), Value::Float(b)) => Ok(Value::Boolean(a >= b)),
+                        (
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(a))),
+                            Value::Numeric(NumericValue::Integer(IntegerValue::I64(b))),
+                        ) => Ok(Value::Boolean(a >= b)),
+                        (
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(a))),
+                            Value::Numeric(NumericValue::Float(FloatValue::F64(b))),
+                        ) => Ok(Value::Boolean(a >= b)),
+                        _ => Err(VeldError::TypeError(
+                            "Cannot compare non-numeric constants".to_string(),
+                        )),
+                    },
+                    BinaryOperator::And => match (left_val, right_val) {
+                        (Value::Boolean(a), Value::Boolean(b)) => Ok(Value::Boolean(a && b)),
+                        _ => Err(VeldError::TypeError(
+                            "Logical AND requires boolean operands".to_string(),
+                        )),
+                    },
+                    BinaryOperator::Or => match (left_val, right_val) {
+                        (Value::Boolean(a), Value::Boolean(b)) => Ok(Value::Boolean(a || b)),
+                        _ => Err(VeldError::TypeError(
+                            "Logical OR requires boolean operands".to_string(),
+                        )),
+                    },
+                    _ => Err(VeldError::TypeError(format!(
+                        "Binary operator {:?} not supported in constant expressions",
+                        operator
+                    ))),
+                }
             }
             _ => Err(VeldError::TypeError(format!(
                 "Cannot evaluate constant expression for: {:?}",
@@ -1560,7 +1806,19 @@ impl TypeChecker {
                 fields,
                 type_args,
             } => self.infer_enum_variant_type(enum_name, variant_name, fields, type_args.as_ref()),
-            Expr::SelfReference { .. } => todo!("Self reference in expression"),
+            Expr::SelfReference => {
+                // In method contexts, 'self' should be bound in the environment
+                // Try to look it up; if not found, return a fresh type variable
+                match self.env.get("self") {
+                    Some(self_type) => Ok(self_type),
+                    None => {
+                        // 'self' not in scope - this might be an error in strict mode
+                        // For now, return a fresh type variable to avoid blocking compilation
+                        tracing::warn!("'self' reference encountered outside of method context");
+                        Ok(self.env.fresh_type_var())
+                    }
+                }
+            }
             Expr::TupleLiteral(elements) => {
                 // Infer the type of each element in the tuple
                 let element_types = elements
@@ -1592,8 +1850,26 @@ impl TypeChecker {
                     ))),
                 }
             }
-            Expr::MacroExpr { .. } => todo!("Macro expression type inference"),
-            Expr::MacroVar(_) => todo!("Macro variable type inference"),
+            Expr::MacroExpr { name, arguments } => {
+                // Macro expressions are expanded before type checking in most cases,
+                // but if we encounter one here, we try to infer its type based on context.
+                // For now, we'll type check the arguments and return a fresh type variable.
+                tracing::debug!("Type checking macro expression: {}", name);
+
+                // Type check all arguments
+                for arg in arguments {
+                    let _ = self.infer_expression_type(arg)?;
+                }
+
+                // Return a fresh type variable - the actual type depends on macro expansion
+                Ok(self.env.fresh_type_var())
+            }
+            Expr::MacroVar(var_name) => {
+                // Macro variables are placeholders that should be substituted during expansion.
+                // If we encounter one during type checking, treat it as a fresh type variable.
+                tracing::debug!("Type checking macro variable: ${}", var_name);
+                Ok(self.env.fresh_type_var())
+            }
             Expr::Call { callee, arguments } => {
                 // If callee is a PropertyAccess, and the object is a module, skip type checking (module function call)
                 if let Expr::PropertyAccess { object, property } = &**callee {
@@ -5644,7 +5920,13 @@ impl TypeChecker {
                         self.env
                             .add_constraint(impl_type.clone(), required_type.clone());
 
-                        todo!("Implement handling to substitute 'Self' with actual type");
+                        // Substitute 'Self' with the actual implementation type
+                        let substituted_impl_type = self.substitute_self_type(impl_type, type_name);
+                        let substituted_required_type =
+                            self.substitute_self_type(required_type, type_name);
+
+                        self.env
+                            .add_constraint(substituted_impl_type, substituted_required_type);
                     } else if !kind.default_impls.contains_key(method_name) {
                         return Err(VeldError::TypeError(format!(
                             "Kind '{}' requires method '{}' which is not implemented",
@@ -5760,6 +6042,52 @@ impl TypeChecker {
             (false, false, true) => Err(VeldError::TypeError(
                 "Invalid range: ..= requires an end value".to_string(),
             )),
+        }
+    }
+
+    /// Substitute occurrences of 'Self' type with the actual implementation type
+    fn substitute_self_type(&self, ty: &Type, impl_type_name: &str) -> Type {
+        match ty {
+            Type::TypeParam(name) if name == "Self" => {
+                // Replace 'Self' with the actual type being implemented
+                Type::Struct {
+                    name: impl_type_name.to_string(),
+                    fields: HashMap::new(),
+                }
+            }
+            Type::Function {
+                params,
+                return_type,
+            } => {
+                let substituted_params = params
+                    .iter()
+                    .map(|p| self.substitute_self_type(p, impl_type_name))
+                    .collect();
+                let substituted_return =
+                    Box::new(self.substitute_self_type(return_type, impl_type_name));
+                Type::Function {
+                    params: substituted_params,
+                    return_type: substituted_return,
+                }
+            }
+            Type::Array(elem_type) => Type::Array(Box::new(
+                self.substitute_self_type(elem_type, impl_type_name),
+            )),
+            Type::Tuple(types) => Type::Tuple(
+                types
+                    .iter()
+                    .map(|t| self.substitute_self_type(t, impl_type_name))
+                    .collect(),
+            ),
+            Type::Generic { base, type_args } => Type::Generic {
+                base: base.clone(),
+                type_args: type_args
+                    .iter()
+                    .map(|t| self.substitute_self_type(t, impl_type_name))
+                    .collect(),
+            },
+            // For other types, return as-is
+            _ => ty.clone(),
         }
     }
 }
