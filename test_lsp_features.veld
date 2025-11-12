@@ -1,0 +1,192 @@
+# Test file for LSP features
+# This file tests various language constructs to verify LSP capabilities
+
+# ============================================================================
+# FUNCTIONS - Test hover and go-to-definition
+# ============================================================================
+
+fn add(a, b)
+    a + b
+end
+
+fn multiply(x, y)
+    x * y
+end
+
+fn calculate(a, b, c)
+    let sum = add(a, b)
+    let product = multiply(sum, c)
+    product
+end
+
+# Test: Hover over 'add', 'multiply', 'calculate' should show type info
+# Test: Cmd+Click on 'add' in calculate should jump to definition
+
+# ============================================================================
+# VARIABLES - Test hover for types
+# ============================================================================
+
+let number = 42
+let string_value = "Hello, Veld!"
+let boolean_flag = true
+
+let mut counter = 0
+counter = counter + 1
+
+# Test: Hover over 'number' should show type (likely Integer)
+# Test: Hover over 'counter' should show it's mutable
+
+# ============================================================================
+# RECURSIVE FUNCTIONS - Test advanced features
+# ============================================================================
+
+fn factorial(n)
+    if n <= 1 then
+        1
+    else
+        n * factorial(n - 1)
+    end
+end
+
+fn fibonacci(n)
+    if n <= 1 then
+        n
+    else
+        fibonacci(n - 1) + fibonacci(n - 2)
+    end
+end
+
+# Test: Hover over 'factorial' should show function signature
+# Test: Recursive calls should be recognized
+
+# ============================================================================
+# CLOSURES - Test nested scope handling
+# ============================================================================
+
+fn make_adder(x)
+    fn adder(y)
+        x + y
+    end
+    adder
+end
+
+fn make_counter(start)
+    let mut count = start
+    fn increment()
+        count = count + 1
+        count
+    end
+    increment
+end
+
+# Test: Hover over 'make_adder' and 'adder'
+# Test: Go to definition works for nested functions
+
+# ============================================================================
+# CONDITIONALS - Test control flow
+# ============================================================================
+
+fn max(a, b)
+    if a > b then
+        a
+    else
+        b
+    end
+end
+
+fn sign(n)
+    if n > 0 then
+        1
+    else
+        if n < 0 then
+            -1
+        else
+            0
+        end
+    end
+end
+
+# Test: Hover should work in conditional branches
+
+# ============================================================================
+# COMPLEX EXPRESSIONS - Test expression analysis
+# ============================================================================
+
+let result1 = add(10, 20)
+let result2 = multiply(result1, 2)
+let result3 = calculate(5, 10, 3)
+
+let factorial_10 = factorial(10)
+let fib_10 = fibonacci(10)
+
+let add_five = make_adder(5)
+let sum = add_five(10)
+
+# Test: Hover over 'result1' should show type
+# Test: Hover over 'add' in expression should show function info
+# Test: Completion should suggest 'add', 'multiply', etc.
+
+# ============================================================================
+# ERROR TESTING - Test diagnostics
+# ============================================================================
+
+# Uncomment these to test error detection:
+# let undefined_var = some_undefined_function(1, 2)
+# let type_error = add("string", 123)
+
+# Test: Should show red squiggles for undefined identifiers
+# Test: Type errors should be detected
+
+# ============================================================================
+# USAGE EXAMPLES - Real-world scenarios
+# ============================================================================
+
+fn sum_range(n)
+    if n <= 0 then
+        0
+    else
+        n + sum_range(n - 1)
+    end
+end
+
+fn power(base, exp)
+    if exp <= 0 then
+        1
+    else
+        base * power(base, exp - 1)
+    end
+end
+
+fn gcd(a, b)
+    if b == 0 then
+        a
+    else
+        gcd(b, a % b)
+    end
+end
+
+# ============================================================================
+# COMPLETION TESTING - Type to test autocomplete
+# ============================================================================
+
+# Try typing these prefixes and see if completion suggests:
+# - "fa" should suggest "factorial"
+# - "fib" should suggest "fibonacci"
+# - "make_" should suggest "make_adder", "make_counter"
+# - "cal" should suggest "calculate"
+
+# ============================================================================
+# FINAL TESTS
+# ============================================================================
+
+let final_result = calculate(
+    add(5, 10),
+    multiply(2, 3),
+    sum_range(5)
+)
+
+# Test: Hover over each function call should show info
+# Test: Go to definition should work for nested calls
+# Test: Completion should work when typing inside expressions
+
+final_result
