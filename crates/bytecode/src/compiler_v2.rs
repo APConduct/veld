@@ -88,6 +88,8 @@ struct VarInfo {
     is_upvalue: bool,
     /// If this variable holds a type value (for enums/structs)
     is_type: bool,
+    /// If this variable should be accessed via LoadGlobal (for top-level recursive functions)
+    is_global_ref: bool,
 }
 
 /// Upvalue information for closures (compiler-side tracking)
@@ -401,6 +403,7 @@ impl RegisterCompiler {
             is_captured: false,
             is_upvalue: false,
             is_type: false,
+            is_global_ref: false,
         };
 
         // Save the old variable if we're shadowing
@@ -663,7 +666,14 @@ impl RegisterCompiler {
     fn compile_identifier(&mut self, name: &str) -> Result<ExprResult> {
         // First check if it's a local variable or upvalue
         if let Some(var_info) = self.variables.get(name) {
-            if var_info.is_upvalue {
+            if var_info.is_global_ref {
+                // This is a recursive self-reference to a top-level function
+                // Use LoadGlobal instead of upvalue to avoid circular dependency
+                let dest = self.allocate_temp()?;
+                let name_const = self.chunk.add_constant(Constant::String(name.to_string()));
+                self.chunk.load_global(dest, name_const);
+                return Ok(ExprResult::temp(dest));
+            } else if var_info.is_upvalue {
                 // This is an upvalue, need to use GetUpvalue instruction
                 if let Some(upvalue_idx) = self.find_upvalue(name) {
                     let dest = self.allocate_temp()?;
@@ -1032,6 +1042,7 @@ impl RegisterCompiler {
                     is_captured: false,
                     is_upvalue: false,
                     is_type: false,
+                    is_global_ref: false,
                 },
             );
         }
@@ -1084,8 +1095,34 @@ impl RegisterCompiler {
         params: &[(String, TypeAnnotation)],
         body: &[Statement],
     ) -> Result<()> {
+        // Allocate register for function variable BEFORE compiling body
+        // This allows recursive calls to reference the function
+        let func_reg = self
+            .allocator
+            .allocate_variable(name.to_string(), false)
+            .map_err(|e| VeldError::CompileError {
+                message: e,
+                line: Some(self.current_line as usize),
+                column: None,
+            })?;
+
+        // Track function variable before compiling body (for recursion)
+        self.variables.insert(
+            name.to_string(),
+            VarInfo {
+                register: func_reg,
+                is_mutable: false,
+                depth: self.scope_depth,
+                is_captured: false,
+                is_upvalue: false,
+                is_type: false,
+                is_global_ref: false,
+            },
+        );
+
         // Analyze captures before creating the function compiler
-        let captures = self.analyze_captures(body, &self.variables);
+        // Pass the function name so it can be excluded from captures (handled specially)
+        let captures = self.analyze_captures_for_function(body, &self.variables, name);
 
         // Mark captured variables (need to do this separately to avoid borrow issues)
         let capture_names: Vec<String> = captures.iter().map(|c| c.name.clone()).collect();
@@ -1111,6 +1148,7 @@ impl RegisterCompiler {
                     is_captured: false,
                     is_upvalue: false,
                     is_type: false,
+                    is_global_ref: false,
                 },
             );
         }
@@ -1129,6 +1167,25 @@ impl RegisterCompiler {
                     is_captured: false,
                     is_upvalue: true, // This is an upvalue, not a local variable
                     is_type: false,
+                    is_global_ref: false,
+                },
+            );
+        }
+
+        // For recursive functions: Add the function name to nested compiler's variables
+        // so it can reference itself.
+        if self.function_depth == 0 {
+            // Top-level function - use LoadGlobal for self-reference to avoid circular upvalue dependency
+            func_compiler.variables.insert(
+                name.to_string(),
+                VarInfo {
+                    register: 0, // Dummy register, will use LoadGlobal instead
+                    is_mutable: false,
+                    depth: 0,
+                    is_captured: false,
+                    is_upvalue: false,
+                    is_type: false,
+                    is_global_ref: true, // Mark as global reference
                 },
             );
         }
@@ -1207,7 +1264,9 @@ impl RegisterCompiler {
         proto.register_count = func_chunk.main.register_count;
 
         // Convert compiler upvalue info to bytecode upvalue info
-        proto.upvalues = captures
+        // Include both explicit captures and self-reference (if any)
+        proto.upvalues = func_compiler
+            .upvalues
             .iter()
             .map(|c| BytecodeUpvalueInfo {
                 register: c.register,
@@ -1219,17 +1278,8 @@ impl RegisterCompiler {
         // Add as constant
         let proto_const = self.chunk.add_constant(Constant::Function(Box::new(proto)));
 
-        // Allocate register for function variable
-        let func_reg = self
-            .allocator
-            .allocate_variable(name.to_string(), false)
-            .map_err(|e| VeldError::CompileError {
-                message: e,
-                line: Some(self.current_line as usize),
-                column: None,
-            })?;
-
-        // Create closure with captured upvalues
+        // func_reg was already allocated before compiling the body (for recursion support)
+        // Now emit the closure instruction to create the function at runtime
         if captures.is_empty() {
             // No upvalues, simple closure
             self.chunk.closure(func_reg, proto_const);
@@ -1247,18 +1297,13 @@ impl RegisterCompiler {
             // knows how many upvalues to expect
         }
 
-        // Track function variable
-        self.variables.insert(
-            name.to_string(),
-            VarInfo {
-                register: func_reg,
-                is_mutable: false,
-                depth: self.scope_depth,
-                is_captured: false,
-                is_upvalue: false,
-                is_type: false,
-            },
-        );
+        // Function variable already tracked (done before compiling body)
+
+        // For top-level functions, also store as global so recursive calls via LoadGlobal work
+        if self.function_depth == 0 {
+            let name_const = self.chunk.add_constant(Constant::String(name.to_string()));
+            self.chunk.store_global(name_const, func_reg);
+        }
 
         Ok(())
     }
@@ -1306,6 +1351,7 @@ impl RegisterCompiler {
                 is_captured: false,
                 is_upvalue: false,
                 is_type: true, // Mark as a type value
+                is_global_ref: false,
             },
         );
 
@@ -1364,6 +1410,7 @@ impl RegisterCompiler {
                 is_captured: false,
                 is_upvalue: false,
                 is_type: true, // Mark as a type value
+                is_global_ref: false,
             },
         );
 
@@ -1494,6 +1541,20 @@ impl RegisterCompiler {
         captures
     }
 
+    /// Analyze captures for a function declaration, excluding self-references
+    fn analyze_captures_for_function(
+        &self,
+        body: &[Statement],
+        parent_vars: &HashMap<String, VarInfo>,
+        function_name: &str,
+    ) -> Vec<CompilerUpvalueInfo> {
+        let mut captures = Vec::new();
+        self.find_captured_vars_in_statements(body, parent_vars, &mut captures);
+        // Remove self-reference from captures - handled specially for recursion
+        captures.retain(|c| c.name != function_name);
+        captures
+    }
+
     /// Recursively find captured variables in statements
     fn find_captured_vars_in_statements(
         &self,
@@ -1609,6 +1670,15 @@ impl RegisterCompiler {
             }
             Expr::FunctionCall { name: _, arguments } => {
                 // Function name is not an expression in this variant
+                for arg in arguments {
+                    if let Argument::Positional(e) = arg {
+                        self.find_captured_vars_in_expr(e, parent_vars, captures);
+                    }
+                }
+            }
+            Expr::Call { callee, arguments } => {
+                // Handle general call expression - callee can be any expression including Identifier
+                self.find_captured_vars_in_expr(callee, parent_vars, captures);
                 for arg in arguments {
                     if let Argument::Positional(e) = arg {
                         self.find_captured_vars_in_expr(e, parent_vars, captures);
@@ -1878,6 +1948,7 @@ impl RegisterCompiler {
                 is_captured: false,
                 is_upvalue: false,
                 is_type: false,
+                is_global_ref: false,
             },
         );
 
@@ -2178,6 +2249,7 @@ impl RegisterCompiler {
                             is_captured: false,
                             is_upvalue: false,
                             is_type: false,
+                            is_global_ref: false,
                         },
                     );
 
@@ -2255,6 +2327,7 @@ impl RegisterCompiler {
                                 is_captured: false,
                                 is_upvalue: false,
                                 is_type: false,
+                                is_global_ref: false,
                             },
                         );
 
@@ -2343,6 +2416,7 @@ impl RegisterCompiler {
                                 is_captured: false,
                                 is_upvalue: false,
                                 is_type: false,
+                                is_global_ref: false,
                             },
                         );
 
