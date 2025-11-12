@@ -67,7 +67,6 @@ fn main() {
             }
             Ok(n) => {
                 buffer.extend_from_slice(&temp_buffer[..n]);
-                tracing::debug!("Read {} bytes, buffer size: {}", n, buffer.len());
             }
             Err(e) => {
                 tracing::error!("Error reading input: {}", e);
@@ -78,8 +77,6 @@ fn main() {
 
         // Try to extract complete messages
         while let Ok((message_length, message_data)) = split(&buffer, false) {
-            tracing::debug!("Processing message of length: {}", message_length);
-
             // Process the message
             match decode_message(message_data) {
                 Ok((method, content)) => {
