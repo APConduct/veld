@@ -1,0 +1,3 @@
+[submodule "extensions/zed-veld"]
+	path = extensions/zed-veld
+	url = https://github.com/APConduct/zed-veld.git
