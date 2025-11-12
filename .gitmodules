@@ -1,3 +1,6 @@
 [submodule "extensions/zed-veld"]
 	path = extensions/zed-veld
 	url = https://github.com/APConduct/zed-veld.git
+[submodule "extensions/vscode-veld"]
+	path = extensions/vscode-veld
+	url = https://github.com/APConduct/veld-language-vsc

@@ -56,16 +56,42 @@ fn main() {
     let mut buffer = Vec::new();
     let stdin = io::stdin();
     let mut reader = BufReader::new(stdin);
+    let mut consecutive_zero_reads = 0;
 
     loop {
         // Read more data into buffer
         let mut temp_buffer = [0; 1024];
         match reader.read(&mut temp_buffer) {
             Ok(0) => {
-                tracing::info!("EOF reached, shutting down");
-                break; // EOF
+                consecutive_zero_reads += 1;
+
+                // If we have buffered data, try to process it
+                if !buffer.is_empty() {
+                    tracing::debug!(
+                        "Read 0 bytes but buffer has {} bytes, processing",
+                        buffer.len()
+                    );
+                    // Continue to message processing below
+                } else if consecutive_zero_reads > 3 {
+                    // Multiple consecutive zero reads with no data = EOF
+                    tracing::info!(
+                        "EOF reached after {} zero reads, shutting down",
+                        consecutive_zero_reads
+                    );
+                    break;
+                } else {
+                    // First few zero reads - might be connection delay, wait a bit
+                    tracing::debug!(
+                        "Zero read #{}, waiting for connection",
+                        consecutive_zero_reads
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    continue;
+                }
             }
             Ok(n) => {
+                consecutive_zero_reads = 0; // Reset counter on successful read
+                tracing::debug!("Read {} bytes from stdin", n);
                 buffer.extend_from_slice(&temp_buffer[..n]);
             }
             Err(e) => {

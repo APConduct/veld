@@ -1,0 +1,12 @@
+fn add(a, b)
+    a + b
+end
+
+fn multiply(x, y)
+    x * y
+end
+
+let result = add(5, 10)
+let product = multiply(3, 4)
+
+result + product
