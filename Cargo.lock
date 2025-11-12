@@ -1843,6 +1843,8 @@ dependencies = [
  "serde_json",
  "tracing",
  "tracing-subscriber 0.2.25",
+ "veld-common",
+ "veld-error",
  "veld-interpreter",
 ]
 

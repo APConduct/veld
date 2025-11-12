@@ -1,0 +1,55 @@
+# Example Veld file with intentional errors to test LSP diagnostics
+
+# Valid code
+let x = 42
+let name = "Alice"
+
+# Syntax error: incomplete expression
+let incomplete =
+
+# Type error: trying to add incompatible types
+let type_mismatch = 5 + "string"
+
+# Undefined function call
+let result = undefined_function(10)
+
+# Function with wrong return type
+fn returns_wrong_type() -> i32
+    "this is a string, not an i32"
+end
+
+# Missing function body
+fn incomplete_function(x: i32) -> i32
+
+# Invalid match - non-exhaustive
+type Color = Red | Green | Blue
+
+fn match_incomplete(color: Color) -> str
+    match color
+        Red => "red"
+        Green => "green"
+        # Missing Blue case
+    end
+end
+
+# Struct field access on non-struct
+fn invalid_field_access()
+    let num = 42
+    num.some_field
+end
+
+# Using variable before declaration
+fn use_before_declare()
+    println(undeclared)
+    let undeclared = 10
+end
+
+# Valid code after errors
+struct Point
+    x: i32
+    y: i32
+end
+
+fn valid_function(p: Point) -> i32
+    p.x + p.y
+end

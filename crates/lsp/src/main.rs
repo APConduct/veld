@@ -6,18 +6,23 @@ use tracing_subscriber;
 
 use crate::rpc::{decode_message, encode_message, RPCError};
 
+pub mod analysis;
 pub mod rpc;
+
+use analysis::{diagnostics_to_lsp, AnalysisResult, Analyzer};
 
 #[derive(Debug, Clone)]
 struct TextDocument {
     uri: String,
     content: String,
     version: i32,
+    analysis: Option<AnalysisResult>,
 }
 
 pub struct LSPServer {
     documents: HashMap<String, TextDocument>,
     next_id: i32,
+    analyzer: Analyzer,
 }
 
 impl LSPServer {
@@ -25,6 +30,7 @@ impl LSPServer {
         Self {
             documents: HashMap::new(),
             next_id: 1,
+            analyzer: Analyzer::new(),
         }
     }
 
@@ -197,16 +203,36 @@ fn handle_message(
                         .and_then(|v| v.as_i64())
                         .unwrap_or(0) as i32;
 
+                    // Analyze the document
+                    let analysis = server.analyzer.analyze(&text);
+
+                    // Store the document with analysis
                     server.documents.insert(
                         uri.clone(),
                         TextDocument {
-                            uri,
+                            uri: uri.clone(),
                             content: text,
                             version,
+                            analysis: Some(analysis),
                         },
                     );
 
-                    tracing::info!("Document opened and stored");
+                    tracing::info!("Document opened and analyzed");
+
+                    // Send diagnostics
+                    if let Some(doc) = server.documents.get(&uri) {
+                        if let Some(ref analysis) = doc.analysis {
+                            let diagnostics = diagnostics_to_lsp(&uri, &analysis.diagnostics);
+                            let encoded = encode_message(diagnostics);
+                            if let Err(e) = io::stdout().write_all(&encoded) {
+                                tracing::error!("Failed to write diagnostics: {}", e);
+                            } else {
+                                io::stdout().flush().unwrap_or_else(|e| {
+                                    tracing::error!("Failed to flush stdout: {}", e);
+                                });
+                            }
+                        }
+                    }
                 }
             }
             None
@@ -231,7 +257,26 @@ fn handle_message(
                                 if let Some(doc) = server.documents.get_mut(&uri) {
                                     doc.content = text.to_string();
                                     doc.version = version;
-                                    tracing::info!("Document content updated");
+
+                                    // Re-analyze the document
+                                    let analysis = server.analyzer.analyze(&text);
+                                    doc.analysis = Some(analysis);
+
+                                    tracing::info!("Document content updated and re-analyzed");
+
+                                    // Send updated diagnostics
+                                    if let Some(ref analysis) = doc.analysis {
+                                        let diagnostics =
+                                            diagnostics_to_lsp(&uri, &analysis.diagnostics);
+                                        let encoded = encode_message(diagnostics);
+                                        if let Err(e) = io::stdout().write_all(&encoded) {
+                                            tracing::error!("Failed to write diagnostics: {}", e);
+                                        } else {
+                                            io::stdout().flush().unwrap_or_else(|e| {
+                                                tracing::error!("Failed to flush stdout: {}", e);
+                                            });
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -280,16 +325,41 @@ fn handle_message(
                         .get("uri")
                         .and_then(|u| u.as_str())
                         .unwrap_or("");
-                    if let Some(_doc) = server.documents.get(uri) {
+                    if let Some(doc) = server.documents.get(uri) {
                         if let Some(position) = params.get("position") {
-                            let line = position.get("line").and_then(|l| l.as_i64()).unwrap_or(0);
+                            let line =
+                                position.get("line").and_then(|l| l.as_i64()).unwrap_or(0) as usize;
                             let character = position
                                 .get("character")
                                 .and_then(|c| c.as_i64())
-                                .unwrap_or(0);
+                                .unwrap_or(0) as usize;
 
-                            // Simple hover based on position
-                            format!("Hover info for position {}:{} in {}", line, character, uri)
+                            // Try to get hover info from analysis
+                            if let Some(ref analysis) = doc.analysis {
+                                if let Some(ref ast) = analysis.ast {
+                                    if let Some(ref type_checker) = analysis.type_checker {
+                                        if let Some(info) = server.analyzer.get_hover_info(
+                                            ast,
+                                            type_checker,
+                                            line,
+                                            character,
+                                        ) {
+                                            info
+                                        } else {
+                                            format!(
+                                                "No type information available at {}:{}",
+                                                line, character
+                                            )
+                                        }
+                                    } else {
+                                        "Type checker not available".to_string()
+                                    }
+                                } else {
+                                    "Document has syntax errors".to_string()
+                                }
+                            } else {
+                                "Document not analyzed".to_string()
+                            }
                         } else {
                             "Veld Language Server - Hover Information".to_string()
                         }
@@ -317,64 +387,51 @@ fn handle_message(
         "textDocument/completion" => {
             tracing::info!("Handling completion request");
 
-            let completion_items = vec![
-                serde_json::json!({
-                    "label": "fn",
-                    "kind": 3,
-                    "detail": "Function declaration",
-                    "documentation": "Define a new function",
-                    "insertText": "fn ${1:name}(${2:params}) {\n\t$0\n}"
-                }),
-                serde_json::json!({
-                    "label": "let",
-                    "kind": 14,
-                    "detail": "Variable binding",
-                    "documentation": "Create a new variable binding",
-                    "insertText": "let ${1:name} = ${2:value};"
-                }),
-                serde_json::json!({
-                    "label": "if",
-                    "kind": 14,
-                    "detail": "Conditional statement",
-                    "documentation": "Conditional execution",
-                    "insertText": "if ${1:condition} {\n\t$0\n}"
-                }),
-                serde_json::json!({
-                    "label": "for",
-                    "kind": 14,
-                    "detail": "For loop",
-                    "documentation": "Iterate over a collection",
-                    "insertText": "for ${1:item} in ${2:collection} {\n\t$0\n}"
-                }),
-                serde_json::json!({
-                    "label": "while",
-                    "kind": 14,
-                    "detail": "While loop",
-                    "documentation": "Loop while condition is true",
-                    "insertText": "while ${1:condition} {\n\t$0\n}"
-                }),
-                serde_json::json!({
-                    "label": "struct",
-                    "kind": 22,
-                    "detail": "Struct definition",
-                    "documentation": "Define a new struct",
-                    "insertText": "struct ${1:Name} {\n\t${2:field}: ${3:Type},\n}"
-                }),
-                serde_json::json!({
-                    "label": "impl",
-                    "kind": 14,
-                    "detail": "Implementation block",
-                    "documentation": "Implement methods for a type",
-                    "insertText": "impl ${1:Type} {\n\t$0\n}"
-                }),
-                serde_json::json!({
-                    "label": "match",
-                    "kind": 14,
-                    "detail": "Pattern matching",
-                    "documentation": "Pattern match expression",
-                    "insertText": "match ${1:value} {\n\t${2:pattern} => ${3:result},\n\t_ => ${4:default},\n}"
-                }),
-            ];
+            let mut completion_items = Vec::new();
+
+            if let Some(params) = request.get("params") {
+                if let Some(text_document) = params.get("textDocument") {
+                    let uri = text_document
+                        .get("uri")
+                        .and_then(|u| u.as_str())
+                        .unwrap_or("");
+
+                    if let Some(doc) = server.documents.get(uri) {
+                        if let Some(position) = params.get("position") {
+                            let line =
+                                position.get("line").and_then(|l| l.as_i64()).unwrap_or(0) as usize;
+                            let character = position
+                                .get("character")
+                                .and_then(|c| c.as_i64())
+                                .unwrap_or(0) as usize;
+
+                            // Get completions from analyzer
+                            if let Some(ref analysis) = doc.analysis {
+                                if let Some(ref ast) = analysis.ast {
+                                    if let Some(ref type_checker) = analysis.type_checker {
+                                        let completions = server.analyzer.get_completions(
+                                            ast,
+                                            type_checker,
+                                            line,
+                                            character,
+                                        );
+
+                                        // Convert to LSP format
+                                        for item in completions {
+                                            completion_items.push(serde_json::json!({
+                                                "label": item.label,
+                                                "kind": item.kind as i32,
+                                                "detail": item.detail,
+                                                "documentation": item.documentation,
+                                            }));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             Some(serde_json::json!({
                 "jsonrpc": "2.0",
@@ -387,6 +444,54 @@ fn handle_message(
         }
         "textDocument/definition" => {
             tracing::info!("Handling goto definition request");
+
+            if let Some(params) = request.get("params") {
+                if let Some(text_document) = params.get("textDocument") {
+                    let uri = text_document
+                        .get("uri")
+                        .and_then(|u| u.as_str())
+                        .unwrap_or("");
+
+                    if let Some(doc) = server.documents.get(uri) {
+                        if let Some(position) = params.get("position") {
+                            let line =
+                                position.get("line").and_then(|l| l.as_i64()).unwrap_or(0) as usize;
+                            let character = position
+                                .get("character")
+                                .and_then(|c| c.as_i64())
+                                .unwrap_or(0) as usize;
+
+                            // Try to find definition
+                            if let Some(ref analysis) = doc.analysis {
+                                if let Some(ref ast) = analysis.ast {
+                                    if let Some((def_line, def_col)) =
+                                        server.analyzer.find_definition(ast, line, character)
+                                    {
+                                        return Some(serde_json::json!({
+                                            "jsonrpc": "2.0",
+                                            "id": request_id,
+                                            "result": {
+                                                "uri": uri,
+                                                "range": {
+                                                    "start": {
+                                                        "line": def_line,
+                                                        "character": def_col
+                                                    },
+                                                    "end": {
+                                                        "line": def_line,
+                                                        "character": def_col + 10
+                                                    }
+                                                }
+                                            }
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Some(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": request_id,

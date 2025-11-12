@@ -1,0 +1,74 @@
+# Example Veld program to test LSP features
+
+# Basic variable declarations
+let x = 42
+let y = "hello"
+let z = true
+
+# Function definition
+fn add(a: i32, b: i32) -> i32
+    a + b
+end
+
+fn greet(name: str) -> str
+    "Hello, " + name
+end
+
+# Struct definition
+struct Point
+    x: i32
+    y: i32
+end
+
+# Struct with methods
+impl Point
+    fn new(x: i32, y: i32) -> Point
+        Point { x: x, y: y }
+    end
+
+    fn distance_from_origin(self) -> f64
+        let x_squared = self.x * self.x
+        let y_squared = self.y * self.y
+        # Note: would need sqrt function
+        (x_squared + y_squared) as f64
+    end
+end
+
+# Enum definition
+type Option<T> =
+    | Some of T
+    | None
+
+type Result<T, E> =
+    | Ok of T
+    | Err of E
+
+# Pattern matching
+fn is_some<T>(opt: Option<T>) -> bool
+    match opt
+        Some(_) => true
+        None => false
+    end
+end
+
+# Using generics
+fn map<T, U>(opt: Option<T>, f: fn(T) -> U) -> Option<U>
+    match opt
+        Some(value) => Some(f(value))
+        None => None
+    end
+end
+
+# Main entry point
+fn main()
+    let point = Point::new(3, 4)
+    let result = add(10, 20)
+    let message = greet("World")
+
+    let some_value = Some(42)
+    let has_value = is_some(some_value)
+
+    println("Point: ({}, {})", point.x, point.y)
+    println("Result: {}", result)
+    println("Message: {}", message)
+end
