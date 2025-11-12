@@ -47,11 +47,8 @@ impl LSPServer {
 
 fn main() {
     // Initialize logging to a file for debugging
-    if let Err(e) = get_logger("lsp_server.log".to_string()) {
-        eprintln!("Failed to initialize logger: {}", e.message);
-    } else {
-        tracing_subscriber::fmt::init();
-    }
+    // Ignore errors if logger is already set
+    let _ = get_logger("lsp_server.log".to_string());
 
     tracing::info!("LSP Server starting...");
 
