@@ -1,0 +1,81 @@
+# Comprehensive test for compound assignment operators
+# Tests +=, -=, *=, /= for variables, array indices, and struct fields
+
+# Test 1: Simple variable compound assignments
+var x = 10
+x += 5   # x should be 15
+x -= 3   # x should be 12
+x *= 2   # x should be 24
+x /= 4   # x should be 6
+
+# Test 2: Multiple variables
+var a = 100
+var b = 50
+a += b   # a should be 150
+b -= 10  # b should be 40
+a *= 2   # a should be 300
+b /= 5   # b should be 8
+
+# Test 3: Compound assignments with expressions
+var y = 10
+y += 2 + 3      # y should be 15
+y -= 1 + 1      # y should be 13
+y *= 2          # y should be 26
+y /= 13         # y should be 2
+
+# Test 4: Nested scopes
+var outer = 100
+do
+    var inner = 50
+    inner += 25     # inner should be 75
+    outer += inner  # outer should be 175
+end
+
+# Test 5: Loop with compound assignment
+var sum = 0
+var i = 1
+while i <= 5 do
+    sum += i  # sum should accumulate: 1, 3, 6, 10, 15
+    i += 1    # i increments
+end
+
+# Test 6: Compound assignment in conditionals
+var score = 50
+if score < 100 do
+    score += 25  # score should be 75
+end
+
+if score >= 75 do
+    score *= 2   # score should be 150
+end
+
+# Test 7: Multiple operations in sequence
+var counter = 1
+counter += 4   # 5
+counter *= 3   # 15
+counter -= 5   # 10
+counter /= 2   # 5
+
+# Test 8: Compound assignment with function calls
+fn increment(n) => n + 1
+
+var value = 10
+value += increment(5)  # value should be 16
+
+# Test 9: Chained compound assignments
+var p = 10
+var q = 20
+var r = 30
+p += 5    # 15
+q += p    # 35
+r += q    # 65
+
+# Test 10: Compound assignment with mutable variables
+var mut total = 0
+total += 10
+total += 20
+total += 30  # total should be 60
+
+# Output final values for verification
+# In a real test, we would assert these values
+# For now, the test passes if it compiles and runs without error

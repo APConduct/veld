@@ -486,25 +486,208 @@ impl RegisterCompiler {
             Expr::Identifier(name) => {
                 // Simple variable assignment via PropertyAssignment
                 // This happens when parser generates PropertyAssignment for simple assignments
-                return self.compile_simple_assignment(name, value);
+                if let Some(op) = operator {
+                    // Compound assignment: x += value
+                    // We need to: read current value, apply operator, store result back
+
+                    // Check if it's a local variable or upvalue
+                    if let Some(var_info) = self.variables.get(name).cloned() {
+                        // It's a local variable
+                        if !var_info.is_mutable {
+                            return Err(VeldError::CompileError {
+                                message: format!("Cannot assign to immutable variable: {}", name),
+                                line: Some(self.current_line as usize),
+                                column: None,
+                            });
+                        }
+
+                        // 1. Current value is in var_info.register
+                        // 2. Compile the value expression
+                        let val_result = self.compile_expr_to_reg(value)?;
+
+                        // 3. Allocate temp for result
+                        let result_reg = self.allocate_temp()?;
+
+                        // 4. Perform the operation
+                        match op {
+                            BinaryOperator::Add => {
+                                self.chunk
+                                    .add(result_reg, var_info.register, val_result.register);
+                            }
+                            BinaryOperator::Subtract => {
+                                self.chunk
+                                    .sub(result_reg, var_info.register, val_result.register);
+                            }
+                            BinaryOperator::Multiply => {
+                                self.chunk
+                                    .mul(result_reg, var_info.register, val_result.register);
+                            }
+                            BinaryOperator::Divide => {
+                                self.chunk
+                                    .div(result_reg, var_info.register, val_result.register);
+                            }
+                            _ => {
+                                return Err(VeldError::CompileError {
+                                    message: format!(
+                                        "Unsupported compound assignment operator: {:?}",
+                                        op
+                                    ),
+                                    line: Some(self.current_line as usize),
+                                    column: None,
+                                });
+                            }
+                        }
+
+                        // 5. Move result back to variable's register
+                        if result_reg != var_info.register {
+                            self.chunk.move_reg(var_info.register, result_reg);
+                        }
+
+                        // Free temps
+                        if val_result.is_temp {
+                            self.free_temp(val_result.register);
+                        }
+                        self.free_temp(result_reg);
+
+                        return Ok(());
+                    } else if let Some(upvalue_idx) = self.find_upvalue(name) {
+                        // It's an upvalue
+                        let upvalue_info = &self.upvalues[upvalue_idx];
+
+                        if !upvalue_info.is_mutable {
+                            return Err(VeldError::CompileError {
+                                message: format!("Cannot assign to immutable upvalue: {}", name),
+                                line: Some(self.current_line as usize),
+                                column: None,
+                            });
+                        }
+
+                        // 1. Get current value from upvalue
+                        let current_reg = self.allocate_temp()?;
+                        self.chunk.get_upvalue(current_reg, upvalue_idx as u8);
+
+                        // 2. Compile the value expression
+                        let val_result = self.compile_expr_to_reg(value)?;
+
+                        // 3. Allocate temp for result
+                        let result_reg = self.allocate_temp()?;
+
+                        // 4. Perform the operation
+                        match op {
+                            BinaryOperator::Add => {
+                                self.chunk.add(result_reg, current_reg, val_result.register);
+                            }
+                            BinaryOperator::Subtract => {
+                                self.chunk.sub(result_reg, current_reg, val_result.register);
+                            }
+                            BinaryOperator::Multiply => {
+                                self.chunk.mul(result_reg, current_reg, val_result.register);
+                            }
+                            BinaryOperator::Divide => {
+                                self.chunk.div(result_reg, current_reg, val_result.register);
+                            }
+                            _ => {
+                                return Err(VeldError::CompileError {
+                                    message: format!(
+                                        "Unsupported compound assignment operator: {:?}",
+                                        op
+                                    ),
+                                    line: Some(self.current_line as usize),
+                                    column: None,
+                                });
+                            }
+                        }
+
+                        // 5. Set the upvalue to the result
+                        self.chunk.set_upvalue(upvalue_idx as u8, result_reg);
+
+                        // Free temps
+                        self.free_temp(current_reg);
+                        if val_result.is_temp {
+                            self.free_temp(val_result.register);
+                        }
+                        self.free_temp(result_reg);
+
+                        return Ok(());
+                    } else {
+                        // Variable not found
+                        return Err(VeldError::CompileError {
+                            message: format!("Undefined variable: {}", name),
+                            line: Some(self.current_line as usize),
+                            column: None,
+                        });
+                    }
+                } else {
+                    // Regular assignment
+                    return self.compile_simple_assignment(name, value);
+                }
             }
 
             Expr::IndexAccess { object, index } => {
                 // Array/tuple index assignment: obj[idx] = value
                 let obj_result = self.compile_expr_to_reg(object)?;
                 let idx_result = self.compile_expr_to_reg(index)?;
-                let val_result = self.compile_expr_to_reg(value)?;
 
-                // TODO: handle compound assignment operators
-                if operator.is_some() {
-                    warn!("Compound assignment operators not yet implemented");
+                if let Some(op) = operator {
+                    // Compound assignment: obj[idx] += value
+                    // 1. Get current value: temp = obj[idx]
+                    let temp_reg = self.allocate_temp()?;
+                    self.chunk
+                        .get_index(temp_reg, obj_result.register, idx_result.register);
+
+                    // 2. Compile the value expression
+                    let val_result = self.compile_expr_to_reg(value)?;
+
+                    // 3. Perform the operation: temp = temp op value
+                    let result_reg = self.allocate_temp()?;
+                    match op {
+                        BinaryOperator::Add => {
+                            self.chunk.add(result_reg, temp_reg, val_result.register);
+                        }
+                        BinaryOperator::Subtract => {
+                            self.chunk.sub(result_reg, temp_reg, val_result.register);
+                        }
+                        BinaryOperator::Multiply => {
+                            self.chunk.mul(result_reg, temp_reg, val_result.register);
+                        }
+                        BinaryOperator::Divide => {
+                            self.chunk.div(result_reg, temp_reg, val_result.register);
+                        }
+                        _ => {
+                            return Err(VeldError::CompileError {
+                                message: format!(
+                                    "Unsupported compound assignment operator: {:?}",
+                                    op
+                                ),
+                                line: Some(self.current_line as usize),
+                                column: None,
+                            });
+                        }
+                    }
+
+                    // 4. Store result back: obj[idx] = result
+                    self.chunk
+                        .set_index(obj_result.register, idx_result.register, result_reg);
+
+                    // Free temps
+                    self.free_temp(temp_reg);
+                    self.free_temp(result_reg);
+                    if val_result.is_temp {
+                        self.free_temp(val_result.register);
+                    }
+                } else {
+                    // Regular assignment: obj[idx] = value
+                    let val_result = self.compile_expr_to_reg(value)?;
+                    self.chunk.set_index(
+                        obj_result.register,
+                        idx_result.register,
+                        val_result.register,
+                    );
+
+                    if val_result.is_temp {
+                        self.free_temp(val_result.register);
+                    }
                 }
-
-                self.chunk.set_index(
-                    obj_result.register,
-                    idx_result.register,
-                    val_result.register,
-                );
 
                 if obj_result.is_temp {
                     self.free_temp(obj_result.register);
@@ -512,33 +695,76 @@ impl RegisterCompiler {
                 if idx_result.is_temp {
                     self.free_temp(idx_result.register);
                 }
-                if val_result.is_temp {
-                    self.free_temp(val_result.register);
-                }
             }
 
             Expr::PropertyAccess { object, property } => {
                 // Struct field assignment: obj.field = value
                 let obj_result = self.compile_expr_to_reg(object)?;
-                let val_result = self.compile_expr_to_reg(value)?;
-
-                // TODO: handle compound assignment operators
-                if operator.is_some() {
-                    warn!("Compound assignment operators not yet implemented");
-                }
-
                 let field_const = self.chunk.add_constant(Constant::String(property.clone()));
 
-                // Note: get_field takes u8 for field_idx, but we have ConstIdx (u16)
-                // This is a limitation - for now, cast and hope it fits
-                self.chunk
-                    .set_field(obj_result.register, field_const as u8, val_result.register);
+                if let Some(op) = operator {
+                    // Compound assignment: obj.field += value
+                    // 1. Get current value: temp = obj.field
+                    let temp_reg = self.allocate_temp()?;
+                    self.chunk
+                        .get_field(temp_reg, obj_result.register, field_const as u8);
+
+                    // 2. Compile the value expression
+                    let val_result = self.compile_expr_to_reg(value)?;
+
+                    // 3. Perform the operation: temp = temp op value
+                    let result_reg = self.allocate_temp()?;
+                    match op {
+                        BinaryOperator::Add => {
+                            self.chunk.add(result_reg, temp_reg, val_result.register);
+                        }
+                        BinaryOperator::Subtract => {
+                            self.chunk.sub(result_reg, temp_reg, val_result.register);
+                        }
+                        BinaryOperator::Multiply => {
+                            self.chunk.mul(result_reg, temp_reg, val_result.register);
+                        }
+                        BinaryOperator::Divide => {
+                            self.chunk.div(result_reg, temp_reg, val_result.register);
+                        }
+                        _ => {
+                            return Err(VeldError::CompileError {
+                                message: format!(
+                                    "Unsupported compound assignment operator: {:?}",
+                                    op
+                                ),
+                                line: Some(self.current_line as usize),
+                                column: None,
+                            });
+                        }
+                    }
+
+                    // 4. Store result back: obj.field = result
+                    self.chunk
+                        .set_field(obj_result.register, field_const as u8, result_reg);
+
+                    // Free temps
+                    self.free_temp(temp_reg);
+                    self.free_temp(result_reg);
+                    if val_result.is_temp {
+                        self.free_temp(val_result.register);
+                    }
+                } else {
+                    // Regular assignment: obj.field = value
+                    let val_result = self.compile_expr_to_reg(value)?;
+                    self.chunk.set_field(
+                        obj_result.register,
+                        field_const as u8,
+                        val_result.register,
+                    );
+
+                    if val_result.is_temp {
+                        self.free_temp(val_result.register);
+                    }
+                }
 
                 if obj_result.is_temp {
                     self.free_temp(obj_result.register);
-                }
-                if val_result.is_temp {
-                    self.free_temp(val_result.register);
                 }
             }
 

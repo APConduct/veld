@@ -1,0 +1,192 @@
+[2mNov 14 23:09:54.624[0m [32m INFO[0m veld_lsp: LSP Server starting...
+[2mNov 14 23:09:54.624[0m [32m INFO[0m veld_lsp: Received method: initialize
+[2mNov 14 23:09:54.624[0m [32m INFO[0m veld_lsp: Handling initialize request
+[2mNov 14 23:09:54.679[0m [32m INFO[0m veld_lsp: Received method: initialized
+[2mNov 14 23:09:54.679[0m [32m INFO[0m veld_lsp: Client initialized
+[2mNov 14 23:09:54.694[0m [32m INFO[0m veld_lsp: Received method: textDocument/didOpen
+[2mNov 14 23:09:54.694[0m [32m INFO[0m veld_lsp: Handling didOpen notification
+[2mNov 14 23:09:54.694[0m [32m INFO[0m [1mInitializing TypeChecker[0m: veld_common::types::module_registry: Loading standard library from "./stdlib"
+[2mNov 14 23:09:54.695[0m [32m INFO[0m veld_lsp: Document opened and analyzed
+[2mNov 14 23:09:54.696[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:54.696[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:54.726[0m [32m INFO[0m veld_lsp: Received method: $/setTrace
+[2mNov 14 23:09:54.726[0m [33m WARN[0m veld_lsp: Unhandled method: $/setTrace
+[2mNov 14 23:09:54.736[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:54.736[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:54.760[0m [32m INFO[0m veld_lsp: Received method: $/setTrace
+[2mNov 14 23:09:54.761[0m [33m WARN[0m veld_lsp: Unhandled method: $/setTrace
+[2mNov 14 23:09:55.937[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:55.937[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:55.974[0m [32m INFO[0m veld_lsp: Received method: $/cancelRequest
+[2mNov 14 23:09:55.974[0m [33m WARN[0m veld_lsp: Unhandled method: $/cancelRequest
+[2mNov 14 23:09:55.974[0m [32m INFO[0m veld_lsp: Received method: $/setTrace
+[2mNov 14 23:09:55.974[0m [33m WARN[0m veld_lsp: Unhandled method: $/setTrace
+[2mNov 14 23:09:55.974[0m [32m INFO[0m veld_lsp: Received method: $/setTrace
+[2mNov 14 23:09:55.974[0m [33m WARN[0m veld_lsp: Unhandled method: $/setTrace
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Received method: textDocument/semanticTokens/range
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Handling semantic tokens range request
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Received method: textDocument/semanticTokens/full
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Handling semantic tokens request
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:09:56.017[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:09:56.018[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:09:56.018[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:09:56.069[0m [32m INFO[0m veld_lsp: Received method: $/cancelRequest
+[2mNov 14 23:09:56.069[0m [33m WARN[0m veld_lsp: Unhandled method: $/cancelRequest
+[2mNov 14 23:09:56.070[0m [32m INFO[0m veld_lsp: Received method: $/cancelRequest
+[2mNov 14 23:09:56.070[0m [33m WARN[0m veld_lsp: Unhandled method: $/cancelRequest
+[2mNov 14 23:09:56.152[0m [32m INFO[0m veld_lsp: Received method: $/setTrace
+[2mNov 14 23:09:56.152[0m [33m WARN[0m veld_lsp: Unhandled method: $/setTrace
+[2mNov 14 23:09:56.292[0m [32m INFO[0m veld_lsp: Received method: $/setTrace
+[2mNov 14 23:09:56.292[0m [33m WARN[0m veld_lsp: Unhandled method: $/setTrace
+[2mNov 14 23:09:56.329[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:09:56.329[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:09:56.630[0m [32m INFO[0m veld_lsp: Received method: $/setTrace
+[2mNov 14 23:09:56.630[0m [33m WARN[0m veld_lsp: Unhandled method: $/setTrace
+[2mNov 14 23:09:56.633[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:56.633[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:56.692[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:09:56.692[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:09:56.740[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:56.740[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:56.740[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:56.740[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:56.740[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:56.740[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:09:56.741[0m [32m INFO[0m veld_lsp: Received method: $/cancelRequest
+[2mNov 14 23:09:56.741[0m [33m WARN[0m veld_lsp: Unhandled method: $/cancelRequest
+[2mNov 14 23:09:56.741[0m [32m INFO[0m veld_lsp: Received method: $/cancelRequest
+[2mNov 14 23:09:56.741[0m [33m WARN[0m veld_lsp: Unhandled method: $/cancelRequest
+[2mNov 14 23:09:57.512[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:09:57.512[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:09:57.513[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:09:57.513[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:09:58.258[0m [32m INFO[0m veld_lsp: Received method: textDocument/semanticTokens/full
+[2mNov 14 23:09:58.258[0m [32m INFO[0m veld_lsp: Handling semantic tokens request
+[2mNov 14 23:09:58.572[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:09:58.572[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:09:59.021[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:09:59.021[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:09:59.337[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:09:59.338[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:09:59.597[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:09:59.597[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:10:10.439[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:10:10.439[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:10:13.671[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:10:13.671[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:10:35.168[0m [32m INFO[0m veld_lsp: Received method: textDocument/didClose
+[2mNov 14 23:10:35.168[0m [32m INFO[0m veld_lsp: Handling didClose notification
+[2mNov 14 23:10:35.168[0m [32m INFO[0m veld_lsp: Document removed from memory
+[2mNov 14 23:11:00.235[0m [32m INFO[0m veld_lsp: Received method: textDocument/didOpen
+[2mNov 14 23:11:00.235[0m [32m INFO[0m veld_lsp: Handling didOpen notification
+[2mNov 14 23:11:00.235[0m [32m INFO[0m [1mInitializing TypeChecker[0m: veld_common::types::module_registry: Loading standard library from "./stdlib"
+[2mNov 14 23:11:00.238[0m [32m INFO[0m veld_lsp: Document opened and analyzed
+[2mNov 14 23:11:00.238[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:11:00.238[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:11:00.238[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:11:00.238[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:11:00.246[0m [32m INFO[0m veld_lsp: Received method: textDocument/semanticTokens/full
+[2mNov 14 23:11:00.246[0m [32m INFO[0m veld_lsp: Handling semantic tokens request
+[2mNov 14 23:11:00.464[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:11:00.464[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:11:00.538[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:11:00.538[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:11:00.538[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:11:00.538[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:11:00.978[0m [32m INFO[0m veld_lsp: Received method: textDocument/didClose
+[2mNov 14 23:11:00.978[0m [32m INFO[0m veld_lsp: Handling didClose notification
+[2mNov 14 23:11:00.978[0m [32m INFO[0m veld_lsp: Document removed from memory
+[2mNov 14 23:11:02.322[0m [32m INFO[0m veld_lsp: Received method: textDocument/didOpen
+[2mNov 14 23:11:02.322[0m [32m INFO[0m veld_lsp: Handling didOpen notification
+[2mNov 14 23:11:02.322[0m [32m INFO[0m [1mInitializing TypeChecker[0m: veld_common::types::module_registry: Loading standard library from "./stdlib"
+[2mNov 14 23:11:02.323[0m [32m INFO[0m veld_lsp: Document opened and analyzed
+[2mNov 14 23:11:02.325[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:11:02.326[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:11:02.326[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:11:02.326[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:11:02.328[0m [32m INFO[0m veld_lsp: Received method: textDocument/semanticTokens/full
+[2mNov 14 23:11:02.329[0m [32m INFO[0m veld_lsp: Handling semantic tokens request
+[2mNov 14 23:11:02.527[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:11:02.527[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:11:02.625[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:11:02.625[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:11:02.626[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:11:02.626[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:11:03.756[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:03.756[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:06.847[0m [32m INFO[0m veld_lsp: Received method: textDocument/didClose
+[2mNov 14 23:11:06.847[0m [32m INFO[0m veld_lsp: Handling didClose notification
+[2mNov 14 23:11:06.847[0m [32m INFO[0m veld_lsp: Document removed from memory
+[2mNov 14 23:11:06.854[0m [32m INFO[0m veld_lsp: Received method: textDocument/didOpen
+[2mNov 14 23:11:06.854[0m [32m INFO[0m veld_lsp: Handling didOpen notification
+[2mNov 14 23:11:06.854[0m [32m INFO[0m [1mInitializing TypeChecker[0m: veld_common::types::module_registry: Loading standard library from "./stdlib"
+[2mNov 14 23:11:06.856[0m [32m INFO[0m veld_lsp: Document opened and analyzed
+[2mNov 14 23:11:06.858[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:11:06.858[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:11:06.858[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:11:06.858[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:11:06.868[0m [32m INFO[0m veld_lsp: Received method: textDocument/semanticTokens/full
+[2mNov 14 23:11:06.868[0m [32m INFO[0m veld_lsp: Handling semantic tokens request
+[2mNov 14 23:11:07.062[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:11:07.062[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:11:07.157[0m [32m INFO[0m veld_lsp: Received method: textDocument/documentSymbol
+[2mNov 14 23:11:07.157[0m [32m INFO[0m veld_lsp: Handling document symbol request
+[2mNov 14 23:11:07.158[0m [32m INFO[0m veld_lsp: Received method: textDocument/foldingRange
+[2mNov 14 23:11:07.158[0m [32m INFO[0m veld_lsp: Handling folding range request
+[2mNov 14 23:11:07.505[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:07.505[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:09.494[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:09.494[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:11.155[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:11.155[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:11.422[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:11.423[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:16.505[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:16.505[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:39.904[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:39.905[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:42.492[0m [32m INFO[0m veld_lsp: Received method: textDocument/definition
+[2mNov 14 23:11:42.492[0m [32m INFO[0m veld_lsp: Handling goto definition request
+[2mNov 14 23:11:45.271[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:45.271[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:46.333[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:46.333[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:46.649[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:46.649[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:11:46.969[0m [32m INFO[0m veld_lsp: Received method: textDocument/codeAction
+[2mNov 14 23:11:46.969[0m [32m INFO[0m veld_lsp: Handling code action request
+[2mNov 14 23:11:47.572[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:11:47.572[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:12:03.191[0m [32m INFO[0m veld_lsp: Received method: textDocument/definition
+[2mNov 14 23:12:03.192[0m [32m INFO[0m veld_lsp: Handling goto definition request
+[2mNov 14 23:26:08.744[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:26:08.744[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:26:10.205[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:26:10.205[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:26:10.515[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:26:10.515[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:26:11.333[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:26:11.333[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:26:11.990[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:26:11.990[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:26:12.580[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:26:12.580[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:26:14.148[0m [32m INFO[0m veld_lsp: Received method: textDocument/hover
+[2mNov 14 23:26:14.149[0m [32m INFO[0m veld_lsp: Handling hover request
+[2mNov 14 23:26:14.989[0m [32m INFO[0m veld_lsp: Received method: textDocument/definition
+[2mNov 14 23:26:14.989[0m [32m INFO[0m veld_lsp: Handling goto definition request
+[2mNov 14 23:26:16.933[0m [32m INFO[0m veld_lsp: Received method: textDocument/definition
+[2mNov 14 23:26:16.933[0m [32m INFO[0m veld_lsp: Handling goto definition request
+[2mNov 14 23:26:17.210[0m [32m INFO[0m veld_lsp: Received method: shutdown
+[2mNov 14 23:26:17.210[0m [32m INFO[0m veld_lsp: Shutdown requested
+[2mNov 14 23:26:17.210[0m [32m INFO[0m veld_lsp: Received method: exit
+[2mNov 14 23:26:17.210[0m [32m INFO[0m veld_lsp: Exit requested

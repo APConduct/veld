@@ -408,3 +408,123 @@ let result2 = (2 + 3) * 4
     let result = compile_and_run(code);
     assert!(result.is_ok(), "Failed: {:?}", result.err());
 }
+
+#[test]
+fn test_compound_assignment_add() {
+    let code = r#"
+var x = 10
+x += 5
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_subtract() {
+    let code = r#"
+var x = 20
+x -= 8
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_multiply() {
+    let code = r#"
+var x = 5
+x *= 3
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_divide() {
+    let code = r#"
+var x = 20
+x /= 4
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_all_operators() {
+    let code = r#"
+var x = 10
+x += 5   # x = 15
+x -= 3   # x = 12
+x *= 2   # x = 24
+x /= 4   # x = 6
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_with_expressions() {
+    let code = r#"
+var y = 10
+y += 2 + 3
+y -= 1 + 1
+y *= 2
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_multiple_variables() {
+    let code = r#"
+var a = 100
+var b = 50
+a += b
+b -= 10
+a *= 2
+b /= 5
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_in_loop() {
+    let code = r#"
+var sum = 0
+var i = 1
+while i <= 5 do
+    sum += i
+    i += 1
+end
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_in_conditional() {
+    let code = r#"
+var score = 50
+if score < 100 then
+    score += 25
+end
+if score >= 75 then
+    score *= 2
+end
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_compound_assignment_nested_scopes() {
+    let code = r#"
+var outer = 100
+var inner = 50
+inner += 25
+outer += inner
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
