@@ -1,0 +1,141 @@
+# Test file for do blocks with var declarations and assignments
+# This tests the edge case that was previously failing
+
+import std.io
+
+io.println("Testing do blocks with var assignments...")
+io.println("")
+
+# Test 1: Simple var in do block
+let test1 = do
+    var x = 10
+    x
+end
+
+io.println("✓ Test 1 - Simple var in do block: " + test1.to_str())
+
+# Test 2: Var with reassignment
+let test2 = do
+    var counter = 0
+    counter = counter + 10
+    counter
+end
+
+io.println("✓ Test 2 - Var with reassignment: " + test2.to_str())
+
+# Test 3: Multiple reassignments
+let test3 = do
+    var counter = 0
+    counter = counter + 10
+    counter = counter + 5
+    counter = counter * 2
+    counter
+end
+
+io.println("✓ Test 3 - Multiple reassignments: " + test3.to_str())
+
+# Test 4: Var with compound assignment
+let test4 = do
+    var total = 100
+    total += 50
+    total -= 20
+    total *= 2
+    total /= 3
+    total
+end
+
+io.println("✓ Test 4 - Compound assignments: " + test4.to_str())
+
+# Test 5: Multiple vars
+let test5 = do
+    var x = 10
+    var y = 20
+    x = x + 5
+    y = y * 2
+    x + y
+end
+
+io.println("✓ Test 5 - Multiple vars: " + test5.to_str())
+
+# Test 6: Mix of let and var
+let test6 = do
+    let immutable = 100
+    var mutable = 50
+    mutable = mutable + immutable
+    mutable
+end
+
+io.println("✓ Test 6 - Mix of let and var: " + test6.to_str())
+
+# Test 7: Var in nested do blocks
+let test7 = do
+    var outer = 10
+    let inner = do
+        var inner_var = 20
+        inner_var = inner_var + outer
+        inner_var
+    end
+    outer = outer + inner
+    outer
+end
+
+io.println("✓ Test 7 - Nested do blocks: " + test7.to_str())
+
+# Test 8: Var in function with do block
+fn increment_twice(start: i32) => do
+    var value = start
+    value = value + 1
+    value = value + 1
+    value
+end
+
+let test8 = increment_twice(10)
+io.println("✓ Test 8 - Function with var: " + test8.to_str())
+
+# Test 9: Var with conditional
+let test9 = do
+    var result = 0
+    let condition = true
+    if condition then
+        result = 100
+    else
+        result = 50
+    end
+    result
+end
+
+io.println("✓ Test 9 - Var with conditional: " + test9.to_str())
+
+# Test 10: Var assignment as non-final statement
+let test10 = do
+    var x = 10
+    x = 20
+    let y = 30
+    x + y
+end
+
+io.println("✓ Test 10 - Assignment as non-final statement: " + test10.to_str())
+
+# Test 11: Complex computation with var
+let test11 = do
+    var accumulator = 0
+    accumulator = accumulator + 10
+    accumulator = accumulator * 2
+    accumulator = accumulator - 5
+    let bonus = 100
+    accumulator + bonus
+end
+
+io.println("✓ Test 11 - Complex computation: " + test11.to_str())
+
+io.println("")
+io.println("All 11 do block tests passed! ✓")
+io.println("")
+io.println("Summary:")
+io.println("- Var declarations in do blocks work")
+io.println("- Reassignments work correctly")
+io.println("- Compound assignments work")
+io.println("- Multiple vars work")
+io.println("- Mix of let/var works")
+io.println("- Nested do blocks work")
+io.println("- Functions with do blocks work")

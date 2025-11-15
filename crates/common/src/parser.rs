@@ -1388,8 +1388,10 @@ impl Parser {
             || self.check(&Token::While(ZTUP))
             || self.check(&Token::For(ZTUP))
             || self.check(&Token::Return(ZTUP))
-            // matches any let
+            // matches any let, var, or const
             || matches!(self.peek(), Token::Let(_))
+            || matches!(self.peek(), Token::Var(_))
+            || matches!(self.peek(), Token::Const(_))
             || self.check(&Token::Do(ZTUP))
     }
 
@@ -4128,16 +4130,32 @@ impl Parser {
             // Look ahead to see if this might be the final expression
             if self.is_likely_final_expression() {
                 final_expr = Some(Box::new(self.expression(ctx)?));
-
-                break;
-            } else if self.check_statement_start() {
-                statements.push(self.statement(ctx)?);
-            } else {
-                // Unexpected token, break out of the block parsing loop
                 break;
             }
+
+            // Try to parse as statement
+            // This handles all statement types including var/const declarations and assignments
+            let stmt = self.statement(ctx)?;
+
+            // Check if we just parsed an expression statement that could be the final expression
+            // If the next token is 'end', treat the last statement as final expression
+            if self.check(&Token::End(ZTUP)) {
+                if let Statement::ExprStatement(expr) = stmt {
+                    final_expr = Some(Box::new(expr));
+                    break;
+                }
+            }
+
+            statements.push(stmt);
         }
 
+        if !self.check(&Token::End(ZTUP)) {
+            return Err(VeldError::ParserError(format!(
+                "Expected 'end' after block expression, but found {:?} at position {}",
+                self.peek(),
+                self.current
+            )));
+        }
         self.consume(&Token::End(ZTUP), "Expected 'end' after block expression")?;
 
         let end = self.get_current_position();
@@ -4178,6 +4196,12 @@ impl Parser {
             | Token::Fn(_)
             | Token::Proc(_) => false,
             _ => {
+                // Check if this looks like an assignment statement
+                // (identifier followed by = or +=, -=, etc.)
+                if self.check_assignment() {
+                    return false;
+                }
+
                 // Look ahead to see if 'end' comes after this expression
                 let result = self.expression_followed_by_end();
 
