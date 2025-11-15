@@ -1,0 +1,46 @@
+# Test: Just the zip method
+
+std.io.println("Test 1: Basic zip")
+let names = ["Alice", "Bob", "Charlie"]
+let ages = [25, 30, 35]
+let people = names.zip(ages)
+
+std.io.println("Zipped names and ages:")
+for person in people do
+    let (name, age) = person
+    std.io.println(name + " is " + age.to_str() + " years old")
+end
+
+std.io.println("\nTest 2: Zip with numbers")
+let xs = [1, 2, 3]
+let ys = [10, 20, 30]
+let pairs = xs.zip(ys)
+std.io.println("Zipped [1,2,3] with [10,20,30]:")
+for pair in pairs do
+    let (a, b) = pair
+    std.io.println("(" + a.to_str() + ", " + b.to_str() + ")")
+end
+
+std.io.println("\nTest 3: Different lengths (uses shorter)")
+let short = [1, 2, 3]
+let long = [10, 20, 30, 40, 50]
+let zipped = short.zip(long)
+std.io.println("Zip [1,2,3] with [10,20,30,40,50]:")
+for pair in zipped do
+    let (a, b) = pair
+    std.io.println("(" + a.to_str() + ", " + b.to_str() + ")")
+end
+
+std.io.println("\nTest 4: Zip then map")
+let x_vals = [1, 2, 3]
+let y_vals = [10, 20, 30]
+let sums = x_vals.zip(y_vals).map((pair) => do
+    let (a, b) = pair
+    a + b
+end)
+std.io.println("Zip and sum:")
+for s in sums do
+    std.io.println(s.to_str())
+end
+
+std.io.println("\nZip tests completed!")

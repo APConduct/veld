@@ -1,0 +1,122 @@
+# Test: partition() array method
+
+# Test 1: Basic partition - separate evens and odds
+std.io.println("Test 1: Partition evens and odds")
+let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+let (evens, odds) = numbers.partition(x => x % 2 == 0)
+
+std.io.print("  Evens: [")
+for i in 0..evens.len() do
+    if i > 0 do std.io.print(", ") end
+    std.io.print(evens.take(i + 1).last().unwrap().to_str())
+end
+std.io.println("]")
+
+std.io.print("  Odds: [")
+for i in 0..odds.len() do
+    if i > 0 do std.io.print(", ") end
+    std.io.print(odds.take(i + 1).last().unwrap().to_str())
+end
+std.io.println("]")
+
+# Test 2: All elements match
+std.io.println("\nTest 2: All elements match predicate")
+let all_match = [2, 4, 6, 8]
+let (matched, not_matched) = all_match.partition(x => x % 2 == 0)
+std.io.println("  Matched count: " + matched.len().to_str())
+std.io.println("  Not matched count: " + not_matched.len().to_str())
+
+# Test 3: No elements match
+std.io.println("\nTest 3: No elements match predicate")
+let none_match = [1, 3, 5, 7]
+let (matched2, not_matched2) = none_match.partition(x => x % 2 == 0)
+std.io.println("  Matched count: " + matched2.len().to_str())
+std.io.println("  Not matched count: " + not_matched2.len().to_str())
+
+# Test 4: Empty array
+std.io.println("\nTest 4: Empty array")
+let empty = []
+let (empty_match, empty_no_match) = empty.partition(x => x > 0)
+std.io.println("  Matched count: " + empty_match.len().to_str())
+std.io.println("  Not matched count: " + empty_no_match.len().to_str())
+
+# Test 5: Single element - matches
+std.io.println("\nTest 5: Single element - matches")
+let single_match = [42]
+let (sm, snm) = single_match.partition(x => x > 0)
+std.io.println("  Matched: " + sm.len().to_str())
+std.io.println("  Not matched: " + snm.len().to_str())
+
+# Test 6: Single element - doesn't match
+std.io.println("\nTest 6: Single element - doesn't match")
+let single_no_match = [-5]
+let (sm2, snm2) = single_no_match.partition(x => x > 0)
+std.io.println("  Matched: " + sm2.len().to_str())
+std.io.println("  Not matched: " + snm2.len().to_str())
+
+# Test 7: Partition with strings
+std.io.println("\nTest 7: Partition strings by length")
+let words = ["cat", "elephant", "dog", "butterfly", "ox"]
+let (short_words, long_words) = words.partition(w => w.len() <= 3)
+
+std.io.println("  Short words (<=3):")
+for word in short_words do
+    std.io.println("    " + word)
+end
+
+std.io.println("  Long words (>3):")
+for word in long_words do
+    std.io.println("    " + word)
+end
+
+# Test 8: Partition then process separately
+std.io.println("\nTest 8: Partition and process separately")
+let scores = [45, 67, 89, 34, 92, 56, 78, 23, 91]
+let (passing, failing) = scores.partition(s => s >= 60)
+
+let avg_passing = passing.reduce(0, (acc, x) => acc + x) / passing.len()
+let avg_failing = failing.reduce(0, (acc, x) => acc + x) / failing.len()
+
+std.io.println("  Passing scores: " + passing.len().to_str())
+std.io.println("  Average passing: " + avg_passing.to_str())
+std.io.println("  Failing scores: " + failing.len().to_str())
+std.io.println("  Average failing: " + avg_failing.to_str())
+
+# Test 9: Partition with complex predicate
+std.io.println("\nTest 9: Partition with complex predicate")
+let mixed = [1, -2, 3, -4, 5, -6, 7, -8, 9, -10]
+let (positive_odd, others) = mixed.partition(x => x > 0 and x % 2 == 1)
+
+std.io.println("  Positive odd numbers:")
+for n in positive_odd do
+    std.io.println("    " + n.to_str())
+end
+std.io.println("  Others count: " + others.len().to_str())
+
+# Test 10: Chaining partition with other methods
+std.io.println("\nTest 10: Chain partition with filter and map")
+let data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+let (large, small) = data.partition(x => x > 5)
+
+# Process the large numbers
+let large_doubled = large.map(x => x * 2)
+std.io.println("  Large numbers doubled:")
+for n in large_doubled do
+    std.io.println("    " + n.to_str())
+end
+
+# Process the small numbers
+let small_sum = small.reduce(0, (acc, x) => acc + x)
+std.io.println("  Sum of small numbers: " + small_sum.to_str())
+
+# Test 11: Partition preserves order
+std.io.println("\nTest 11: Partition preserves order")
+let ordered = [1, 3, 2, 5, 4, 7, 6, 9, 8]
+let (odd_ordered, even_ordered) = ordered.partition(x => x % 2 == 1)
+
+std.io.print("  Odds in order: ")
+std.io.println(odd_ordered.join(", "))
+std.io.print("  Evens in order: ")
+std.io.println(even_ordered.join(", "))
+
+std.io.println("\nAll partition() tests completed!")

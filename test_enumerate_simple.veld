@@ -1,0 +1,93 @@
+# Test: enumerate() array method - simple version without for-loop destructuring
+
+# Test 1: Basic enumerate - check result length
+std.io.println("Test 1: Basic enumerate")
+let fruits = ["apple", "banana", "cherry"]
+let indexed = fruits.enumerate()
+std.io.println("  Original length: " + fruits.len().to_str())
+std.io.println("  Indexed length: " + indexed.len().to_str())
+
+# Test 2: Check first element structure
+std.io.println("\nTest 2: Check first element")
+let first = indexed.first()
+match first
+    Option.Some(pair) => do
+        std.io.println("  Got first element (it's a tuple)")
+        let (idx, value) = pair
+        std.io.println("  Index: " + idx.to_str())
+        std.io.println("  Value: " + value)
+    end
+    Option.None => std.io.println("  Empty?")
+end
+
+# Test 3: Map over enumerated array
+std.io.println("\nTest 3: Map over enumerated")
+let numbers = [10, 20, 30]
+let enumerated = numbers.enumerate()
+let formatted = enumerated.map((pair) => do
+    let (i, n) = pair
+    "Index " + i.to_str() + " = " + n.to_str()
+end)
+
+std.io.println("  Formatted results:")
+let idx = 0
+while idx < formatted.len() do
+    let item = formatted.take(idx + 1).last().unwrap()
+    std.io.println("    " + item)
+    idx = idx + 1
+end
+
+# Test 4: Empty array
+std.io.println("\nTest 4: Empty array")
+let empty = []
+let empty_enum = empty.enumerate()
+std.io.println("  Empty enumerate length: " + empty_enum.len().to_str())
+
+# Test 5: Single element
+std.io.println("\nTest 5: Single element")
+let single = ["only"]
+let single_enum = single.enumerate()
+std.io.println("  Single enumerate length: " + single_enum.len().to_str())
+let first_single = single_enum.first().unwrap()
+let (i, v) = first_single
+std.io.println("  Index: " + i.to_str() + ", Value: " + v)
+
+# Test 6: Use with filter
+std.io.println("\nTest 6: Filter enumerated")
+let vals = [1, 2, 3, 4, 5]
+let enum_vals = vals.enumerate()
+let evens_with_idx = enum_vals.filter((pair) => do
+    let (i, n) = pair
+    n % 2 == 0
+end)
+std.io.println("  Even numbers count: " + evens_with_idx.len().to_str())
+
+# Test 7: Use with reduce
+std.io.println("\nTest 7: Reduce enumerated")
+let items = [5, 10, 15]
+let enum_items = items.enumerate()
+let sum_with_indices = enum_items.reduce(0, (acc, pair) => do
+    let (idx, val) = pair
+    acc + val + idx
+end)
+std.io.println("  Sum (values + indices): " + sum_with_indices.to_str())
+std.io.println("  Expected: (5+0) + (10+1) + (15+2) = 33")
+
+# Test 8: Find with enumerated
+std.io.println("\nTest 8: Find in enumerated")
+let colors = ["red", "green", "blue", "yellow"]
+let enum_colors = colors.enumerate()
+let found = enum_colors.find((pair) => do
+    let (i, color) = pair
+    color == "blue"
+end)
+
+match found
+    Option.Some(pair) => do
+        let (idx, color) = pair
+        std.io.println("  Found '" + color + "' at index " + idx.to_str())
+    end
+    Option.None => std.io.println("  Not found")
+end
+
+std.io.println("\nAll enumerate() simple tests completed!")

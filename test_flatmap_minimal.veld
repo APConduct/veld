@@ -1,5 +1,5 @@
 # Minimal test to reproduce infinite type error
 
 let nums = [1, 2, 3]
-let result = nums.flat_map(x => [x])
+let result = nums.flat_map(x => [x, x])
 std.io.println("Done")

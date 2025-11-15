@@ -1,0 +1,60 @@
+# Test: enumerate() array method - minimal test without tuple destructuring
+
+# Test 1: Basic enumerate - check it returns an array
+std.io.println("Test 1: Basic enumerate")
+let fruits = ["apple", "banana", "cherry"]
+let indexed = fruits.enumerate()
+std.io.println("  Original length: " + fruits.len().to_str())
+std.io.println("  Indexed length: " + indexed.len().to_str())
+std.io.println("  Expected: both should be 3")
+
+# Test 2: Empty array
+std.io.println("\nTest 2: Empty array")
+let empty = []
+let empty_enum = empty.enumerate()
+std.io.println("  Empty enumerate length: " + empty_enum.len().to_str())
+std.io.println("  Expected: 0")
+
+# Test 3: Single element
+std.io.println("\nTest 3: Single element")
+let single = [42]
+let single_enum = single.enumerate()
+std.io.println("  Single enumerate length: " + single_enum.len().to_str())
+std.io.println("  Expected: 1")
+
+# Test 4: Check first element exists
+std.io.println("\nTest 4: Check first element")
+let numbers = [10, 20, 30]
+let enum_numbers = numbers.enumerate()
+let first = enum_numbers.first()
+match first
+    Option.Some(x) => std.io.println("  First element exists: true")
+    Option.None => std.io.println("  First element exists: false")
+end
+
+# Test 5: Map over enumerated (without destructuring in lambda)
+std.io.println("\nTest 5: Can map over enumerated")
+let vals = [1, 2, 3]
+let enum_vals = vals.enumerate()
+let mapped = enum_vals.map(x => x)  # Identity map
+std.io.println("  Mapped length: " + mapped.len().to_str())
+std.io.println("  Expected: 3")
+
+# Test 6: Filter enumerated (without destructuring)
+std.io.println("\nTest 6: Can filter enumerated")
+let items = [1, 2, 3, 4, 5]
+let enum_items = items.enumerate()
+# Filter where we just keep all items (trivial predicate)
+let filtered = enum_items.filter(x => true)
+std.io.println("  Filtered length: " + filtered.len().to_str())
+std.io.println("  Expected: 5")
+
+# Test 7: Reverse enumerated
+std.io.println("\nTest 7: Can reverse enumerated")
+let data = [1, 2, 3]
+let enum_data = data.enumerate()
+let reversed = enum_data.reverse()
+std.io.println("  Reversed length: " + reversed.len().to_str())
+std.io.println("  Expected: 3")
+
+std.io.println("\nAll enumerate() minimal tests completed!")

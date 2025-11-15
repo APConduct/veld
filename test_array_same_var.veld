@@ -1,0 +1,13 @@
+# Test: Array with same variable used twice
+
+# This should work - simple case
+let x = 5
+let arr1 = [x, x]
+std.io.println("Test 1 passed")
+
+# This causes the infinite type error - in a lambda
+let nums = [1, 2, 3]
+let result = nums.map(x => [x, x])
+std.io.println("Test 2 passed")
+
+std.io.println("All tests completed!")

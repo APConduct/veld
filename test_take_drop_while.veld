@@ -1,0 +1,155 @@
+# Test: take_while() and drop_while() array methods
+
+# Test 1: Basic take_while
+std.io.println("Test 1: Basic take_while")
+let numbers = [1, 2, 3, 4, 5, 1, 2, 3]
+let result = numbers.take_while(x => x < 4)
+std.io.print("  Input: [1, 2, 3, 4, 5, 1, 2, 3], take_while(x < 4): [")
+std.io.println(result.join(", ") + "]")
+
+# Test 2: Basic drop_while
+std.io.println("\nTest 2: Basic drop_while")
+let result2 = numbers.drop_while(x => x < 4)
+std.io.print("  Input: [1, 2, 3, 4, 5, 1, 2, 3], drop_while(x < 4): [")
+std.io.println(result2.join(", ") + "]")
+
+# Test 3: take_while - all elements match
+std.io.println("\nTest 3: take_while - all elements match")
+let all_small = [1, 2, 3]
+let all_taken = all_small.take_while(x => x < 10)
+std.io.println("  Result length: " + all_taken.len().to_str())
+std.io.println("  Expected: 3 (all elements)")
+
+# Test 4: drop_while - all elements match
+std.io.println("\nTest 4: drop_while - all elements match")
+let all_dropped = all_small.drop_while(x => x < 10)
+std.io.println("  Result length: " + all_dropped.len().to_str())
+std.io.println("  Expected: 0 (empty)")
+
+# Test 5: take_while - no elements match
+std.io.println("\nTest 5: take_while - no elements match")
+let big_nums = [10, 20, 30]
+let none_taken = big_nums.take_while(x => x < 5)
+std.io.println("  Result length: " + none_taken.len().to_str())
+std.io.println("  Expected: 0 (empty)")
+
+# Test 6: drop_while - no elements match
+std.io.println("\nTest 6: drop_while - no elements match")
+let none_dropped = big_nums.drop_while(x => x < 5)
+std.io.println("  Result length: " + none_dropped.len().to_str())
+std.io.println("  Expected: 3 (all elements)")
+
+# Test 7: Empty array
+std.io.println("\nTest 7: Empty array")
+let empty = []
+let empty_take = empty.take_while(x => x > 0)
+let empty_drop = empty.drop_while(x => x > 0)
+std.io.println("  take_while on empty: " + empty_take.len().to_str())
+std.io.println("  drop_while on empty: " + empty_drop.len().to_str())
+
+# Test 8: Single element - matches
+std.io.println("\nTest 8: Single element - matches")
+let single_match = [5]
+let taken = single_match.take_while(x => x > 0)
+let dropped = single_match.drop_while(x => x > 0)
+std.io.println("  take_while result: " + taken.len().to_str())
+std.io.println("  drop_while result: " + dropped.len().to_str())
+
+# Test 9: Single element - doesn't match
+std.io.println("\nTest 9: Single element - doesn't match")
+let single_no_match = [5]
+let taken2 = single_no_match.take_while(x => x < 0)
+let dropped2 = single_no_match.drop_while(x => x < 0)
+std.io.println("  take_while result: " + taken2.len().to_str())
+std.io.println("  drop_while result: " + dropped2.len().to_str())
+
+# Test 10: take_while with strings
+std.io.println("\nTest 10: take_while with strings")
+let words = ["cat", "dog", "elephant", "ox", "butterfly"]
+let short_prefix = words.take_while(w => w.len() <= 3)
+std.io.println("  Short words at start:")
+for word in short_prefix do
+    std.io.println("    " + word)
+end
+
+# Test 11: drop_while with strings
+std.io.println("\nTest 11: drop_while with strings")
+let after_short = words.drop_while(w => w.len() <= 3)
+std.io.println("  After dropping short words:")
+for word in after_short do
+    std.io.println("    " + word)
+end
+
+# Test 12: Combining take_while and drop_while
+std.io.println("\nTest 12: Combining take_while and drop_while")
+let data = [1, 2, 3, 10, 20, 30, 40]
+let prefix = data.take_while(x => x < 10)
+let suffix = data.drop_while(x => x < 10)
+std.io.println("  Original: [1, 2, 3, 10, 20, 30, 40]")
+std.io.println("  Prefix (< 10): [" + prefix.join(", ") + "]")
+std.io.println("  Suffix (rest): [" + suffix.join(", ") + "]")
+
+# Test 13: take_while stops at first false
+std.io.println("\nTest 13: take_while stops immediately")
+let mixed = [5, 10, 15, 2, 3, 20]
+let until_big = mixed.take_while(x => x < 20)
+std.io.println("  Input: [5, 10, 15, 2, 3, 20]")
+std.io.println("  take_while(x < 20): [" + until_big.join(", ") + "]")
+std.io.println("  Note: stops at 20, doesn't continue")
+
+# Test 14: drop_while starts including at first false
+std.io.println("\nTest 14: drop_while starts including")
+let from_big = mixed.drop_while(x => x < 20)
+std.io.println("  Input: [5, 10, 15, 2, 3, 20]")
+std.io.println("  drop_while(x < 20): [" + from_big.join(", ") + "]")
+std.io.println("  Note: includes 20 and everything after")
+
+# Test 15: Chaining with map
+std.io.println("\nTest 15: Chain take_while with map")
+let nums = [1, 2, 3, 4, 5, 6]
+let processed = nums.take_while(x => x <= 4).map(x => x * 10)
+std.io.println("  take_while(x <= 4).map(x * 10):")
+for n in processed do
+    std.io.println("    " + n.to_str())
+end
+
+# Test 16: Chaining with filter
+std.io.println("\nTest 16: Chain drop_while with filter")
+let nums2 = [1, 2, 3, 4, 5, 6, 7, 8]
+let processed2 = nums2.drop_while(x => x < 5).filter(x => x % 2 == 0)
+std.io.println("  drop_while(x < 5).filter(even):")
+for n in processed2 do
+    std.io.println("    " + n.to_str())
+end
+
+# Test 17: Using with reduce
+std.io.println("\nTest 17: take_while then reduce")
+let values = [5, 10, 15, 20, 100, 200]
+let prefix_sum = values.take_while(x => x < 50).reduce(0, (acc, x) => acc + x)
+std.io.println("  Sum of values < 50: " + prefix_sum.to_str())
+
+# Test 18: Complex predicate
+std.io.println("\nTest 18: Complex predicate")
+let sequence = [2, 4, 6, 8, 10, 11, 12, 14]
+let even_prefix = sequence.take_while(x => x % 2 == 0 and x < 20)
+std.io.println("  take_while(even and < 20): [" + even_prefix.join(", ") + "]")
+
+# Test 19: Practical example - parse until delimiter
+std.io.println("\nTest 19: Practical - take until delimiter")
+let tokens = ["hello", "world", "---", "ignore", "this"]
+let before_delimiter = tokens.take_while(t => t != "---")
+std.io.println("  Tokens before '---':")
+for token in before_delimiter do
+    std.io.println("    " + token)
+end
+
+# Test 20: Practical example - skip header
+std.io.println("\nTest 20: Practical - skip header lines")
+let lines = ["# Header", "# Another comment", "data1", "data2", "data3"]
+let data_lines = lines.drop_while(l => l.len() > 0 and l.take(1).first().unwrap() == "#")
+std.io.println("  Data lines (after comments):")
+for line in data_lines do
+    std.io.println("    " + line)
+end
+
+std.io.println("\nAll take_while() and drop_while() tests completed!")

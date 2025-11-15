@@ -1622,8 +1622,14 @@ impl TypeChecker {
 
         self.env.push_scope();
 
+        // Solve constraints to resolve the iterator type before binding
+        self.env.solve_constraints()?;
+
+        // Apply substitutions to get the concrete iterator type
+        let resolved_iterator_type = self.env.apply_substitutions(&iterator_type);
+
         // Bind the iterator pattern to the element type
-        self.type_check_pattern_binding(iterator, &iterator_type, &VarKind::Let)?;
+        self.type_check_pattern_binding(iterator, &resolved_iterator_type, &VarKind::Let)?;
 
         for stmt in body {
             let mut stmt_mut = stmt.clone();
@@ -5074,6 +5080,112 @@ impl TypeChecker {
                         "zip() requires an array argument".into(),
                     )),
                 }
+            }
+
+            "enumerate" => {
+                // enumerate() -> Array<(i32, T)>
+                if !args.is_empty() {
+                    return Err(VeldError::TypeError(
+                        "enumerate() takes no arguments".into(),
+                    ));
+                }
+                Ok(Type::Array(Box::new(Type::Tuple(vec![
+                    Type::I32,
+                    elem_type.clone(),
+                ]))))
+            }
+
+            "take_while" | "drop_while" => {
+                // take_while/drop_while(predicate) -> Array<T>
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        format!("{}() takes exactly one function argument", method).into(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let func_type = self.infer_expression_type(arg)?;
+
+                match func_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        if params.len() != 1 {
+                            return Err(VeldError::TypeError(
+                                format!("{}() function must take exactly one argument", method)
+                                    .into(),
+                            ));
+                        }
+
+                        self.env
+                            .add_constraint(params[0].clone(), elem_type.clone());
+                        self.env.add_constraint(*return_type, Type::Bool);
+                        self.env.solve_constraints()?;
+
+                        Ok(Type::Array(Box::new(elem_type.clone())))
+                    }
+                    _ => Err(VeldError::TypeError(
+                        format!("{}() requires a function argument", method).into(),
+                    )),
+                }
+            }
+
+            "partition" => {
+                // partition(predicate) -> (Array<T>, Array<T>)
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "partition() takes exactly one function argument".into(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let func_type = self.infer_expression_type(arg)?;
+
+                match func_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        if params.len() != 1 {
+                            return Err(VeldError::TypeError(
+                                "partition() function must take exactly one argument".into(),
+                            ));
+                        }
+
+                        self.env
+                            .add_constraint(params[0].clone(), elem_type.clone());
+                        self.env.add_constraint(*return_type, Type::Bool);
+                        self.env.solve_constraints()?;
+
+                        // Returns tuple of (matching array, non-matching array)
+                        Ok(Type::Tuple(vec![
+                            Type::Array(Box::new(elem_type.clone())),
+                            Type::Array(Box::new(elem_type.clone())),
+                        ]))
+                    }
+                    _ => Err(VeldError::TypeError(
+                        "partition() requires a function argument".into(),
+                    )),
+                }
+            }
+
+            "unique" | "dedup" => {
+                // unique() -> Array<T>
+                if !args.is_empty() {
+                    return Err(VeldError::TypeError(
+                        format!("{}() takes no arguments", method).into(),
+                    ));
+                }
+                Ok(Type::Array(Box::new(elem_type.clone())))
             }
 
             _ => Err(VeldError::TypeError(format!(

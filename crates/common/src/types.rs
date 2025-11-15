@@ -1237,6 +1237,8 @@ impl TypeEnvironment {
         let t1 = self.apply_substitutions(&t1);
         let t2 = self.apply_substitutions(&t2);
 
+        tracing::debug!("Unifying: {:?} with {:?}", t1, t2);
+
         match (t1.clone(), t2.clone()) {
             (Type::Unit, Type::Unit)
             | (Type::I32, Type::I32)
@@ -1261,10 +1263,26 @@ impl TypeEnvironment {
                 Ok(())
             }
 
+            // Same type variable on both sides - always succeeds
+            (Type::TypeVar(id1), Type::TypeVar(id2)) if id1 == id2 => {
+                tracing::debug!(
+                    "Unifying type variable T{} with itself - trivially succeeds",
+                    id1
+                );
+                Ok(())
+            }
+
             (Type::TypeVar(id), t) | (t, Type::TypeVar(id)) => {
+                tracing::debug!("Unifying type variable T{} with {:?}", id, t);
                 if self.occurs_check(id, &t) {
-                    return Err(VeldError::TypeError(format!("Infinite type: {}", t)));
+                    tracing::error!("Occurs check failed: T{} occurs in {:?}", id, t);
+                    tracing::error!("Current substitutions: {:?}", self.substitutions);
+                    return Err(VeldError::TypeError(format!(
+                        "Infinite type: T{} = {:?} (type variable occurs in the type it's being unified with)",
+                        id, t
+                    )));
                 }
+                tracing::debug!("Adding substitution: T{} = {:?}", id, t);
                 self.substitutions.insert(id, t);
                 Ok(())
             }

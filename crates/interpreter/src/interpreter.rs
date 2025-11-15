@@ -6631,7 +6631,8 @@ impl Interpreter {
                     "len" => Ok(Value::Integer(elements.len() as i64)),
                     "last" | "first" | "init" | "tail" | "with" | "take" | "drop" | "map"
                     | "filter" | "reduce" | "fold" | "find" | "any" | "all" | "join"
-                    | "reverse" | "flat_map" | "zip" => {
+                    | "reverse" | "flat_map" | "zip" | "enumerate" | "partition" | "take_while"
+                    | "drop_while" | "unique" | "dedup" => {
                         // Return a special function that, when called, will invoke the corresponding array method
                         Ok(Value::Function {
                             params: vec![
@@ -7601,6 +7602,18 @@ impl Interpreter {
                     for element in elements {
                         let mapped =
                             self.call_function_with_single_argument(func, element.clone())?;
+
+                        // Dereference GcRef if necessary
+                        let mapped = if let Value::GcRef(handle) = &mapped {
+                            let allocator = self.allocator.read().unwrap();
+                            allocator
+                                .get_value(handle)
+                                .expect("dangling GC handle in flat_map")
+                                .clone()
+                        } else {
+                            mapped
+                        };
+
                         // Mapped value should be an array, flatten it into result
                         match mapped {
                             Value::Array(inner_elements) => {
@@ -7640,6 +7653,118 @@ impl Interpreter {
                             elements[i].clone(),
                             other_array[i].clone(),
                         ]));
+                    }
+                    return Ok(Value::Array(result));
+                }
+                "enumerate" => {
+                    // enumerate() -> Array<(i32, T)>
+                    if !args.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "enumerate() takes no arguments".to_string(),
+                        ));
+                    }
+                    let result: Vec<Value> = elements
+                        .iter()
+                        .enumerate()
+                        .map(|(i, elem)| Value::Tuple(vec![Value::Integer(i as i64), elem.clone()]))
+                        .collect();
+                    return Ok(Value::Array(result));
+                }
+                "take_while" => {
+                    // take_while(predicate) -> Array<T>
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "take_while() takes exactly one function argument".to_string(),
+                        ));
+                    }
+                    let func = &args[0];
+                    let mut result = Vec::new();
+
+                    for element in elements {
+                        let pred_result =
+                            self.call_function_with_single_argument(func, element.clone())?;
+                        if self.is_truthy(pred_result) {
+                            result.push(element.clone());
+                        } else {
+                            // Stop at first false
+                            break;
+                        }
+                    }
+                    return Ok(Value::Array(result));
+                }
+                "drop_while" => {
+                    // drop_while(predicate) -> Array<T>
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "drop_while() takes exactly one function argument".to_string(),
+                        ));
+                    }
+                    let func = &args[0];
+                    let mut result = Vec::new();
+                    let mut dropping = true;
+
+                    for element in elements {
+                        if dropping {
+                            let pred_result =
+                                self.call_function_with_single_argument(func, element.clone())?;
+                            if !self.is_truthy(pred_result) {
+                                dropping = false;
+                                result.push(element.clone());
+                            }
+                        } else {
+                            result.push(element.clone());
+                        }
+                    }
+                    return Ok(Value::Array(result));
+                }
+                "partition" => {
+                    // partition(predicate) -> (Array<T>, Array<T>)
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "partition() takes exactly one function argument".to_string(),
+                        ));
+                    }
+                    let func = &args[0];
+                    let mut matching = Vec::new();
+                    let mut non_matching = Vec::new();
+
+                    for element in elements {
+                        let pred_result =
+                            self.call_function_with_single_argument(func, element.clone())?;
+                        if self.is_truthy(pred_result) {
+                            matching.push(element.clone());
+                        } else {
+                            non_matching.push(element.clone());
+                        }
+                    }
+                    return Ok(Value::Tuple(vec![
+                        Value::Array(matching),
+                        Value::Array(non_matching),
+                    ]));
+                }
+                "unique" | "dedup" => {
+                    // unique() -> Array<T> - removes duplicates, keeps first occurrence
+                    if !args.is_empty() {
+                        return Err(VeldError::RuntimeError(format!(
+                            "{}() takes no arguments",
+                            method_name
+                        )));
+                    }
+                    let mut result = Vec::new();
+                    let mut seen = Vec::new();
+
+                    for element in elements {
+                        let mut is_duplicate = false;
+                        for seen_elem in &seen {
+                            if self.values_equal(element, seen_elem) {
+                                is_duplicate = true;
+                                break;
+                            }
+                        }
+                        if !is_duplicate {
+                            result.push(element.clone());
+                            seen.push(element.clone());
+                        }
                     }
                     return Ok(Value::Array(result));
                 }

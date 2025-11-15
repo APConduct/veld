@@ -1,0 +1,165 @@
+# Test: unique() / dedup() array method
+
+# Test 1: Basic unique - remove duplicates
+std.io.println("Test 1: Basic unique - remove duplicates")
+let numbers = [1, 2, 2, 3, 1, 4, 3, 5]
+let unique_nums = numbers.unique()
+std.io.println("  Input: [1, 2, 2, 3, 1, 4, 3, 5]")
+std.io.println("  Unique: [" + unique_nums.join(", ") + "]")
+std.io.println("  Expected: [1, 2, 3, 4, 5]")
+
+# Test 2: No duplicates
+std.io.println("\nTest 2: No duplicates")
+let no_dups = [1, 2, 3, 4, 5]
+let still_unique = no_dups.unique()
+std.io.println("  Input length: " + no_dups.len().to_str())
+std.io.println("  Output length: " + still_unique.len().to_str())
+std.io.println("  Expected: same length (5)")
+
+# Test 3: All duplicates
+std.io.println("\nTest 3: All duplicates")
+let all_same = [7, 7, 7, 7, 7]
+let one_elem = all_same.unique()
+std.io.println("  Input: [7, 7, 7, 7, 7]")
+std.io.println("  Output length: " + one_elem.len().to_str())
+std.io.println("  Expected: 1 element")
+
+# Test 4: Empty array
+std.io.println("\nTest 4: Empty array")
+let empty = []
+let empty_unique = empty.unique()
+std.io.println("  Empty array unique length: " + empty_unique.len().to_str())
+std.io.println("  Expected: 0")
+
+# Test 5: Single element
+std.io.println("\nTest 5: Single element")
+let single = [42]
+let single_unique = single.unique()
+std.io.println("  Single element unique length: " + single_unique.len().to_str())
+std.io.println("  Expected: 1")
+
+# Test 6: Keeps first occurrence
+std.io.println("\nTest 6: Keeps first occurrence")
+let ordered = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]
+let unique_ordered = ordered.unique()
+std.io.println("  Input: [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]")
+std.io.println("  Unique: [" + unique_ordered.join(", ") + "]")
+std.io.println("  Note: maintains order of first occurrence")
+
+# Test 7: Strings with duplicates
+std.io.println("\nTest 7: Strings with duplicates")
+let words = ["cat", "dog", "cat", "bird", "dog", "fish"]
+let unique_words = words.unique()
+std.io.println("  Unique words:")
+for word in unique_words do
+    std.io.println("    " + word)
+end
+
+# Test 8: dedup alias works the same
+std.io.println("\nTest 8: dedup() alias")
+let dups = [1, 1, 2, 2, 3, 3]
+let deduped = dups.dedup()
+std.io.println("  dedup() result: [" + deduped.join(", ") + "]")
+std.io.println("  Expected: [1, 2, 3]")
+
+# Test 9: Chaining with map
+std.io.println("\nTest 9: Chain with map")
+let nums = [1, 2, 2, 3, 3, 3]
+let unique_doubled = nums.unique().map(x => x * 2)
+std.io.println("  unique().map(x * 2): [" + unique_doubled.join(", ") + "]")
+std.io.println("  Expected: [2, 4, 6]")
+
+# Test 10: Chaining with filter
+std.io.println("\nTest 10: Chain with filter then unique")
+let mixed = [1, 5, 2, 5, 3, 5, 4, 5]
+let filtered_unique = mixed.filter(x => x > 2).unique()
+std.io.println("  filter(x > 2).unique(): [" + filtered_unique.join(", ") + "]")
+std.io.println("  Expected: [5, 3, 4]")
+
+# Test 11: Large array with many duplicates
+std.io.println("\nTest 11: Many duplicates")
+let many_dups = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5]
+let compact = many_dups.unique()
+std.io.println("  Input length: " + many_dups.len().to_str())
+std.io.println("  Output length: " + compact.len().to_str())
+std.io.println("  Expected: 15 -> 5")
+
+# Test 12: Alternating duplicates
+std.io.println("\nTest 12: Alternating duplicates")
+let alternating = [1, 2, 1, 2, 1, 2, 3]
+let alt_unique = alternating.unique()
+std.io.println("  Input: [1, 2, 1, 2, 1, 2, 3]")
+std.io.println("  Unique: [" + alt_unique.join(", ") + "]")
+std.io.println("  Expected: [1, 2, 3]")
+
+# Test 13: Unique then sort for comparison
+std.io.println("\nTest 13: Unique preserves first occurrence order")
+let unsorted = [5, 2, 8, 2, 3, 5, 1]
+let unique_unsorted = unsorted.unique()
+std.io.println("  Input: [5, 2, 8, 2, 3, 5, 1]")
+std.io.println("  Unique: [" + unique_unsorted.join(", ") + "]")
+std.io.println("  Note: preserves order [5, 2, 8, 3, 1]")
+
+# Test 14: Unique with reduce
+std.io.println("\nTest 14: Unique then reduce")
+let values = [10, 10, 20, 20, 30, 30]
+let sum = values.unique().reduce(0, (acc, x) => acc + x)
+std.io.println("  Sum of unique values: " + sum.to_str())
+std.io.println("  Expected: 60 (10 + 20 + 30)")
+
+# Test 15: Count occurrences pattern
+std.io.println("\nTest 15: Pattern - count unique elements")
+let data = [1, 2, 3, 1, 2, 3, 1, 2, 3, 4]
+let unique_count = data.unique().len()
+std.io.println("  Data: [1, 2, 3, 1, 2, 3, 1, 2, 3, 4]")
+std.io.println("  Number of unique elements: " + unique_count.to_str())
+std.io.println("  Expected: 4")
+
+# Test 16: Case sensitivity for strings
+std.io.println("\nTest 16: String case sensitivity")
+let cases = ["Hello", "hello", "HELLO", "world", "WORLD"]
+let unique_cases = cases.unique()
+std.io.println("  Input: [Hello, hello, HELLO, world, WORLD]")
+std.io.println("  Unique (case-sensitive):")
+for word in unique_cases do
+    std.io.println("    " + word)
+end
+
+# Test 17: Practical - remove duplicate IDs
+std.io.println("\nTest 17: Practical - remove duplicate IDs")
+let user_ids = [101, 102, 101, 103, 102, 104, 105, 103]
+let unique_ids = user_ids.unique()
+std.io.println("  Original IDs: " + user_ids.len().to_str())
+std.io.println("  Unique IDs: " + unique_ids.len().to_str())
+std.io.println("  IDs: [" + unique_ids.join(", ") + "]")
+
+# Test 18: Unique with find
+std.io.println("\nTest 18: Unique then find")
+let items = ["a", "b", "a", "c", "b", "d"]
+let unique_items = items.unique()
+let found = unique_items.find(x => x == "c")
+match found
+    Option.Some(item) => std.io.println("  Found unique item: " + item)
+    Option.None => std.io.println("  Not found")
+end
+
+# Test 19: Consecutive duplicates vs scattered
+std.io.println("\nTest 19: Consecutive vs scattered duplicates")
+let consecutive = [1, 1, 2, 2, 3, 3]
+let scattered = [1, 2, 3, 1, 2, 3]
+std.io.println("  Consecutive [1,1,2,2,3,3] unique: [" + consecutive.unique().join(", ") + "]")
+std.io.println("  Scattered [1,2,3,1,2,3] unique: [" + scattered.unique().join(", ") + "]")
+std.io.println("  Both result in [1, 2, 3]")
+
+# Test 20: Practical - deduplicate search results
+std.io.println("\nTest 20: Practical - deduplicate results")
+let search_results = ["result1", "result2", "result1", "result3", "result2", "result4"]
+let clean_results = search_results.unique()
+std.io.println("  Search results with duplicates: " + search_results.len().to_str())
+std.io.println("  After deduplication: " + clean_results.len().to_str())
+std.io.println("  Clean results:")
+for result in clean_results do
+    std.io.println("    " + result)
+end
+
+std.io.println("\nAll unique() / dedup() tests completed!")
