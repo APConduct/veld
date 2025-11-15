@@ -2666,6 +2666,7 @@ impl TypeChecker {
                 | Type::U16
                 | Type::U32
                 | Type::U64
+                | TypeVar(_)
         )
     }
 
@@ -2746,13 +2747,30 @@ impl TypeChecker {
             }
 
             BinaryOperator::Modulo => {
-                if self.is_integer_type(&left_type) && self.is_integer_type(&right_type) {
-                    Ok(self.promote_numeric_types(&left_type, &right_type))
-                } else {
-                    Err(VeldError::TypeError(format!(
-                        "Modulo operation requires integer types, got {} and {}",
-                        left_type, right_type
-                    )))
+                // Handle type variables by adding constraints
+                match (&left_type, &right_type) {
+                    (TypeVar(_), TypeVar(_)) | (TypeVar(_), _) | (_, TypeVar(_)) => {
+                        // Add constraints that both must be integer types
+                        // For now, we'll default to I32 for type variables
+                        if matches!(left_type, TypeVar(_)) {
+                            self.env.add_constraint(left_type.clone(), Type::I32);
+                        }
+                        if matches!(right_type, TypeVar(_)) {
+                            self.env.add_constraint(right_type.clone(), Type::I32);
+                        }
+                        self.env.solve_constraints()?;
+                        Ok(Type::I32)
+                    }
+                    _ => {
+                        if self.is_integer_type(&left_type) && self.is_integer_type(&right_type) {
+                            Ok(self.promote_numeric_types(&left_type, &right_type))
+                        } else {
+                            Err(VeldError::TypeError(format!(
+                                "Modulo operation requires integer types, got {} and {}",
+                                left_type, right_type
+                            )))
+                        }
+                    }
                 }
             }
 

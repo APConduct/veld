@@ -1,0 +1,66 @@
+# Test: Modulo operator with lambda type inference
+
+# Test 1: Simple modulo in lambda
+std.io.println("Test 1: Modulo in lambda")
+let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+let evens = numbers.filter(x => x % 2 == 0)
+std.io.println("  Even numbers count: " + evens.len().to_str())
+std.io.println("  Expected: 5")
+
+# Test 2: Modulo with different values
+std.io.println("\nTest 2: Divisible by 3")
+let divisible_by_3 = numbers.filter(x => x % 3 == 0)
+std.io.println("  Divisible by 3 count: " + divisible_by_3.len().to_str())
+std.io.println("  Expected: 3 (3, 6, 9)")
+
+# Test 3: Modulo in map
+std.io.println("\nTest 3: Modulo in map")
+let remainders = numbers.map(x => x % 3)
+std.io.println("  Remainders length: " + remainders.len().to_str())
+std.io.println("  Expected: 10")
+
+# Test 4: Modulo with partition
+std.io.println("\nTest 4: Modulo with partition")
+let data = [1, 2, 3, 4, 5, 6]
+let result = data.partition(x => x % 2 == 0)
+let (evens2, odds2) = result
+std.io.println("  Evens count: " + evens2.len().to_str())
+std.io.println("  Odds count: " + odds2.len().to_str())
+std.io.println("  Expected: 3 evens, 3 odds")
+
+# Test 5: Modulo with any
+std.io.println("\nTest 5: Modulo with any")
+let has_even = numbers.any(x => x % 2 == 0)
+std.io.println("  Has even number: " + has_even.to_str())
+std.io.println("  Expected: true")
+
+# Test 6: Modulo with all
+std.io.println("\nTest 6: Modulo with all")
+let all_even = [2, 4, 6, 8]
+let all_are_even = all_even.all(x => x % 2 == 0)
+std.io.println("  All are even: " + all_are_even.to_str())
+std.io.println("  Expected: true")
+
+# Test 7: Modulo with find
+std.io.println("\nTest 7: Modulo with find")
+let first_multiple_of_5 = numbers.find(x => x % 5 == 0)
+match first_multiple_of_5
+    Option.Some(n) => std.io.println("  Found: " + n.to_str())
+    Option.None => std.io.println("  Not found")
+end
+std.io.println("  Expected: Found: 5")
+
+# Test 8: Modulo with take_while
+std.io.println("\nTest 8: Modulo with take_while")
+let sequence = [1, 3, 5, 7, 8, 9, 10]
+let odd_prefix = sequence.take_while(x => x % 2 == 1)
+std.io.println("  Odd prefix length: " + odd_prefix.len().to_str())
+std.io.println("  Expected: 4 (1, 3, 5, 7)")
+
+# Test 9: Modulo with drop_while
+std.io.println("\nTest 9: Modulo with drop_while")
+let after_odds = sequence.drop_while(x => x % 2 == 1)
+std.io.println("  After dropping odds length: " + after_odds.len().to_str())
+std.io.println("  Expected: 3 (8, 9, 10)")
+
+std.io.println("\nAll modulo operator tests completed!")

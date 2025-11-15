@@ -1,0 +1,119 @@
+# Test: unique() / dedup() array method - simple test
+
+# Test 1: Basic unique - remove duplicates
+std.io.println("Test 1: Basic unique")
+let numbers = [1, 2, 2, 3, 1, 4, 3, 5]
+let unique_nums = numbers.unique()
+std.io.println("  Original length: " + numbers.len().to_str())
+std.io.println("  Unique length: " + unique_nums.len().to_str())
+std.io.println("  Expected: 8 -> 5")
+
+# Test 2: No duplicates
+std.io.println("\nTest 2: No duplicates")
+let no_dups = [1, 2, 3, 4, 5]
+let still_unique = no_dups.unique()
+std.io.println("  Original length: " + no_dups.len().to_str())
+std.io.println("  Unique length: " + still_unique.len().to_str())
+std.io.println("  Expected: same (5)")
+
+# Test 3: All duplicates
+std.io.println("\nTest 3: All same element")
+let all_same = [7, 7, 7, 7, 7]
+let one_elem = all_same.unique()
+std.io.println("  Original length: " + all_same.len().to_str())
+std.io.println("  Unique length: " + one_elem.len().to_str())
+std.io.println("  Expected: 5 -> 1")
+
+# Test 4: Empty array
+std.io.println("\nTest 4: Empty array")
+let empty = []
+let empty_unique = empty.unique()
+std.io.println("  Empty unique length: " + empty_unique.len().to_str())
+std.io.println("  Expected: 0")
+
+# Test 5: Single element
+std.io.println("\nTest 5: Single element")
+let single = [42]
+let single_unique = single.unique()
+std.io.println("  Single unique length: " + single_unique.len().to_str())
+std.io.println("  Expected: 1")
+
+# Test 6: Strings with duplicates
+std.io.println("\nTest 6: String duplicates")
+let words = ["cat", "dog", "cat", "bird", "dog", "fish"]
+let unique_words = words.unique()
+std.io.println("  Original words: " + words.len().to_str())
+std.io.println("  Unique words: " + unique_words.len().to_str())
+std.io.println("  Expected: 6 -> 4")
+
+# Test 7: dedup alias
+std.io.println("\nTest 7: dedup() alias")
+let dups = [1, 1, 2, 2, 3, 3]
+let deduped = dups.dedup()
+std.io.println("  Original: " + dups.len().to_str())
+std.io.println("  Deduped: " + deduped.len().to_str())
+std.io.println("  Expected: 6 -> 3")
+
+# Test 8: Chain with map
+std.io.println("\nTest 8: unique then map")
+let vals = [1, 2, 2, 3, 3, 3]
+let unique_doubled = vals.unique().map(x => x * 2)
+std.io.println("  Result length: " + unique_doubled.len().to_str())
+std.io.println("  Expected: 3")
+
+# Test 9: Chain filter then unique
+std.io.println("\nTest 9: filter then unique")
+let mixed = [1, 5, 2, 5, 3, 5, 4, 5]
+let filtered_unique = mixed.filter(x => x > 2).unique()
+std.io.println("  Filtered unique length: " + filtered_unique.len().to_str())
+std.io.println("  Expected: 3 (3, 4, 5)")
+
+# Test 10: Unique then reduce
+std.io.println("\nTest 10: unique then reduce")
+let values = [10, 10, 20, 20, 30, 30]
+let sum = values.unique().reduce(0, (acc, x) => acc + x)
+std.io.println("  Sum of unique values: " + sum.to_str())
+std.io.println("  Expected: 60 (10 + 20 + 30)")
+
+# Test 11: Many duplicates
+std.io.println("\nTest 11: Many duplicates")
+let many = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4]
+let compact = many.unique()
+std.io.println("  Original: " + many.len().to_str())
+std.io.println("  Compact: " + compact.len().to_str())
+std.io.println("  Expected: 12 -> 4")
+
+# Test 12: Alternating duplicates
+std.io.println("\nTest 12: Alternating duplicates")
+let alt = [1, 2, 1, 2, 1, 2, 3]
+let alt_unique = alt.unique()
+std.io.println("  Alternating unique: " + alt_unique.len().to_str())
+std.io.println("  Expected: 3 (1, 2, 3)")
+
+# Test 13: Count unique elements
+std.io.println("\nTest 13: Count unique")
+let data = [1, 2, 3, 1, 2, 3, 1, 2, 3, 4]
+let unique_count = data.unique().len()
+std.io.println("  Number of unique elements: " + unique_count.to_str())
+std.io.println("  Expected: 4")
+
+# Test 14: Unique with any
+std.io.println("\nTest 14: unique with any")
+let items = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+let unique_items = items.unique()
+let has_three = unique_items.any(x => x == 3)
+std.io.println("  Has 3 in unique: " + has_three.to_str())
+std.io.println("  Expected: true")
+
+# Test 15: Unique with find
+std.io.println("\nTest 15: unique with find")
+let sequence = [5, 5, 3, 3, 1, 1, 4, 4, 2, 2]
+let unique_seq = sequence.unique()
+let found_four = unique_seq.find(x => x == 4)
+match found_four
+    Option.Some(n) => std.io.println("  Found: " + n.to_str())
+    Option.None => std.io.println("  Not found")
+end
+std.io.println("  Expected: Found: 4")
+
+std.io.println("\nAll unique() tests completed!")

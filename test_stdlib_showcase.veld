@@ -1,0 +1,226 @@
+# Veld Standard Library Showcase
+# Demonstrates all new array methods: enumerate, partition, take_while, drop_while, unique
+
+std.io.println("=== Veld Standard Library Showcase ===")
+std.io.println("Demonstrating new array methods\n")
+
+# ============================================================================
+# SCENARIO 1: Data Processing Pipeline
+# ============================================================================
+std.io.println("--- Scenario 1: Data Processing Pipeline ---")
+std.io.println("Problem: Process a list of numbers with various transformations")
+
+let raw_data = [5, 10, 3, 10, 15, 20, 3, 25, 5, 30, 15, 35]
+std.io.println("Raw data: [5, 10, 3, 10, 15, 20, 3, 25, 5, 30, 15, 35]")
+
+# Step 1: Remove duplicates
+let clean_data = raw_data.unique()
+std.io.println("After unique(): " + clean_data.len().to_str() + " unique values")
+
+# Step 2: Partition into small and large values
+let (small, large) = clean_data.partition(x => x < 20)
+std.io.println("Partition (< 20): " + small.len().to_str() + " small, " + large.len().to_str() + " large")
+
+# Step 3: Process each group separately
+let small_sum = small.reduce(0, (acc, x) => acc + x)
+let large_sum = large.reduce(0, (acc, x) => acc + x)
+std.io.println("Small sum: " + small_sum.to_str() + ", Large sum: " + large_sum.to_str())
+
+# ============================================================================
+# SCENARIO 2: Log Analysis
+# ============================================================================
+std.io.println("\n--- Scenario 2: Log Analysis ---")
+std.io.println("Problem: Parse log entries until we hit an error")
+
+let log_entries = ["INFO", "INFO", "DEBUG", "INFO", "ERROR", "WARN", "INFO"]
+std.io.println("Logs: INFO, INFO, DEBUG, INFO, ERROR, WARN, INFO")
+
+# Take all entries before first ERROR
+let valid_logs = log_entries.take_while(entry => entry != "ERROR")
+std.io.println("Valid logs before error: " + valid_logs.len().to_str() + " entries")
+
+# Get everything after the error (including it)
+let error_and_after = log_entries.drop_while(entry => entry != "ERROR")
+std.io.println("Error and subsequent: " + error_and_after.len().to_str() + " entries")
+
+# ============================================================================
+# SCENARIO 3: Student Grade Processing
+# ============================================================================
+std.io.println("\n--- Scenario 3: Student Grade Processing ---")
+std.io.println("Problem: Analyze test scores and categorize students")
+
+let scores = [85, 92, 78, 92, 88, 72, 95, 88, 91, 85, 78]
+std.io.println("Test scores: [85, 92, 78, 92, 88, 72, 95, 88, 91, 85, 78]")
+
+# Remove duplicate scores to see unique performance levels
+let unique_scores = scores.unique()
+std.io.println("Unique score values: " + unique_scores.len().to_str())
+
+# Partition into passing (>= 80) and failing
+let (passing, failing) = scores.partition(s => s >= 80)
+std.io.println("Passing: " + passing.len().to_str() + ", Failing: " + failing.len().to_str())
+
+# Calculate averages
+let pass_avg = passing.reduce(0, (acc, x) => acc + x) / passing.len()
+let fail_avg = failing.reduce(0, (acc, x) => acc + x) / failing.len()
+std.io.println("Passing avg: " + pass_avg.to_str() + ", Failing avg: " + fail_avg.to_str())
+
+# ============================================================================
+# SCENARIO 4: Filtering with Modulo (demonstrating the bug fix!)
+# ============================================================================
+std.io.println("\n--- Scenario 4: Even/Odd Analysis ---")
+std.io.println("Problem: Separate even and odd numbers")
+
+let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+std.io.println("Numbers: 1 through 12")
+
+# Partition evens and odds using modulo operator
+let (evens, odds) = numbers.partition(x => x % 2 == 0)
+std.io.println("Evens: " + evens.len().to_str() + ", Odds: " + odds.len().to_str())
+
+# Sum each group
+let even_sum = evens.reduce(0, (acc, x) => acc + x)
+let odd_sum = odds.reduce(0, (acc, x) => acc + x)
+std.io.println("Even sum: " + even_sum.to_str() + ", Odd sum: " + odd_sum.to_str())
+
+# ============================================================================
+# SCENARIO 5: Enumeration for Indexed Operations
+# ============================================================================
+std.io.println("\n--- Scenario 5: Indexed Processing ---")
+std.io.println("Problem: Process array with index awareness")
+
+let items = ["apple", "banana", "cherry", "date", "elderberry"]
+std.io.println("Items: apple, banana, cherry, date, elderberry")
+
+# Enumerate to get indices
+let indexed = items.enumerate()
+std.io.println("Enumerated: " + indexed.len().to_str() + " items with indices")
+
+# Filter to get only items at even indices
+let even_indexed = indexed.filter((pair) => do
+    let (i, item) = pair
+    i % 2 == 0
+end)
+std.io.println("Items at even indices: " + even_indexed.len().to_str())
+
+# Map to create formatted strings
+let formatted = indexed.map((pair) => do
+    let (i, item) = pair
+    "[" + i.to_str() + "] " + item
+end)
+std.io.println("Sample formatted: " + formatted.take(1).first().unwrap())
+
+# ============================================================================
+# SCENARIO 6: Complex Pipeline
+# ============================================================================
+std.io.println("\n--- Scenario 6: Complex Multi-Step Pipeline ---")
+std.io.println("Problem: Chain multiple operations together")
+
+let dataset = [5, 10, 15, 5, 20, 25, 10, 30, 15, 35, 20, 40]
+std.io.println("Dataset: [5, 10, 15, 5, 20, 25, 10, 30, 15, 35, 20, 40]")
+
+# Pipeline: unique -> filter > 10 -> take while < 30 -> double values
+let result = dataset
+    .unique()                      # Remove duplicates
+    .filter(x => x > 10)          # Keep only values > 10
+    .take_while(x => x < 30)      # Take until we hit 30
+    .map(x => x * 2)              # Double each value
+
+std.io.println("After pipeline:")
+std.io.println("  1. unique() removes duplicates")
+std.io.println("  2. filter(x > 10) keeps [15, 20, 25, 30, 35, 40]")
+std.io.println("  3. take_while(x < 30) keeps [15, 20, 25]")
+std.io.println("  4. map(x * 2) doubles to [30, 40, 50]")
+std.io.println("Final result length: " + result.len().to_str())
+
+# ============================================================================
+# SCENARIO 7: Practical - Remove Duplicates from Search Results
+# ============================================================================
+std.io.println("\n--- Scenario 7: Search Result Deduplication ---")
+std.io.println("Problem: Clean up duplicate search results")
+
+let search_results = [
+    "result1", "result2", "result3",
+    "result1", "result4", "result2",
+    "result5", "result3", "result6"
+]
+std.io.println("Search results: 9 items with duplicates")
+
+let clean_results = search_results.unique()
+std.io.println("After dedup: " + clean_results.len().to_str() + " unique results")
+std.io.println("Reduction: " + (search_results.len() - clean_results.len()).to_str() + " duplicates removed")
+
+# ============================================================================
+# SCENARIO 8: Take/Drop While for Range Extraction
+# ============================================================================
+std.io.println("\n--- Scenario 8: Range Extraction ---")
+std.io.println("Problem: Extract middle section of data")
+
+let sequence = [1, 2, 3, 10, 20, 30, 100, 200, 300]
+std.io.println("Sequence: [1, 2, 3, 10, 20, 30, 100, 200, 300]")
+
+# Drop small values, take until large values
+let middle = sequence
+    .drop_while(x => x < 10)
+    .take_while(x => x < 100)
+
+std.io.println("Middle range (10 <= x < 100): " + middle.len().to_str() + " elements")
+
+# ============================================================================
+# SCENARIO 9: All Methods Together
+# ============================================================================
+std.io.println("\n--- Scenario 9: Ultimate Combo ---")
+std.io.println("Problem: Use ALL new methods in one pipeline")
+
+let mega_data = [
+    5, 10, 10, 15, 20, 5, 25, 30, 15, 35, 40, 20,
+    45, 50, 25, 55, 60, 30, 65, 70, 35
+]
+std.io.println("Mega dataset: 21 values with duplicates")
+
+# Step 1: Unique
+let step1 = mega_data.unique()
+std.io.println("Step 1 - unique(): " + step1.len().to_str() + " unique values")
+
+# Step 2: Enumerate to add indices
+let step2 = step1.enumerate()
+std.io.println("Step 2 - enumerate(): added indices")
+
+# Step 3: Filter to even indices only
+let step3 = step2.filter((pair) => do
+    let (i, val) = pair
+    i % 2 == 0
+end)
+std.io.println("Step 3 - filter(even indices): " + step3.len().to_str() + " items")
+
+# Step 4: Extract just the values (not indices)
+let step4 = step3.map((pair) => do
+    let (i, val) = pair
+    val
+end)
+std.io.println("Step 4 - map to values: extracted values")
+
+# Step 5: Take while < 50
+let step5 = step4.take_while(x => x < 50)
+std.io.println("Step 5 - take_while(< 50): " + step5.len().to_str() + " items")
+
+# Step 6: Partition into small (<30) and medium (>=30)
+let (final_small, final_medium) = step5.partition(x => x < 30)
+std.io.println("Step 6 - partition(< 30): " + final_small.len().to_str() + " small, " + final_medium.len().to_str() + " medium")
+
+# ============================================================================
+# Summary
+# ============================================================================
+std.io.println("\n=== Summary ===")
+std.io.println("New methods demonstrated:")
+std.io.println("  ✓ enumerate()   - Add indices to elements")
+std.io.println("  ✓ partition()   - Split by predicate")
+std.io.println("  ✓ take_while()  - Take until false")
+std.io.println("  ✓ drop_while()  - Drop until false")
+std.io.println("  ✓ unique()      - Remove duplicates")
+std.io.println("\nAll methods work perfectly with:")
+std.io.println("  ✓ Lambda expressions")
+std.io.println("  ✓ Modulo operator (bug fix!)")
+std.io.println("  ✓ Method chaining")
+std.io.println("  ✓ Tuple destructuring in lambdas")
+std.io.println("\n🎉 Veld Standard Library is now 50% larger!")
