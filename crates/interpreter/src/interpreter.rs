@@ -2157,73 +2157,82 @@ impl Interpreter {
                             let iterable_value =
                                 self.evaluate_expression(iterable.clone())?.unwrap_return();
 
+                            // Dereference GcRef if necessary
+                            let iterable_value = if let Value::GcRef(handle) = &iterable_value {
+                                let allocator = self.allocator.read().unwrap();
+                                allocator
+                                    .get_value(handle)
+                                    .expect("dangling GC handle in for loop")
+                                    .clone()
+                            } else {
+                                iterable_value
+                            };
+
                             match iterable_value {
                                 Value::Array(elements) => {
-                                    let mut inner_loop = None;
-                                    let mut elements = elements.into_iter();
-                                    loop {
-                                        inner_loop = match inner_loop {
-                                            None => match elements.next() {
-                                                None => break,
-                                                Some(element) => {
-                                                    // Bind the iterator pattern to the element
-                                                    self.bind_pattern(
-                                                        &iterator,
-                                                        element,
-                                                        VarKind::Let,
-                                                    )?;
-                                                    Some(body.clone().into_iter())
+                                    for element in elements {
+                                        // Create a new scope for this iteration
+                                        self.push_scope();
+
+                                        // Bind the iterator pattern to the element
+                                        self.bind_pattern(&iterator, element, VarKind::Let)?;
+
+                                        // Execute loop body
+                                        for stmt in body.clone() {
+                                            let result = self.execute_statement(stmt)?;
+                                            match result {
+                                                Value::Return(_) => {
+                                                    self.pop_scope();
+                                                    return Ok(result);
                                                 }
-                                            },
-                                            Some(mut stmts) => {
-                                                if let Some(stmt) = stmts.next() {
-                                                    let result = self.execute_statement(stmt)?;
-                                                    match result {
-                                                        Value::Return(_) => return Ok(result),
-                                                        Value::Break => return Ok(Value::Unit),
-                                                        Value::Continue => break,
-                                                        _ => {}
-                                                    }
-                                                    Some(stmts)
-                                                } else {
-                                                    None
+                                                Value::Break => {
+                                                    self.pop_scope();
+                                                    return Ok(Value::Unit);
                                                 }
+                                                Value::Continue => {
+                                                    break;
+                                                }
+                                                _ => {}
                                             }
-                                        };
+                                        }
+
+                                        // Pop scope after iteration
+                                        self.pop_scope();
                                     }
                                 }
                                 Value::String(s) => {
-                                    let mut inner_loop = None;
-                                    let mut chars = s.chars();
-                                    loop {
-                                        inner_loop = match inner_loop {
-                                            None => match chars.next() {
-                                                None => break,
-                                                Some(c) => {
-                                                    // Bind the iterator pattern to the character
-                                                    self.bind_pattern(
-                                                        &iterator,
-                                                        Value::String(c.to_string()),
-                                                        VarKind::Let,
-                                                    )?;
-                                                    Some(body.clone().into_iter())
+                                    for c in s.chars() {
+                                        // Create a new scope for this iteration
+                                        self.push_scope();
+
+                                        // Bind the iterator pattern to the character
+                                        self.bind_pattern(
+                                            &iterator,
+                                            Value::String(c.to_string()),
+                                            VarKind::Let,
+                                        )?;
+
+                                        // Execute loop body
+                                        for stmt in body.clone() {
+                                            let result = self.execute_statement(stmt)?;
+                                            match result {
+                                                Value::Return(_) => {
+                                                    self.pop_scope();
+                                                    return Ok(result);
                                                 }
-                                            },
-                                            Some(mut stmts) => {
-                                                if let Some(stmt) = stmts.next() {
-                                                    let result = self.execute_statement(stmt)?;
-                                                    match result {
-                                                        Value::Return(_) => return Ok(result),
-                                                        Value::Break => return Ok(Value::Unit),
-                                                        Value::Continue => break,
-                                                        _ => {}
-                                                    }
-                                                    Some(stmts)
-                                                } else {
-                                                    None
+                                                Value::Break => {
+                                                    self.pop_scope();
+                                                    return Ok(Value::Unit);
                                                 }
+                                                Value::Continue => {
+                                                    break;
+                                                }
+                                                _ => {}
                                             }
-                                        };
+                                        }
+
+                                        // Pop scope after iteration
+                                        self.pop_scope();
                                     }
                                 }
                                 _ => {
@@ -3333,6 +3342,14 @@ impl Interpreter {
             (Type::Enum { name, .. }, Type::Generic { base, .. }) => name == base,
             // Array types are compatible if element types are compatible
             (Type::Array(elem1), Type::Array(elem2)) => self.types_compatible(elem1, elem2),
+            // Tuple types are compatible if lengths match and all element types are compatible
+            (Type::Tuple(elems1), Type::Tuple(elems2)) => {
+                elems1.len() == elems2.len()
+                    && elems1
+                        .iter()
+                        .zip(elems2.iter())
+                        .all(|(e1, e2)| self.types_compatible(e1, e2))
+            }
             // Function types are compatible if parameters and return types are compatible
             (
                 Type::Function {

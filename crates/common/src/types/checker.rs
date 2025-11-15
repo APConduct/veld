@@ -2830,6 +2830,15 @@ impl TypeChecker {
             // For arrays, check element types recursively
             (Type::Array(elem1), Type::Array(elem2)) => self.types_compatible(elem1, elem2),
 
+            // For tuples, check that lengths match and all element types are compatible
+            (Type::Tuple(elems1), Type::Tuple(elems2)) => {
+                elems1.len() == elems2.len()
+                    && elems1
+                        .iter()
+                        .zip(elems2.iter())
+                        .all(|(e1, e2)| self.types_compatible(e1, e2))
+            }
+
             // For generic types, check base and all type arguments
             (
                 Type::Generic {

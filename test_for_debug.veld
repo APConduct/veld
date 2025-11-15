@@ -1,0 +1,16 @@
+# Test: Debug for loop iteration
+
+let numbers = [1, 2, 3]
+
+std.io.println("Testing simple for loop with numbers")
+for x in numbers do
+    std.io.println("x = " + x.to_str())
+end
+
+std.io.println("\nTesting for loop with tuples")
+let pairs = [(1, 2), (3, 4), (5, 6)]
+for (a, b) in pairs do
+    std.io.println("a = " + a.to_str() + ", b = " + b.to_str())
+end
+
+std.io.println("\nDone")

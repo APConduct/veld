@@ -1,0 +1,12 @@
+# Test: For loop with multiple tuple elements
+
+let pair1 = (1, 2)
+let pair2 = (3, 4)
+let pairs = [pair1, pair2]
+
+std.io.println("Testing for loop with multiple tuples")
+for (x, y) in pairs do
+    std.io.println("x = " + x.to_str() + ", y = " + y.to_str())
+end
+
+std.io.println("Test completed!")

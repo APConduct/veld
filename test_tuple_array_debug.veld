@@ -1,0 +1,6 @@
+# Test: Minimal reproduction of tuple array type checker bug
+
+# This should work but gives an error about tuple types not matching
+let pairs = [(1, 2), (3, 4)]
+
+std.io.println("If you see this, the bug is fixed!")
