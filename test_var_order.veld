@@ -1,0 +1,13 @@
+# Test: Check if variable order matters
+
+let x = 10
+std.io.println("x = " + x.to_str())
+
+let y = 20
+std.io.println("y = " + y.to_str())
+
+let (a, b) = (1, 2)
+std.io.println("a = " + a.to_str())
+std.io.println("b = " + b.to_str())
+
+std.io.println("All tests passed!")

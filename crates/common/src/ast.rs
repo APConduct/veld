@@ -560,7 +560,7 @@ pub enum Statement {
         body: Vec<Statement>,
     },
     For {
-        iterator: String,
+        iterator: Pattern,
         iterable: Expr,
         body: Vec<Statement>,
     },

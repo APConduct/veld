@@ -1253,26 +1253,9 @@ impl TypeChecker {
                             )));
                         }
 
-                        // Type check each pattern element
+                        // Type check each pattern element recursively
                         for (pat, elem_type) in patterns.iter().zip(element_types.iter()) {
-                            match pat {
-                                Pattern::Identifier(name) => {
-                                    self.env.define(name, elem_type.clone());
-                                    self.var_info.insert(
-                                        name.clone(),
-                                        VarInfo::new(elem_type.clone(), var_kind.clone(), None),
-                                    );
-                                }
-                                Pattern::Wildcard => {
-                                    // Wildcard pattern, don't bind anything
-                                }
-                                _ => {
-                                    return Err(VeldError::TypeError(
-                                        "Nested patterns in tuple destructuring not yet supported"
-                                            .to_string(),
-                                    ));
-                                }
-                            }
+                            self.type_check_pattern_binding(pat, elem_type, var_kind)?;
                         }
                         Ok(())
                     }
@@ -1290,6 +1273,58 @@ impl TypeChecker {
             _ => Err(VeldError::TypeError(
                 "Complex patterns in let declarations not yet supported".to_string(),
             )),
+        }
+    }
+
+    /// Helper to recursively type check pattern binding
+    fn type_check_pattern_binding(
+        &mut self,
+        pattern: &Pattern,
+        expected_type: &Type,
+        var_kind: &VarKind,
+    ) -> Result<()> {
+        match pattern {
+            Pattern::Identifier(name) => {
+                self.env.define(name, expected_type.clone());
+                self.var_info.insert(
+                    name.clone(),
+                    VarInfo::new(expected_type.clone(), var_kind.clone(), None),
+                );
+                Ok(())
+            }
+            Pattern::Wildcard => {
+                // Wildcard pattern, don't bind anything
+                Ok(())
+            }
+            Pattern::TuplePattern(patterns) => {
+                // Expected type must be a tuple
+                match expected_type {
+                    Type::Tuple(element_types) => {
+                        if patterns.len() != element_types.len() {
+                            return Err(VeldError::TypeError(format!(
+                                "Nested tuple pattern has {} elements but type has {}",
+                                patterns.len(),
+                                element_types.len()
+                            )));
+                        }
+                        // Recursively type check each nested pattern
+                        for (pat, elem_type) in patterns.iter().zip(element_types.iter()) {
+                            self.type_check_pattern_binding(pat, elem_type, var_kind)?;
+                        }
+                        Ok(())
+                    }
+                    _ => Err(VeldError::TypeError(format!(
+                        "Cannot destructure non-tuple type in nested pattern: {:?}",
+                        expected_type
+                    ))),
+                }
+            }
+            Pattern::Literal(_) | Pattern::EnumPattern { .. } | Pattern::StructPattern { .. } => {
+                Err(VeldError::TypeError(format!(
+                    "Pattern {:?} is not supported in variable declarations",
+                    pattern
+                )))
+            }
         }
     }
 
@@ -1568,7 +1603,7 @@ impl TypeChecker {
 
     fn type_check_for(
         &mut self,
-        iterator: &str,
+        iterator: &Pattern,
         iterable: &Expr,
         body: &[Statement],
     ) -> Result<()> {
@@ -1586,7 +1621,9 @@ impl TypeChecker {
         };
 
         self.env.push_scope();
-        self.env.define(iterator, iterator_type);
+
+        // Bind the iterator pattern to the element type
+        self.type_check_pattern_binding(iterator, &iterator_type, &VarKind::Let)?;
 
         for stmt in body {
             let mut stmt_mut = stmt.clone();

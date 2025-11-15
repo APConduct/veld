@@ -1,0 +1,4 @@
+# Test: Nested tuple destructuring without using the variables
+
+let ((a, b), c) = ((1, 2), 3)
+std.io.println("Nested tuple destructuring completed successfully!")

@@ -1,0 +1,4 @@
+# Test: Tuple literal type inference
+
+let t = ((1, 2), 3)
+std.io.println("Tuple literal created successfully!")

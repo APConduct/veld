@@ -1,0 +1,35 @@
+# Test: Nested tuple destructuring
+
+# Simple nested tuple
+let ((a, b), c) = ((1, 2), 3)
+std.io.println("a = " + a.to_str())
+std.io.println("b = " + b.to_str())
+std.io.println("c = " + c.to_str())
+
+# Nested with different types
+let ((name, age), (city, country)) = (("Alice", 25), ("Paris", "France"))
+std.io.println("name = " + name)
+std.io.println("age = " + age.to_str())
+std.io.println("city = " + city)
+std.io.println("country = " + country)
+
+# Triple nesting
+let (((x, y), z), w) = (((10, 20), 30), 40)
+std.io.println("x = " + x.to_str())
+std.io.println("y = " + y.to_str())
+std.io.println("z = " + z.to_str())
+std.io.println("w = " + w.to_str())
+
+# Nested with wildcards
+let ((first, _), (_, last)) = ((1, 2), (3, 4))
+std.io.println("first = " + first.to_str())
+std.io.println("last = " + last.to_str())
+
+# Mixed nesting levels
+let (a, (b, c), d) = (100, (200, 300), 400)
+std.io.println("a = " + a.to_str())
+std.io.println("b = " + b.to_str())
+std.io.println("c = " + c.to_str())
+std.io.println("d = " + d.to_str())
+
+std.io.println("All nested tuple tests completed!")

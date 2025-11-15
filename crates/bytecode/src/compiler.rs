@@ -713,10 +713,24 @@ impl BytecodeCompiler {
     /// Compile for loop (simplified - assumes iterable is array)
     fn compile_for_loop(
         &mut self,
-        variable: &str,
+        variable: &veld_common::ast::Pattern,
         iterable: &Expr,
         body: &Statement,
     ) -> Result<()> {
+        // Legacy compiler only supports simple identifier patterns
+        let variable_name = match variable {
+            veld_common::ast::Pattern::Identifier(name) => name,
+            _ => {
+                return Err(VeldError::CompileError {
+                    message: format!(
+                        "Legacy compiler only supports simple identifier patterns in for loops, found: {:?}",
+                        variable
+                    ),
+                    line: None,
+                    column: None,
+                });
+            }
+        };
         self.begin_scope();
 
         // Compile iterable and create iterator
@@ -724,7 +738,7 @@ impl BytecodeCompiler {
         self.emit_instruction(Instruction::MakeIterator, self.current_line);
 
         // Declare loop variable
-        self.declare_variable(variable.to_string(), false)?;
+        self.declare_variable(variable_name.to_string(), false)?;
 
         let loop_start = self.current_chunk.instruction_count();
         let start_label = format!("for_start_{}", loop_start);
@@ -747,7 +761,7 @@ impl BytecodeCompiler {
         // Get next value and store in loop variable
         self.emit_instruction(Instruction::Duplicate, self.current_line);
         self.emit_instruction(Instruction::IteratorNext, self.current_line);
-        if let Some(var_index) = self.resolve_local(variable) {
+        if let Some(var_index) = self.resolve_local(variable_name) {
             self.emit_instruction(Instruction::StoreLocal(var_index as u16), self.current_line);
         }
 

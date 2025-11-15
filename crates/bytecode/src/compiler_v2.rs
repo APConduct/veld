@@ -2293,16 +2293,24 @@ impl RegisterCompiler {
     }
 
     /// Compile for loop with iterator protocol
-    fn compile_for(&mut self, iterator: &str, iterable: &Expr, body: &[Statement]) -> Result<()> {
+    fn compile_for(
+        &mut self,
+        iterator: &veld_common::ast::Pattern,
+        iterable: &Expr,
+        body: &[Statement],
+    ) -> Result<()> {
         self.begin_scope();
 
         // Compile iterable expression
         let iter_result = self.compile_expr_to_reg(iterable)?;
 
+        // Generate a unique name for the iterator variable
+        let iter_name = format!("$iter_{}", self.chunk.current_index());
+
         // Allocate iterator register as a variable (not temp) so it persists through loop
         let iter_reg = self
             .allocator
-            .allocate_variable(format!("$iter_{}", iterator), false)
+            .allocate_variable(iter_name, false)
             .map_err(|e| VeldError::CompileError {
                 message: e,
                 line: Some(self.current_line as usize),
@@ -2316,28 +2324,8 @@ impl RegisterCompiler {
             self.free_temp(iter_result.register);
         }
 
-        // Allocate loop variable
-        let loop_var = self
-            .allocator
-            .allocate_variable(iterator.to_string(), false)
-            .map_err(|e| VeldError::CompileError {
-                message: e,
-                line: Some(self.current_line as usize),
-                column: None,
-            })?;
-
-        self.variables.insert(
-            iterator.to_string(),
-            VarInfo {
-                register: loop_var,
-                is_mutable: false,
-                depth: self.scope_depth,
-                is_captured: false,
-                is_upvalue: false,
-                is_type: false,
-                is_global_ref: false,
-            },
-        );
+        // Allocate a temporary register to hold each element from the iterator
+        let loop_var = self.allocate_temp()?;
 
         // Push loop context for break/continue
         let loop_start = self.chunk.current_index();
@@ -2350,6 +2338,9 @@ impl RegisterCompiler {
         // Check if iterator has next (ForIterator instruction)
         // This will jump to end if iterator is exhausted
         let end_jump = self.chunk.for_iterator(iter_reg, loop_var, 0);
+
+        // Bind the iterator pattern to the loop variable
+        self.compile_pattern_binding(iterator, loop_var, &VarKind::Let)?;
 
         // Compile loop body
         for stmt in body {
@@ -2374,6 +2365,7 @@ impl RegisterCompiler {
             self.chunk.patch_jump(break_jump);
         }
 
+        self.free_temp(loop_var);
         self.end_scope();
 
         Ok(())

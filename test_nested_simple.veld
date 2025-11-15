@@ -1,0 +1,7 @@
+# Test: Simple nested tuple destructuring
+
+let ((a, b), c) = ((1, 2), 3)
+std.io.println("Test passed if you see this")
+std.io.println("a = " + a.to_str())
+std.io.println("b = " + b.to_str())
+std.io.println("c = " + c.to_str())

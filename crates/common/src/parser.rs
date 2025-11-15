@@ -2627,12 +2627,15 @@ impl Parser {
     fn parse_single_binding_pattern(&mut self) -> Result<Pattern> {
         if self.match_token(&[Token::Identifier(("_".to_string(), ZTUP))]) {
             Ok(Pattern::Wildcard)
+        } else if self.check(&Token::LParen(ZTUP)) {
+            // Nested tuple pattern
+            self.parse_binding_pattern()
         } else if let Token::Identifier(name) = self.peek().clone() {
             self.advance();
             Ok(Pattern::Identifier(name.0))
         } else {
             Err(VeldError::ParserError(format!(
-                "Expected identifier or wildcard in pattern, found {:?}",
+                "Expected identifier, wildcard, or tuple pattern, found {:?}",
                 self.peek()
             )))
         }
@@ -3190,7 +3193,7 @@ impl Parser {
 
         let start = self.get_current_position();
 
-        let iterator = self.consume_identifier("Expected iterator variable name")?;
+        let iterator = self.parse_binding_pattern()?;
 
         self.consume(&Token::In(ZTUP), "Expected 'in' after iterator variable")?;
 
@@ -5684,7 +5687,11 @@ mod tests {
                 iterable,
                 body,
             } => {
-                assert_eq!(iterator, "item");
+                if let Pattern::Identifier(name) = iterator {
+                    assert_eq!(name, "item");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &iterable {
                     Expr::Identifier(name) => assert_eq!(name, "collection"),

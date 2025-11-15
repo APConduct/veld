@@ -2166,8 +2166,12 @@ impl Interpreter {
                                             None => match elements.next() {
                                                 None => break,
                                                 Some(element) => {
-                                                    self.current_scope_mut()
-                                                        .set(iterator.clone(), element);
+                                                    // Bind the iterator pattern to the element
+                                                    self.bind_pattern(
+                                                        &iterator,
+                                                        element,
+                                                        VarKind::Let,
+                                                    )?;
                                                     Some(body.clone().into_iter())
                                                 }
                                             },
@@ -2196,10 +2200,12 @@ impl Interpreter {
                                             None => match chars.next() {
                                                 None => break,
                                                 Some(c) => {
-                                                    self.current_scope_mut().set(
-                                                        iterator.clone(),
+                                                    // Bind the iterator pattern to the character
+                                                    self.bind_pattern(
+                                                        &iterator,
                                                         Value::String(c.to_string()),
-                                                    );
+                                                        VarKind::Let,
+                                                    )?;
                                                     Some(body.clone().into_iter())
                                                 }
                                             },

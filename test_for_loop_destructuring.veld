@@ -1,0 +1,35 @@
+# Test: For-loop tuple destructuring
+
+# Test 1: Simple tuple destructuring in for loop
+let pairs = [(1, 2), (3, 4), (5, 6)]
+
+std.io.println("Test 1: Simple tuple destructuring")
+for (x, y) in pairs do
+    std.io.println("x = " + x.to_str() + ", y = " + y.to_str())
+end
+
+# Test 2: Tuple with different types
+let mixed = [("Alice", 25), ("Bob", 30), ("Charlie", 35)]
+
+std.io.println("\nTest 2: Mixed type tuples")
+for (name, age) in mixed do
+    std.io.println(name + " is " + age.to_str() + " years old")
+end
+
+# Test 3: Wildcard in for loop
+let coordinates = [(10, 20, 30), (40, 50, 60), (70, 80, 90)]
+
+std.io.println("\nTest 3: Wildcards in for loop")
+for (x, _, z) in coordinates do
+    std.io.println("x = " + x.to_str() + ", z = " + z.to_str())
+end
+
+# Test 4: Nested tuple destructuring in for loop
+let nested = [((1, 2), 3), ((4, 5), 6), ((7, 8), 9)]
+
+std.io.println("\nTest 4: Nested tuple destructuring")
+for ((a, b), c) in nested do
+    std.io.println("a = " + a.to_str() + ", b = " + b.to_str() + ", c = " + c.to_str())
+end
+
+std.io.println("\nAll for-loop destructuring tests completed!")
