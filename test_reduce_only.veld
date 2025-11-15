@@ -1,0 +1,20 @@
+# Test: Just reduce with simple operations
+
+let numbers = [1, 2, 3, 4, 5]
+
+# Test reduce with sum
+let sum = numbers.reduce(0, (acc, x) => acc + x)
+std.io.println("Sum of [1,2,3,4,5]:")
+std.io.println(sum.to_str())
+
+# Test reduce with product
+let product = numbers.reduce(1, (acc, x) => acc * x)
+std.io.println("Product of [1,2,3,4,5]:")
+std.io.println(product.to_str())
+
+# Test reduce to find max
+let max = numbers.reduce(0, (acc, x) => if x > acc then x else acc end)
+std.io.println("Max value:")
+std.io.println(max.to_str())
+
+std.io.println("Reduce tests completed!")

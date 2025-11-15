@@ -4836,6 +4836,139 @@ impl TypeChecker {
                 }
             }
 
+            "reduce" | "fold" => {
+                // reduce(initial_value, function) -> return_type
+                if args.len() != 2 {
+                    return Err(VeldError::TypeError(
+                        "reduce() takes exactly two arguments (initial value, function)".into(),
+                    ));
+                }
+
+                let initial_arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let func_arg = match &args[1] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let initial_type = self.infer_expression_type(initial_arg)?;
+                let func_type = self.infer_expression_type(func_arg)?;
+
+                match func_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        if params.len() != 2 {
+                            return Err(VeldError::TypeError(
+                                "reduce() function must take exactly two arguments (accumulator, element)".into(),
+                            ));
+                        }
+
+                        // First param (accumulator) should match initial_type and return_type
+                        self.env
+                            .add_constraint(params[0].clone(), initial_type.clone());
+                        self.env
+                            .add_constraint(params[0].clone(), *return_type.clone());
+                        // Second param should match element type
+                        self.env
+                            .add_constraint(params[1].clone(), elem_type.clone());
+                        self.env.solve_constraints()?;
+
+                        Ok(*return_type)
+                    }
+                    _ => Err(VeldError::TypeError(
+                        "reduce() requires a function argument".into(),
+                    )),
+                }
+            }
+
+            "find" => {
+                // find(predicate) -> Option<T>
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "find() takes exactly one function argument".into(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let func_type = self.infer_expression_type(arg)?;
+
+                match func_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        if params.len() != 1 {
+                            return Err(VeldError::TypeError(
+                                "find() function must take exactly one argument".into(),
+                            ));
+                        }
+
+                        self.env
+                            .add_constraint(params[0].clone(), elem_type.clone());
+                        self.env.add_constraint(*return_type, Type::Bool);
+                        self.env.solve_constraints()?;
+
+                        // find() returns Option<T>
+                        Ok(Type::Generic {
+                            base: "Option".to_string(),
+                            type_args: vec![elem_type.clone()],
+                        })
+                    }
+                    _ => Err(VeldError::TypeError(
+                        "find() requires a function argument".into(),
+                    )),
+                }
+            }
+
+            "any" | "all" => {
+                // any/all(predicate) -> bool
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        format!("{}() takes exactly one function argument", method).into(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let func_type = self.infer_expression_type(arg)?;
+
+                match func_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        if params.len() != 1 {
+                            return Err(VeldError::TypeError(
+                                format!("{}() function must take exactly one argument", method)
+                                    .into(),
+                            ));
+                        }
+
+                        self.env
+                            .add_constraint(params[0].clone(), elem_type.clone());
+                        self.env.add_constraint(*return_type, Type::Bool);
+                        self.env.solve_constraints()?;
+
+                        Ok(Type::Bool)
+                    }
+                    _ => Err(VeldError::TypeError(
+                        format!("{}() requires a function argument", method).into(),
+                    )),
+                }
+            }
+
             _ => Err(VeldError::TypeError(format!(
                 "Unknown method {} on array",
                 method

@@ -1,0 +1,58 @@
+# Test: find, any, and all array methods
+
+let numbers = [1, 2, 3, 4, 5]
+
+# Test find - first number greater than 2
+std.io.println("Test find - first > 2:")
+let result1 = numbers.find(x => x > 2)
+match result1
+    Option.Some(n) => std.io.println(n.to_str())
+    Option.None => std.io.println("Not found")
+end
+
+# Test find - number greater than 10 (not found)
+std.io.println("\nTest find - number > 10:")
+let result2 = numbers.find(x => x > 10)
+match result2
+    Option.Some(n) => std.io.println(n.to_str())
+    Option.None => std.io.println("Not found")
+end
+
+# Test any - has numbers > 3
+std.io.println("\nTest any - has > 3:")
+let has_large = numbers.any(x => x > 3)
+std.io.println(has_large.to_str())
+
+# Test any - has numbers > 10
+std.io.println("\nTest any - has > 10:")
+let has_very_large = numbers.any(x => x > 10)
+std.io.println(has_very_large.to_str())
+
+# Test all - all positive
+std.io.println("\nTest all - all positive:")
+let all_positive = numbers.all(x => x > 0)
+std.io.println(all_positive.to_str())
+
+# Test all - all greater than 10
+std.io.println("\nTest all - all > 10:")
+let all_large = numbers.all(x => x > 10)
+std.io.println(all_large.to_str())
+
+# Test with empty array
+std.io.println("\nTest with empty array:")
+let empty = []
+let empty_any = empty.any(x => x > 0)
+let empty_all = empty.all(x => x > 0)
+std.io.println("Empty any:")
+std.io.println(empty_any.to_str())
+std.io.println("Empty all:")
+std.io.println(empty_all.to_str())
+
+# Test combining with filter
+std.io.println("\nTest combining with filter:")
+let filtered = numbers.filter(x => x > 2)
+let has_big = filtered.any(x => x > 4)
+std.io.println("Filtered [1,2,3,4,5] > 2, has > 4:")
+std.io.println(has_big.to_str())
+
+std.io.println("\nAll tests completed!")

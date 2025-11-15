@@ -1,0 +1,91 @@
+# Test: New array higher-order functions
+
+# Test 1: reduce/fold - sum all numbers
+let numbers = [1, 2, 3, 4, 5]
+let sum = numbers.reduce(0, (acc, x) => acc + x)
+std.io.println("Sum of [1,2,3,4,5]: " + sum.to_str())
+
+# Test 2: reduce - product
+let product = numbers.reduce(1, (acc, x) => acc * x)
+std.io.println("Product of [1,2,3,4,5]: " + product.to_str())
+
+# Test 3: reduce - concatenate strings
+let words = ["Hello", "World", "from", "Veld"]
+let sentence = words.reduce("", (acc, word) => acc + " " + word)
+std.io.println("Concatenated: '" + sentence + "'")
+
+# Test 4: find - first even number
+let find_even_result = numbers.find(x => x % 2 == 0)
+std.io.println("\nFind first even in [1,2,3,4,5]:")
+match find_even_result
+    Option.Some(n) => std.io.println("  Found: " + n.to_str())
+    Option.None => std.io.println("  Not found")
+end
+
+# Test 5: find - not found case
+let find_large_result = numbers.find(x => x > 10)
+std.io.println("\nFind number > 10 in [1,2,3,4,5]:")
+match find_large_result
+    Option.Some(n) => std.io.println("  Found: " + n.to_str())
+    Option.None => std.io.println("  Not found")
+end
+
+# Test 6: any - check if any even
+let has_even = numbers.any(x => x % 2 == 0)
+std.io.println("\nAny even numbers in [1,2,3,4,5]? " + has_even.to_str())
+
+# Test 7: any - check if any > 10
+let has_large = numbers.any(x => x > 10)
+std.io.println("Any numbers > 10 in [1,2,3,4,5]? " + has_large.to_str())
+
+# Test 8: all - check if all positive
+let all_positive = numbers.all(x => x > 0)
+std.io.println("\nAll positive in [1,2,3,4,5]? " + all_positive.to_str())
+
+# Test 9: all - check if all even
+let all_even = numbers.all(x => x % 2 == 0)
+std.io.println("All even in [1,2,3,4,5]? " + all_even.to_str())
+
+# Test 10: Combining methods - filter then reduce
+let evens = numbers.filter(x => x % 2 == 0)
+let even_sum = evens.reduce(0, (acc, x) => acc + x)
+std.io.println("\nSum of even numbers: " + even_sum.to_str())
+
+# Test 11: Combining methods - map then reduce
+let doubled = numbers.map(x => x * 2)
+let doubled_sum = doubled.reduce(0, (acc, x) => acc + x)
+std.io.println("Sum of doubled numbers: " + doubled_sum.to_str())
+
+# Test 12: Test with empty array
+let empty = []
+let empty_sum = empty.reduce(42, (acc, x) => acc + x)
+std.io.println("\nReduce on empty array (initial=42): " + empty_sum.to_str())
+
+let empty_any = empty.any(x => x > 0)
+std.io.println("Any in empty array? " + empty_any.to_str())
+
+let empty_all = empty.all(x => x > 0)
+std.io.println("All in empty array? " + empty_all.to_str())
+
+# Test 13: Complex reduce - building a data structure
+let pairs = [(1, 10), (2, 20), (3, 30)]
+std.io.println("\nUsing reduce with tuples:")
+for (key, value) in pairs do
+    std.io.println("  (" + key.to_str() + ", " + value.to_str() + ")")
+end
+
+# Test 14: find with complex predicate
+let tuple_result = pairs.find((pair) => do
+    let (k, v) = pair
+    v > 15
+end)
+std.io.println("\nFind tuple where value > 15:")
+match tuple_result
+    Option.Some(p) => do
+        let (k, v) = p
+        std.io.println("  Found: (" + k.to_str() + ", " + v.to_str() + ")")
+    end
+    Option.None => std.io.println("  Not found")
+end
+
+std.io.println("\nAll array method tests completed!")

@@ -1,0 +1,44 @@
+# Test: Simple array higher-order functions
+
+# Test 1: reduce/fold - sum all numbers
+let numbers = [1, 2, 3, 4, 5]
+let sum = numbers.reduce(0, (acc, x) => acc + x)
+std.io.println("Sum: ")
+std.io.println(sum.to_str())
+
+# Test 2: reduce - product
+let product = numbers.reduce(1, (acc, x) => acc * x)
+std.io.println("Product: ")
+std.io.println(product.to_str())
+
+# Test 3: find - first even number
+let find_result = numbers.find(x => x % 2 == 0)
+std.io.println("Find first even:")
+match find_result
+    Option.Some(n) => std.io.println(n.to_str())
+    Option.None => std.io.println("Not found")
+end
+
+# Test 4: any - check if any even
+let has_even = numbers.any(x => x % 2 == 0)
+std.io.println("Has even: ")
+std.io.println(has_even.to_str())
+
+# Test 5: all - check if all positive
+let all_positive = numbers.all(x => x > 0)
+std.io.println("All positive: ")
+std.io.println(all_positive.to_str())
+
+# Test 6: Combining methods - filter then reduce
+let evens = numbers.filter(x => x % 2 == 0)
+let even_sum = evens.reduce(0, (acc, x) => acc + x)
+std.io.println("Sum of evens: ")
+std.io.println(even_sum.to_str())
+
+# Test 7: Empty array
+let empty = []
+let empty_sum = empty.reduce(42, (acc, x) => acc + x)
+std.io.println("Empty reduce: ")
+std.io.println(empty_sum.to_str())
+
+std.io.println("Done!")

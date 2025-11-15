@@ -6630,7 +6630,7 @@ impl Interpreter {
                 match property {
                     "len" => Ok(Value::Integer(elements.len() as i64)),
                     "last" | "first" | "init" | "tail" | "with" | "take" | "drop" | "map"
-                    | "filter" => {
+                    | "filter" | "reduce" | "fold" | "find" | "any" | "all" => {
                         // Return a special function that, when called, will invoke the corresponding array method
                         Ok(Value::Function {
                             params: vec![
@@ -7001,6 +7001,56 @@ impl Interpreter {
                 }
 
                 self.current_scope_mut().set(params[0].0.clone(), arg);
+
+                // Execute function body
+                let mut result = Value::Unit;
+                for stmt in body.into_iter() {
+                    let stmt_result = self.execute_statement(stmt.clone())?;
+                    if matches!(stmt_result, Value::Return(_)) {
+                        result = stmt_result;
+                        break;
+                    }
+                    result = stmt_result;
+                }
+
+                self.pop_scope();
+
+                // If a return was encountered, propagate it immediately
+                if matches!(result, Value::Return(_)) {
+                    return Ok(result.unwrap_return());
+                }
+                // If the last statement produced a value (not Unit), return it
+                if !matches!(result, Value::Unit) {
+                    return Ok(result);
+                }
+                Ok(Value::Unit)
+            }
+            _ => Err(VeldError::RuntimeError(
+                "Cannot call non-function value".to_string(),
+            )),
+        }
+    }
+
+    fn call_function_with_two_arguments(
+        &mut self,
+        func: &Value,
+        arg1: Value,
+        arg2: Value,
+    ) -> Result<Value> {
+        match func {
+            Value::Function { params, body, .. } => {
+                // Direct invocation of function value
+                self.push_scope();
+
+                // Bind the arguments to the first two parameters
+                if params.len() < 2 {
+                    return Err(VeldError::RuntimeError(
+                        "Function must take at least two parameters".to_string(),
+                    ));
+                }
+
+                self.current_scope_mut().set(params[0].0.clone(), arg1);
+                self.current_scope_mut().set(params[1].0.clone(), arg2);
 
                 // Execute function body
                 let mut result = Value::Unit;
@@ -7407,6 +7457,91 @@ impl Interpreter {
                         }
                     }
                     return Ok(Value::Array(result));
+                }
+                "reduce" | "fold" => {
+                    // reduce(initial_value, function)
+                    if args.len() != 2 {
+                        return Err(VeldError::RuntimeError(
+                            "reduce() takes exactly two arguments (initial value, function)"
+                                .to_string(),
+                        ));
+                    }
+                    let mut accumulator = args[0].clone();
+                    let func = &args[1];
+
+                    for element in elements {
+                        // Call function with (accumulator, element)
+                        accumulator = self.call_function_with_two_arguments(
+                            func,
+                            accumulator.clone(),
+                            element.clone(),
+                        )?;
+                    }
+                    return Ok(accumulator);
+                }
+                "find" => {
+                    // find(predicate_function) -> Option<T>
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "find() takes exactly one function argument".to_string(),
+                        ));
+                    }
+                    let func = &args[0];
+
+                    for element in elements {
+                        let pred_result =
+                            self.call_function_with_single_argument(func, element.clone())?;
+                        if self.is_truthy(pred_result) {
+                            // Return Some(element)
+                            return Ok(Value::Enum {
+                                enum_name: "Option".to_string(),
+                                variant_name: "Some".to_string(),
+                                fields: vec![element.clone()],
+                            });
+                        }
+                    }
+                    // Return None
+                    return Ok(Value::Enum {
+                        enum_name: "Option".to_string(),
+                        variant_name: "None".to_string(),
+                        fields: vec![],
+                    });
+                }
+                "any" => {
+                    // any(predicate_function) -> bool
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "any() takes exactly one function argument".to_string(),
+                        ));
+                    }
+                    let func = &args[0];
+
+                    for element in elements {
+                        let pred_result =
+                            self.call_function_with_single_argument(func, element.clone())?;
+                        if self.is_truthy(pred_result) {
+                            return Ok(Value::Boolean(true));
+                        }
+                    }
+                    return Ok(Value::Boolean(false));
+                }
+                "all" => {
+                    // all(predicate_function) -> bool
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "all() takes exactly one function argument".to_string(),
+                        ));
+                    }
+                    let func = &args[0];
+
+                    for element in elements {
+                        let pred_result =
+                            self.call_function_with_single_argument(func, element.clone())?;
+                        if !self.is_truthy(pred_result) {
+                            return Ok(Value::Boolean(false));
+                        }
+                    }
+                    return Ok(Value::Boolean(true));
                 }
                 _ => {
                     return Err(VeldError::RuntimeError(format!(
