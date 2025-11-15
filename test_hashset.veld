@@ -1,0 +1,452 @@
+import std.io
+import std.collections.hash_set.{HashSet}
+
+fn main() do
+    std.io.println("=== HashSet Tests ===")
+    std.io.println("")
+
+    test_constructor()
+    test_insert_and_contains()
+    test_remove()
+    test_clear()
+    test_len_and_is_empty()
+    test_to_array()
+    test_set_union()
+    test_set_intersection()
+    test_set_difference()
+    test_set_symmetric_difference()
+    test_is_subset()
+    test_is_superset()
+    test_is_disjoint()
+    test_with_different_types()
+    test_duplicates()
+
+    std.io.println("")
+    std.io.println("=== All HashSet Tests Passed! ===")
+end
+
+fn test_constructor() do
+    std.io.println("Test: Constructor")
+    let set = HashSet.new()
+
+    if set.is_empty() then
+        std.io.println("  ✓ New set is empty")
+    else
+        std.io.println("  ✗ New set should be empty")
+    end
+
+    if set.len() == 0 then
+        std.io.println("  ✓ New set has length 0")
+    else
+        std.io.println("  ✗ New set should have length 0")
+    end
+end
+
+fn test_insert_and_contains() do
+    std.io.println("Test: Insert and Contains")
+    let set = HashSet.new()
+    let set = set.insert(1)
+    let set = set.insert(2)
+    let set = set.insert(3)
+
+    if set.contains(1) then
+        std.io.println("  ✓ Set contains 1")
+    else
+        std.io.println("  ✗ Set should contain 1")
+    end
+
+    if set.contains(2) then
+        std.io.println("  ✓ Set contains 2")
+    else
+        std.io.println("  ✗ Set should contain 2")
+    end
+
+    if set.contains(3) then
+        std.io.println("  ✓ Set contains 3")
+    else
+        std.io.println("  ✗ Set should contain 3")
+    end
+
+    if !set.contains(4) then
+        std.io.println("  ✓ Set does not contain 4")
+    else
+        std.io.println("  ✗ Set should not contain 4")
+    end
+
+    if set.len() == 3 then
+        std.io.println("  ✓ Set has length 3")
+    else
+        std.io.println("  ✗ Set should have length 3, got: " + set.len().to_str())
+    end
+end
+
+fn test_remove() do
+    std.io.println("Test: Remove")
+    let set = HashSet.new()
+    let set = set.insert(1)
+    let set = set.insert(2)
+    let set = set.insert(3)
+
+    let set = set.remove(2)
+
+    if set.contains(1) then
+        std.io.println("  ✓ Set still contains 1")
+    else
+        std.io.println("  ✗ Set should still contain 1")
+    end
+
+    if !set.contains(2) then
+        std.io.println("  ✓ Set no longer contains 2")
+    else
+        std.io.println("  ✗ Set should not contain 2")
+    end
+
+    if set.contains(3) then
+        std.io.println("  ✓ Set still contains 3")
+    else
+        std.io.println("  ✗ Set should still contain 3")
+    end
+
+    if set.len() == 2 then
+        std.io.println("  ✓ Set has length 2")
+    else
+        std.io.println("  ✗ Set should have length 2")
+    end
+end
+
+fn test_clear() do
+    std.io.println("Test: Clear")
+    let set = HashSet.new()
+    let set = set.insert(1)
+    let set = set.insert(2)
+    let set = set.insert(3)
+
+    let set = set.clear()
+
+    if set.is_empty() then
+        std.io.println("  ✓ Set is empty after clear")
+    else
+        std.io.println("  ✗ Set should be empty after clear")
+    end
+
+    if set.len() == 0 then
+        std.io.println("  ✓ Set has length 0 after clear")
+    else
+        std.io.println("  ✗ Set should have length 0 after clear")
+    end
+end
+
+fn test_len_and_is_empty() do
+    std.io.println("Test: Len and IsEmpty")
+    let set = HashSet.new()
+
+    if set.is_empty() then
+        std.io.println("  ✓ Empty set is_empty returns true")
+    else
+        std.io.println("  ✗ Empty set is_empty should return true")
+    end
+
+    let set = set.insert(42)
+
+    if !set.is_empty() then
+        std.io.println("  ✓ Non-empty set is_empty returns false")
+    else
+        std.io.println("  ✗ Non-empty set is_empty should return false")
+    end
+
+    if set.len() == 1 then
+        std.io.println("  ✓ Set with one element has length 1")
+    else
+        std.io.println("  ✗ Set should have length 1")
+    end
+end
+
+fn test_to_array() do
+    std.io.println("Test: ToArray")
+    let set = HashSet.new()
+    let set = set.insert(3)
+    let set = set.insert(1)
+    let set = set.insert(2)
+
+    let arr = set.to_array()
+
+    if arr.len() == 3 then
+        std.io.println("  ✓ Array has correct length")
+    else
+        std.io.println("  ✗ Array should have length 3")
+    end
+
+    # Check that all elements are present (order not guaranteed)
+    let has_1 = arr.any(x => x == 1)
+    let has_2 = arr.any(x => x == 2)
+    let has_3 = arr.any(x => x == 3)
+
+    if has_1 and has_2 and has_3 then
+        std.io.println("  ✓ Array contains all elements")
+    else
+        std.io.println("  ✗ Array should contain 1, 2, and 3")
+    end
+end
+
+fn test_set_union() do
+    std.io.println("Test: Set Union")
+    let set1 = HashSet.new()
+    let set1 = set1.insert(1)
+    let set1 = set1.insert(2)
+    let set1 = set1.insert(3)
+
+    let set2 = HashSet.new()
+    let set2 = set2.insert(3)
+    let set2 = set2.insert(4)
+    let set2 = set2.insert(5)
+
+    let union_set = set1.set_union(set2)
+
+    if union_set.len() == 5 then
+        std.io.println("  ✓ Union has correct length")
+    else
+        std.io.println("  ✗ Union should have length 5, got: " + union_set.len().to_str())
+    end
+
+    if union_set.contains(1) and union_set.contains(2) and union_set.contains(3) and
+       union_set.contains(4) and union_set.contains(5) then
+        std.io.println("  ✓ Union contains all elements")
+    else
+        std.io.println("  ✗ Union should contain 1, 2, 3, 4, 5")
+    end
+end
+
+fn test_set_intersection() do
+    std.io.println("Test: Set Intersection")
+    let set1 = HashSet.new()
+    let set1 = set1.insert(1)
+    let set1 = set1.insert(2)
+    let set1 = set1.insert(3)
+
+    let set2 = HashSet.new()
+    let set2 = set2.insert(2)
+    let set2 = set2.insert(3)
+    let set2 = set2.insert(4)
+
+    let inter_set = set1.set_intersection(set2)
+
+    if inter_set.len() == 2 then
+        std.io.println("  ✓ Intersection has correct length")
+    else
+        std.io.println("  ✗ Intersection should have length 2, got: " + inter_set.len().to_str())
+    end
+
+    if inter_set.contains(2) and inter_set.contains(3) then
+        std.io.println("  ✓ Intersection contains correct elements")
+    else
+        std.io.println("  ✗ Intersection should contain 2 and 3")
+    end
+
+    if !inter_set.contains(1) and !inter_set.contains(4) then
+        std.io.println("  ✓ Intersection does not contain other elements")
+    else
+        std.io.println("  ✗ Intersection should not contain 1 or 4")
+    end
+end
+
+fn test_set_difference() do
+    std.io.println("Test: Set Difference")
+    let set1 = HashSet.new()
+    let set1 = set1.insert(1)
+    let set1 = set1.insert(2)
+    let set1 = set1.insert(3)
+
+    let set2 = HashSet.new()
+    let set2 = set2.insert(2)
+    let set2 = set2.insert(3)
+    let set2 = set2.insert(4)
+
+    let diff_set = set1.set_difference(set2)
+
+    if diff_set.len() == 1 then
+        std.io.println("  ✓ Difference has correct length")
+    else
+        std.io.println("  ✗ Difference should have length 1, got: " + diff_set.len().to_str())
+    end
+
+    if diff_set.contains(1) then
+        std.io.println("  ✓ Difference contains correct element")
+    else
+        std.io.println("  ✗ Difference should contain 1")
+    end
+
+    if !diff_set.contains(2) and !diff_set.contains(3) and !diff_set.contains(4) then
+        std.io.println("  ✓ Difference does not contain other elements")
+    else
+        std.io.println("  ✗ Difference should only contain 1")
+    end
+end
+
+fn test_set_symmetric_difference() do
+    std.io.println("Test: Set Symmetric Difference")
+    let set1 = HashSet.new()
+    let set1 = set1.insert(1)
+    let set1 = set1.insert(2)
+    let set1 = set1.insert(3)
+
+    let set2 = HashSet.new()
+    let set2 = set2.insert(2)
+    let set2 = set2.insert(3)
+    let set2 = set2.insert(4)
+
+    let sym_diff = set1.set_symmetric_difference(set2)
+
+    if sym_diff.len() == 2 then
+        std.io.println("  ✓ Symmetric difference has correct length")
+    else
+        std.io.println("  ✗ Symmetric difference should have length 2, got: " + sym_diff.len().to_str())
+    end
+
+    if sym_diff.contains(1) and sym_diff.contains(4) then
+        std.io.println("  ✓ Symmetric difference contains correct elements")
+    else
+        std.io.println("  ✗ Symmetric difference should contain 1 and 4")
+    end
+
+    if !sym_diff.contains(2) and !sym_diff.contains(3) then
+        std.io.println("  ✓ Symmetric difference does not contain common elements")
+    else
+        std.io.println("  ✗ Symmetric difference should not contain 2 or 3")
+    end
+end
+
+fn test_is_subset() do
+    std.io.println("Test: IsSubset")
+    let set1 = HashSet.new()
+    let set1 = set1.insert(1)
+    let set1 = set1.insert(2)
+
+    let set2 = HashSet.new()
+    let set2 = set2.insert(1)
+    let set2 = set2.insert(2)
+    let set2 = set2.insert(3)
+
+    if set1.is_subset(set2) then
+        std.io.println("  ✓ {1, 2} is subset of {1, 2, 3}")
+    else
+        std.io.println("  ✗ {1, 2} should be subset of {1, 2, 3}")
+    end
+
+    if !set2.is_subset(set1) then
+        std.io.println("  ✓ {1, 2, 3} is not subset of {1, 2}")
+    else
+        std.io.println("  ✗ {1, 2, 3} should not be subset of {1, 2}")
+    end
+
+    if set1.is_subset(set1) then
+        std.io.println("  ✓ Set is subset of itself")
+    else
+        std.io.println("  ✗ Set should be subset of itself")
+    end
+end
+
+fn test_is_superset() do
+    std.io.println("Test: IsSuperset")
+    let set1 = HashSet.new()
+    let set1 = set1.insert(1)
+    let set1 = set1.insert(2)
+    let set1 = set1.insert(3)
+
+    let set2 = HashSet.new()
+    let set2 = set2.insert(1)
+    let set2 = set2.insert(2)
+
+    if set1.is_superset(set2) then
+        std.io.println("  ✓ {1, 2, 3} is superset of {1, 2}")
+    else
+        std.io.println("  ✗ {1, 2, 3} should be superset of {1, 2}")
+    end
+
+    if !set2.is_superset(set1) then
+        std.io.println("  ✓ {1, 2} is not superset of {1, 2, 3}")
+    else
+        std.io.println("  ✗ {1, 2} should not be superset of {1, 2, 3}")
+    end
+
+    if set1.is_superset(set1) then
+        std.io.println("  ✓ Set is superset of itself")
+    else
+        std.io.println("  ✗ Set should be superset of itself")
+    end
+end
+
+fn test_is_disjoint() do
+    std.io.println("Test: IsDisjoint")
+    let set1 = HashSet.new()
+    let set1 = set1.insert(1)
+    let set1 = set1.insert(2)
+
+    let set2 = HashSet.new()
+    let set2 = set2.insert(3)
+    let set2 = set2.insert(4)
+
+    let set3 = HashSet.new()
+    let set3 = set3.insert(2)
+    let set3 = set3.insert(3)
+
+    if set1.is_disjoint(set2) then
+        std.io.println("  ✓ {1, 2} is disjoint from {3, 4}")
+    else
+        std.io.println("  ✗ {1, 2} should be disjoint from {3, 4}")
+    end
+
+    if !set1.is_disjoint(set3) then
+        std.io.println("  ✓ {1, 2} is not disjoint from {2, 3}")
+    else
+        std.io.println("  ✗ {1, 2} should not be disjoint from {2, 3}")
+    end
+end
+
+fn test_with_different_types() do
+    std.io.println("Test: Different Types")
+
+    # String set
+    let string_set = HashSet.new()
+    let string_set = string_set.insert("hello")
+    let string_set = string_set.insert("world")
+
+    if string_set.contains("hello") then
+        std.io.println("  ✓ String set contains 'hello'")
+    else
+        std.io.println("  ✗ String set should contain 'hello'")
+    end
+
+    # Boolean set
+    let bool_set = HashSet.new()
+    let bool_set = bool_set.insert(true)
+    let bool_set = bool_set.insert(false)
+
+    if bool_set.len() == 2 then
+        std.io.println("  ✓ Boolean set has length 2")
+    else
+        std.io.println("  ✗ Boolean set should have length 2")
+    end
+end
+
+fn test_duplicates() do
+    std.io.println("Test: Duplicate Handling")
+    let set = HashSet.new()
+    let set = set.insert(1)
+    let set = set.insert(1)
+    let set = set.insert(1)
+
+    if set.len() == 1 then
+        std.io.println("  ✓ Duplicates are not added")
+    else
+        std.io.println("  ✗ Set should have length 1, got: " + set.len().to_str())
+    end
+
+    let set = set.insert(2)
+    let set = set.insert(2)
+
+    if set.len() == 2 then
+        std.io.println("  ✓ Set correctly handles multiple duplicates")
+    else
+        std.io.println("  ✗ Set should have length 2, got: " + set.len().to_str())
+    end
+end

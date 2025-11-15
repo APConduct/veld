@@ -1,0 +1,13 @@
+#| Set implementation for Veld
+#| Provides a set data structure for storing unique values
+
+# Set interface kind
+pub kind Set<T>
+    fn insert(self, value: T) -> ()
+    fn remove(self, value: T) -> ()
+    fn contains(self, value: T) -> bool
+    fn clear(self) -> ()
+    fn len(self) -> i32
+    fn is_empty(self) -> bool
+    fn to_array(self) -> [T]
+end

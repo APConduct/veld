@@ -1,0 +1,37 @@
+import std.io
+import std.collections.hash_set
+
+fn main() do
+    std.io.println("=== Simple HashSet Test ===")
+
+    let set = hash_set.HashSet.new()
+    std.io.println("Created empty set")
+
+    let set = set.insert(1)
+    std.io.println("Inserted 1")
+
+    let set = set.insert(2)
+    std.io.println("Inserted 2")
+
+    let set = set.insert(3)
+    std.io.println("Inserted 3")
+
+    if set.contains(1) then
+        std.io.println("✓ Set contains 1")
+    else
+        std.io.println("✗ Set should contain 1")
+    end
+
+    if set.contains(2) then
+        std.io.println("✓ Set contains 2")
+    else
+        std.io.println("✗ Set should contain 2")
+    end
+
+    std.io.println("Set length: " + set.len().to_str())
+
+    let arr = set.to_array()
+    std.io.println("Array length: " + arr.len().to_str())
+
+    std.io.println("=== Test Complete ===")
+end

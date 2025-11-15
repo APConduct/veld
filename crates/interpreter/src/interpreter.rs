@@ -383,6 +383,8 @@ impl Interpreter {
         self.load_stdlib_module_with_types(&["std", "result"]);
         self.load_stdlib_module_with_types(&["std", "vec"]);
         self.load_stdlib_module_with_types(&["std", "collections", "hash_map"]);
+        self.load_stdlib_module_with_types(&["std", "collections", "set"]);
+        self.load_stdlib_module_with_types(&["std", "collections", "hash_set"]);
 
         // Initialize native methods for built-in types
         self.initialize_core_capabilities();
@@ -397,6 +399,7 @@ impl Interpreter {
         self.register_io_functions();
         self.register_fs_functions();
         self.register_hashmap_methods();
+        self.register_hashset_methods();
         let _ = self.initialize_operator_kinds();
 
         // Ensure all type parameter scopes are cleaned up after stdlib initialization
@@ -1298,6 +1301,495 @@ impl Interpreter {
                         "entries called on non-HashMap".to_string(),
                     ))
                 }
+            });
+    }
+
+    fn register_hashset_methods(&mut self) {
+        use std::collections::HashSet as RustHashSet;
+
+        // Constructor: HashSet::new()
+        self.native_method_registry
+            .register("HashSet", "new", |_, _args| {
+                // Create a new HashSet represented as a Struct with internal storage
+                Ok(Value::Struct {
+                    name: "HashSet".to_string(),
+                    fields: {
+                        let mut fields = std::collections::HashMap::new();
+                        // Use Array to store the actual hashset data (we'll use a Vec internally)
+                        fields.insert("data".to_string(), Value::Array(Vec::new()));
+                        fields
+                    },
+                })
+            });
+
+        // insert(value) -> Self
+        self.native_method_registry
+            .register("HashSet", "insert", |_, mut args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "insert requires self and one argument (value)".to_string(),
+                    ));
+                }
+
+                let value = args[1].clone();
+                let value_str = format!("{:?}", value);
+
+                if let Value::Struct { name, fields } = &mut args[0] {
+                    if let Some(Value::Array(set)) = fields.get_mut("data") {
+                        // Check if value already exists
+                        let exists = set.iter().any(|v| format!("{:?}", v) == value_str);
+                        if !exists {
+                            set.push(value);
+                        }
+                        // Return the modified struct
+                        return Ok(Value::Struct {
+                            name: name.clone(),
+                            fields: fields.clone(),
+                        });
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "insert called on non-HashSet".to_string(),
+                ))
+            });
+
+        // remove(value) -> Self
+        self.native_method_registry
+            .register("HashSet", "remove", |_, mut args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "remove requires self and one argument (value)".to_string(),
+                    ));
+                }
+
+                let value_str = format!("{:?}", &args[1]);
+
+                if let Value::Struct { name, fields } = &mut args[0] {
+                    if let Some(Value::Array(set)) = fields.get_mut("data") {
+                        set.retain(|v| format!("{:?}", v) != value_str);
+                        // Return the modified struct
+                        return Ok(Value::Struct {
+                            name: name.clone(),
+                            fields: fields.clone(),
+                        });
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "remove called on non-HashSet".to_string(),
+                ))
+            });
+
+        // contains(value) -> bool
+        self.native_method_registry
+            .register("HashSet", "contains", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "contains requires self and one argument (value)".to_string(),
+                    ));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Array(set)) = fields.get("data") {
+                        let value_str = format!("{:?}", &args[1]);
+                        let exists = set.iter().any(|v| format!("{:?}", v) == value_str);
+                        return Ok(Value::Boolean(exists));
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "contains called on non-HashSet".to_string(),
+                ))
+            });
+
+        // clear() -> Self
+        self.native_method_registry
+            .register("HashSet", "clear", |_, mut args| {
+                if args.len() != 1 {
+                    return Err(VeldError::RuntimeError(
+                        "clear requires only self".to_string(),
+                    ));
+                }
+
+                if let Value::Struct { name, fields } = &mut args[0] {
+                    if let Some(Value::Array(set)) = fields.get_mut("data") {
+                        set.clear();
+                        // Return the modified struct
+                        return Ok(Value::Struct {
+                            name: name.clone(),
+                            fields: fields.clone(),
+                        });
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "clear called on non-HashSet".to_string(),
+                ))
+            });
+
+        // len() -> i32
+        self.native_method_registry
+            .register("HashSet", "len", |_, args| {
+                if args.is_empty() {
+                    return Err(VeldError::RuntimeError("len requires self".to_string()));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Array(set)) = fields.get("data") {
+                        return Ok(Value::Numeric(NumericValue::Integer(IntegerValue::I32(
+                            set.len() as i32,
+                        ))));
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "len called on non-HashSet".to_string(),
+                ))
+            });
+
+        // is_empty() -> bool
+        self.native_method_registry
+            .register("HashSet", "is_empty", |_, args| {
+                if args.is_empty() {
+                    return Err(VeldError::RuntimeError(
+                        "is_empty requires self".to_string(),
+                    ));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Array(set)) = fields.get("data") {
+                        return Ok(Value::Boolean(set.is_empty()));
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "is_empty called on non-HashSet".to_string(),
+                ))
+            });
+
+        // to_array() -> [T]
+        self.native_method_registry
+            .register("HashSet", "to_array", |_, args| {
+                if args.is_empty() {
+                    return Err(VeldError::RuntimeError(
+                        "to_array requires self".to_string(),
+                    ));
+                }
+
+                if let Value::Struct { fields, .. } = &args[0] {
+                    if let Some(Value::Array(set)) = fields.get("data") {
+                        return Ok(Value::Array(set.clone()));
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "to_array called on non-HashSet".to_string(),
+                ))
+            });
+
+        // set_union(other) -> HashSet<T>
+        self.native_method_registry
+            .register("HashSet", "set_union", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "set_union requires self and one argument (other HashSet)".to_string(),
+                    ));
+                }
+
+                if let Value::Struct {
+                    fields: fields1, ..
+                } = &args[0]
+                {
+                    if let Value::Struct {
+                        fields: fields2, ..
+                    } = &args[1]
+                    {
+                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
+                            (fields1.get("data"), fields2.get("data"))
+                        {
+                            let mut result_set = RustHashSet::new();
+
+                            // Add all from set1
+                            for v in set1 {
+                                result_set.insert(format!("{:?}", v));
+                            }
+
+                            // Add all from set2
+                            for v in set2 {
+                                result_set.insert(format!("{:?}", v));
+                            }
+
+                            // Convert back to Vec, removing duplicates
+                            let mut result_vec = Vec::new();
+                            let mut seen = RustHashSet::new();
+                            for v in set1.iter().chain(set2.iter()) {
+                                let key = format!("{:?}", v);
+                                if seen.insert(key) {
+                                    result_vec.push(v.clone());
+                                }
+                            }
+
+                            let mut new_fields = std::collections::HashMap::new();
+                            new_fields.insert("data".to_string(), Value::Array(result_vec));
+                            return Ok(Value::Struct {
+                                name: "HashSet".to_string(),
+                                fields: new_fields,
+                            });
+                        }
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "set_union called with invalid arguments".to_string(),
+                ))
+            });
+
+        // set_intersection(other) -> HashSet<T>
+        self.native_method_registry
+            .register("HashSet", "set_intersection", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "set_intersection requires self and one argument (other HashSet)"
+                            .to_string(),
+                    ));
+                }
+
+                if let Value::Struct {
+                    fields: fields1, ..
+                } = &args[0]
+                {
+                    if let Value::Struct {
+                        fields: fields2, ..
+                    } = &args[1]
+                    {
+                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
+                            (fields1.get("data"), fields2.get("data"))
+                        {
+                            // Create a set of string representations from set2
+                            let set2_strs: RustHashSet<String> =
+                                set2.iter().map(|v| format!("{:?}", v)).collect();
+
+                            // Filter set1 to only include items in set2
+                            let result_vec: Vec<Value> = set1
+                                .iter()
+                                .filter(|v| set2_strs.contains(&format!("{:?}", v)))
+                                .cloned()
+                                .collect();
+
+                            let mut new_fields = std::collections::HashMap::new();
+                            new_fields.insert("data".to_string(), Value::Array(result_vec));
+                            return Ok(Value::Struct {
+                                name: "HashSet".to_string(),
+                                fields: new_fields,
+                            });
+                        }
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "set_intersection called with invalid arguments".to_string(),
+                ))
+            });
+
+        // set_difference(other) -> HashSet<T>
+        self.native_method_registry
+            .register("HashSet", "set_difference", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "set_difference requires self and one argument (other HashSet)".to_string(),
+                    ));
+                }
+
+                if let Value::Struct {
+                    fields: fields1, ..
+                } = &args[0]
+                {
+                    if let Value::Struct {
+                        fields: fields2, ..
+                    } = &args[1]
+                    {
+                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
+                            (fields1.get("data"), fields2.get("data"))
+                        {
+                            // Create a set of string representations from set2
+                            let set2_strs: RustHashSet<String> =
+                                set2.iter().map(|v| format!("{:?}", v)).collect();
+
+                            // Filter set1 to only include items NOT in set2
+                            let result_vec: Vec<Value> = set1
+                                .iter()
+                                .filter(|v| !set2_strs.contains(&format!("{:?}", v)))
+                                .cloned()
+                                .collect();
+
+                            let mut new_fields = std::collections::HashMap::new();
+                            new_fields.insert("data".to_string(), Value::Array(result_vec));
+                            return Ok(Value::Struct {
+                                name: "HashSet".to_string(),
+                                fields: new_fields,
+                            });
+                        }
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "set_difference called with invalid arguments".to_string(),
+                ))
+            });
+
+        // set_symmetric_difference(other) -> HashSet<T>
+        self.native_method_registry
+            .register("HashSet", "set_symmetric_difference", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "set_symmetric_difference requires self and one argument (other HashSet)"
+                            .to_string(),
+                    ));
+                }
+
+                if let Value::Struct {
+                    fields: fields1, ..
+                } = &args[0]
+                {
+                    if let Value::Struct {
+                        fields: fields2, ..
+                    } = &args[1]
+                    {
+                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
+                            (fields1.get("data"), fields2.get("data"))
+                        {
+                            let set1_strs: RustHashSet<String> =
+                                set1.iter().map(|v| format!("{:?}", v)).collect();
+                            let set2_strs: RustHashSet<String> =
+                                set2.iter().map(|v| format!("{:?}", v)).collect();
+
+                            let mut result_vec = Vec::new();
+
+                            // Add items from set1 not in set2
+                            for v in set1 {
+                                let key = format!("{:?}", v);
+                                if !set2_strs.contains(&key) {
+                                    result_vec.push(v.clone());
+                                }
+                            }
+
+                            // Add items from set2 not in set1
+                            for v in set2 {
+                                let key = format!("{:?}", v);
+                                if !set1_strs.contains(&key) {
+                                    result_vec.push(v.clone());
+                                }
+                            }
+
+                            let mut new_fields = std::collections::HashMap::new();
+                            new_fields.insert("data".to_string(), Value::Array(result_vec));
+                            return Ok(Value::Struct {
+                                name: "HashSet".to_string(),
+                                fields: new_fields,
+                            });
+                        }
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "set_symmetric_difference called with invalid arguments".to_string(),
+                ))
+            });
+
+        // is_subset(other) -> bool
+        self.native_method_registry
+            .register("HashSet", "is_subset", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "is_subset requires self and one argument (other HashSet)".to_string(),
+                    ));
+                }
+
+                if let Value::Struct {
+                    fields: fields1, ..
+                } = &args[0]
+                {
+                    if let Value::Struct {
+                        fields: fields2, ..
+                    } = &args[1]
+                    {
+                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
+                            (fields1.get("data"), fields2.get("data"))
+                        {
+                            let set2_strs: RustHashSet<String> =
+                                set2.iter().map(|v| format!("{:?}", v)).collect();
+
+                            let is_subset =
+                                set1.iter().all(|v| set2_strs.contains(&format!("{:?}", v)));
+
+                            return Ok(Value::Boolean(is_subset));
+                        }
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "is_subset called with invalid arguments".to_string(),
+                ))
+            });
+
+        // is_superset(other) -> bool
+        self.native_method_registry
+            .register("HashSet", "is_superset", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "is_superset requires self and one argument (other HashSet)".to_string(),
+                    ));
+                }
+
+                if let Value::Struct {
+                    fields: fields1, ..
+                } = &args[0]
+                {
+                    if let Value::Struct {
+                        fields: fields2, ..
+                    } = &args[1]
+                    {
+                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
+                            (fields1.get("data"), fields2.get("data"))
+                        {
+                            let set1_strs: RustHashSet<String> =
+                                set1.iter().map(|v| format!("{:?}", v)).collect();
+
+                            let is_superset =
+                                set2.iter().all(|v| set1_strs.contains(&format!("{:?}", v)));
+
+                            return Ok(Value::Boolean(is_superset));
+                        }
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "is_superset called with invalid arguments".to_string(),
+                ))
+            });
+
+        // is_disjoint(other) -> bool
+        self.native_method_registry
+            .register("HashSet", "is_disjoint", |_, args| {
+                if args.len() != 2 {
+                    return Err(VeldError::RuntimeError(
+                        "is_disjoint requires self and one argument (other HashSet)".to_string(),
+                    ));
+                }
+
+                if let Value::Struct {
+                    fields: fields1, ..
+                } = &args[0]
+                {
+                    if let Value::Struct {
+                        fields: fields2, ..
+                    } = &args[1]
+                    {
+                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
+                            (fields1.get("data"), fields2.get("data"))
+                        {
+                            let set2_strs: RustHashSet<String> =
+                                set2.iter().map(|v| format!("{:?}", v)).collect();
+
+                            let is_disjoint = set1
+                                .iter()
+                                .all(|v| !set2_strs.contains(&format!("{:?}", v)));
+
+                            return Ok(Value::Boolean(is_disjoint));
+                        }
+                    }
+                }
+                Err(VeldError::RuntimeError(
+                    "is_disjoint called with invalid arguments".to_string(),
+                ))
             });
     }
 

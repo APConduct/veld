@@ -16,3 +16,8 @@ pub import std.collections.sequence
 pub import std.collections.map
 pub import std.collections.hash_map
 pub import std.collections.hash_map.{HashMap}
+
+# Set interfaces
+pub import std.collections.set
+pub import std.collections.hash_set
+pub import std.collections.hash_set.{HashSet}

@@ -1,0 +1,54 @@
+pub import std.collections.set
+
+pub struct HashSet<T>
+    data: any
+end
+
+impl<T> HashSet<T>
+    pub fn new() -> HashSet<T>
+    end
+
+    pub fn set_union(self, other: HashSet<T>) -> HashSet<T>
+    end
+
+    pub fn set_intersection(self, other: HashSet<T>) -> HashSet<T>
+    end
+
+    pub fn set_difference(self, other: HashSet<T>) -> HashSet<T>
+    end
+
+    pub fn set_symmetric_difference(self, other: HashSet<T>) -> HashSet<T>
+    end
+
+    pub fn is_subset(self, other: HashSet<T>) -> bool
+    end
+
+    pub fn is_superset(self, other: HashSet<T>) -> bool
+    end
+
+    pub fn is_disjoint(self, other: HashSet<T>) -> bool
+    end
+end
+
+impl<T> HashSet<T> <- Set<T>
+    fn insert(self, value: T) -> ()
+    end
+
+    fn remove(self, value: T) -> ()
+    end
+
+    fn contains(self, value: T) -> bool
+    end
+
+    fn clear(self) -> ()
+    end
+
+    fn len(self) -> i32
+    end
+
+    fn is_empty(self) -> bool
+    end
+
+    fn to_array(self) -> [T]
+    end
+end
