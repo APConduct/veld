@@ -1,0 +1,30 @@
+import std.io
+
+fn main()
+    std.io.println("=== Testing to_str() in map lambda ===")
+
+    # Test case 1: Direct to_str in map (this should fail)
+    let numbers = [1, 2, 3]
+    let strings = numbers.map(n => n.to_str())
+    std.io.println("Test 1 - Direct to_str in map:")
+    std.io.println(strings.join(", "))
+
+    # Test case 2: With intermediate variable (workaround)
+    let strings2 = numbers.map(n => do
+        let s = n.to_str()
+        s
+    end)
+    std.io.println("Test 2 - Intermediate variable:")
+    std.io.println(strings2.join(", "))
+
+    # Test case 3: Helper function (workaround)
+    let strings3 = numbers.map(int_to_str)
+    std.io.println("Test 3 - Helper function:")
+    std.io.println(strings3.join(", "))
+
+    std.io.println("=== All tests complete ===")
+end
+
+fn int_to_str(n: i32) -> str
+    n.to_str()
+end

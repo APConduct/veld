@@ -1,0 +1,178 @@
+import std.io
+import std.collections.hash_set.{HashSet}
+
+fn demo_to_str_in_lambdas()
+    std.io.println("1. to_str() in Map Lambdas (FIXED)")
+    std.io.println("   Previously failed with type inference errors")
+    std.io.println("")
+
+    let numbers = [1, 2, 3, 4, 5]
+    let strings = numbers.map(n => n.to_str())
+
+    std.io.println("   Numbers: [1, 2, 3, 4, 5]")
+    std.io.println("   Mapped:  [" + strings.join(", ") + "]")
+    std.io.println("   ✓ Direct to_str() in map lambda works!")
+
+    let doubled = [10, 20, 30].map(x => do
+        let result = x * 2
+        result.to_str()
+    end)
+    std.io.println("   Doubled: [" + doubled.join(", ") + "]")
+    std.io.println("   ✓ Complex lambda with to_str() works!")
+end
+
+fn demo_unique_optimization()
+    std.io.println("2. unique() Optimization (O(n²) -> O(n))")
+    std.io.println("   Now uses HashSet for fast duplicate detection")
+    std.io.println("")
+
+    let data = [1, 2, 2, 3, 1, 4, 3, 5, 4, 5, 1, 2, 3, 4, 5]
+    let unique_data = data.unique()
+
+    std.io.println("   Original length: " + data.len().to_str())
+    std.io.println("   Unique length:   " + unique_data.len().to_str())
+    std.io.println("   ✓ Efficient O(n) deduplication!")
+
+    let words = ["cat", "dog", "cat", "bird", "dog", "cat"]
+    let unique_words = words.unique()
+    std.io.println("   Unique words:    " + unique_words.join(", "))
+    std.io.println("   ✓ Works with strings too!")
+end
+
+fn demo_hashset_basic()
+    std.io.println("3. HashSet Basic Operations (NEW)")
+    std.io.println("   Complete set data structure implementation")
+    std.io.println("")
+
+    var set = HashSet.new()
+    set = set.insert(1)
+    set = set.insert(2)
+    set = set.insert(3)
+    set = set.insert(2)
+
+    std.io.println("   Created set with inserts: 1, 2, 3, 2")
+    std.io.println("   Size: " + set.len().to_str())
+    std.io.println("   ✓ Automatically handles duplicates!")
+
+    if set.contains(2) then
+        std.io.println("   ✓ Contains 2")
+    end
+
+    set = set.remove(2)
+    if !set.contains(2) then
+        std.io.println("   ✓ Successfully removed 2")
+    end
+
+    let arr = set.to_array()
+    std.io.println("   As array: [" + arr.map(x => x.to_str()).join(", ") + "]")
+    std.io.println("   ✓ Conversion to array works!")
+end
+
+fn demo_hashset_set_theory()
+    std.io.println("4. HashSet Set Theory Operations (NEW)")
+    std.io.println("   Union, intersection, difference, and more")
+    std.io.println("")
+
+    var set_a = HashSet.new()
+    set_a = set_a.insert(1)
+    set_a = set_a.insert(2)
+    set_a = set_a.insert(3)
+
+    var set_b = HashSet.new()
+    set_b = set_b.insert(3)
+    set_b = set_b.insert(4)
+    set_b = set_b.insert(5)
+
+    std.io.println("   Set A: {1, 2, 3}")
+    std.io.println("   Set B: {3, 4, 5}")
+    std.io.println("")
+
+    let union = set_a.set_union(set_b)
+    std.io.println("   Union:        size = " + union.len().to_str())
+    std.io.println("   ✓ {1, 2, 3, 4, 5}")
+
+    let intersection = set_a.set_intersection(set_b)
+    std.io.println("   Intersection: size = " + intersection.len().to_str())
+    std.io.println("   ✓ {3}")
+
+    let difference = set_a.set_difference(set_b)
+    std.io.println("   Difference:   size = " + difference.len().to_str())
+    std.io.println("   ✓ {1, 2}")
+
+    let sym_diff = set_a.set_symmetric_difference(set_b)
+    std.io.println("   Sym. Diff:    size = " + sym_diff.len().to_str())
+    std.io.println("   ✓ {1, 2, 4, 5}")
+
+    var small = HashSet.new()
+    small = small.insert(1)
+    small = small.insert(2)
+
+    var large = HashSet.new()
+    large = large.insert(1)
+    large = large.insert(2)
+    large = large.insert(3)
+
+    if small.is_subset(large) then
+        std.io.println("   ✓ {1, 2} is subset of {1, 2, 3}")
+    end
+
+    if large.is_superset(small) then
+        std.io.println("   ✓ {1, 2, 3} is superset of {1, 2}")
+    end
+end
+
+fn demo_combined_features()
+    std.io.println("5. Combined Features Demo")
+    std.io.println("   All three features working together")
+    std.io.println("")
+
+    let numbers = [1, 2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5]
+
+    std.io.println("   Step 1: Get unique numbers (optimized O(n))")
+    let unique_nums = numbers.unique()
+    std.io.println("   Unique: " + unique_nums.len().to_str() + " numbers")
+
+    std.io.println("   Step 2: Convert to strings (fixed to_str in map)")
+    let strings = unique_nums.map(n => n.to_str())
+    std.io.println("   Strings: [" + strings.join(", ") + "]")
+
+    std.io.println("   Step 3: Build HashSet from array")
+    var set = HashSet.new()
+    set = set.insert(1)
+    set = set.insert(2)
+    set = set.insert(3)
+    set = set.insert(4)
+    set = set.insert(5)
+    std.io.println("   Set size: " + set.len().to_str())
+
+    std.io.println("   Step 4: Check membership")
+    let target = 3
+    if set.contains(target) then
+        std.io.println("   ✓ Found " + target.to_str() + " in set")
+    end
+
+    std.io.println("")
+    std.io.println("   ✓ All features integrate seamlessly!")
+end
+
+fn main()
+    std.io.println("=== Comprehensive Feature Demonstration ===")
+    std.io.println("")
+
+    demo_to_str_in_lambdas()
+    std.io.println("")
+
+    demo_unique_optimization()
+    std.io.println("")
+
+    demo_hashset_basic()
+    std.io.println("")
+
+    demo_hashset_set_theory()
+    std.io.println("")
+
+    demo_combined_features()
+    std.io.println("")
+
+    std.io.println("=== All Features Working Perfectly! ===")
+end

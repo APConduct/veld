@@ -11,72 +11,48 @@ This document describes known limitations in the Veld language and provides work
 
 ### 1. `to_str()` in Map Lambdas
 
-**Status:** Known Issue  
-**Severity:** Low  
-**Affects:** Veld 0.1.4+
+**Status:** ✅ FIXED  
+**Severity:** N/A  
+**Affects:** Veld 0.1.4 (fixed in current version)
 
-#### Problem
-Calling `.to_str()` on numeric types inside `map()` lambdas can sometimes fail with type inference errors:
+#### Problem (Historical)
+Calling `.to_str()` on numeric types inside `map()` lambdas would fail with type inference errors:
 
 ```veld
-# ❌ May fail with type error
+# ✅ Now works!
 let numbers = [1, 2, 3]
 let strings = numbers.map(n => n.to_str())
-# Error: "Cannot unify str<T11> with i32"
+# Previously: Error: "Cannot unify str<T11> with i32"
 ```
 
-#### Root Cause
-The type checker has difficulty resolving type variables when method calls on primitive types occur within lambda contexts. The type inference constraint solver creates malformed generic types in some cases.
+#### Fix
+The type checker now properly handles `TypeVar` resolution for primitive types. When `.to_str()` is called on a type variable, the type checker:
+1. Solves constraints to try to resolve the type variable
+2. If it resolves to a primitive type (i32, bool, etc.), returns `String` type
+3. If still unresolved, assumes it will resolve to a type with `to_str()` method
 
-#### Workarounds
+#### Usage (All patterns now work)
 
-**Option 1: Use explicit variable and separate call**
 ```veld
-# ✅ Works
+# ✅ Direct in map lambda
 let numbers = [1, 2, 3]
-let strings = []
-for n in numbers do
-    strings = strings.with(n.to_str())
-end
-```
+let strings = numbers.map(n => n.to_str())
 
-**Option 2: Use a helper function**
-```veld
-# ✅ Works
-fn int_to_str(n: i32) -> str do
+# ✅ Helper function
+fn int_to_str(n: i32) -> str
     n.to_str()
 end
-
 let strings = numbers.map(int_to_str)
-```
 
-**Option 3: String interpolation in do block**
-```veld
-# ✅ Works
-let strings = numbers.map(n => do
-    let s = n.to_str()
-    s
-end)
-```
-
-**Option 4: Direct usage (outside map)**
-```veld
-# ✅ Works
+# ✅ Direct usage
 let x = 42
-let s = x.to_str()  # No problem
-std.io.println("Number: " + x.to_str())  # Also fine
+let s = x.to_str()
+
+# ✅ String concatenation
+std.io.println("Number: " + x.to_str())
 ```
 
-#### When This Occurs
-- Inside `map()` lambdas with numeric types
-- When type variables need to be unified with method return types
-- Specifically affects `.to_str()` and potentially other primitive type methods
-
-#### When This Works
-- Direct `.to_str()` calls (not in lambdas): ✅
-- `.to_str()` in for loops: ✅
-- `.to_str()` in do blocks (with intermediate variable): ✅
-- String concatenation with `.to_str()`: ✅
+All patterns for using `.to_str()` now work correctly, including inside lambda expressions.
 
 ---
 
@@ -116,33 +92,28 @@ end
 
 ### 3. `unique()` Performance
 
-**Status:** By Design  
-**Severity:** Low  
-**Affects:** All versions
+**Status:** ✅ OPTIMIZED  
+**Severity:** N/A  
+**Affects:** N/A (optimized in current version)
 
-#### Problem
-The `unique()` method uses O(n²) comparison for duplicate detection:
+#### Optimization
+The `unique()` method now uses O(n) HashSet-based duplicate detection:
 
 ```veld
 let data = [1, 2, 2, 3, 1, 4, 3, 5]
-let unique = data.unique()  # O(n²) time complexity
+let unique = data.unique()  # O(n) time complexity
 ```
 
-#### Reason
-Current implementation uses nested loops to compare each element with all previously seen elements. No HashSet available in current stdlib.
+#### Implementation
+- Uses Rust's `HashSet` internally for duplicate detection
+- Keeps first occurrence of each element
+- Works efficiently with arrays of any size
+- Both `unique()` and `dedup()` use the optimized implementation
 
-#### Workaround
-For small arrays (< 1000 elements), this is fine. For larger datasets:
-
-```veld
-# Consider sorting first if order doesn't matter
-# Or implement custom deduplication logic
-# Future: Will be optimized with HashSet
-```
-
-#### Mitigation
-- Works well for arrays up to ~1000 elements
-- Future versions will use HashSet for O(n) performance
+#### Performance
+- **Before:** O(n²) - nested loops comparing all elements
+- **After:** O(n) - HashSet-based duplicate detection
+- Significant performance improvement for large arrays
 
 ---
 
@@ -375,8 +346,8 @@ If you discover a limitation not listed here:
 Planned improvements to address these limitations:
 
 ### Short Term
-- Fix `to_str()` in map lambdas
-- Optimize `unique()` with HashSet
+- ✅ ~~Fix `to_str()` in map lambdas~~ (COMPLETED)
+- ✅ ~~Optimize `unique()` with HashSet~~ (COMPLETED)
 - Better error messages
 
 ### Medium Term

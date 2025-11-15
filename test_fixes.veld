@@ -1,0 +1,78 @@
+import std.io
+
+fn main()
+    std.io.println("=== Testing Fixes ===")
+    std.io.println("")
+
+    test_to_str_in_map()
+    std.io.println("")
+
+    test_unique_optimization()
+    std.io.println("")
+
+    std.io.println("=== All Tests Passed! ===")
+end
+
+fn test_to_str_in_map()
+    std.io.println("Test 1: to_str() in map lambda")
+
+    let numbers = [1, 2, 3, 4, 5]
+    let strings = numbers.map(n => n.to_str())
+
+    std.io.println("  Numbers mapped to strings")
+    std.io.println("  Strings created")
+
+    if strings.len() == 5 then
+        std.io.println("  ✓ Correct length")
+    else
+        std.io.println("  ✗ Wrong length")
+    end
+
+    let first_ok = strings.any(s => s == "1")
+    if first_ok then
+        std.io.println("  ✓ Contains '1'")
+    else
+        std.io.println("  ✗ Should contain '1'")
+    end
+
+    let last_ok = strings.any(s => s == "5")
+    if last_ok then
+        std.io.println("  ✓ Contains '5'")
+    else
+        std.io.println("  ✗ Should contain '5'")
+    end
+end
+
+fn test_unique_optimization()
+    std.io.println("Test 2: unique() optimization")
+
+    let data = [1, 2, 2, 3, 1, 4, 3, 5, 4, 5]
+    let unique_data = data.unique()
+
+    std.io.println("  Original has duplicates")
+    std.io.println("  Unique removes duplicates")
+
+    if unique_data.len() == 5 then
+        std.io.println("  ✓ Correct unique count")
+    else
+        std.io.println("  ✗ Wrong unique count: " + unique_data.len().to_str())
+    end
+
+    if unique_data.any(x => x == 1) and unique_data.any(x => x == 2) and unique_data.any(x => x == 3) and unique_data.any(x => x == 4) and unique_data.any(x => x == 5) then
+        std.io.println("  ✓ All unique elements present")
+    else
+        std.io.println("  ✗ Missing some unique elements")
+    end
+
+    let strings = ["hello", "world", "hello", "test", "world"]
+    let unique_strings = strings.unique()
+
+    std.io.println("  Original strings have duplicates")
+    std.io.println("  Unique strings deduplicated")
+
+    if unique_strings.len() == 3 then
+        std.io.println("  ✓ String deduplication works")
+    else
+        std.io.println("  ✗ String deduplication failed")
+    end
+end

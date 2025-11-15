@@ -8259,6 +8259,7 @@ impl Interpreter {
                 }
                 "unique" | "dedup" => {
                     // unique() -> Array<T> - removes duplicates, keeps first occurrence
+                    // Optimized to O(n) using HashSet for duplicate detection
                     if !args.is_empty() {
                         return Err(VeldError::RuntimeError(format!(
                             "{}() takes no arguments",
@@ -8266,19 +8267,14 @@ impl Interpreter {
                         )));
                     }
                     let mut result = Vec::new();
-                    let mut seen = Vec::new();
+                    let mut seen = std::collections::HashSet::new();
 
                     for element in elements {
-                        let mut is_duplicate = false;
-                        for seen_elem in &seen {
-                            if self.values_equal(element, seen_elem) {
-                                is_duplicate = true;
-                                break;
-                            }
-                        }
-                        if !is_duplicate {
+                        // Use debug representation as hash key for duplicate detection
+                        let key = format!("{:?}", element);
+                        if seen.insert(key) {
+                            // insert() returns true if the key wasn't already present
                             result.push(element.clone());
-                            seen.push(element.clone());
                         }
                     }
                     return Ok(Value::Array(result));

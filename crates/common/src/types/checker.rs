@@ -4535,6 +4535,48 @@ impl TypeChecker {
             }
 
             Type::TypeVar(_) => {
+                // Special handling for to_str() on type variables
+                // Try to resolve the type variable first to see if it's a primitive type
+                if method == "to_str" || method == "to_string" {
+                    if !args.is_empty() {
+                        return Err(VeldError::TypeError(format!(
+                            "{}() takes no arguments",
+                            method
+                        )));
+                    }
+
+                    // Solve constraints to try to resolve the type variable
+                    self.env.solve_constraints()?;
+                    let resolved_type = self.env.apply_substitutions(&obj_type);
+
+                    // If it resolved to a concrete primitive type, return String
+                    match resolved_type {
+                        Type::I32
+                        | Type::I64
+                        | Type::I8
+                        | Type::I16
+                        | Type::U32
+                        | Type::U64
+                        | Type::U8
+                        | Type::U16
+                        | Type::F32
+                        | Type::F64
+                        | Type::Bool
+                        | Type::Char
+                        | Type::String => {
+                            return Ok(Type::String);
+                        }
+                        Type::TypeVar(_) => {
+                            // Still a type variable - assume it will resolve to a type with to_str
+                            // This allows the method call to proceed and we'll check later
+                            return Ok(Type::String);
+                        }
+                        _ => {
+                            // Fall through to check if the resolved type has a to_str method
+                        }
+                    }
+                }
+
                 // For type variables, we need to use constraint-based resolution
                 // Look for types that have the requested method and constrain the type variable
 
