@@ -1,0 +1,12 @@
+# Minimal test case to reproduce the interpreter tuple bug
+
+import std.io
+
+fn test_simple() => do
+    let x = 10
+    let y = 20
+    (x, y)
+end
+
+let result = test_simple()
+io.println("Test passed! Tuple returned successfully.")

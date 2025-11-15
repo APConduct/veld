@@ -1,9 +1,10 @@
 # Interpreter Bug Report
 
 ## Date: November 15, 2024
+## Fixed: November 15, 2024
 
 ## Summary
-The AST interpreter has a pre-existing bug that causes it to fail when returning tuples containing variables from `do` blocks. This bug is **not related** to the newly implemented compound assignment or multi-value return features - those work correctly in the bytecode compiler.
+~~The AST interpreter has a pre-existing bug that causes it to fail when returning tuples containing variables from `do` blocks.~~ **FIXED**: This was actually a **parser bug**, not an interpreter bug. The parser was incorrectly treating tuple literals on new lines as function call continuations when semicolons were omitted. This bug is **not related** to the newly implemented compound assignment or multi-value return features - those work correctly in the bytecode compiler.
 
 ## Bug Description
 
@@ -177,10 +178,48 @@ Only on the specific pattern described above.
 
 ## Status
 - **Bytecode Compiler**: ✅ Working perfectly
-- **Interpreter**: ❌ Pre-existing bug (not a regression)
+- **Parser**: ✅ **FIXED** - newline-aware expression parsing
+- **Interpreter**: ✅ Now works correctly with the parser fix
 - **New Features**: ✅ Fully implemented and tested
-- **Production Impact**: ✅ None (bytecode path works)
+- **Production Impact**: ✅ None (was never a runtime issue, only a parse issue)
+
+## Fix Details
+
+### Root Cause
+The bug was in the parser's `postfix_with_expr` function. When parsing expressions without semicolons, the parser would treat a parenthesized expression on the next line as a function call continuation of the previous expression.
+
+Example of the problem:
+```veld
+let y = 20
+(x, y)
+```
+
+Was parsed as: `let y = 20(x, y)` (calling 20 as a function)
+Should be parsed as: `let y = 20` followed by `(x, y)` (tuple literal)
+
+### Solution
+Added line-aware expression parsing:
+1. Added `is_new_line()` method to detect when current token is on a different line than previous token
+2. Modified `postfix_with_expr` to check `is_new_line()` before treating `LParen` as a function call
+3. If `LParen` is on a new line, the parser stops consuming tokens and treats it as the start of a new statement
+
+### Files Changed
+- `crates/common/src/parser.rs`: Added `is_new_line()` method and updated `postfix_with_expr` logic
+
+### Test Results
+All comprehensive tests now pass:
+- ✅ Simple tuple from variables in do block
+- ✅ Direct tuple return without do block  
+- ✅ Single value from do block
+- ✅ Tuple with literals from do block
+- ✅ With computation and reassignment
+- ✅ With compound assignment operators
+- ✅ Multiple value tuples
+- ✅ Nested do blocks with tuple returns
+
+### Impact
+This fix resolves the issue without requiring semicolons while maintaining Veld's clean syntax. The parser now correctly respects line boundaries for statement separation in contexts where it matters (like variable declarations and do blocks).
 
 ## Conclusion
 
-This is a pre-existing interpreter bug unrelated to our new features. The compound assignment and multi-value return implementations are correct and fully functional in the bytecode compiler (the production path). Users should use bytecode compilation, where everything works as expected.
+The bug has been **fixed**. It was a parser issue, not an interpreter or bytecode issue. The compound assignment and multi-value return implementations are correct and fully functional. All code paths (interpreter and bytecode) now work correctly with tuple returns from do blocks.

@@ -62,6 +62,10 @@ fn main() -> Result<()> {
                             // Disassemble bytecode file
                             disassemble_file(&args[2])
                         }
+                        "ast" | "debug-ast" => {
+                            // Print AST for debugging
+                            print_ast(&args[2])
+                        }
                         _ => {
                             eprintln!("Unknown command: {}", args[1]);
                             print_help();
@@ -109,6 +113,7 @@ fn print_help() {
     println!("  veld run <file>                 Run a Veld file (source or bytecode)");
     println!("  veld build <source> [output]    Compile source to bytecode (.veldc)");
     println!("  veld disasm <bytecode>          Disassemble bytecode file");
+    println!("  veld ast <source>               Print AST for debugging");
     println!("  veld help                       Show this help message");
     println!("  veld version                    Show version information");
     println!();
@@ -330,6 +335,26 @@ fn compile_file(source_file: &str, output_file: Option<&str>) -> Result<()> {
         "Success:".bright_green().bold(),
         output_path.display().to_string().bright_yellow()
     );
+
+    Ok(())
+}
+
+fn print_ast(filename: &str) -> Result<()> {
+    // Read the file
+    let source = fs::read_to_string(filename)
+        .map_err(|e| VeldError::RuntimeError(format!("Failed to read file: {}", e)))?;
+
+    // Parse the source
+    let mut lexer = Lexer::new(&source);
+    let tokens = lexer
+        .collect_tokens()
+        .map_err(|e| VeldError::LexerError(e))?;
+
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse()?;
+
+    // Pretty-print the AST
+    println!("{:#?}", ast);
 
     Ok(())
 }

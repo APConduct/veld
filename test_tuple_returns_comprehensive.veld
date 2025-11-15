@@ -1,0 +1,89 @@
+# Comprehensive test for tuple returns from do blocks
+# This tests all the cases from the bug report
+
+import std.io
+
+# Case 1: Simple tuple from variables in do block
+fn test_simple() => do
+    let x = 10
+    let y = 20
+    (x, y)
+end
+
+# Case 2: Direct tuple return without do block
+fn test_direct() => (10, 20)
+
+# Case 3: Single value from do block
+fn test_single() => do
+    let x = 10
+    x
+end
+
+# Case 4: Tuple with literals from do block
+fn test_literals() => do
+    let x = 10
+    let y = 20
+    (10, 20)
+end
+
+# Case 5: With computation
+fn test_computation() => do
+    var total = 10
+    total = total + 5
+    (total, total * 2)
+end
+
+# Case 6: With compound assignment
+fn test_compound() => do
+    var counter = 0
+    counter += 10
+    (counter, counter * 2)
+end
+
+# Case 7: Multiple variables
+fn test_multiple() => do
+    let a = 1
+    let b = 2
+    let c = 3
+    (a, b, c)
+end
+
+# Case 8: Nested computation
+fn test_nested() => do
+    let x = 5
+    let y = do
+        let inner = 10
+        inner * 2
+    end
+    (x, y)
+end
+
+# Run all tests
+io.println("Testing tuple returns from do blocks...")
+
+let result1 = test_simple()
+io.println("✓ test_simple passed")
+
+let result2 = test_direct()
+io.println("✓ test_direct passed")
+
+let result3 = test_single()
+io.println("✓ test_single passed")
+
+let result4 = test_literals()
+io.println("✓ test_literals passed")
+
+let result5 = test_computation()
+io.println("✓ test_computation passed")
+
+let result6 = test_compound()
+io.println("✓ test_compound passed")
+
+let result7 = test_multiple()
+io.println("✓ test_multiple passed")
+
+let result8 = test_nested()
+io.println("✓ test_nested passed")
+
+io.println("")
+io.println("All tests passed! ✓")

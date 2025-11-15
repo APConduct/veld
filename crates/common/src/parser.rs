@@ -52,6 +52,18 @@ impl Parser {
             None
         }
     }
+
+    /// Check if the current token is on a different line than the previous token.
+    /// This is used to determine if we should treat a token as continuing the previous
+    /// expression or starting a new statement.
+    fn is_new_line(&self) -> bool {
+        if self.current == 0 || self.current >= self.tokens.len() {
+            return false;
+        }
+        let prev_line = self.tokens[self.current - 1].source_pos().line;
+        let curr_line = self.tokens[self.current].source_pos().line;
+        curr_line > prev_line
+    }
 }
 
 impl Parser {
@@ -3727,8 +3739,10 @@ impl Parser {
                         );
                     }
                 }
-            } else if self.match_token(&[Token::LParen(ZTUP)]) {
+            } else if self.check(&Token::LParen(ZTUP)) && !self.is_new_line() {
                 // Function call on identifier or property access chain
+                // Only treat as function call if LParen is on the same line
+                self.advance(); // consume LParen
                 let mut args = Vec::new();
                 if !self.check(&Token::RParen(ZTUP)) {
                     if self.check_named_arguments() {
@@ -3774,7 +3788,10 @@ impl Parser {
                         arguments: args,
                     };
                 }
-            } else if self.check(&Token::LParen(ZTUP)) && matches!(expr, Expr::Identifier(_)) {
+            } else if self.check(&Token::LParen(ZTUP))
+                && !self.is_new_line()
+                && matches!(expr, Expr::Identifier(_))
+            {
                 self.advance(); // now consume LParen
                 // Function call
                 if let Expr::Identifier(name) = expr {
