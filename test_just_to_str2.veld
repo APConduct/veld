@@ -1,0 +1,12 @@
+# Test: Just second to_str test
+
+std.io.println("Test 2: to_str in lambda")
+let numbers = [1, 2, 3]
+let strings = numbers.map(n => n.to_str())
+std.io.println("Mapped successfully")
+
+for s in strings do
+    std.io.println("  " + s)
+end
+
+std.io.println("\nTest completed!")

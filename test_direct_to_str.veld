@@ -1,0 +1,21 @@
+# Test: Direct to_str without map
+
+std.io.println("Test 1: Direct to_str call")
+let x = 42
+let s = x.to_str()
+std.io.println("x as string: " + s)
+
+std.io.println("\nTest 2: Multiple direct calls")
+let a = 1
+let b = 2
+let c = 3
+std.io.println(a.to_str() + " " + b.to_str() + " " + c.to_str())
+
+std.io.println("\nTest 3: In a do block")
+let result = do
+    let num = 100
+    num.to_str()
+end
+std.io.println("Result: " + result)
+
+std.io.println("\nAll direct to_str tests completed!")

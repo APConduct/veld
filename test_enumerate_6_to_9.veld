@@ -1,0 +1,49 @@
+# Test: enumerate() array method - Tests 6-9
+
+# Test 6: Chaining with filter
+std.io.println("Test 6: Enumerate then filter")
+let nums = [1, 2, 3, 4, 5, 6]
+let indexed_nums2 = nums.enumerate()
+let evens_with_idx = indexed_nums2.filter((pair) => do
+    let (i, n) = pair
+    n % 2 == 0
+end)
+
+std.io.println("  Even numbers with their indices:")
+for (idx, val) in evens_with_idx do
+    std.io.println("    Index " + idx.to_str() + ": " + val.to_str())
+end
+
+# Test 7: Enumerate then map
+std.io.println("\nTest 7: Enumerate then map")
+let words = ["hello", "world", "test"]
+let formatted = words.enumerate().map((pair) => do
+    let (i, word) = pair
+    i.to_str() + ". " + word
+end)
+
+for item in formatted do
+    std.io.println("  " + item)
+end
+
+# Test 8: Using enumerate for running total with index
+std.io.println("\nTest 8: Running sum with indices")
+let values = [5, 10, 15, 20]
+let indexed_values = values.enumerate()
+let running_sum = indexed_values.reduce(0, (acc, pair) => do
+    let (idx, val) = pair
+    std.io.println("  Step " + idx.to_str() + ": adding " + val.to_str())
+    acc + val
+end)
+std.io.println("  Final sum: " + running_sum.to_str())
+
+# Test 9: Enumerate with tuples
+std.io.println("\nTest 9: Enumerate with tuples")
+let pairs = [(1, "one"), (2, "two"), (3, "three")]
+let indexed_pairs = pairs.enumerate()
+for (i, pair) in indexed_pairs do
+    let (num, word) = pair
+    std.io.println("  " + i.to_str() + ": (" + num.to_str() + ", " + word + ")")
+end
+
+std.io.println("\nTests 6-9 completed!")

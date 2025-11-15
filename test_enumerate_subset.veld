@@ -1,0 +1,48 @@
+# Test: enumerate() array method - First 5 tests only
+
+# Test 1: Basic enumerate with strings
+std.io.println("Test 1: Basic enumerate with strings")
+let fruits = ["apple", "banana", "cherry"]
+let indexed = fruits.enumerate()
+
+for (i, fruit) in indexed do
+    std.io.println("  " + i.to_str() + ": " + fruit)
+end
+
+# Test 2: Enumerate with numbers
+std.io.println("\nTest 2: Enumerate with numbers")
+let numbers = [10, 20, 30, 40, 50]
+let indexed_nums = numbers.enumerate()
+
+for (idx, value) in indexed_nums do
+    std.io.println("  Index " + idx.to_str() + " = " + value.to_str())
+end
+
+# Test 3: Empty array
+std.io.println("\nTest 3: Empty array")
+let empty = []
+let empty_indexed = empty.enumerate()
+std.io.println("  Length: " + empty_indexed.len().to_str())
+
+# Test 4: Single element
+std.io.println("\nTest 4: Single element")
+let single = ["only"]
+let single_indexed = single.enumerate()
+for (i, val) in single_indexed do
+    std.io.println("  " + i.to_str() + ": " + val)
+end
+
+# Test 5: Access by index (enumerate result is regular array)
+std.io.println("\nTest 5: Access by index")
+let colors = ["red", "green", "blue"]
+let color_idx = colors.enumerate()
+let first = color_idx.first()
+match first
+    Option.Some(pair) => do
+        let (idx, color) = pair
+        std.io.println("  First: index=" + idx.to_str() + ", color=" + color)
+    end
+    Option.None => std.io.println("  None")
+end
+
+std.io.println("\nFirst 5 tests completed!")

@@ -1,0 +1,30 @@
+# Minimal test to isolate enumerate error
+
+std.io.println("Test 1: Basic enumerate")
+let items = ["a", "b", "c"]
+let indexed = items.enumerate()
+std.io.println("Enumerate created successfully")
+
+std.io.println("\nTest 2: Access first element")
+let first = indexed.first()
+match first
+    Option.Some(pair) => do
+        std.io.println("Got first pair")
+        let (i, val) = pair
+        std.io.println("Index: " + i.to_str())
+        std.io.println("Value: " + val)
+    end
+    Option.None => std.io.println("Empty")
+end
+
+std.io.println("\nTest 3: Simple for loop")
+for pair in indexed do
+    std.io.println("Got a pair")
+end
+
+std.io.println("\nTest 4: For loop with destructuring")
+for (i, v) in items.enumerate() do
+    std.io.println("Success")
+end
+
+std.io.println("\nAll tests completed!")

@@ -4696,6 +4696,41 @@ impl TypeChecker {
                 Ok(self.env.fresh_type_var())
             }
 
+            // Handle to_str() on numeric and primitive types
+            Type::I32
+            | Type::I64
+            | Type::I8
+            | Type::I16
+            | Type::U32
+            | Type::U64
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64
+            | Type::Bool
+            | Type::Char => match method {
+                "to_str" | "to_string" => {
+                    if !args.is_empty() {
+                        return Err(VeldError::TypeError(format!(
+                            "{}() takes no arguments",
+                            method
+                        )));
+                    }
+                    Ok(Type::String)
+                }
+                _ => {
+                    tracing::error!(
+                        "Type checker: Method '{}' not found on type '{}'",
+                        method,
+                        obj_type
+                    );
+                    Err(VeldError::TypeError(format!(
+                        "Method {} not found on type {}",
+                        method, obj_type
+                    )))
+                }
+            },
+
             _ => {
                 tracing::error!(
                     "Type checker: Type '{}' does not have methods. Method: '{}', Object type: {:?}",

@@ -1,0 +1,45 @@
+# Test: Isolate to_str issue
+
+std.io.println("Test 1: Direct to_str on integer literal")
+let x = 5
+let s = x.to_str()
+std.io.println("Result: " + s)
+
+std.io.println("\nTest 2: to_str in lambda")
+let numbers = [1, 2, 3]
+let strings = numbers.map(n => n.to_str())
+std.io.println("Mapped successfully")
+
+std.io.println("\nTest 3: to_str on tuple element")
+let pair = (42, "hello")
+let (num, text) = pair
+let num_str = num.to_str()
+std.io.println("Num as string: " + num_str)
+
+std.io.println("\nTest 4: to_str in enumerate context")
+let items = ["a", "b"]
+let indexed = items.enumerate()
+let first = indexed.first()
+match first
+    Option.Some(p) => do
+        let (i, v) = p
+        let i_str = i.to_str()
+        std.io.println("Index: " + i_str)
+    end
+    Option.None => std.io.println("Empty")
+end
+
+std.io.println("\nTest 5: The problematic pattern from test 7")
+let words = ["hello", "world"]
+let formatted = words.enumerate().map((pair) => do
+    let (i, word) = pair
+    let index_str = i.to_str()
+    index_str + ". " + word
+end)
+
+std.io.println("Formatted successfully")
+for item in formatted do
+    std.io.println("  " + item)
+end
+
+std.io.println("\nAll to_str tests completed!")

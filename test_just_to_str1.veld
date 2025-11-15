@@ -1,0 +1,8 @@
+# Test: Just first to_str test
+
+std.io.println("Test 1: Direct to_str on integer literal")
+let x = 5
+let s = x.to_str()
+std.io.println("Result: " + s)
+
+std.io.println("\nTest completed!")

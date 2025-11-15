@@ -1,0 +1,17 @@
+# Test: enumerate() array method - Just Test 6
+
+# Test 6: Chaining with filter
+std.io.println("Test 6: Enumerate then filter")
+let nums = [1, 2, 3, 4, 5, 6]
+let indexed_nums2 = nums.enumerate()
+let evens_with_idx = indexed_nums2.filter((pair) => do
+    let (i, n) = pair
+    n % 2 == 0
+end)
+
+std.io.println("  Even numbers with their indices:")
+for (idx, val) in evens_with_idx do
+    std.io.println("    Index " + idx.to_str() + ": " + val.to_str())
+end
+
+std.io.println("\nTest 6 completed!")

@@ -1,0 +1,15 @@
+# Test: Simple array literal typing
+
+std.io.println("Test 1: Array of integers")
+let nums = [1, 2, 3]
+std.io.println("Created array successfully")
+
+std.io.println("\nTest 2: Map without to_str")
+let doubled = nums.map(n => n * 2)
+std.io.println("Mapped successfully")
+
+std.io.println("\nTest 3: Simple identity map")
+let identity = nums.map(n => n)
+std.io.println("Identity map successful")
+
+std.io.println("\nAll tests completed!")

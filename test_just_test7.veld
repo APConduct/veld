@@ -1,0 +1,15 @@
+# Test: enumerate() array method - Just Test 7
+
+# Test 7: Enumerate then map
+std.io.println("Test 7: Enumerate then map")
+let words = ["hello", "world", "test"]
+let formatted = words.enumerate().map((pair) => do
+    let (i, word) = pair
+    i.to_str() + ". " + word
+end)
+
+for item in formatted do
+    std.io.println("  " + item)
+end
+
+std.io.println("\nTest 7 completed!")
