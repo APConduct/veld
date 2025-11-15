@@ -1,0 +1,23 @@
+# Test: Simple join with strings only
+
+std.io.println("Test 1: Basic join")
+let words = ["Hello", "World", "from", "Veld"]
+let sentence = words.join(" ")
+std.io.println(sentence)
+
+std.io.println("\nTest 2: CSV join")
+let items = ["apple", "banana", "cherry"]
+let csv = items.join(",")
+std.io.println(csv)
+
+std.io.println("\nTest 3: Empty array")
+let empty = []
+let empty_result = empty.join(",")
+std.io.println("Empty: '" + empty_result + "'")
+
+std.io.println("\nTest 4: Single element")
+let single = ["only"]
+let single_result = single.join(",")
+std.io.println("Single: '" + single_result + "'")
+
+std.io.println("\nJoin tests completed!")

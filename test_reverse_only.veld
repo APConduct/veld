@@ -1,0 +1,25 @@
+# Test: Just the reverse method
+
+std.io.println("Test 1: Reverse numbers")
+let numbers = [1, 2, 3, 4, 5]
+let reversed = numbers.reverse()
+std.io.println("Original: [1,2,3,4,5]")
+std.io.println("Reversed:")
+for n in reversed do
+    std.io.println(n.to_str())
+end
+
+std.io.println("\nTest 2: Reverse strings")
+let words = ["first", "second", "third"]
+let reversed_words = words.reverse()
+std.io.println("Reversed words:")
+for w in reversed_words do
+    std.io.println(w)
+end
+
+std.io.println("\nTest 3: Reverse and join")
+let items = ["apple", "banana", "cherry"]
+let result = items.reverse().join(", ")
+std.io.println("Reversed and joined: " + result)
+
+std.io.println("\nReverse tests completed!")

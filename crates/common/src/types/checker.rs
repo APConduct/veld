@@ -4969,6 +4969,113 @@ impl TypeChecker {
                 }
             }
 
+            "join" => {
+                // join(separator) -> String (only works on arrays of strings)
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "join() takes exactly one argument (separator)".into(),
+                    ));
+                }
+
+                let sep_arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let sep_type = self.infer_expression_type(sep_arg)?;
+                self.env.add_constraint(sep_type, Type::String);
+
+                // Element type should be String
+                self.env.add_constraint(elem_type.clone(), Type::String);
+                self.env.solve_constraints()?;
+
+                Ok(Type::String)
+            }
+
+            "reverse" => {
+                // reverse() -> Array<T>
+                if !args.is_empty() {
+                    return Err(VeldError::TypeError("reverse() takes no arguments".into()));
+                }
+                Ok(Type::Array(Box::new(elem_type.clone())))
+            }
+
+            "flat_map" => {
+                // flat_map(function) -> Array<U> where function: T -> Array<U>
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "flat_map() takes exactly one function argument".into(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let func_type = self.infer_expression_type(arg)?;
+
+                match func_type {
+                    Type::Function {
+                        params,
+                        return_type,
+                    } => {
+                        if params.len() != 1 {
+                            return Err(VeldError::TypeError(
+                                "flat_map() function must take exactly one argument".into(),
+                            ));
+                        }
+
+                        self.env
+                            .add_constraint(params[0].clone(), elem_type.clone());
+
+                        // Return type of function should be an array
+                        match *return_type {
+                            Type::Array(inner_type) => {
+                                self.env.solve_constraints()?;
+                                Ok(Type::Array(inner_type))
+                            }
+                            _ => Err(VeldError::TypeError(
+                                "flat_map() function must return an array".into(),
+                            )),
+                        }
+                    }
+                    _ => Err(VeldError::TypeError(
+                        "flat_map() requires a function argument".into(),
+                    )),
+                }
+            }
+
+            "zip" => {
+                // zip(other_array) -> Array<(T, U)>
+                if args.len() != 1 {
+                    return Err(VeldError::TypeError(
+                        "zip() takes exactly one argument (another array)".into(),
+                    ));
+                }
+
+                let arg = match &args[0] {
+                    Argument::Positional(expr) => expr,
+                    Argument::Named { name: _, value } => value,
+                };
+
+                let other_type = self.infer_expression_type(arg)?;
+
+                match other_type {
+                    Type::Array(other_elem_type) => {
+                        self.env.solve_constraints()?;
+                        // Return Array<(T, U)> - tuple of both element types
+                        Ok(Type::Array(Box::new(Type::Tuple(vec![
+                            elem_type.clone(),
+                            *other_elem_type,
+                        ]))))
+                    }
+                    _ => Err(VeldError::TypeError(
+                        "zip() requires an array argument".into(),
+                    )),
+                }
+            }
+
             _ => Err(VeldError::TypeError(format!(
                 "Unknown method {} on array",
                 method

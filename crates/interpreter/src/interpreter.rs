@@ -6630,7 +6630,8 @@ impl Interpreter {
                 match property {
                     "len" => Ok(Value::Integer(elements.len() as i64)),
                     "last" | "first" | "init" | "tail" | "with" | "take" | "drop" | "map"
-                    | "filter" | "reduce" | "fold" | "find" | "any" | "all" => {
+                    | "filter" | "reduce" | "fold" | "find" | "any" | "all" | "join"
+                    | "reverse" | "flat_map" | "zip" => {
                         // Return a special function that, when called, will invoke the corresponding array method
                         Ok(Value::Function {
                             params: vec![
@@ -7542,6 +7543,105 @@ impl Interpreter {
                         }
                     }
                     return Ok(Value::Boolean(true));
+                }
+                "join" => {
+                    // join(separator) -> String
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "join() takes exactly one argument (separator)".to_string(),
+                        ));
+                    }
+
+                    let separator = match &args[0] {
+                        Value::String(s) => s.clone(),
+                        _ => {
+                            return Err(VeldError::RuntimeError(
+                                "join() separator must be a string".to_string(),
+                            ));
+                        }
+                    };
+
+                    let mut result = String::new();
+                    for (i, element) in elements.iter().enumerate() {
+                        if i > 0 {
+                            result.push_str(&separator);
+                        }
+                        // Convert element to string
+                        match element {
+                            Value::String(s) => result.push_str(s),
+                            _ => {
+                                let elem_str = self.value_to_string(element)?;
+                                result.push_str(&elem_str);
+                            }
+                        }
+                    }
+                    return Ok(Value::String(result));
+                }
+                "reverse" => {
+                    // reverse() -> Array<T>
+                    if !args.is_empty() {
+                        return Err(VeldError::RuntimeError(
+                            "reverse() takes no arguments".to_string(),
+                        ));
+                    }
+                    let mut reversed = elements.clone();
+                    reversed.reverse();
+                    return Ok(Value::Array(reversed));
+                }
+                "flat_map" => {
+                    // flat_map(function) -> Array<U>
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "flat_map() takes exactly one function argument".to_string(),
+                        ));
+                    }
+                    let func = &args[0];
+                    let mut result = Vec::new();
+
+                    for element in elements {
+                        let mapped =
+                            self.call_function_with_single_argument(func, element.clone())?;
+                        // Mapped value should be an array, flatten it into result
+                        match mapped {
+                            Value::Array(inner_elements) => {
+                                result.extend(inner_elements);
+                            }
+                            _ => {
+                                return Err(VeldError::RuntimeError(
+                                    "flat_map() function must return an array".to_string(),
+                                ));
+                            }
+                        }
+                    }
+                    return Ok(Value::Array(result));
+                }
+                "zip" => {
+                    // zip(other_array) -> Array<(T, U)>
+                    if args.len() != 1 {
+                        return Err(VeldError::RuntimeError(
+                            "zip() takes exactly one argument (another array)".to_string(),
+                        ));
+                    }
+
+                    let other_array = match &args[0] {
+                        Value::Array(arr) => arr,
+                        _ => {
+                            return Err(VeldError::RuntimeError(
+                                "zip() argument must be an array".to_string(),
+                            ));
+                        }
+                    };
+
+                    let mut result = Vec::new();
+                    let min_len = elements.len().min(other_array.len());
+
+                    for i in 0..min_len {
+                        result.push(Value::Tuple(vec![
+                            elements[i].clone(),
+                            other_array[i].clone(),
+                        ]));
+                    }
+                    return Ok(Value::Array(result));
                 }
                 _ => {
                     return Err(VeldError::RuntimeError(format!(

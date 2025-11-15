@@ -1,0 +1,23 @@
+# Test: Just the flat_map method
+
+std.io.println("Test 1: flat_map to expand each number into a pair")
+let nums = [1, 2, 3]
+let expanded = nums.flat_map(x => [x, x * 10])
+std.io.println("flat_map [1,2,3] with x => [x, x*10]:")
+for n in expanded do
+    std.io.println(n.to_str())
+end
+
+std.io.println("\nTest 2: flat_map to duplicate strings")
+let letters = ["a", "b", "c"]
+let doubled = letters.flat_map(x => [x, x])
+std.io.println("flat_map duplicate letters:")
+std.io.println(doubled.join(", "))
+
+std.io.println("\nTest 3: flat_map to expand words")
+let words = ["hello", "world"]
+let chars_per_word = words.flat_map(word => [word, "-"])
+std.io.println("Interleave with dashes:")
+std.io.println(chars_per_word.join(""))
+
+std.io.println("\nflat_map tests completed!")

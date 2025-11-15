@@ -1,0 +1,109 @@
+# Test: New array methods - join, reverse, flat_map, zip
+
+std.io.println("Testing new array methods...")
+std.io.println("")
+
+# Test 1: join - basic usage
+std.io.println("Test 1: join()")
+let words = ["Hello", "World", "from", "Veld"]
+let sentence = words.join(" ")
+std.io.println(sentence)
+
+let csv = ["apple", "banana", "cherry"]
+let csv_string = csv.join(",")
+std.io.println(csv_string)
+
+# Test 2: join - empty array
+let empty = []
+let empty_joined = empty.join(",")
+std.io.println("Empty joined: '" + empty_joined + "'")
+
+# Test 3: join - single element
+let single = ["only"]
+let single_joined = single.join(",")
+std.io.println("Single joined: '" + single_joined + "'")
+
+std.io.println("")
+std.io.println("Test 2: reverse()")
+
+# Test reverse
+let numbers = [1, 2, 3, 4, 5]
+let reversed = numbers.reverse()
+std.io.println("Original: [1,2,3,4,5]")
+std.io.println("Reversed:")
+for n in reversed do
+    std.io.println(n.to_str())
+end
+
+let words2 = ["first", "second", "third"]
+let reversed_words = words2.reverse()
+std.io.println("Reversed words:")
+std.io.println(reversed_words.join(" "))
+
+std.io.println("")
+std.io.println("Test 3: flat_map()")
+
+# Test flat_map - expand each number into a pair
+let nums = [1, 2, 3]
+let expanded = nums.flat_map(x => [x, x * 10])
+std.io.println("flat_map [1,2,3] to pairs:")
+for n in expanded do
+    std.io.println(n.to_str())
+end
+
+# Test flat_map - duplicate each element
+let letters = ["a", "b", "c"]
+let doubled = letters.flat_map(x => [x, x])
+std.io.println("flat_map duplicate letters:")
+std.io.println(doubled.join(", "))
+
+std.io.println("")
+std.io.println("Test 4: zip()")
+
+# Test zip - combine two arrays
+let names = ["Alice", "Bob", "Charlie"]
+let ages = [25, 30, 35]
+let people = names.zip(ages)
+std.io.println("Zipped names and ages:")
+for person in people do
+    let (name, age) = person
+    std.io.println(name + " is " + age.to_str() + " years old")
+end
+
+# Test zip - different lengths (should use shorter length)
+let short = [1, 2, 3]
+let long = [10, 20, 30, 40, 50]
+let zipped = short.zip(long)
+std.io.println("Zip different lengths [1,2,3] with [10,20,30,40,50]:")
+for pair in zipped do
+    let (a, b) = pair
+    std.io.println(a.to_str() + " with " + b.to_str())
+end
+
+std.io.println("")
+std.io.println("Test 5: Combining methods")
+
+# Combine methods - reverse then join
+let nums2 = [1, 2, 3, 4, 5]
+let reversed_str = nums2.reverse().map(x => x.to_str()).join(" -> ")
+std.io.println("Reversed and joined: " + reversed_str)
+
+# Combine zip and map
+let xs = [1, 2, 3]
+let ys = [10, 20, 30]
+let sums = xs.zip(ys).map((pair) => do
+    let (a, b) = pair
+    a + b
+end)
+std.io.println("Zip and sum:")
+for s in sums do
+    std.io.println(s.to_str())
+end
+
+# Combine filter, reverse, join
+let numbers3 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+let result = numbers3.filter(x => x > 5).reverse().map(x => x.to_str()).join(", ")
+std.io.println("Filter > 5, reverse, join: " + result)
+
+std.io.println("")
+std.io.println("All new array method tests completed!")
