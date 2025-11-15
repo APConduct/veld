@@ -1,0 +1,26 @@
+# Test: String concatenation with type variables
+
+std.io.println("Test 1: Simple for loop with tuple destructuring")
+let pairs = [(1, "a"), (2, "b"), (3, "c")]
+
+for (num, letter) in pairs do
+    std.io.println("Number: " + num.to_str() + ", Letter: " + letter)
+end
+
+std.io.println("\nTest 2: Enumerate with string concatenation")
+let items = ["apple", "banana", "cherry"]
+let indexed = items.enumerate()
+
+for (i, item) in indexed do
+    std.io.println("Index " + i.to_str() + ": " + item)
+end
+
+std.io.println("\nTest 3: Simple string concat in lambda")
+let words = ["hello", "world"]
+let formatted = words.map(w => "Word: " + w)
+
+for msg in formatted do
+    std.io.println(msg)
+end
+
+std.io.println("\nAll string concatenation tests completed!")

@@ -1242,8 +1242,14 @@ impl TypeChecker {
                 // Infer the type of the value expression
                 let value_type = self.infer_expression_type(value)?;
 
+                // Solve constraints to resolve type variables
+                self.env.solve_constraints()?;
+
+                // Apply substitutions to get the concrete type
+                let resolved_type = self.env.apply_substitutions(&value_type);
+
                 // Value must be a tuple type
-                match value_type {
+                match resolved_type {
                     Type::Tuple(element_types) => {
                         if patterns.len() != element_types.len() {
                             return Err(VeldError::TypeError(format!(
@@ -1259,9 +1265,24 @@ impl TypeChecker {
                         }
                         Ok(())
                     }
+                    Type::TypeVar(id) => {
+                        // If still a type variable, constrain it to be a tuple
+                        let fresh_elem_types: Vec<Type> =
+                            patterns.iter().map(|_| self.env.fresh_type_var()).collect();
+
+                        let tuple_type = Type::Tuple(fresh_elem_types.clone());
+                        self.env.add_constraint(Type::TypeVar(id), tuple_type);
+                        self.env.solve_constraints()?;
+
+                        // Now bind each pattern to its corresponding fresh type variable
+                        for (pat, elem_type) in patterns.iter().zip(fresh_elem_types.iter()) {
+                            self.type_check_pattern_binding(pat, elem_type, var_kind)?;
+                        }
+                        Ok(())
+                    }
                     _ => Err(VeldError::TypeError(format!(
                         "Cannot destructure non-tuple type: {:?}",
-                        value_type
+                        resolved_type
                     ))),
                 }
             }
@@ -1297,8 +1318,11 @@ impl TypeChecker {
                 Ok(())
             }
             Pattern::TuplePattern(patterns) => {
+                // Apply substitutions to resolve type variables
+                let resolved_type = self.env.apply_substitutions(expected_type);
+
                 // Expected type must be a tuple
-                match expected_type {
+                match resolved_type {
                     Type::Tuple(element_types) => {
                         if patterns.len() != element_types.len() {
                             return Err(VeldError::TypeError(format!(
@@ -1313,9 +1337,24 @@ impl TypeChecker {
                         }
                         Ok(())
                     }
+                    Type::TypeVar(id) => {
+                        // If still a type variable, constrain it to be a tuple
+                        let fresh_elem_types: Vec<Type> =
+                            patterns.iter().map(|_| self.env.fresh_type_var()).collect();
+
+                        let tuple_type = Type::Tuple(fresh_elem_types.clone());
+                        self.env.add_constraint(Type::TypeVar(id), tuple_type);
+                        self.env.solve_constraints()?;
+
+                        // Now bind each pattern to its corresponding fresh type variable
+                        for (pat, elem_type) in patterns.iter().zip(fresh_elem_types.iter()) {
+                            self.type_check_pattern_binding(pat, elem_type, var_kind)?;
+                        }
+                        Ok(())
+                    }
                     _ => Err(VeldError::TypeError(format!(
                         "Cannot destructure non-tuple type in nested pattern: {:?}",
-                        expected_type
+                        resolved_type
                     ))),
                 }
             }
@@ -2733,6 +2772,24 @@ impl TypeChecker {
                     // String concatenation
                     match (&left_type, &right_type) {
                         (Type::String, Type::String) => Ok(Type::String),
+                        // Handle TypeVars for string concatenation
+                        (Type::String, TypeVar(_)) => {
+                            self.env.add_constraint(right_type.clone(), Type::String);
+                            self.env.solve_constraints()?;
+                            Ok(Type::String)
+                        }
+                        (TypeVar(_), Type::String) => {
+                            self.env.add_constraint(left_type.clone(), Type::String);
+                            self.env.solve_constraints()?;
+                            Ok(Type::String)
+                        }
+                        (TypeVar(_), TypeVar(_)) => {
+                            // Both are type variables - constrain both to String
+                            self.env.add_constraint(left_type.clone(), Type::String);
+                            self.env.add_constraint(right_type.clone(), Type::String);
+                            self.env.solve_constraints()?;
+                            Ok(Type::String)
+                        }
                         _ => Err(VeldError::TypeError(format!(
                             "Cannot apply {} to {} and {}",
                             op, left_type, right_type
@@ -4735,7 +4792,11 @@ impl TypeChecker {
                         format!("{}() takes no arguments", method).into(),
                     ));
                 }
-                Ok(elem_type.clone())
+                // Return Option<T> for safe access
+                Ok(Type::Generic {
+                    base: "Option".to_string(),
+                    type_args: vec![elem_type.clone()],
+                })
             }
 
             "init" | "tail" => {

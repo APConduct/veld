@@ -7263,11 +7263,17 @@ impl Interpreter {
                         ));
                     }
                     if elements.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "Cannot get last element of empty array".to_string(),
-                        ));
+                        return Ok(Value::Enum {
+                            enum_name: "Option".to_string(),
+                            variant_name: "None".to_string(),
+                            fields: vec![],
+                        });
                     }
-                    return Ok(elements.last().unwrap().clone());
+                    return Ok(Value::Enum {
+                        enum_name: "Option".to_string(),
+                        variant_name: "Some".to_string(),
+                        fields: vec![elements.last().unwrap().clone()],
+                    });
                 }
                 "first" => {
                     if !args.is_empty() {
@@ -7276,11 +7282,17 @@ impl Interpreter {
                         ));
                     }
                     if elements.is_empty() {
-                        return Err(VeldError::RuntimeError(
-                            "Cannot get first element of empty array".to_string(),
-                        ));
+                        return Ok(Value::Enum {
+                            enum_name: "Option".to_string(),
+                            variant_name: "None".to_string(),
+                            fields: vec![],
+                        });
                     }
-                    return Ok(elements.first().unwrap().clone());
+                    return Ok(Value::Enum {
+                        enum_name: "Option".to_string(),
+                        variant_name: "Some".to_string(),
+                        fields: vec![elements.first().unwrap().clone()],
+                    });
                 }
                 "init" => {
                     if !args.is_empty() {
@@ -7636,7 +7648,18 @@ impl Interpreter {
                         ));
                     }
 
-                    let other_array = match &args[0] {
+                    // Dereference GcRef if necessary
+                    let other_value = if let Value::GcRef(handle) = &args[0] {
+                        let allocator = self.allocator.read().unwrap();
+                        allocator
+                            .get_value(handle)
+                            .expect("dangling GC handle in zip")
+                            .clone()
+                    } else {
+                        args[0].clone()
+                    };
+
+                    let other_array = match &other_value {
                         Value::Array(arr) => arr,
                         _ => {
                             return Err(VeldError::RuntimeError(
