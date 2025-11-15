@@ -493,9 +493,12 @@ impl VirtualMachine {
                     } else if count == 1 {
                         self.get_register(first)?.clone()
                     } else {
-                        // Multiple return values - for now just return first
-                        // TODO: Implement proper multi-value returns
-                        self.get_register(first)?.clone()
+                        // Multiple return values - pack into a tuple
+                        let mut values = Vec::new();
+                        for i in 0..count {
+                            values.push(self.get_register(first + i)?.clone());
+                        }
+                        BytecodeValue::Tuple(values)
                     };
 
                     // Get return address before closing upvalues and popping frame

@@ -1178,22 +1178,56 @@ impl RegisterCompiler {
     fn compile_tuple(&mut self, elements: &[Expr]) -> Result<ExprResult> {
         let dest = self.allocate_temp()?;
 
-        // Compile all elements
-        let mut elem_results = Vec::new();
-        for elem in elements {
-            let result = self.compile_expr_to_reg(elem)?;
-            elem_results.push(result);
+        if elements.is_empty() {
+            // Empty tuple - just create it
+            self.chunk.new_tuple(dest, 0);
+            return Ok(ExprResult::temp(dest));
         }
 
-        // NewTuple takes size
-        self.chunk.new_tuple(dest, elem_results.len() as u8);
+        // Allocate consecutive registers for tuple elements
+        // NewTuple expects elements in consecutive registers starting at dest+1
+        let elem_base = self
+            .allocator
+            .allocate_range(elements.len() as u8)
+            .map_err(|e| VeldError::CompileError {
+                message: format!("Failed to allocate registers for tuple: {}", e),
+                line: Some(self.current_line as usize),
+                column: None,
+            })?;
 
-        // Free temporaries
-        for result in elem_results {
-            if result.is_temp {
+        // Compile each element and move it to its consecutive register
+        for (i, elem) in elements.iter().enumerate() {
+            let result = self.compile_expr_to_reg(elem)?;
+            let target_reg = elem_base + i as u8;
+
+            // Move to target position if needed
+            if result.register != target_reg {
+                self.chunk.move_reg(target_reg, result.register);
+            }
+
+            // Free source register if it was a temp and different from target
+            if result.is_temp && result.register != target_reg {
                 self.free_temp(result.register);
             }
         }
+
+        // Ensure elem_base is at dest+1 by moving if necessary
+        // The NewTuple instruction expects elements at dest+1, dest+2, etc.
+        if elem_base != dest + 1 {
+            // Need to move all elements to the right positions
+            for i in 0..elements.len() {
+                let src_reg = elem_base + i as u8;
+                let target_reg = dest + 1 + i as u8;
+                self.chunk.move_reg(target_reg, src_reg);
+            }
+            // Free the old range
+            for i in 0..elements.len() {
+                self.free_temp(elem_base + i as u8);
+            }
+        }
+
+        // Create the tuple from consecutive registers at dest+1
+        self.chunk.new_tuple(dest, elements.len() as u8);
 
         Ok(ExprResult::temp(dest))
     }

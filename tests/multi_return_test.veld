@@ -1,0 +1,67 @@
+# Test file for multi-value return values
+
+# Test 1: Simple tuple return
+fn get_coords() => (10, 20)
+
+let coords = get_coords()
+
+# Test 2: Return multiple values of different types
+fn get_user_info() => ("Alice", 25, true)
+
+let user = get_user_info()
+
+# Test 3: Return tuple from function body
+fn divide_with_remainder(a, b) => do
+    let quotient = a / b
+    let remainder = a % b
+    (quotient, remainder)
+end
+
+let result = divide_with_remainder(17, 5)
+
+# Test 4: Return multiple values in conditional
+fn get_min_max(a, b) => do
+    if a < b then
+        (a, b)
+    else
+        (b, a)
+    end
+end
+
+let min_max = get_min_max(10, 5)
+
+# Test 5: Nested function calls with tuple returns
+fn get_point() => (3, 4)
+fn get_dimensions() => (get_point(), 100)
+
+let dims = get_dimensions()
+
+# Test 6: Return three values
+fn rgb_color() => (255, 128, 64)
+
+let color = rgb_color()
+
+# Test 7: Return tuple with computed values
+fn calculate() => do
+    let x = 10 + 5
+    let y = 20 - 3
+    let z = x * y
+    (x, y, z)
+end
+
+let computed = calculate()
+
+# Test 8: Empty tuple (unit)
+fn nothing() => ()
+
+let unit = nothing()
+
+# Test 9: Single value in tuple
+fn single() => (42)
+
+let one = single()
+
+# Test 10: Tuple with string and numbers
+fn mixed() => ("result", 100, 3.14)
+
+let mix = mixed()

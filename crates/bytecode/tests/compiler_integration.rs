@@ -528,3 +528,82 @@ outer += inner
     let result = compile_and_run(code);
     assert!(result.is_ok(), "Failed: {:?}", result.err());
 }
+
+#[test]
+fn test_multi_value_return_simple() {
+    let code = r#"
+fn get_coords() => (10, 20)
+let coords = get_coords()
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_multi_value_return_different_types() {
+    let code = r#"
+fn get_info() => ("Alice", 25, true)
+let info = get_info()
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_multi_value_return_from_body() {
+    let code = r#"
+fn get_pair() => do
+    (10, 20)
+end
+let result = get_pair()
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_multi_value_return_conditional() {
+    let code = r#"
+fn get_pair() => do
+    let x = 10
+    if x > 5 then
+        (x, 20)
+    else
+        (x, 30)
+    end
+end
+let min_max = get_pair()
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_multi_value_return_three_values() {
+    let code = r#"
+fn rgb_color() => (255, 128, 64)
+let color = rgb_color()
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_multi_value_return_computed() {
+    let code = r#"
+fn calculate() => (15, 17)
+let computed = calculate()
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
+fn test_multi_value_return_empty_tuple() {
+    let code = r#"
+fn nothing() => ()
+let unit = nothing()
+"#;
+    let result = compile_and_run(code);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
