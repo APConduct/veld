@@ -1,11 +1,30 @@
-pub import std.collections.set
-
 pub struct HashSet<T>
     data: any
 end
 
 impl<T> HashSet<T>
     pub fn new() -> HashSet<T>
+    end
+
+    pub fn insert(self, value: T) -> Self
+    end
+
+    pub fn remove(self, value: T) -> Self
+    end
+
+    pub fn contains(self, value: T) -> bool
+    end
+
+    pub fn clear(self) -> Self
+    end
+
+    pub fn len(self) -> i32
+    end
+
+    pub fn is_empty(self) -> bool
+    end
+
+    pub fn to_array(self) -> [T]
     end
 
     pub fn set_union(self, other: HashSet<T>) -> HashSet<T>
@@ -27,28 +46,5 @@ impl<T> HashSet<T>
     end
 
     pub fn is_disjoint(self, other: HashSet<T>) -> bool
-    end
-end
-
-impl<T> HashSet<T> <- Set<T>
-    fn insert(self, value: T) -> ()
-    end
-
-    fn remove(self, value: T) -> ()
-    end
-
-    fn contains(self, value: T) -> bool
-    end
-
-    fn clear(self) -> ()
-    end
-
-    fn len(self) -> i32
-    end
-
-    fn is_empty(self) -> bool
-    end
-
-    fn to_array(self) -> [T]
     end
 end
