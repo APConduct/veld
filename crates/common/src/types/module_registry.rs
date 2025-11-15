@@ -212,10 +212,21 @@ impl ModuleRegistry {
         // Convert dots to slashes
         let file_path = relative_path.replace('.', "/");
 
-        // Build full path
-        let full_path = self.stdlib_path.join(format!("{}.veld", file_path));
+        // Try two possible locations:
+        // 1. file.veld (e.g., stdlib/io.veld)
+        let direct_path = self.stdlib_path.join(format!("{}.veld", file_path));
+        if direct_path.exists() {
+            return Ok(direct_path);
+        }
 
-        Ok(full_path)
+        // 2. file/mod.veld (e.g., stdlib/io/mod.veld)
+        let mod_path = self.stdlib_path.join(file_path).join("mod.veld");
+        if mod_path.exists() {
+            return Ok(mod_path);
+        }
+
+        // If neither exists, return the direct path (will fail on read, but with a clear error)
+        Ok(direct_path)
     }
 
     /// Parse a module from source code
