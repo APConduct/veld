@@ -686,8 +686,12 @@ impl TemplateExpander {
     fn stmt_to_string(&self, stmt: &Statement) -> String {
         match stmt {
             Statement::ExprStatement(expr) => self.expr_to_string(expr),
-            Statement::VariableDeclaration { name, value, .. } => {
-                format!("let {} = {}", name, self.expr_to_string(value))
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                let pattern_str = match pattern {
+                    veld_common::ast::Pattern::Identifier(name) => name.clone(),
+                    _ => "_".to_string(), // Fallback for complex patterns
+                };
+                format!("let {} = {}", pattern_str, self.expr_to_string(value))
             }
             _ => format!("stmt"),
         }

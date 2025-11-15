@@ -202,7 +202,7 @@ impl MacroSystem {
                 Ok(vec![Statement::ExprStatement(expanded_expr)])
             }
             Statement::VariableDeclaration {
-                name,
+                pattern,
                 var_kind,
                 type_annotation,
                 value,
@@ -210,7 +210,7 @@ impl MacroSystem {
             } => {
                 let expanded_value = Box::new(self.preprocess_expr(*value)?);
                 Ok(vec![Statement::VariableDeclaration {
-                    name,
+                    pattern,
                     var_kind,
                     type_annotation,
                     value: expanded_value,
@@ -330,7 +330,7 @@ fn expand_vec_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement>,
 
         // Create a new Vec
         let vec_creation = Statement::VariableDeclaration {
-            name: "__vec".to_string(),
+            pattern: veld_common::ast::Pattern::Identifier("__vec".to_string()),
             var_kind: veld_common::ast::VarKind::Var,
             type_annotation: None,
             value: Box::new(Expr::MethodCall {
@@ -961,7 +961,7 @@ fn expand_debug_macro(args: &[Expr], _call_site: NodeId) -> Result<Vec<Statement
 
     let statements = vec![
         Statement::VariableDeclaration {
-            name: var_name.clone(),
+            pattern: veld_common::ast::Pattern::Identifier(var_name.clone()),
             var_kind: veld_common::ast::VarKind::Let,
             type_annotation: None,
             value: Box::new(expr.clone()),
@@ -1111,9 +1111,12 @@ mod tests {
 
                 // First statement should be Vec creation
                 match &statements[0] {
-                    Statement::VariableDeclaration { name, .. } => {
-                        assert_eq!(name, "__vec");
-                    }
+                    Statement::VariableDeclaration { pattern, .. } => match pattern {
+                        veld_common::ast::Pattern::Identifier(name) => {
+                            assert_eq!(name, "__vec");
+                        }
+                        _ => panic!("Expected identifier pattern for Vec"),
+                    },
                     _ => panic!("Expected variable declaration for Vec"),
                 }
 

@@ -3,8 +3,8 @@ use tracing::Level;
 use crate::value::numeric::{FloatValue, IntegerValue, NumericValue};
 
 use super::super::ast::{
-    Argument, BinaryOperator, Expr, GenericArgument, Literal, MatchPattern, MethodImpl, Statement,
-    StructMethod, TypeAnnotation, UnaryOperator, VarKind,
+    Argument, BinaryOperator, Expr, GenericArgument, Literal, MatchPattern, MethodImpl, Pattern,
+    Statement, StructMethod, TypeAnnotation, UnaryOperator, VarKind,
 };
 use super::super::types::VarInfo;
 use super::super::types::{EnumVariant, ImplementationInfo, Type, Type::TypeVar, TypeEnvironment};
@@ -632,13 +632,13 @@ impl TypeChecker {
                 Ok(())
             }
             Statement::VariableDeclaration {
-                name,
+                pattern,
                 var_kind,
                 type_annotation,
                 value,
                 ..
-            } => self.type_check_variable_declaration(
-                name,
+            } => self.type_check_pattern_variable_declaration(
+                pattern,
                 var_kind,
                 type_annotation.as_ref(),
                 &mut **value,
@@ -1223,6 +1223,73 @@ impl TypeChecker {
                 "Cannot evaluate constant expression for: {:?}",
                 expr
             ))),
+        }
+    }
+
+    fn type_check_pattern_variable_declaration(
+        &mut self,
+        pattern: &Pattern,
+        var_kind: &VarKind,
+        type_annotation: Option<&TypeAnnotation>,
+        value: &mut Expr,
+    ) -> Result<()> {
+        // For now, handle simple identifier pattern and tuple pattern
+        match pattern {
+            Pattern::Identifier(name) => {
+                self.type_check_variable_declaration(name, var_kind, type_annotation, value)
+            }
+            Pattern::TuplePattern(patterns) => {
+                // Infer the type of the value expression
+                let value_type = self.infer_expression_type(value)?;
+
+                // Value must be a tuple type
+                match value_type {
+                    Type::Tuple(element_types) => {
+                        if patterns.len() != element_types.len() {
+                            return Err(VeldError::TypeError(format!(
+                                "Tuple destructuring pattern has {} elements but value has {}",
+                                patterns.len(),
+                                element_types.len()
+                            )));
+                        }
+
+                        // Type check each pattern element
+                        for (pat, elem_type) in patterns.iter().zip(element_types.iter()) {
+                            match pat {
+                                Pattern::Identifier(name) => {
+                                    self.env.define(name, elem_type.clone());
+                                    self.var_info.insert(
+                                        name.clone(),
+                                        VarInfo::new(elem_type.clone(), var_kind.clone(), None),
+                                    );
+                                }
+                                Pattern::Wildcard => {
+                                    // Wildcard pattern, don't bind anything
+                                }
+                                _ => {
+                                    return Err(VeldError::TypeError(
+                                        "Nested patterns in tuple destructuring not yet supported"
+                                            .to_string(),
+                                    ));
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                    _ => Err(VeldError::TypeError(format!(
+                        "Cannot destructure non-tuple type: {:?}",
+                        value_type
+                    ))),
+                }
+            }
+            Pattern::Wildcard => {
+                // Just type check the value, don't bind anything
+                self.infer_expression_type(value)?;
+                Ok(())
+            }
+            _ => Err(VeldError::TypeError(
+                "Complex patterns in let declarations not yet supported".to_string(),
+            )),
         }
     }
 

@@ -248,13 +248,13 @@ impl RegisterCompiler {
 
         match statement {
             Statement::VariableDeclaration {
-                name,
+                pattern,
                 value,
                 var_kind,
                 type_annotation: _,
                 is_public: _,
             } => {
-                self.compile_var_declaration(name, value, var_kind)?;
+                self.compile_pattern_var_declaration(pattern, value, var_kind)?;
             }
 
             Statement::FunctionDeclaration {
@@ -365,10 +365,89 @@ impl RegisterCompiler {
     }
 
     /// Compile a variable declaration
-    fn compile_var_declaration(
+    fn compile_pattern_var_declaration(
+        &mut self,
+        pattern: &veld_common::ast::Pattern,
+        value: &Expr,
+        var_kind: &VarKind,
+    ) -> Result<()> {
+        // Evaluate the RHS expression first
+        let value_result = self.compile_expr_to_reg(value)?;
+
+        // Now bind the pattern
+        self.compile_pattern_binding(pattern, value_result.register, var_kind)?;
+
+        // Free the value register if it was temporary
+        if value_result.is_temp {
+            self.free_temp(value_result.register);
+        }
+
+        Ok(())
+    }
+
+    /// Compile pattern binding - recursively bind pattern elements to values
+    fn compile_pattern_binding(
+        &mut self,
+        pattern: &veld_common::ast::Pattern,
+        value_reg: u8,
+        var_kind: &VarKind,
+    ) -> Result<()> {
+        use veld_common::ast::Pattern;
+
+        match pattern {
+            Pattern::Identifier(name) => {
+                // Simple case: bind identifier to value
+                self.compile_identifier_binding(name, value_reg, var_kind)?;
+                Ok(())
+            }
+            Pattern::Wildcard => {
+                // Wildcard doesn't bind anything, just discard
+                Ok(())
+            }
+            Pattern::TuplePattern(patterns) => {
+                // For each element in the tuple pattern, extract the corresponding element
+                // from the value and recursively bind
+                for (i, sub_pattern) in patterns.iter().enumerate() {
+                    // Extract the i-th element of the tuple
+                    let element_reg = self.allocate_temp()?;
+
+                    // Load index as a constant
+                    let idx_const = self.chunk.add_constant(Constant::Integer(i as i64));
+                    let idx_reg = self.allocate_temp()?;
+                    self.chunk.load_const(idx_reg, idx_const);
+
+                    // Get tuple element: element_reg = value_reg[idx_reg]
+                    self.chunk.get_index(element_reg, value_reg, idx_reg);
+
+                    // Free the index register
+                    self.free_temp(idx_reg);
+
+                    // Recursively bind the sub-pattern
+                    self.compile_pattern_binding(sub_pattern, element_reg, var_kind)?;
+
+                    // Free the element register
+                    self.free_temp(element_reg);
+                }
+                Ok(())
+            }
+            Pattern::Literal(_) | Pattern::EnumPattern { .. } | Pattern::StructPattern { .. } => {
+                // These patterns are not supported in variable declarations
+                Err(VeldError::CompileError {
+                    message: format!(
+                        "Pattern {:?} is not supported in variable declarations",
+                        pattern
+                    ),
+                    line: Some(self.current_line as usize),
+                    column: None,
+                })
+            }
+        }
+    }
+
+    fn compile_identifier_binding(
         &mut self,
         name: &str,
-        value: &Box<Expr>,
+        value_reg: u8,
         var_kind: &VarKind,
     ) -> Result<()> {
         let is_mutable = matches!(var_kind, VarKind::Var | VarKind::LetMut);
@@ -383,16 +462,9 @@ impl RegisterCompiler {
                 column: None,
             })?;
 
-        // Compile initializer
-        let result = self.compile_expr_to_reg(value)?;
-
-        // Move result to variable's register
-        if result.register != var_reg {
-            self.chunk.move_reg(var_reg, result.register);
-        }
-
-        if result.is_temp {
-            self.free_temp(result.register);
+        // Move value from source register to variable's register
+        if value_reg != var_reg {
+            self.chunk.move_reg(var_reg, value_reg);
         }
 
         // Track variable with shadowing support
@@ -2832,7 +2904,7 @@ mod tests {
         let mut compiler = RegisterCompiler::new();
 
         let stmt = Statement::VariableDeclaration {
-            name: "x".to_string(),
+            pattern: veld_common::ast::Pattern::Identifier("x".to_string()),
             value: Box::new(Expr::Literal(Literal::Integer(42))),
             var_kind: VarKind::Let,
             type_annotation: None,
@@ -2851,7 +2923,7 @@ mod tests {
         // First declaration
         compiler.begin_scope();
         let stmt1 = Statement::VariableDeclaration {
-            name: "x".to_string(),
+            pattern: veld_common::ast::Pattern::Identifier("x".to_string()),
             value: Box::new(Expr::Literal(Literal::Integer(10))),
             var_kind: VarKind::Let,
             type_annotation: None,
@@ -2862,7 +2934,7 @@ mod tests {
         // Shadow with new scope
         compiler.begin_scope();
         let stmt2 = Statement::VariableDeclaration {
-            name: "x".to_string(),
+            pattern: veld_common::ast::Pattern::Identifier("x".to_string()),
             value: Box::new(Expr::Literal(Literal::Integer(20))),
             var_kind: VarKind::Let,
             type_annotation: None,

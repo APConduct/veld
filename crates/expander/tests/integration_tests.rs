@@ -61,9 +61,12 @@ fn test_vec_macro_basic() {
 
             // First statement should be Vec creation
             match &statements[0] {
-                Statement::VariableDeclaration { name, .. } => {
-                    assert_eq!(name, "__vec");
-                }
+                Statement::VariableDeclaration { pattern, .. } => match pattern {
+                    Pattern::Identifier(name) => {
+                        assert_eq!(name, "__vec");
+                    }
+                    _ => panic!("Expected identifier pattern for Vec"),
+                },
                 _ => panic!("Expected variable declaration for Vec"),
             }
 
@@ -158,9 +161,12 @@ fn test_debug_macro() {
 
             // First statement should be variable declaration
             match &statements[0] {
-                Statement::VariableDeclaration { name, .. } => {
-                    assert_eq!(name, "debug_val");
-                }
+                Statement::VariableDeclaration { pattern, .. } => match pattern {
+                    Pattern::Identifier(name) => {
+                        assert_eq!(name, "debug_val");
+                    }
+                    _ => panic!("Expected identifier pattern"),
+                },
                 _ => panic!("Expected variable declaration"),
             }
 
@@ -330,7 +336,7 @@ fn test_nested_macro_calls() {
     };
 
     let stmt = Statement::VariableDeclaration {
-        name: "items".to_string(),
+        pattern: Pattern::Identifier("items".to_string()),
         value: Box::new(Expr::MacroExpr {
             name: "vec".to_string(),
             arguments: vec![

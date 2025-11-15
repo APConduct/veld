@@ -461,11 +461,14 @@ impl ModuleManager {
                     }
                 }
 
-                Statement::VariableDeclaration { name, .. } => {
+                Statement::VariableDeclaration { pattern, .. } => {
                     if let Some(is_public) = self.is_public_variable(stmt) {
-                        // Only export public enums
+                        // Only export public variables
                         if is_public {
-                            exports.insert(name.clone(), ExportedItem::Variable(i));
+                            // For now, only handle simple identifier patterns in exports
+                            if let crate::ast::Pattern::Identifier(name) = pattern {
+                                exports.insert(name.clone(), ExportedItem::Variable(i));
+                            }
                         }
                     }
                 }

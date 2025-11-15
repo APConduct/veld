@@ -131,7 +131,7 @@ fn demonstrate_statement_preprocessing(macro_system: &mut MacroSystem) {
 
     // Test a variable declaration with macro in value
     let stmt = Statement::VariableDeclaration {
-        name: "numbers".to_string(),
+        pattern: Pattern::Identifier("numbers".to_string()),
         var_kind: VarKind::Let,
         type_annotation: None,
         value: Box::new(Expr::MacroExpr {
@@ -222,7 +222,7 @@ fn create_sample_ast() -> Vec<Statement> {
     vec![
         // let numbers = vec!(1, 2, 3, 4, 5)
         Statement::VariableDeclaration {
-            name: "numbers".to_string(),
+            pattern: Pattern::Identifier("numbers".to_string()),
             var_kind: VarKind::Let,
             type_annotation: None,
             value: Box::new(Expr::MacroExpr {

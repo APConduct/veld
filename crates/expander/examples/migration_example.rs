@@ -34,7 +34,7 @@ fn demonstrate_backward_compatibility() {
         vec!["x".to_string(), "y".to_string()],
         vec![
             Statement::VariableDeclaration {
-                name: "result".to_string(),
+                pattern: Pattern::Identifier("result".to_string()),
                 var_kind: VarKind::Let,
                 type_annotation: None,
                 value: Box::new(Expr::BinaryOp {
@@ -145,7 +145,7 @@ fn demonstrate_advanced_features() {
         vec!["expr".to_string()],
         vec![
             Statement::VariableDeclaration {
-                name: "debug_value".to_string(),
+                pattern: Pattern::Identifier("debug_value".to_string()),
                 var_kind: VarKind::Let,
                 type_annotation: None,
                 value: Box::new(Expr::Identifier("expr".to_string())),

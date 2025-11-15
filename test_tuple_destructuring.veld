@@ -1,0 +1,47 @@
+# Test: Basic tuple destructuring
+let (x, y) = (10, 20)
+std.io.println("x = " + x.to_str())
+std.io.println("y = " + y.to_str())
+
+# Test: Tuple destructuring with different types
+let (name, age, score) = ("Alice", 25, 95.5)
+std.io.println("name = " + name)
+std.io.println("age = " + age.to_str())
+std.io.println("score = " + score.to_str())
+
+# Test: Wildcard pattern (discarding values)
+let (a, _, c) = (1, 2, 3)
+std.io.println("a = " + a.to_str())
+std.io.println("c = " + c.to_str())
+
+# Test: Destructuring in do blocks
+do
+    let (first, second) = (100, 200)
+    std.io.println("first = " + first.to_str())
+    std.io.println("second = " + second.to_str())
+end
+
+# Test: Mutable destructuring with var
+var (mut_x, mut_y) = (5, 10)
+std.io.println("Initial mut_x = " + mut_x.to_str())
+mut_x = 15
+std.io.println("Updated mut_x = " + mut_x.to_str())
+
+# Test: Function returning tuple (destructuring the result)
+fn make_point() -> (i32, i32)
+    return (42, 84)
+end
+
+let (px, py) = make_point()
+std.io.println("px = " + px.to_str())
+std.io.println("py = " + py.to_str())
+
+# Test: Empty tuple (unit type)
+let unit_val = ()
+std.io.println("unit_val = ()")
+
+# Test: Single-element tuple
+let (single,) = (999,)
+std.io.println("single = " + single.to_str())
+
+std.io.println("All tuple destructuring tests completed!")

@@ -673,9 +673,14 @@ impl Analyzer {
 
         for (idx, stmt) in statements.iter().enumerate() {
             match stmt {
-                Statement::VariableDeclaration { name: var_name, .. } if var_name == name => {
-                    // Return line number (using statement index as approximation)
-                    return Some((idx, 0));
+                Statement::VariableDeclaration { pattern, .. } => {
+                    // Only match simple identifier patterns
+                    if let veld_common::ast::Pattern::Identifier(var_name) = pattern {
+                        if var_name == name {
+                            // Return line number (using statement index as approximation)
+                            return Some((idx, 0));
+                        }
+                    }
                 }
                 Statement::FunctionDeclaration { name: fn_name, .. } if fn_name == name => {
                     return Some((idx, 0));
@@ -865,20 +870,24 @@ impl Analyzer {
                         documentation: None,
                     });
                 }
-                Statement::VariableDeclaration { name, .. } => {
-                    // Try to get type from type checker
-                    let mut tc = type_checker.borrow_mut();
-                    let type_str = if let Some(ty) = tc.env().get(name) {
-                        format!(": {}", self.format_type(&ty))
-                    } else {
-                        String::new()
-                    };
-                    completions.push(CompletionItem {
-                        label: name.clone(),
-                        kind: CompletionKind::Variable,
-                        detail: Some(format!("let{}", type_str)),
-                        documentation: None,
-                    });
+                Statement::VariableDeclaration { pattern, .. } => {
+                    // Only add completion for simple identifier patterns
+                    if let veld_common::ast::Pattern::Identifier(name) = pattern {
+                        // Try to get type from type checker
+                        let mut tc = type_checker.borrow_mut();
+                        let type_str = if let Some(ty) = tc.env().get(name) {
+                            format!(": {}", self.format_type(&ty))
+                        } else {
+                            String::new()
+                        };
+
+                        completions.push(CompletionItem {
+                            label: name.clone(),
+                            kind: CompletionKind::Variable,
+                            detail: Some(format!("variable{}", type_str)),
+                            documentation: None,
+                        });
+                    }
                 }
                 _ => {}
             }

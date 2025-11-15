@@ -7,8 +7,8 @@ use crate::types::Type;
 use super::ast::{AST, UnaryOperator};
 use super::ast::{
     Argument, BinaryOperator, EnumVariant, Expr, GenericArgument, ImportItem, KindMethod, Literal,
-    MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Statement, StructField,
-    StructMethod, TypeAnnotation, TypeConstraint, VarKind, WhereClause,
+    MacroExpansion, MacroPattern, MatchArm, MatchPattern, MethodImpl, Pattern, Statement,
+    StructField, StructMethod, TypeAnnotation, TypeConstraint, VarKind, WhereClause,
 };
 use super::lexer::{Lexer, Token};
 use super::source::{NodeId, ParseContext, Position, SourceMap};
@@ -2550,8 +2550,8 @@ impl Parser {
 
         let start = self.get_current_position();
 
-        // Parse the variable name
-        let name = self.consume_identifier("Expected variable name")?;
+        // Parse the pattern (name or tuple destructuring)
+        let pattern = self.parse_binding_pattern()?;
 
         // Parse optional type annotation
         let type_annotation = if self.match_token(&[Token::Colon(ZTUP)]) {
@@ -2571,7 +2571,7 @@ impl Parser {
         self.match_token(&[Token::Semicolon(ZTUP)]);
 
         let res = Ok(Statement::VariableDeclaration {
-            name,
+            pattern,
             var_kind,
             type_annotation,
             value,
@@ -2582,6 +2582,60 @@ impl Parser {
             ctx.add_span(NodeId::new(), start, end);
         }
         res
+    }
+
+    fn parse_binding_pattern(&mut self) -> Result<Pattern> {
+        // Check if this is a tuple pattern
+        if self.check(&Token::LParen(ZTUP)) {
+            self.advance(); // consume '('
+
+            let mut patterns = Vec::new();
+
+            if self.check(&Token::RParen(ZTUP)) {
+                // Empty tuple pattern ()
+                self.advance();
+                return Ok(Pattern::TuplePattern(patterns));
+            }
+
+            // Parse first pattern
+            patterns.push(self.parse_single_binding_pattern()?);
+
+            // Check if this is actually a tuple (has comma)
+            if self.match_token(&[Token::Comma(ZTUP)]) {
+                // It's a tuple, parse remaining patterns
+                while !self.check(&Token::RParen(ZTUP)) {
+                    patterns.push(self.parse_single_binding_pattern()?);
+
+                    if !self.match_token(&[Token::Comma(ZTUP)]) {
+                        break;
+                    }
+                }
+
+                self.consume(&Token::RParen(ZTUP), "Expected ')' after tuple pattern")?;
+                Ok(Pattern::TuplePattern(patterns))
+            } else {
+                // Just a parenthesized identifier, return the inner pattern
+                self.consume(&Token::RParen(ZTUP), "Expected ')' after pattern")?;
+                Ok(patterns.into_iter().next().unwrap())
+            }
+        } else {
+            // Simple identifier pattern
+            self.parse_single_binding_pattern()
+        }
+    }
+
+    fn parse_single_binding_pattern(&mut self) -> Result<Pattern> {
+        if self.match_token(&[Token::Identifier(("_".to_string(), ZTUP))]) {
+            Ok(Pattern::Wildcard)
+        } else if let Token::Identifier(name) = self.peek().clone() {
+            self.advance();
+            Ok(Pattern::Identifier(name.0))
+        } else {
+            Err(VeldError::ParserError(format!(
+                "Expected identifier or wildcard in pattern, found {:?}",
+                self.peek()
+            )))
+        }
     }
 
     fn variable_declaration(
@@ -5386,13 +5440,17 @@ mod tests {
         assert_eq!(statements.len(), 1);
         match &statements[0] {
             Statement::VariableDeclaration {
-                name,
+                pattern,
                 var_kind,
                 type_annotation,
                 value,
                 is_public,
             } => {
-                assert_eq!(name, "x");
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "x");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
                 assert!(matches!(var_kind, VarKind::Let));
                 assert!(type_annotation.is_none());
                 assert!(!is_public);
@@ -5414,13 +5472,17 @@ mod tests {
         assert_eq!(statements.len(), 1);
         match &statements[0] {
             Statement::VariableDeclaration {
-                name,
+                pattern,
                 var_kind,
                 type_annotation,
                 value,
                 ..
             } => {
-                assert_eq!(name, "y");
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "y");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
                 assert!(matches!(var_kind, VarKind::Let));
 
                 match type_annotation {
@@ -5445,12 +5507,16 @@ mod tests {
         assert_eq!(statements.len(), 1);
         match &statements[0] {
             Statement::VariableDeclaration {
-                name,
+                pattern,
                 var_kind,
                 value,
                 ..
             } => {
-                assert_eq!(name, "counter");
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "counter");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
                 assert!(matches!(var_kind, VarKind::Var));
 
                 match &**value {
@@ -5801,8 +5867,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "add_one");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "add_one");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::Lambda { params, body, .. } => {
@@ -5834,8 +5904,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "process");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "process");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::BlockLambda { params, body, .. } => {
@@ -5980,8 +6054,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "numbers");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "numbers");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::MacroExpr { name, arguments } => {
@@ -6003,8 +6081,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "numbers");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "numbers");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::ArrayLiteral(elements) => {
@@ -6025,8 +6107,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "p");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "p");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::StructCreate {
@@ -6053,8 +6139,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "area");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "area");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::MethodCall {
@@ -6085,8 +6175,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "x_coord");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "x_coord");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::PropertyAccess { object, property } => {
@@ -6112,8 +6206,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "shape");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "shape");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::EnumVariant {
@@ -6141,8 +6239,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "result");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "result");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::BinaryOp { operator, .. } => {
@@ -6163,8 +6265,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "max");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "max");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::IfExpression {
@@ -6212,8 +6318,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "result");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "result");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::BlockExpression {
@@ -6238,8 +6348,12 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         match &statements[0] {
-            Statement::VariableDeclaration { name, value, .. } => {
-                assert_eq!(name, "integer_value");
+            Statement::VariableDeclaration { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    assert_eq!(name, "integer_value");
+                } else {
+                    panic!("Expected identifier pattern");
+                }
 
                 match &**value {
                     Expr::TypeCast { expr, target_type } => {
@@ -6310,7 +6424,8 @@ fn test_anon_record() {
     let statements = parser.parse().unwrap();
     assert_eq!(statements.len(), 1);
     assert!(
-        matches!(&statements[0], Statement::VariableDeclaration { name, value, .. } if name == "point" && value.is_record())
+        matches!(&statements[0], Statement::VariableDeclaration { pattern, value, .. }
+            if matches!(pattern, Pattern::Identifier(name) if name == "point") && value.is_record())
     );
 }
 

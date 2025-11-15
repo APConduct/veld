@@ -1396,8 +1396,11 @@ impl Interpreter {
                 let mut block_bound = bound_vars.clone();
                 for stmt in statements {
                     // Add any variables declared in this block to bound_vars
-                    if let Statement::VariableDeclaration { name, .. } = stmt {
-                        block_bound.insert(name.clone());
+                    if let Statement::VariableDeclaration { pattern, .. } = stmt {
+                        // Only add simple identifiers to bound_vars
+                        if let veld_common::ast::Pattern::Identifier(name) = pattern {
+                            block_bound.insert(name.clone());
+                        }
                     }
                     self.collect_free_variables_stmt(stmt, &block_bound, free_vars);
                 }
@@ -1547,7 +1550,7 @@ impl Interpreter {
                 self.collect_free_variables_expr(expr, bound_vars, free_vars);
             }
             Statement::VariableDeclaration {
-                name: _,
+                pattern: _,
                 var_kind: _,
                 type_annotation: _,
                 value,
@@ -1848,13 +1851,13 @@ impl Interpreter {
                     }
                     ControlFlow::Continue(statement) => match statement {
                         Statement::VariableDeclaration {
-                            name,
+                            pattern,
                             var_kind,
                             type_annotation,
                             value,
                             ..
                         } => self.execute_variable_declaration(
-                            name,
+                            pattern,
                             var_kind,
                             type_annotation,
                             value,
@@ -2103,8 +2106,14 @@ impl Interpreter {
                                 if sticky_vars.is_none() {
                                     let mut vars = Vec::new();
                                     for stmt in &body {
-                                        if let Statement::VariableDeclaration { name, .. } = stmt {
-                                            vars.push(name.clone());
+                                        if let Statement::VariableDeclaration { pattern, .. } = stmt
+                                        {
+                                            // Only add simple identifiers
+                                            if let veld_common::ast::Pattern::Identifier(name) =
+                                                pattern
+                                            {
+                                                vars.push(name.clone());
+                                            }
                                         }
                                     }
                                     sticky_vars = Some(vars);
@@ -2963,36 +2972,51 @@ impl Interpreter {
 
     fn execute_variable_declaration(
         &mut self,
-        name: String,
+        pattern: veld_common::ast::Pattern,
         var_kind: VarKind,
         type_annotation: Option<TypeAnnotation>,
         value: Box<Expr>,
     ) -> Result<Value> {
-        // Check if this is a potentially recursive lambda assignment
+        // For simple identifier patterns, check if this is a potentially recursive lambda assignment
         let is_recursive_lambda = matches!(value.as_ref(), Expr::Lambda { .. });
+        let name_for_recursion = if let veld_common::ast::Pattern::Identifier(ref name) = pattern {
+            Some(name.clone())
+        } else {
+            None
+        };
 
-        let mut evaluated_value =
-            if is_recursive_lambda && self.lambda_references_name(value.as_ref(), &name) {
-                tracing::debug!("Detected recursive lambda for variable: {}", name);
-                // For recursive lambdas, pre-bind the variable with a placeholder
-                let placeholder = Value::Unit; // Temporary placeholder
-                self.current_scope_mut()
-                    .declare(name.clone(), placeholder, var_kind.clone())?;
-                tracing::debug!("Pre-bound {} with placeholder", name);
+        let mut evaluated_value = if is_recursive_lambda {
+            if let Some(ref name) = name_for_recursion {
+                if self.lambda_references_name(value.as_ref(), name) {
+                    tracing::debug!("Detected recursive lambda for variable: {}", name);
+                    // For recursive lambdas, pre-bind the variable with a placeholder
+                    let placeholder = Value::Unit; // Temporary placeholder
+                    self.current_scope_mut().declare(
+                        name.clone(),
+                        placeholder,
+                        var_kind.clone(),
+                    )?;
+                    tracing::debug!("Pre-bound {} with placeholder", name);
 
-                let lambda_value = self.evaluate_expression(*value)?.unwrap_return();
-                tracing::debug!("Evaluated recursive lambda, got: {:?}", lambda_value);
+                    let lambda_value = self.evaluate_expression(*value)?.unwrap_return();
+                    tracing::debug!("Evaluated recursive lambda, got: {:?}", lambda_value);
 
-                // Replace the placeholder with the actual lambda
-                self.current_scope_mut()
-                    .set(name.clone(), lambda_value.clone());
-                tracing::debug!("Updated {} with actual lambda value", name);
+                    // Replace the placeholder with the actual lambda
+                    self.current_scope_mut()
+                        .set(name.clone(), lambda_value.clone());
+                    tracing::debug!("Updated {} with actual lambda value", name);
 
-                lambda_value
+                    lambda_value
+                } else {
+                    self.evaluate_expression(*value)?.unwrap_return()
+                }
             } else {
-                tracing::debug!("Non-recursive variable declaration for: {}", name);
                 self.evaluate_expression(*value)?.unwrap_return()
-            };
+            }
+        } else {
+            tracing::debug!("Non-recursive variable declaration");
+            self.evaluate_expression(*value)?.unwrap_return()
+        };
 
         // For const declarations, ensure the value is compile-time evaluable
         if matches!(var_kind, VarKind::Const) {
@@ -3043,50 +3067,75 @@ impl Interpreter {
             }
         }
 
-        // Store variable with kind information (unless already stored for recursive lambdas)
-        let variable_exists = self.current_scope_mut().get(&name).is_some();
-        if !variable_exists {
-            self.current_scope_mut()
-                .declare(name.clone(), evaluated_value.clone(), var_kind)?;
-            tracing::debug!(
-                "Declared variable '{}' in scope. Scope keys after declare: {:?}",
-                name,
-                self.current_scope_mut()
-                    .keys()
-                    .into_iter()
-                    .collect::<Vec<_>>()
+        // Bind the pattern - handle recursive case where simple identifier was already bound
+        let skip_bind = is_recursive_lambda
+            && name_for_recursion.is_some()
+            && self.lambda_references_name(
+                &Expr::Identifier(name_for_recursion.clone().unwrap()),
+                &name_for_recursion.clone().unwrap(),
             );
-        } else {
-            // Variable exists - for var declarations, allow shadowing by re-declaring
-            // This allows variables to shadow imported modules/functions
-            if matches!(var_kind, VarKind::Var) {
-                // Re-declare to properly register the variable
-                // First remove the old binding, then declare new one
-                self.current_scope_mut().declare(
-                    name.clone(),
-                    evaluated_value.clone(),
-                    var_kind,
-                )?;
-                tracing::debug!(
-                    "Variable '{}' already exists, re-declared with new value (var kind allows shadowing)",
-                    name
-                );
-            } else {
-                // For let and const, don't allow redeclaration
-                return Err(VeldError::RuntimeError(format!(
-                    "Variable '{}' already declared in this scope",
-                    name
-                )));
-            }
+
+        if !skip_bind {
+            self.bind_pattern(&pattern, evaluated_value.clone(), var_kind)?;
         }
 
-        tracing::debug!(
-            target: "veld.mutself",
-            "Returning from execute_variable_declaration, assigned_value={:?}, var_name={}",
-            evaluated_value,
-            name
-        );
-        Ok(evaluated_value)
+        Ok(Value::Unit)
+    }
+
+    /// Bind a pattern to a value in the current scope
+    fn bind_pattern(
+        &mut self,
+        pattern: &veld_common::ast::Pattern,
+        value: Value,
+        var_kind: VarKind,
+    ) -> Result<()> {
+        use veld_common::ast::Pattern;
+
+        match pattern {
+            Pattern::Identifier(name) => {
+                // Check if variable already exists (for recursive lambda case)
+                let variable_exists = self.current_scope_mut().get(name).is_some();
+                if !variable_exists {
+                    self.current_scope_mut()
+                        .declare(name.clone(), value, var_kind)?;
+                }
+                Ok(())
+            }
+            Pattern::Wildcard => {
+                // Wildcard doesn't bind anything, just discard the value
+                Ok(())
+            }
+            Pattern::TuplePattern(patterns) => {
+                // Extract tuple elements from the value
+                match value {
+                    Value::Tuple(elements) => {
+                        if patterns.len() != elements.len() {
+                            return Err(VeldError::RuntimeError(format!(
+                                "Tuple pattern length mismatch: pattern has {} elements, value has {}",
+                                patterns.len(),
+                                elements.len()
+                            )));
+                        }
+                        // Recursively bind each pattern element to its corresponding value
+                        for (sub_pattern, element) in patterns.iter().zip(elements.iter()) {
+                            self.bind_pattern(sub_pattern, element.clone(), var_kind.clone())?;
+                        }
+                        Ok(())
+                    }
+                    _ => Err(VeldError::RuntimeError(format!(
+                        "Expected tuple value for tuple pattern, got: {:?}",
+                        value
+                    ))),
+                }
+            }
+            Pattern::Literal(_) | Pattern::EnumPattern { .. } | Pattern::StructPattern { .. } => {
+                // These patterns are not supported in variable declarations
+                Err(VeldError::RuntimeError(format!(
+                    "Pattern {:?} is not supported in variable declarations",
+                    pattern
+                )))
+            }
+        }
     }
 
     fn is_compile_time_constant(&self, value: &Value) -> bool {

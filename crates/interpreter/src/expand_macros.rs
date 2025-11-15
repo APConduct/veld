@@ -60,7 +60,7 @@ fn expand_macros_in_statement_children(
             Ok(vec![ExprStatement(expr)])
         }
         VariableDeclaration {
-            name,
+            pattern,
             var_kind,
             type_annotation,
             value,
@@ -68,7 +68,7 @@ fn expand_macros_in_statement_children(
         } => {
             let value = Box::new(expand_macros_in_expr(*value, macro_system)?);
             Ok(vec![VariableDeclaration {
-                name,
+                pattern,
                 var_kind,
                 type_annotation,
                 value,

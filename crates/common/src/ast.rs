@@ -544,7 +544,7 @@ pub enum Statement {
         generic_params: Vec<GenericArgument>,
     },
     VariableDeclaration {
-        name: String,
+        pattern: Pattern,
         var_kind: VarKind,
         type_annotation: Option<TypeAnnotation>,
         value: Box<Expr>,

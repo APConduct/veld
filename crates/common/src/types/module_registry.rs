@@ -315,7 +315,7 @@ impl ModuleRegistry {
                     types.insert(name.clone(), self.type_annotation_to_type(type_annotation));
                 }
                 Statement::VariableDeclaration {
-                    name,
+                    pattern,
                     var_kind,
                     type_annotation,
                     ..
@@ -323,7 +323,11 @@ impl ModuleRegistry {
                     // Only register if it's a const and public (has type annotation)
                     if matches!(var_kind, VarKind::Const) {
                         if let Some(type_ann) = type_annotation {
-                            constants.insert(name.clone(), self.type_annotation_to_type(type_ann));
+                            // For now, only handle simple identifier patterns in consts
+                            if let crate::ast::Pattern::Identifier(name) = pattern {
+                                constants
+                                    .insert(name.clone(), self.type_annotation_to_type(type_ann));
+                            }
                         }
                     }
                 }

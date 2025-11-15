@@ -205,14 +205,29 @@ impl BytecodeCompiler {
 
             Statement::VariableDeclaration {
                 var_kind,
-                name,
+                pattern,
                 type_annotation: _,
                 value,
                 ..
             } => {
-                self.compile_expression(value)?;
-                let is_mutable = matches!(var_kind, VarKind::Var | VarKind::LetMut);
-                self.declare_variable(name.clone(), is_mutable)?;
+                // Legacy compiler only supports simple identifier patterns
+                match pattern {
+                    veld_common::ast::Pattern::Identifier(name) => {
+                        self.compile_expression(value)?;
+                        let is_mutable = matches!(var_kind, VarKind::Var | VarKind::LetMut);
+                        self.declare_variable(name.clone(), is_mutable)?;
+                    }
+                    _ => {
+                        return Err(VeldError::CompileError {
+                            message: format!(
+                                "Legacy compiler only supports simple identifier patterns in variable declarations, found: {:?}",
+                                pattern
+                            ),
+                            line: None,
+                            column: None,
+                        });
+                    }
+                }
             }
 
             Statement::Assignment { name, value, .. } => {

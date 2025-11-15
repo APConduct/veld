@@ -4,7 +4,7 @@
 //! with the Veld interpreter for automatic memory management.
 
 use std::path::Path;
-use veld_common::ast::{Expr, Literal, Statement, VarKind};
+use veld_common::ast::{Expr, Literal, Pattern, Statement, VarKind};
 use veld_common::gc::{GarbageCollector, GcConfig, SafeGc};
 use veld_common::lexer::Lexer;
 use veld_common::parser::Parser;
@@ -332,14 +332,14 @@ fn create_sample_ast() -> veld_common::ast::AST {
 
     let statements = vec![
         Statement::VariableDeclaration {
-            name: "x".to_string(),
+            pattern: Pattern::Identifier("x".to_string()),
             var_kind: VarKind::Let,
             type_annotation: None,
             value: Box::new(Expr::Literal(Literal::Integer(42))),
             is_public: false,
         },
         Statement::VariableDeclaration {
-            name: "arr".to_string(),
+            pattern: Pattern::Identifier("arr".to_string()),
             var_kind: VarKind::Let,
             type_annotation: None,
             value: Box::new(Expr::ArrayLiteral(vec![
