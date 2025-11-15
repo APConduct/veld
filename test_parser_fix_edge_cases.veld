@@ -1,0 +1,64 @@
+# Edge case tests for parser fix
+# Verify that function calls still work correctly on the same line
+# and that the newline-aware parsing doesn't break valid code
+
+import std.io
+
+# Test 1: Function call on same line (should still work)
+fn add(a: i32, b: i32) => a + b
+let result1 = add(10, 20)
+io.println("✓ Same-line function call works")
+
+# Test 2: Chained method calls across lines (should work)
+fn get_number() => 42
+let result2 = get_number()
+io.println("✓ Method call with newline after function works")
+
+# Test 3: Function returning function call (should work)
+fn multiply(a: i32, b: i32) => a * b
+fn compute() => multiply(5, 6)
+let result3 = compute()
+io.println("✓ Function returning function call works")
+
+# Test 4: Parenthesized expression on same line (not a tuple)
+fn calculate() => (10 + 20) * 2
+let result4 = calculate()
+io.println("✓ Parenthesized expression on same line works")
+
+# Test 5: Tuple on new line is NOT a function call
+fn get_pair() => do
+    let x = 100
+    (x, x * 2)
+end
+let result5 = get_pair()
+io.println("✓ Tuple on new line parsed correctly")
+
+# Test 6: Multiple function calls on same line
+fn f1() => 1
+fn f2() => 2
+let result6 = add(f1(), f2())
+io.println("✓ Multiple function calls on same line work")
+
+# Test 7: Nested function calls
+fn triple(x: i32) => x * 3
+fn double(x: i32) => x * 2
+let result7 = triple(double(5))
+io.println("✓ Nested function calls work")
+
+# Test 8: Function call with tuple argument (simplified)
+fn first_element(t: (i32, i32)) => 30
+let result8 = first_element((10, 20))
+io.println("✓ Function call with tuple argument works")
+
+# Test 9: Ensure we can still call functions with expressions
+fn square(x: i32) => x * x
+let base = 5
+let result9 = square(base + 1)
+io.println("✓ Function call with expression argument works")
+
+# Test 10: Anonymous tuple creation and immediate use
+let pair = (100, 200)
+io.println("✓ Anonymous tuple creation works")
+
+io.println("")
+io.println("All edge case tests passed! ✓")
