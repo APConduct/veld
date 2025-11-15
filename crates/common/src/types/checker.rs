@@ -1424,6 +1424,17 @@ impl TypeChecker {
             Expr::BlockExpression { statements, .. } => statements
                 .iter()
                 .any(|stmt| self.stmt_references_name(stmt, name)),
+            Expr::LetIn {
+                name: var_name,
+                value,
+                body,
+                ..
+            } => {
+                // Check if the value references the name, or if the body references it
+                // (but not if the let-in shadows the name)
+                self.expr_references_name(value, name)
+                    || (var_name != name && self.expr_references_name(body, name))
+            }
             // Add other expression types as needed
             _ => false,
         }
@@ -1826,6 +1837,41 @@ impl TypeChecker {
                 } else {
                     Type::Unit
                 };
+
+                self.env.pop_scope();
+                Ok(result_type)
+            }
+            Expr::LetIn {
+                name,
+                var_kind,
+                type_annotation,
+                value,
+                body,
+            } => {
+                self.env.push_scope();
+
+                // Infer the type of the value expression
+                let value_type = self.infer_expression_type(value)?;
+
+                // If there's a type annotation, check it matches
+                let binding_type = if let Some(annotation) = type_annotation {
+                    let annotated_type = self.env.from_annotation(annotation, None)?;
+                    self.env.add_constraint(value_type.clone(), annotated_type.clone());
+                    self.env.solve_constraints()?;
+                    annotated_type
+                } else {
+                    value_type
+                };
+
+                // Bind the variable in the new scope
+                self.env.define(&name, binding_type.clone());
+                self.var_info.insert(
+                    name.clone(),
+                    VarInfo::new(binding_type.clone(), var_kind.clone(), None),
+                );
+
+                // Infer the type of the body with the binding in scope
+                let result_type = self.infer_expression_type(body)?;
 
                 self.env.pop_scope();
                 Ok(result_type)

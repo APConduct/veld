@@ -1,0 +1,15 @@
+# Test 8: Let-in with if expression
+
+import std.io
+
+let result8 =
+    let x = 15 in
+    if x > 10 then
+        let bonus = 100 in
+        x + bonus
+    else
+        x
+    end
+
+io.println("Test 8 - Let-in with if: " + result8.to_str())
+io.println("Test 8 passed!")

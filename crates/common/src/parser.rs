@@ -3932,6 +3932,11 @@ impl Parser {
             return self.parse_block_expression(ctx);
         }
 
+        // Parse let-in expression: let x = expr in body
+        if self.check(&Token::Let(ZTUP)) {
+            return self.parse_let_in_expression(ctx);
+        }
+
         // Parse macro variable reference: $identifier
         if self.match_token(&[Token::Dollar(ZTUP)]) {
             if let Token::Identifier(name) = self.advance() {
@@ -4221,6 +4226,72 @@ impl Parser {
         }
 
         false
+    }
+
+    // Parse let-in expression: let x = expr in body
+    fn parse_let_in_expression(&mut self, ctx: &mut Option<&mut ParseContext>) -> Result<Expr> {
+        let _span = tracing::span!(tracing::Level::TRACE, "parse_let_in_expression");
+        let _enter = _span.enter();
+
+        let _start = self.get_current_position();
+
+        // Consume 'let' (or 'var'/'const')
+        let var_kind = if self.match_token(&[Token::Let(ZTUP)]) {
+            if self.match_token(&[Token::Mut(ZTUP)]) {
+                VarKind::LetMut
+            } else {
+                VarKind::Let
+            }
+        } else if self.match_token(&[Token::Var(ZTUP)]) {
+            VarKind::Var
+        } else if self.match_token(&[Token::Const(ZTUP)]) {
+            VarKind::Const
+        } else {
+            return Err(VeldError::ParserError(
+                "Expected 'let', 'var', or 'const' in let-in expression".to_string(),
+            ));
+        };
+
+        // Parse variable name
+        let name = self.consume_identifier("Expected variable name in let-in expression")?;
+
+        // Parse optional type annotation
+        let type_annotation = if self.match_token(&[Token::Colon(ZTUP)]) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        // Expect '='
+        self.consume(
+            &Token::Equals(ZTUP),
+            "Expected '=' after variable name in let-in expression",
+        )?;
+
+        // Parse value expression
+        let value = Box::new(self.expression(ctx)?);
+
+        // Expect 'in'
+        self.consume(
+            &Token::In(ZTUP),
+            "Expected 'in' after value in let-in expression",
+        )?;
+
+        // Parse body expression
+        let body = Box::new(self.expression(ctx)?);
+
+        let _end = self.get_current_position();
+        if let Some(ctx) = ctx {
+            ctx.add_span(NodeId::new(), _start, _end);
+        }
+
+        Ok(Expr::LetIn {
+            name,
+            var_kind,
+            type_annotation,
+            value,
+            body,
+        })
     }
 
     // Parse if expression: if condition then expr else expr end

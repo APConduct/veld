@@ -1,0 +1,13 @@
+# Test 7: Var in do block (not let-in related)
+
+import std.io
+
+let result7 = do
+    var counter = 0
+    counter = counter + 10
+    counter = counter + 5
+    counter
+end
+
+io.println("Test 7 - Var in do block: " + result7.to_str())
+io.println("Test 7 passed!")

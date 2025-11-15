@@ -1376,6 +1376,19 @@ impl Interpreter {
                     self.collect_free_variables_expr(else_expr, bound_vars, free_vars);
                 }
             }
+            Expr::LetIn {
+                name: var_name,
+                value,
+                body,
+                ..
+            } => {
+                // Collect free variables from value
+                self.collect_free_variables_expr(value, bound_vars, free_vars);
+                // Add the let-bound variable to bound vars for the body
+                let mut body_bound = bound_vars.clone();
+                body_bound.insert(var_name.clone());
+                self.collect_free_variables_expr(body, &body_bound, free_vars);
+            }
             Expr::BlockExpression {
                 statements,
                 final_expr,
@@ -4184,6 +4197,39 @@ impl Interpreter {
                                 };
 
                                 self.pop_scope();
+                                Ok(result)
+                            }
+                            Expr::LetIn {
+                                name,
+                                var_kind,
+                                type_annotation,
+                                value,
+                                body,
+                            } => {
+                                let span = tracing::debug_span!(
+                                    "let_in_expression",
+                                    name = %name
+                                );
+                                let _enter = span.enter();
+
+                                // Evaluate the value expression
+                                let value_result =
+                                    self.evaluate_expression(*value)?.unwrap_return();
+
+                                // Create new scope for the let-in binding
+                                self.push_scope();
+
+                                // Bind the variable in the new scope
+                                self.current_scope_mut()
+                                    .vals_mut()
+                                    .insert(name.clone(), value_result);
+
+                                // Evaluate the body expression with the binding in scope
+                                let result = self.evaluate_expression(*body)?;
+
+                                // Pop the scope
+                                self.pop_scope();
+
                                 Ok(result)
                             }
                             Expr::MacroExpr { name, arguments } => {
@@ -8201,6 +8247,17 @@ impl Interpreter {
             Expr::BlockExpression { statements, .. } => statements
                 .iter()
                 .any(|stmt| self.stmt_references_name(stmt, name)),
+            Expr::LetIn {
+                name: var_name,
+                value,
+                body,
+                ..
+            } => {
+                // Check if the value references the name, or if the body references it
+                // (but not if the let-in shadows the name)
+                self.expr_references_name(value, name)
+                    || (var_name != name && self.expr_references_name(body, name))
+            }
             // Add other expression types as needed
             _ => false,
         }

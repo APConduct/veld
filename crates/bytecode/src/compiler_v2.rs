@@ -859,6 +859,51 @@ impl RegisterCompiler {
                 Ok(result)
             }
 
+            Expr::LetIn {
+                name,
+                var_kind,
+                type_annotation: _,
+                value,
+                body,
+            } => {
+                self.begin_scope();
+
+                // Compile the value expression
+                let value_result = self.compile_expr_to_reg(value)?;
+
+                // Declare the variable in the current scope
+                let var_reg = if value_result.is_temp {
+                    // Reuse the temp register
+                    value_result.register
+                } else {
+                    // Need to copy to a new register
+                    let dest = self.allocate_temp()?;
+                    self.chunk.move_reg(dest, value_result.register);
+                    dest
+                };
+
+                // Register the variable
+                let is_mutable = *var_kind == VarKind::Var || *var_kind == VarKind::LetMut;
+                self.variables.insert(
+                    name.clone(),
+                    VarInfo {
+                        register: var_reg,
+                        is_mutable,
+                        depth: self.scope_depth,
+                        is_captured: false,
+                        is_upvalue: false,
+                        is_type: false,
+                        is_global_ref: false,
+                    },
+                );
+
+                // Compile the body expression with the variable in scope
+                let result = self.compile_expr_to_reg(body)?;
+
+                self.end_scope();
+                Ok(result)
+            }
+
             Expr::Match { value, arms } => self.compile_match_expression(value, arms),
 
             _ => Err(VeldError::CompileError {
@@ -1984,6 +2029,16 @@ impl RegisterCompiler {
             }
             Expr::PropertyAccess { object, .. } => {
                 self.find_captured_vars_in_expr(object, parent_vars, captures);
+            }
+            Expr::LetIn {
+                name, value, body, ..
+            } => {
+                // Find captured vars in the value expression
+                self.find_captured_vars_in_expr(value, parent_vars, captures);
+                // For the body, the let-bound variable is now local, so exclude it
+                let mut body_vars = parent_vars.clone();
+                body_vars.remove(name);
+                self.find_captured_vars_in_expr(body, &body_vars, captures);
             }
             _ => {}
         }

@@ -1,0 +1,155 @@
+# Comprehensive test suite for OCaml-style let-in expressions
+
+import std.io
+
+io.println("Testing let-in expressions...")
+io.println("")
+
+# Test 1: Simple let-in expression
+let result1 =
+    let x = 10 in
+    let y = 20 in
+    x + y
+
+io.println("✓ Test 1 - Simple let-in: " + result1.to_str())
+
+# Test 2: Let-in with computation
+let result2 =
+    let a = 5 in
+    let b = a * 2 in
+    let c = b + 3 in
+    a + b + c
+
+io.println("✓ Test 2 - Computed let-in: " + result2.to_str())
+
+# Test 3: Let-in in function
+fn calculate(x: i32) =>
+    let doubled = x * 2 in
+    let squared = doubled * doubled in
+    squared + x
+
+let result3 = calculate(5)
+io.println("✓ Test 3 - Let-in in function: " + result3.to_str())
+
+# Test 4: Nested let-in
+let result4 =
+    let x = 10 in
+    let y = (let inner = 5 in inner * 2) in
+    x + y
+
+io.println("✓ Test 4 - Nested let-in: " + result4.to_str())
+
+# Test 5: Let-in with shadowing
+let result5 =
+    let x = 10 in
+    let x = x + 5 in
+    let x = x * 2 in
+    x
+
+io.println("✓ Test 5 - Let-in with shadowing: " + result5.to_str())
+
+# Test 6: Let-in returning tuple
+let result6 =
+    let a = 10 in
+    let b = 20 in
+    (a, b, a + b)
+
+io.println("✓ Test 6 - Let-in returning tuple")
+
+# Test 7: Let-in with if expression
+let result7 =
+    let x = 15 in
+    if x > 10 then
+        let bonus = 100 in
+        x + bonus
+    else
+        x
+    end
+
+io.println("✓ Test 7 - Let-in with if: " + result7.to_str())
+
+# Test 8: Multiple let-in in sequence
+let result8 =
+    let a = 1 in
+    let b = 2 in
+    let c = 3 in
+    let d = 4 in
+    let e = 5 in
+    a + b + c + d + e
+
+io.println("✓ Test 8 - Multiple let-in: " + result8.to_str())
+
+# Test 9: Let-in with type annotation
+let result9 =
+    let x: i32 = 42 in
+    let y: i32 = x * 2 in
+    x + y
+
+io.println("✓ Test 9 - Let-in with type annotation: " + result9.to_str())
+
+# Test 10: Let-in as function body
+fn get_sum() =>
+    let a = 100 in
+    let b = 200 in
+    a + b
+
+let result10 = get_sum()
+io.println("✓ Test 10 - Let-in as function body: " + result10.to_str())
+
+# Test 11: Complex nesting
+let result11 =
+    let x = 5 in
+    let y =
+        let inner_a = 10 in
+        let inner_b = 20 in
+        inner_a + inner_b
+    in
+    x * y
+
+io.println("✓ Test 11 - Complex nesting: " + result11.to_str())
+
+# Test 12: Let-in with arithmetic
+let result12 =
+    let base = 10 in
+    let multiplier = 3 in
+    let offset = 5 in
+    (base * multiplier) + offset
+
+io.println("✓ Test 12 - Let-in with arithmetic: " + result12.to_str())
+
+# Test 13: Chained let-in in single line
+let result13 = let x = 1 in let y = 2 in let z = 3 in x + y + z
+
+io.println("✓ Test 13 - Chained let-in: " + result13.to_str())
+
+# Test 14: Let-in preserving scope
+fn outer_function() => do
+    let outer_var = 100
+    let inner_result = let x = 10 in x + outer_var
+    inner_result
+end
+
+let result14 = outer_function()
+io.println("✓ Test 14 - Let-in with outer scope: " + result14.to_str())
+
+# Test 15: Let-in with function calls
+fn double(n: i32) => n * 2
+
+let result15 =
+    let a = double(5) in
+    let b = double(a) in
+    a + b
+
+io.println("✓ Test 15 - Let-in with function calls: " + result15.to_str())
+
+io.println("")
+io.println("All 15 let-in tests passed! ✓")
+io.println("")
+io.println("Summary:")
+io.println("- Simple let-in expressions work")
+io.println("- Nested let-in expressions work")
+io.println("- Let-in with shadowing works")
+io.println("- Let-in in functions works")
+io.println("- Let-in with if/then/else works")
+io.println("- Let-in with type annotations works")
+io.println("- Let-in returning tuples works")

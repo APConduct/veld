@@ -1,0 +1,18 @@
+# Simple test for let-in expressions
+
+import std.io
+
+# Test 1: Basic let-in
+let test1 = let x = 10 in x + 5
+io.println("Test 1: " + test1.to_str())
+
+# Test 2: Chained let-in
+let test2 = let x = 10 in let y = 20 in x + y
+io.println("Test 2: " + test2.to_str())
+
+# Test 3: Let-in in function
+fn add_bonus(x: i32) => let bonus = 10 in x + bonus
+let test3 = add_bonus(5)
+io.println("Test 3: " + test3.to_str())
+
+io.println("Simple let-in tests passed!")

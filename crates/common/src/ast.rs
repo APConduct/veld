@@ -286,6 +286,13 @@ pub enum Expr {
         end: Option<Box<Expr>>,
         inclusive: bool,
     },
+    LetIn {
+        name: String,
+        var_kind: VarKind,
+        type_annotation: Option<TypeAnnotation>,
+        value: Box<Expr>,
+        body: Box<Expr>,
+    },
     Match {
         value: Box<Expr>,
         arms: Vec<MatchArm>,
