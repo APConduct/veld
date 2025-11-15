@@ -1,0 +1,43 @@
+# Minimal test to isolate interpreter error
+
+# Test 1: Just a variable
+var x = 10
+
+# Test 2: Compound assignment
+var y = 5
+y += 3
+
+# Test 3: Simple function
+fn simple() => 42
+
+# Test 4: Call simple function
+let result = simple()
+
+# Test 5: Function with tuple return
+fn get_pair() => (10, 20)
+
+# Test 6: Call function with tuple return
+let pair = get_pair()
+
+# Test 7: Function with do block returning tuple (COMMENTED OUT - CAUSES ERROR)
+# fn get_tuple() => do
+#     let a = 10
+#     let b = 20
+#     (a, b)
+# end
+
+# Test 8: Call function with do block returning tuple (COMMENTED OUT)
+# let tuple_result = get_tuple()
+
+# Test 9: Function with do block and two-element tuple (COMMENTED OUT - CAUSES ERROR)
+# fn two_element_tuple() => do
+#     let x = 10
+#     let y = 20
+#     (x, y)
+# end
+
+# Test 10: Call the function (COMMENTED OUT)
+# let two_result = two_element_tuple()
+
+# Verify earlier tests work
+let verify = true

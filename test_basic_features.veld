@@ -1,0 +1,48 @@
+# Basic test for new compiler features
+# Tests compound assignments and multi-value returns
+
+# Test 1: Basic compound assignment
+var x = 10
+x += 5
+
+# Test 2: All compound operators
+var y = 100
+y += 20
+y -= 10
+y *= 2
+y /= 4
+
+# Test 3: Compound in loop
+var sum = 0
+var i = 1
+while i <= 3 do
+    sum += i
+    i += 1
+end
+
+# Test 4: Simple multi-value return
+fn get_pair() => (10, 20)
+let pair = get_pair()
+
+# Test 5: Three values
+fn get_triple() => (1, 2, 3)
+let triple = get_triple()
+
+# Test 6: Mixed types
+fn get_mixed() => (42, "hello", true)
+let mixed = get_mixed()
+
+# Test 7: Empty tuple
+fn get_unit() => ()
+let unit = get_unit()
+
+# Test 8: Combine both features
+fn calc(n) => do
+    var total = 10
+    total += n
+    (total, total * 2)
+end
+let result = calc(5)
+
+# Success!
+var done = true

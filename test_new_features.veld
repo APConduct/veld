@@ -1,0 +1,121 @@
+# Comprehensive test for new compiler features
+# Tests compound assignments and multi-value returns
+
+import std.io as io
+
+# ============================================
+# COMPOUND ASSIGNMENT TESTS
+# ============================================
+
+io.println("=== Testing Compound Assignments ===")
+
+# Test 1: Basic += operator
+var counter = 0
+counter += 10
+io.println("Counter after +=: should be 10")
+
+# Test 2: All operators
+var x = 100
+x += 50   # 150
+x -= 30   # 120
+x *= 2    # 240
+x /= 4    # 60
+io.println("Final x: should be 60")
+
+# Test 3: Compound assignment in loop
+var sum = 0
+var i = 1
+while i <= 5 do
+    sum += i
+    i += 1
+end
+io.println("Sum 1-5: should be 15")
+
+# Test 4: Compound assignment with expressions
+var y = 10
+y += 2 + 3
+io.println("10 + (2+3): should be 15")
+
+# Test 5: Multiple variables
+var a = 10
+var b = 5
+a += b
+b *= 2
+io.println("a should be 15, b should be 10")
+
+# ============================================
+# MULTI-VALUE RETURN TESTS
+# ============================================
+
+io.println("=== Testing Multi-Value Returns ===")
+
+# Test 6: Simple tuple return
+fn get_coords() => (100, 200)
+
+let coords = get_coords()
+io.println("Coords returned successfully")
+
+# Test 7: Different types in tuple
+fn get_user_info() => ("Alice", 25, true)
+
+let user = get_user_info()
+io.println("User info returned successfully")
+
+# Test 8: Three values
+fn get_rgb() => (255, 128, 64)
+
+let color = get_rgb()
+io.println("RGB color returned successfully")
+
+# Test 9: Conditional return
+fn get_min_max(a, b) => do
+    let x = a
+    let y = b
+    if x < y then
+        (x, y)
+    else
+        (y, x)
+    end
+end
+
+let min_max = get_min_max(10, 5)
+io.println("Min-max returned successfully")
+
+# Test 10: Empty tuple
+fn nothing() => ()
+
+let unit = nothing()
+io.println("Empty tuple returned successfully")
+
+# ============================================
+# COMBINED TESTS
+# ============================================
+
+io.println("=== Testing Combined Features ===")
+
+# Test 11: Compound assignment with function returning tuple
+fn get_pair() => (10, 20)
+
+var result = 0
+let pair = get_pair()
+result += 100
+io.println("Combined test successful")
+
+# Test 12: Compound assignment in function returning value
+fn calculate(n) => do
+    var total = 0
+    total += n
+    total *= 2
+    total
+end
+
+let calc_result = calculate(5)
+io.println("Calculate returned successfully")
+
+# Test 13: Multiple returns with computation
+fn compute() => (10 + 5, 20 - 3)
+
+let computed = compute()
+io.println("Computed values returned successfully")
+
+io.println("=== All Tests Complete! ===")

@@ -1,0 +1,118 @@
+# Simple test for new compiler features
+# Tests compound assignments and multi-value returns
+# No stdlib imports - just core features
+
+# ============================================
+# COMPOUND ASSIGNMENT TESTS
+# ============================================
+
+# Test 1: Basic += operator
+var counter = 0
+counter += 10
+counter += 5
+
+# Test 2: All operators
+var x = 100
+x += 50   # 150
+x -= 30   # 120
+x *= 2    # 240
+x /= 4    # 60
+
+# Test 3: Compound assignment in loop
+var sum = 0
+var i = 1
+while i <= 5 do
+    sum += i
+    i += 1
+end
+
+# Test 4: Compound assignment with expressions
+var y = 10
+y += 2 + 3
+y -= 1 + 1
+y *= 2
+
+# Test 5: Multiple variables
+var a = 10
+var b = 5
+a += b
+b *= 2
+
+# ============================================
+# MULTI-VALUE RETURN TESTS
+# ============================================
+
+# Test 6: Simple tuple return
+fn get_coords() => (100, 200)
+
+let coords = get_coords()
+
+# Test 7: Different types in tuple
+fn get_user_info() => ("Alice", 25, true)
+
+let user = get_user_info()
+
+# Test 8: Three values
+fn get_rgb() => (255, 128, 64)
+
+let color = get_rgb()
+
+# Test 9: Computed values
+fn compute() => (10 + 5, 20 - 3)
+
+let computed = compute()
+
+# Test 10: Empty tuple
+fn nothing() => ()
+
+let unit = nothing()
+
+# ============================================
+# COMBINED TESTS
+# ============================================
+
+# Test 11: Compound assignment with function returning tuple
+fn get_pair() => (10, 20)
+
+var result = 0
+let pair = get_pair()
+result += 100
+
+# Test 12: Compound assignment in function
+fn calculate(n) => do
+    var total = 0
+    total += n
+    total *= 2
+    total
+end
+
+let calc_result = calculate(5)
+
+# Test 13: Nested functions with multi-return
+fn outer() => do
+    fn inner() => (1, 2)
+    let vals = inner()
+    (3, 4)
+end
+
+let nested = outer()
+
+# Test 14: Compound in conditional
+var score = 50
+if score < 100 then
+    score += 25
+end
+
+if score >= 75 then
+    score *= 2
+end
+
+# Test 15: Multiple tuple returns
+fn first() => (1, 2)
+fn second() => (3, 4)
+
+let r1 = first()
+let r2 = second()
+
+# Success if we get here without errors!
+let success = true
