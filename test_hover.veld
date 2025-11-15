@@ -1,0 +1,15 @@
+# Test file for hover info
+
+import std.io as io
+
+pub fn main() => do
+    io.println("Hello, World!")
+end
+
+fn add(a, b) => do
+    a + b
+end
+
+fn no_params() => do
+    io.println("No parameters")
+end

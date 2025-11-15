@@ -11,6 +11,7 @@ use super::super::types::{EnumVariant, ImplementationInfo, Type, Type::TypeVar, 
 use super::Value;
 use super::exhaustiveness::ExhaustivenessChecker;
 use super::module_registry::ModuleRegistry;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 use veld_error::{Result, VeldError};
@@ -20,7 +21,7 @@ pub struct TypeChecker {
     current_function_return_type: Option<Type>,
     var_info: HashMap<String, VarInfo>,
     exhaustiveness_checker: ExhaustivenessChecker,
-    module_registry: Arc<ModuleRegistry>,
+    module_registry: Arc<RefCell<ModuleRegistry>>,
 }
 
 impl TypeChecker {
@@ -44,12 +45,16 @@ impl TypeChecker {
             env,
             current_function_return_type: None,
             var_info: HashMap::new(),
-            module_registry: Arc::new(module_registry),
+            module_registry: Arc::new(RefCell::new(module_registry)),
         }
     }
 
     pub fn env(&mut self) -> &mut TypeEnvironment {
         &mut self.env
+    }
+
+    pub fn module_registry(&self) -> &Arc<RefCell<ModuleRegistry>> {
+        &self.module_registry
     }
 
     pub fn with_env<F, R>(&mut self, f: F) -> R
@@ -1789,14 +1794,8 @@ impl TypeChecker {
                 method,
                 arguments,
             } => {
-                // If the object is an identifier and is a module, skip type checking
-                if let Expr::Identifier(obj_name) = &**object {
-                    if let Some(Type::Module(_)) = self.env.get(obj_name) {
-                        tracing::debug!("Skipping type checking for module method call: {}.{}", obj_name, method);
-                        // Return Unknown type so that chained method calls don't fail
-                        return Ok(self.env.fresh_type_var());
-                    }
-                }
+                // Let module method calls go through infer_method_call_type
+                // which will use the module registry to look up function signatures
                 self.infer_method_call_type(object, method, arguments)
             }
             Expr::PropertyAccess { object, property } => {
@@ -1903,19 +1902,9 @@ impl TypeChecker {
                 Ok(self.env.fresh_type_var())
             }
             Expr::Call { callee, arguments } => {
-                // If callee is a PropertyAccess, and the object is a module, skip type checking (module function call)
-                if let Expr::PropertyAccess { object, property } = &**callee {
-                    // Try to infer the type of the object
-                    if let Expr::Identifier(obj_name) = &**object {
-                        // If the object is a module (registered in env as Type::Module), skip type checking
-                        if let Some(Type::Module(_)) = self.env.get(obj_name) {
-                            tracing::debug!("Skipping type checking for module function call: {}.{}", obj_name, property);
-                            // Return Unknown type so that chained method calls don't fail
-                            return Ok(self.env.fresh_type_var());
-                        }
-                    }
-                }
-
+                // Let module function calls go through normal type inference
+                // PropertyAccess on modules will be handled by infer_property_access_type
+                // which will return Type::Function, and we'll type check the arguments below
                 let callee_type = self.infer_expression_type(callee)?;
 
                 match callee_type {
@@ -3907,20 +3896,29 @@ impl TypeChecker {
                 );
 
                 // First, try to look up the function in the module registry
-                if let Some(signature) = self.module_registry.lookup_function(module_path, method) {
+                // Clone signature data immediately to avoid borrow conflicts
+                let signature_data = {
+                    let registry = self.module_registry.borrow();
+                    registry.lookup_function(module_path, method).map(|sig| {
+                        (
+                            sig.params
+                                .iter()
+                                .map(|(_, ty)| ty.clone())
+                                .collect::<Vec<Type>>(),
+                            sig.return_type.clone(),
+                            sig.params.len(),
+                        )
+                    })
+                };
+
+                if let Some((param_types, return_type, param_count)) = signature_data {
                     tracing::debug!(
                         "Found {}.{} in module registry: {} params -> {:?}",
                         module_path,
                         method,
-                        signature.params.len(),
-                        signature.return_type
+                        param_count,
+                        return_type
                     );
-
-                    // Clone signature data to avoid borrow conflicts
-                    let param_types: Vec<Type> =
-                        signature.params.iter().map(|(_, ty)| ty.clone()).collect();
-                    let return_type = signature.return_type.clone();
-                    let param_count = signature.params.len();
 
                     // Type check arguments against signature
                     if args.len() != param_count {

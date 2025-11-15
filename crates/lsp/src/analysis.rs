@@ -132,6 +132,12 @@ impl Analyzer {
                         let alias_name = alias.as_deref().unwrap_or("io");
                         tracing::debug!("Registering std.io as '{}'", alias_name);
 
+                        // Register alias in module registry
+                        type_checker
+                            .module_registry()
+                            .borrow_mut()
+                            .register_alias(alias_name.to_string(), module_path.clone());
+
                         // io.println: fn(String) -> ()
                         let println_name = format!("{}.println", alias_name);
                         tracing::debug!("Registering {}: fn(String) -> ()", println_name);
@@ -163,11 +169,19 @@ impl Analyzer {
                     "std.collections" => {
                         let alias_name = alias.as_deref().unwrap_or("collections");
                         type_checker
+                            .module_registry()
+                            .borrow_mut()
+                            .register_alias(alias_name.to_string(), module_path.clone());
+                        type_checker
                             .env()
                             .define(alias_name, Type::Module(module_path.clone()));
                     }
                     "std.option" => {
                         let alias_name = alias.as_deref().unwrap_or("option");
+                        type_checker
+                            .module_registry()
+                            .borrow_mut()
+                            .register_alias(alias_name.to_string(), module_path.clone());
                         type_checker
                             .env()
                             .define(alias_name, Type::Module(module_path.clone()));
@@ -175,12 +189,20 @@ impl Analyzer {
                     "std.result" => {
                         let alias_name = alias.as_deref().unwrap_or("result");
                         type_checker
+                            .module_registry()
+                            .borrow_mut()
+                            .register_alias(alias_name.to_string(), module_path.clone());
+                        type_checker
                             .env()
                             .define(alias_name, Type::Module(module_path.clone()));
                     }
                     _ if module_path.starts_with("std.") => {
                         // Generic stdlib module
                         let alias_name = alias.as_deref().unwrap_or_else(|| path.last().unwrap());
+                        type_checker
+                            .module_registry()
+                            .borrow_mut()
+                            .register_alias(alias_name.to_string(), module_path.clone());
                         type_checker
                             .env()
                             .define(alias_name, Type::Module(module_path.clone()));
