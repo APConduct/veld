@@ -1,0 +1,13 @@
+# Test main return type inference
+import std.io as io
+
+pub fn main() => do 
+    io.println("Hello, World!")
+end
+
+fn empty_function() => do
+end
+
+fn another_test() => do
+    io.println("test")
+end

@@ -1,0 +1,73 @@
+╔═══════════════════════════════════════════════════════════╗
+║        DEBUGGING io.println RESOLUTION                    ║
+╚═══════════════════════════════════════════════════════════╝
+
+🔧 JUST ADDED:
+
+Added alias support for io.println:
+  ✅ "std.io.println" | "io.println" - both now match
+  ✅ "std.io.print" | "io.print" - both now match
+  ✅ "std.io.read_line" | "io.read_line" - both now match
+
+📝 REBUILD & TEST:
+
+1. Rebuild (already done):
+   cargo build --release --bin veld-lsp
+
+2. Clear the old log:
+   > lsp_server.log
+
+3. Reload VSCode:
+   Cmd+Shift+P → "Developer: Reload Window"
+
+4. Open your test.veld file
+
+5. Hover over 'main'
+
+6. Check the log:
+   cat lsp_server.log | grep "Module method call"
+
+🔍 WHAT TO LOOK FOR IN LOGS:
+
+Should see something like:
+  "Module method call: module=std.io, method=println, full_path=std.io.println"
+  OR
+  "Module method call: module=io, method=println, full_path=io.println"
+
+Then should see:
+  "Hardcoded stdlib: std.io.println returns Unit"
+  OR
+  "Hardcoded stdlib: io.println returns Unit"
+
+❓ IF STILL SHOWS T5:
+
+The log will tell us what's happening:
+
+Case 1: No "Module method call" in log
+  → The expression isn't being parsed as a method call on a module
+  → Might be a different expression type
+  
+Case 2: "Module method call: module=???, method=println"
+  → Shows us what the actual module path is
+  → We can add that to the match cases
+
+Case 3: "Unknown module function: ..."
+  → Means it's not matching any of our cases
+  → Shows us what path to add
+
+📊 EXPECTED OUTCOME:
+
+After reload, hover on main should show:
+  fn main() -> ()
+
+If not, the log will tell us exactly what's going wrong!
+
+🚀 TRY NOW:
+
+1. Clear log: > lsp_server.log
+2. Reload VSCode
+3. Hover over 'main' in test.veld
+4. Run: cat lsp_server.log | grep -i "module\|println\|hardcode"
+5. Share the output!
+
+This will show us exactly what's happening.

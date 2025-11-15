@@ -1,0 +1,14 @@
+import std.io as io
+
+fn test1() => do
+    io.println("test")
+end
+
+fn test2() => do
+    io.print("test")
+end
+
+fn test3() => do
+    let x = io.read_line()
+    x
+end

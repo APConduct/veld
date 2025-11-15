@@ -1,0 +1,46 @@
+# Test file for standard library imports
+# This tests that the LSP properly handles stdlib imports and doesn't show false errors
+
+import std.io as io
+
+pub fn main() => do
+    io.println("Hello, World!")
+    io.println("Testing stdlib import!")
+end
+
+fn test_print() => do
+    io.print("This is ")
+    io.println("a test")
+end
+
+# Test multiple imports
+import std.option as opt
+import std.result as res
+
+fn test_option() => do
+    let some_val = opt.some(42)
+    io.println("Option test")
+end
+
+fn test_result() => do
+    let ok_val = res.ok(100)
+    io.println("Result test")
+end
+
+# Test that main return type is properly inferred
+pub fn simple_main() => do
+    io.println("Should infer -> () return type")
+end
+
+# Test with parameters
+fn greet(name) => do
+    io.println(name)
+end
+
+# Test multiple statements
+fn complex_main() => do
+    let x = 42
+    let y = "test"
+    io.println(y)
+    greet("Alice")
+end

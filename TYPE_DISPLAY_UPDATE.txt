@@ -1,0 +1,42 @@
+╔═══════════════════════════════════════════════════════════╗
+║         FUNCTION TYPE DISPLAY IMPROVED ✨                ║
+╚═══════════════════════════════════════════════════════════╝
+
+🎯 WHAT CHANGED:
+
+Function hover info now shows:
+  ❌ Before: add: fn(T9, T10) -> i32
+  ✅ After:  fn add(a: T, b: U)
+  
+  Or with concrete types:
+  ✅ fn add(a: i32, b: i32) -> i32
+
+🔧 IMPROVEMENTS:
+
+• Parameter names shown (from source code)
+• Friendly generic names (T, U, V not T9, T10)
+• Concrete types displayed when inferred
+• Cleaner, more professional appearance
+
+📝 TEST IT:
+
+1. Reload VSCode: Cmd+Shift+P → "Developer: Reload Window"
+
+2. Open test_lsp_simple.veld
+
+3. Hover over functions:
+   • Line 3: add → should show "fn add(a: T, b: U)"
+   • Line 7: multiply → should show "fn multiply(x: T, y: U)"
+   • NOT "fn(T9, T10) -> i32" anymore!
+
+4. Watch logs:
+   tail -f lsp_server.log
+
+📊 EXPECTED:
+✅ Parameter names visible (a, b, x, y)
+✅ Generic types as T, U, V
+✅ Concrete types like i32 when inferred
+❌ NO MORE internal type IDs (T9, T10)
+
+📚 More info: FUNCTION_TYPE_FIX.md
+

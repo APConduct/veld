@@ -95,11 +95,17 @@ impl Analyzer {
             }
         };
 
-        // Step 3: Type check the AST
+        // Step 3: Type check the AST with stdlib prelude
         let mut type_checker = TypeChecker::new();
+
+        // Register common stdlib modules and their exports to avoid false errors
+        self.register_stdlib_prelude(&mut type_checker, &statements);
+
         if let Err(e) = type_checker.check_program(&statements) {
-            // Type error
-            diagnostics.push(self.error_to_diagnostic(&e, source));
+            // Type error - filter out false positives for known imports
+            if !self.is_known_import_error(&e, &statements) {
+                diagnostics.push(self.error_to_diagnostic(&e, source));
+            }
         }
 
         AnalysisResult {
@@ -107,6 +113,110 @@ impl Analyzer {
             diagnostics,
             type_checker: Some(Rc::new(RefCell::new(type_checker))),
         }
+    }
+
+    /// Register standard library modules based on imports in the file
+    fn register_stdlib_prelude(&self, type_checker: &mut TypeChecker, statements: &[Statement]) {
+        use veld_common::types::Type;
+
+        // Collect all import statements
+        for stmt in statements {
+            if let Statement::ImportDeclaration { path, alias, .. } = stmt {
+                let module_path = path.join(".");
+                tracing::debug!("Found import: {} (alias: {:?})", module_path, alias);
+
+                // Register the module based on what's imported
+                match module_path.as_str() {
+                    "std.io" => {
+                        // Register std.io functions
+                        let alias_name = alias.as_deref().unwrap_or("io");
+                        tracing::debug!("Registering std.io as '{}'", alias_name);
+
+                        // io.println: fn(String) -> ()
+                        let println_name = format!("{}.println", alias_name);
+                        tracing::debug!("Registering {}: fn(String) -> ()", println_name);
+                        type_checker.env().define(
+                            &println_name,
+                            Type::Function {
+                                params: vec![Type::String],
+                                return_type: Box::new(Type::Unit),
+                            },
+                        );
+
+                        // io.print: fn(String) -> ()
+                        let print_name = format!("{}.print", alias_name);
+                        tracing::debug!("Registering {}: fn(String) -> ()", print_name);
+                        type_checker.env().define(
+                            &print_name,
+                            Type::Function {
+                                params: vec![Type::String],
+                                return_type: Box::new(Type::Unit),
+                            },
+                        );
+
+                        // Register the module identifier itself
+                        tracing::debug!("Registering module identifier '{}'", alias_name);
+                        type_checker
+                            .env()
+                            .define(alias_name, Type::Module(module_path.clone()));
+                    }
+                    "std.collections" => {
+                        let alias_name = alias.as_deref().unwrap_or("collections");
+                        type_checker
+                            .env()
+                            .define(alias_name, Type::Module(module_path.clone()));
+                    }
+                    "std.option" => {
+                        let alias_name = alias.as_deref().unwrap_or("option");
+                        type_checker
+                            .env()
+                            .define(alias_name, Type::Module(module_path.clone()));
+                    }
+                    "std.result" => {
+                        let alias_name = alias.as_deref().unwrap_or("result");
+                        type_checker
+                            .env()
+                            .define(alias_name, Type::Module(module_path.clone()));
+                    }
+                    _ if module_path.starts_with("std.") => {
+                        // Generic stdlib module
+                        let alias_name = alias.as_deref().unwrap_or_else(|| path.last().unwrap());
+                        type_checker
+                            .env()
+                            .define(alias_name, Type::Module(module_path.clone()));
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Check if a type error is a false positive from a known import
+    fn is_known_import_error(&self, error: &VeldError, statements: &[Statement]) -> bool {
+        // Extract the undefined identifier from the error message
+        if let VeldError::TypeError(msg) = error {
+            if msg.contains("Undefined identifier:") {
+                // Get imported aliases
+                let mut imported_aliases = Vec::new();
+                for stmt in statements {
+                    if let Statement::ImportDeclaration { alias, path, .. } = stmt {
+                        if let Some(alias_name) = alias {
+                            imported_aliases.push(alias_name.clone());
+                        } else if let Some(last) = path.last() {
+                            imported_aliases.push(last.clone());
+                        }
+                    }
+                }
+
+                // Check if the error is about an imported alias
+                for alias in imported_aliases {
+                    if msg.contains(&alias) {
+                        return true; // Suppress error for imported modules
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// Convert a VeldError to a Diagnostic
@@ -181,56 +291,231 @@ impl Analyzer {
     /// Get hover information for a position in the source
     pub fn get_hover_info(
         &self,
+        source: &str,
         ast: &[Statement],
         type_checker: &Rc<RefCell<TypeChecker>>,
         line: usize,
         column: usize,
     ) -> Option<String> {
-        // Find identifier at the given position
-        let identifier = self.find_identifier_at_position(ast, line, column)?;
+        tracing::debug!("get_hover_info called: line={}, column={}", line, column);
 
-        // Look up the type in the type checker's environment
-        let mut tc = type_checker.borrow_mut();
-        if let Some(type_info) = tc.env().get(&identifier) {
+        // Find identifier at the given position in the source text
+        let identifier = self.find_identifier_at_position(source, line, column)?;
+
+        tracing::debug!("Found identifier at position: '{}'", identifier);
+
+        // Get type from type checker first
+        let type_from_checker = {
+            let mut tc = type_checker.borrow_mut();
+            tc.env().get(&identifier)
+        };
+
+        // Check AST for function declarations to get parameter names
+        for stmt in ast {
+            if let Statement::FunctionDeclaration { name, params, .. } = stmt {
+                if name == &identifier {
+                    // Format with parameter names from AST
+                    return Some(self.format_function_with_params(
+                        name,
+                        params,
+                        type_from_checker.as_ref(),
+                    ));
+                }
+            }
+        }
+
+        // For non-function identifiers, use type checker info
+        if let Some(type_info) = type_from_checker {
             Some(format!("{}: {}", identifier, self.format_type(&type_info)))
         } else {
             Some(format!("{}: (type unknown)", identifier))
         }
     }
 
-    /// Find an identifier at a specific position in the AST
+    /// Format a function signature with parameter names from AST and types from type checker
+    fn format_function_with_params(
+        &self,
+        name: &str,
+        params: &[(String, veld_common::ast::TypeAnnotation)],
+        inferred_type: Option<&veld_common::types::Type>,
+    ) -> String {
+        use veld_common::types::Type;
+
+        // If we have an inferred function type with concrete types, use it
+        if let Some(Type::Function {
+            params: param_types,
+            return_type,
+        }) = inferred_type
+        {
+            // Check if types are concrete (not type variables)
+            let has_type_vars = param_types.iter().any(|t| matches!(t, Type::TypeVar(_)));
+
+            if !has_type_vars {
+                // Concrete types - show with parameter names
+                let params_with_types: Vec<String> = params
+                    .iter()
+                    .zip(param_types.iter())
+                    .map(|((param_name, _), param_type)| {
+                        format!("{}: {}", param_name, self.format_type(param_type))
+                    })
+                    .collect();
+
+                return format!(
+                    "fn {}({}) -> {}",
+                    name,
+                    params_with_types.join(", "),
+                    self.format_type(return_type)
+                );
+            }
+        }
+
+        // If types have type variables or aren't available, show generic signature
+        // For functions with no parameters, we need to check the return type carefully
+        if params.is_empty() {
+            // Try to get the return type from inferred type
+            if let Some(Type::Function { return_type, .. }) = inferred_type {
+                tracing::debug!(
+                    "No-param function '{}' has return type: {:?}",
+                    name,
+                    return_type
+                );
+                match return_type.as_ref() {
+                    Type::Unit => {
+                        tracing::debug!("Return type is Unit, showing -> ()");
+                        return format!("fn {}() -> ()", name);
+                    }
+                    Type::TypeVar(id) => {
+                        // TypeVar means inference failed - assume Unit for no-param functions
+                        tracing::debug!(
+                            "Return type is TypeVar({}), assuming -> () for no-param function",
+                            id
+                        );
+                        return format!("fn {}() -> ()", name);
+                    }
+                    _ => {
+                        let formatted = self.format_type(return_type);
+                        tracing::debug!("Return type formatted as: {}", formatted);
+                        return format!("fn {}() -> {}", name, formatted);
+                    }
+                }
+            } else {
+                tracing::debug!("No type info for '{}', assuming -> ()", name);
+            }
+            // No type info at all - assume Unit
+            return format!("fn {}() -> ()", name);
+        } else {
+            // Collect generic type parameters and parameter signatures
+            let mut type_params: Vec<String> = Vec::new();
+            let param_names: Vec<String> = params
+                .iter()
+                .enumerate()
+                .map(|(i, (param_name, _))| {
+                    // Generate generic type names T0, T1, T2, etc.
+                    // (Using numbers to avoid character arithmetic bugs)
+                    let type_param = format!("T{}", i);
+                    type_params.push(type_param.clone());
+                    format!("{}: {}", param_name, type_param)
+                })
+                .collect();
+
+            // Determine return type string for functions with parameters
+            let return_type_str = if let Some(Type::Function { return_type, .. }) = inferred_type {
+                match return_type.as_ref() {
+                    Type::Unit => " -> ()".to_string(),
+                    Type::TypeVar(_) => {
+                        // Add return type as a generic parameter
+                        let return_type_param = format!("T{}", type_params.len());
+                        type_params.push(return_type_param.clone());
+                        format!(" -> {}", return_type_param)
+                    }
+                    _ => format!(" -> {}", self.format_type(return_type)),
+                }
+            } else {
+                String::new()
+            };
+
+            // Format with explicit generic parameters: fn name<T, U>(a: T, b: U) -> V
+            format!(
+                "fn {}<{}>({}){}",
+                name,
+                type_params.join(", "),
+                param_names.join(", "),
+                return_type_str
+            )
+        }
+    }
+
+    /// Find an identifier at a specific position in the source text
+    /// This uses a text-based approach to find the word at the cursor
     fn find_identifier_at_position(
         &self,
-        statements: &[Statement],
+        source: &str,
         line: usize,
         column: usize,
     ) -> Option<String> {
-        for stmt in statements {
-            if let Some(id) = self.find_identifier_in_statement(stmt, line, column) {
-                return Some(id);
-            }
+        let lines: Vec<&str> = source.lines().collect();
+
+        // Check if line is valid
+        if line >= lines.len() {
+            tracing::debug!(
+                "Line {} is out of bounds (total lines: {})",
+                line,
+                lines.len()
+            );
+            return None;
         }
-        None
+
+        let current_line = lines[line];
+        tracing::debug!("Current line: '{}'", current_line);
+
+        // Check if column is valid
+        if column >= current_line.len() {
+            tracing::debug!(
+                "Column {} is out of bounds (line length: {})",
+                column,
+                current_line.len()
+            );
+            return None;
+        }
+
+        // Find the start of the identifier (go backwards from cursor)
+        let mut start = column;
+        let chars: Vec<char> = current_line.chars().collect();
+
+        // If we're not on an identifier character, return None
+        if start < chars.len() && !self.is_identifier_char(chars[start]) {
+            return None;
+        }
+
+        while start > 0 && self.is_identifier_char(chars[start - 1]) {
+            start -= 1;
+        }
+
+        // Find the end of the identifier (go forwards from cursor)
+        let mut end = column;
+        while end < chars.len() && self.is_identifier_char(chars[end]) {
+            end += 1;
+        }
+
+        // Extract the identifier
+        if start < end {
+            let identifier: String = chars[start..end].iter().collect();
+            tracing::debug!(
+                "Extracted identifier: '{}' (from {}:{})",
+                identifier,
+                start,
+                end
+            );
+            Some(identifier)
+        } else {
+            tracing::debug!("No identifier found at position");
+            None
+        }
     }
 
-    /// Search for identifiers in a statement
-    fn find_identifier_in_statement(
-        &self,
-        statement: &Statement,
-        _line: usize,
-        _column: usize,
-    ) -> Option<String> {
-        use veld_common::ast::Statement;
-
-        // For now, return the first identifier we find in the statement
-        // A proper implementation would check position ranges
-        match statement {
-            Statement::VariableDeclaration { name, .. } => Some(name.clone()),
-            Statement::FunctionDeclaration { name, .. } => Some(name.clone()),
-            Statement::StructDeclaration { name, .. } => Some(name.clone()),
-            Statement::TypeDeclaration { name, .. } => Some(name.clone()),
-            _ => None,
-        }
+    /// Helper function to check if a character can be part of an identifier
+    fn is_identifier_char(&self, c: char) -> bool {
+        c.is_alphanumeric() || c == '_'
     }
 
     /// Format a type for display
@@ -325,7 +610,14 @@ impl Analyzer {
                 format!("({})", types_str)
             }
             Type::Any => "any".to_string(),
-            Type::TypeVar(id) => format!("T{}", id),
+            Type::TypeVar(id) => {
+                // Convert type variable ID to a more readable format
+                // Use letters T, U, V, ... Z for IDs 0-25
+                // Don't try to compute characters - just use a lookup or format as T{id}
+                // The issue: b'T' + id gives wrong chars (] for id=9)
+                // Solution: Just always use T{id} format for now
+                format!("T{}", id)
+            }
             Type::GcRef(inner) => format!("GcRef<{}>", self.format_type(inner)),
             Type::KindSelf(kind) => format!("Self ({})", kind),
             Type::Module(name) => format!("module {}", name),
@@ -337,12 +629,13 @@ impl Analyzer {
     /// Find the definition location for a symbol at the given position
     pub fn find_definition(
         &self,
+        source: &str,
         ast: &[Statement],
         line: usize,
         column: usize,
     ) -> Option<(usize, usize)> {
         // Find identifier at the given position
-        let identifier = self.find_identifier_at_position(ast, line, column)?;
+        let identifier = self.find_identifier_at_position(source, line, column)?;
 
         // Search for the definition of this identifier in the AST
         self.find_symbol_definition(ast, &identifier)

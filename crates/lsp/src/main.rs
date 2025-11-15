@@ -359,6 +359,7 @@ fn handle_message(
                                 if let Some(ref ast) = analysis.ast {
                                     if let Some(ref type_checker) = analysis.type_checker {
                                         if let Some(info) = server.analyzer.get_hover_info(
+                                            &doc.content,
                                             ast,
                                             type_checker,
                                             line,
@@ -484,8 +485,9 @@ fn handle_message(
                             // Try to find definition
                             if let Some(ref analysis) = doc.analysis {
                                 if let Some(ref ast) = analysis.ast {
-                                    if let Some((def_line, def_col)) =
-                                        server.analyzer.find_definition(ast, line, character)
+                                    if let Some((def_line, def_col)) = server
+                                        .analyzer
+                                        .find_definition(&doc.content, ast, line, character)
                                     {
                                         return Some(serde_json::json!({
                                             "jsonrpc": "2.0",

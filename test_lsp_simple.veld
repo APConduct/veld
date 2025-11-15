@@ -1,0 +1,21 @@
+# Simple LSP test file - no closures or complex features
+
+fn add(a, b)
+    a + b
+end
+
+fn multiply(x, y)
+    x * y
+end
+
+let number = 42
+let text = "hello"
+let flag = true
+
+fn calculate(a, b)
+    let result = add(a, b)
+    result
+end
+
+let sum = add(10, 20)
+let product = multiply(5, 6)

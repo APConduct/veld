@@ -10,7 +10,9 @@ use super::super::types::VarInfo;
 use super::super::types::{EnumVariant, ImplementationInfo, Type, Type::TypeVar, TypeEnvironment};
 use super::Value;
 use super::exhaustiveness::ExhaustivenessChecker;
+use super::module_registry::ModuleRegistry;
 use std::collections::HashMap;
+use std::sync::Arc;
 use veld_error::{Result, VeldError};
 
 pub struct TypeChecker {
@@ -18,6 +20,7 @@ pub struct TypeChecker {
     current_function_return_type: Option<Type>,
     var_info: HashMap<String, VarInfo>,
     exhaustiveness_checker: ExhaustivenessChecker,
+    module_registry: Arc<ModuleRegistry>,
 }
 
 impl TypeChecker {
@@ -30,11 +33,18 @@ impl TypeChecker {
         // Add std as a module identifier so property access like std.option.some works
         env.define("std", crate::types::Type::Module("std".to_string()));
 
+        // Initialize module registry and load stdlib
+        let mut module_registry = ModuleRegistry::new();
+        if let Err(e) = module_registry.load_stdlib() {
+            tracing::warn!("Failed to load stdlib: {}", e);
+        }
+
         Self {
             exhaustiveness_checker: ExhaustivenessChecker::new(),
             env,
             current_function_return_type: None,
             var_info: HashMap::new(),
+            module_registry: Arc::new(module_registry),
         }
     }
 
@@ -803,6 +813,7 @@ impl TypeChecker {
             current_function_return_type: self.current_function_return_type.clone(),
             var_info: self.var_info.clone(),
             exhaustiveness_checker: ExhaustivenessChecker::new(),
+            module_registry: self.module_registry.clone(),
         };
         type_checker.infer_expression_type(expr)
     }
@@ -3889,12 +3900,78 @@ impl TypeChecker {
             Type::Module(module_path) => {
                 // Handle module function calls like std.option.some(69)
                 // This is parsed as a method call on the module, but we treat it as a function call
-                let function_path = format!("{}.{}", module_path, method);
+                tracing::debug!(
+                    "Module method call: module={}, method={}",
+                    module_path,
+                    method
+                );
 
-                // For now, we'll assume it's a function and try to infer its type
-                // In a more complete implementation, we'd look up the function in the module
-                // For stdlib functions, we can hardcode some known types
+                // First, try to look up the function in the module registry
+                if let Some(signature) = self.module_registry.lookup_function(module_path, method) {
+                    tracing::debug!(
+                        "Found {}.{} in module registry: {} params -> {:?}",
+                        module_path,
+                        method,
+                        signature.params.len(),
+                        signature.return_type
+                    );
+
+                    // Clone signature data to avoid borrow conflicts
+                    let param_types: Vec<Type> =
+                        signature.params.iter().map(|(_, ty)| ty.clone()).collect();
+                    let return_type = signature.return_type.clone();
+                    let param_count = signature.params.len();
+
+                    // Type check arguments against signature
+                    if args.len() != param_count {
+                        return Err(VeldError::TypeError(format!(
+                            "Function {}.{} expects {} argument(s), got {}",
+                            module_path,
+                            method,
+                            param_count,
+                            args.len()
+                        )));
+                    }
+
+                    // Type check each argument
+                    for (i, arg) in args.iter().enumerate() {
+                        let arg_expr = match arg {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { value, .. } => value,
+                        };
+                        let arg_type = self.infer_expression_type(arg_expr)?;
+                        let expected_type = &param_types[i];
+
+                        // Try to unify types
+                        self.env.add_constraint(arg_type, expected_type.clone());
+                    }
+
+                    return Ok(return_type);
+                }
+
+                // Fallback: Try hardcoded stdlib functions for backward compatibility
+                let function_path = format!("{}.{}", module_path, method);
                 match function_path.as_str() {
+                    "std.io.println" | "std.io.print" | "io.println" | "io.print" => {
+                        if args.len() != 1 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function {} expects 1 argument, got {}",
+                                method,
+                                args.len()
+                            )));
+                        }
+                        tracing::debug!("Fallback hardcoded: {} returns Unit", function_path);
+                        Ok(Type::Unit)
+                    }
+                    "std.io.read_line" | "io.read_line" => {
+                        if !args.is_empty() {
+                            return Err(VeldError::TypeError(format!(
+                                "Function read_line expects 0 arguments, got {}",
+                                args.len()
+                            )));
+                        }
+                        Ok(Type::String)
+                    }
                     "std.option.some" => {
                         // some<T>(value: T) -> Option<T>
                         if args.len() != 1 {
@@ -3978,13 +4055,37 @@ impl TypeChecker {
                     }
                     _ => {
                         // Try to look up the function in the environment
-                        if let Some(_func_type) = self.env.get(&function_path) {
-                            // Use the same logic as infer_function_call_type to check arguments and return type
-                            self.infer_function_call_type(&function_path, args)
-                        } else {
-                            // Fallback: unknown function
-                            Ok(Type::Any)
+                        // First, try the full qualified path (e.g., "io.println" for aliased imports)
+                        let lookup_paths = vec![
+                            function_path.clone(),
+                            // Also try with just the module name (for "import std.io as io")
+                            format!(
+                                "{}.{}",
+                                module_path.split('.').last().unwrap_or(module_path),
+                                method
+                            ),
+                        ];
+
+                        for path in &lookup_paths {
+                            if let Some(func_type) = self.env.get(path) {
+                                tracing::debug!(
+                                    "Found function in environment: {} -> {:?}",
+                                    path,
+                                    func_type
+                                );
+                                // Use the same logic as infer_function_call_type to check arguments and return type
+                                return self.infer_function_call_type(path, args);
+                            }
                         }
+
+                        tracing::debug!(
+                            "Unknown module function: {} (tried paths: {:?})",
+                            function_path,
+                            lookup_paths
+                        );
+
+                        // Fallback: Return a type variable instead of Any to allow inference
+                        Ok(self.env.fresh_type_var())
                     }
                 }
             }

@@ -1,0 +1,96 @@
+╔═══════════════════════════════════════════════════════════╗
+║              CURRENT LSP STATUS & ISSUES                  ║
+╚═══════════════════════════════════════════════════════════╝
+
+🔧 JUST FIXED:
+
+✅ Generic parameters now show: fn add<T0, T1>(a: T0, b: T1) -> T2
+✅ Character mapping bug fixed (] → T9)
+✅ No-param functions assume -> () for TypeVars
+
+📊 TEST RESULTS:
+
+Your test_main_return.veld file shows:
+
+✅ empty_function() -> ()          CORRECT! 
+❌ main() -> Y                     Should be -> ()
+❌ another_test() -> T9            Should be -> ()
+
+🔍 ROOT CAUSE:
+
+Functions that call io.println() don't infer -> () correctly.
+
+WHY: The type checker doesn't know that io.println returns Unit,
+even though we registered it in the environment.
+
+PROBLEM: Method calls on modules (io.println) aren't being resolved
+through the environment. The type checker looks for methods on the
+Module type itself, not in the environment.
+
+🚧 CURRENT WORKAROUND:
+
+The LSP now assumes -> () for no-param functions with TypeVar returns.
+This helps main() but isn't technically correct.
+
+⚠️  KNOWN ISSUES:
+
+1. io.println() return type not resolved
+   - Registration happens but isn't used
+   - Method calls on modules use different lookup
+   
+2. Functions calling stdlib show TypeVars
+   - main() should show -> () but shows -> Y
+   - another_test() should show -> () but shows -> T9
+
+3. Workaround masks the real problem
+   - We're assuming -> () for ALL no-param TypeVar returns
+   - This might hide bugs in other cases
+
+🔧 PROPER FIX NEEDED:
+
+The type checker's method resolution for modules needs to:
+1. Look up methods in the environment (where we registered them)
+2. OR we need a different registration approach
+3. OR hardcode stdlib functions in the type checker itself
+
+📝 REBUILD & TEST:
+
+1. Rebuild: cargo build --release --bin veld-lsp
+2. Reload VSCode: Cmd+Shift+P → "Developer: Reload Window"  
+3. Open: test_main_return.veld
+4. Check logs: tail -f lsp_server.log
+
+EXPECTED IN LOGS:
+- "Found import: std.io"
+- "Registering io.println"
+- "No-param function 'main' has return type: TypeVar(Y)"
+- "Assuming -> () for no-param function"
+
+📚 DOCUMENTATION:
+
+• DEBUG_REGISTRATION.md - Deep dive into the issue
+• GENERIC_PARAMS_UPDATE.md - Generic params fix
+• LATEST_UPDATE.txt - Recent changes
+
+🎯 WHAT WORKS NOW:
+
+✅ Position mapping (correct identifier at cursor)
+✅ Import recognition (no "undefined: io" errors)
+✅ Generic params shown: fn<T0, T1>(...)
+✅ Empty functions: -> () 
+✅ Concrete types: fn(a: i32, b: i32) -> i32
+
+⚠️  WHAT NEEDS MORE WORK:
+
+❌ Functions calling stdlib show TypeVar returns
+❌ Method calls on modules not fully resolved
+❌ Need better type checker integration
+
+🔜 NEXT OPTIONS:
+
+1. Accept the workaround (good enough for now)
+2. Modify type checker to look up qualified names
+3. Add hardcoded stdlib knowledge to type checker
+4. Implement proper module method resolution
+
+Your choice! Let me know which direction to take.

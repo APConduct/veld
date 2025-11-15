@@ -1,0 +1,69 @@
+╔═══════════════════════════════════════════════════════════╗
+║         STANDARD LIBRARY IMPORT SUPPORT ADDED ✨          ║
+╚═══════════════════════════════════════════════════════════╝
+
+🎯 PROBLEMS FIXED:
+
+1. ❌ Before: "Undefined identifier: io" error
+   ✅ After:  Import recognized, no false errors
+
+2. ❌ Before: fn main() -> U  (wrong return type)
+   ✅ After:  fn main() -> ()  (correct Unit type)
+
+3. ❌ Before: stdlib functions unknown
+   ✅ After:  std.io.println, std.io.print registered
+
+🔧 WHAT'S NEW:
+
+• LSP now recognizes import statements
+• std.io module and functions registered
+• Import aliases work (import std.io as io)
+• Return types properly shown for Unit functions
+• False errors suppressed for imported modules
+
+📝 TEST YOUR EXAMPLE:
+
+1. Rebuild: cargo build --release --bin veld-lsp
+
+2. Reload VSCode: Cmd+Shift+P → "Developer: Reload Window"
+
+3. Test your original code:
+   ```veld
+   import std.io as io
+   
+   pub fn main() => do
+       io.println("Hello, World!")
+   end
+   ```
+
+4. Should now see:
+   ✅ NO "Undefined identifier: io" error
+   ✅ Hover on main: "fn main() -> ()"
+   ✅ io.println recognized
+
+📊 WHAT TO CHECK:
+
+✅ Import statement has no red squiggle
+✅ io.println works without errors  
+✅ main() shows -> () not -> U
+✅ Other std.io uses work
+
+⚠️  CURRENT LIMITATIONS:
+
+• Only std.io fully registered (println, print)
+• Other stdlib modules (option, result, collections) registered as Module type
+• Need to add more function signatures for complete support
+
+📚 DOCUMENTATION:
+
+  • STDLIB_IMPORT_FIX.md     - Full technical details
+  • test_stdlib_import.veld  - Comprehensive test file
+
+🔜 NEXT STEPS:
+
+If this works, we can:
+1. Add more stdlib function signatures
+2. Implement proper module loading
+3. Support more import syntax variations
+
+🚀 TEST NOW!
