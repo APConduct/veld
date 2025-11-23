@@ -14,6 +14,15 @@ pub struct Module {
     pub path: Option<PathBuf>,
 }
 
+impl std::hash::Hash for Module {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.statements.hash(state);
+        self.exports.hash(state);
+        self.path.hash(state);
+    }
+}
+
 impl Module {
     pub fn add_export(&mut self, name: String, item: ExportedItem) {
         self.exports.insert(name, item);

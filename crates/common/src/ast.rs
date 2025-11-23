@@ -145,6 +145,81 @@ pub enum TypeAnnotation {
     },
 }
 
+impl std::hash::Hash for TypeAnnotation {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            TypeAnnotation::Basic(name) => {
+                state.write_u8(0);
+                name.hash(state);
+            }
+            TypeAnnotation::Unit => {
+                state.write_u8(1);
+            }
+            TypeAnnotation::Self_ => {
+                state.write_u8(2);
+            }
+            TypeAnnotation::Function {
+                params,
+                return_type,
+            } => {
+                state.write_u8(3);
+                for param in params {
+                    param.hash(state);
+                }
+                return_type.hash(state);
+            }
+            TypeAnnotation::Generic { base, type_args } => {
+                state.write_u8(4);
+                base.hash(state);
+                for arg in type_args {
+                    arg.hash(state);
+                }
+            }
+            TypeAnnotation::Constrained {
+                base_type,
+                constraints,
+            } => {
+                state.write_u8(5);
+                base_type.hash(state);
+                for constraint in constraints {
+                    constraint.hash(state);
+                }
+            }
+            TypeAnnotation::Array(inner) => {
+                state.write_u8(6);
+                inner.hash(state);
+            }
+            TypeAnnotation::Tuple(elements) => {
+                state.write_u8(7);
+                for element in elements {
+                    element.hash(state);
+                }
+            }
+            TypeAnnotation::Enum { name, variants } => {
+                state.write_u8(8);
+                name.hash(state);
+                for (variant_name, variant) in variants {
+                    variant_name.hash(state);
+                    variant.hash(state);
+                }
+            }
+            TypeAnnotation::Record { fields } => {
+                state.write_u8(9);
+                for (field_name, field_type) in fields {
+                    field_name.hash(state);
+                    field_type.hash(state);
+                }
+            }
+            TypeAnnotation::Union { variants } => {
+                state.write_u8(10);
+                for variant in variants {
+                    variant.hash(state);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WhereClause {
     pub constraints: Vec<TypeConstraint>,
@@ -564,7 +639,129 @@ pub enum Statement {
         iterable: Expr,
         body: Vec<Statement>,
     },
-    Return(Option<Expr>),
+}
+
+impl std::hash::Hash for Statement {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Statement::BlockScope { body } => {
+                state.write_u8(0);
+                for stmt in body {
+                    stmt.hash(state);
+                }
+            }
+            Statement::TypeDeclaration { name, type_annotation } => {
+                state.write_u8(1);
+                name.hash(state);
+                type_annotation.hash(state);
+            }
+            Statement::ExprStatement(expr) => {
+                state.write_u8(2);
+                expr.hash(state);
+            }
+            Statement::FunctionDeclaration {
+                name,
+                params,
+                return_type,
+                body,
+                is_proc,
+                is_public,
+                generic_params,
+            } => {
+                state.write_u8(3);
+                name.hash(state);
+                for (param_name, param_type) in params {
+                    param_name.hash(state);
+                    param_type.hash(state);
+                }
+                return_type.hash(state);
+                for stmt in body {
+                    stmt.hash(state);
+                }
+                is_proc.hash(state);
+                is_public.hash(state);
+                for generic_param in generic_params {
+                    generic_param.hash(state);
+                }
+            }
+            Statement::ProcDeclaration {
+                name,
+                params,
+                body,
+                is_public,
+                generic_params,
+            } => {
+                state.write_u8(4);
+                name.hash(state);
+                for (param_name, param_type) in params {
+                    param_name.hash(state);
+                    param_type.hash(state);
+                }
+                for stmt in body {
+                    stmt.hash(state);
+                }
+                is_public.hash(state);
+                for generic_param in generic_params {
+                    generic_param.hash(state);
+                }
+            }
+            Statement::VariableDeclaration {
+                pattern,
+                var_kind,
+                type_annotation,
+                value,
+                is_public,
+            } => {
+                state.write_u8(5);
+                pattern.hash(state);
+                var_kind.hash(state);
+                if let Some(type_annotation) = type_annotation {
+                    type_annotation.hash(state);
+                }
+                value.hash(state);
+                is_public.hash(state);
+            }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                state.write_u8(6);
+                condition.hash(state);
+                for stmt in then_branch {
+                    stmt.hash(state);
+                }
+                if let Some(else_branch) = else_branch {
+                    for stmt in else_branch {
+                        stmt.hash(state);
+                    }
+                }
+            }
+            Statement::While { condition, body } => {
+                state.write_u8(7);
+                condition.hash(state);
+                for stmt in body {
+                    stmt.hash(state);
+                }
+            }
+            Statement::For {
+                iterator,
+                iterable,
+                body,
+            } => {
+                state.write_u8(8);
+                iterator.hash(state);
+                iterable.hash(state);
+                for stmt in body {
+                    stmt.hash(state);
+                }
+            }
+        }
+    }
+}
+    struct Return {
+        value: Option<Expr>,
+    },
     StructDeclaration {
         name: String,
         fields: Vec<StructField>,
@@ -650,8 +847,7 @@ pub enum Statement {
         variants: Vec<Type>,
         is_public: bool,
         generic_params: Vec<GenericArgument>,
-    },
-}
+    }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchArm {

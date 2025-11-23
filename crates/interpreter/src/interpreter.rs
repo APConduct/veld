@@ -1490,45 +1490,29 @@ impl Interpreter {
                     ));
                 }
 
-                if let Value::Struct {
-                    fields: fields1, ..
+                if let Value::NativeObject {
+                    name: name1,
+                    data: data1,
                 } = &args[0]
                 {
-                    if let Value::Struct {
-                        fields: fields2, ..
+                    if let Value::NativeObject {
+                        name: name2,
+                        data: data2,
                     } = &args[1]
                     {
-                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
-                            (fields1.get("data"), fields2.get("data"))
-                        {
-                            let mut result_set = RustHashSet::new();
+                        if name1 == "HashSet" && name2 == "HashSet" {
+                            if let (Some(set1), Some(set2)) = (
+                                data1.downcast_ref::<RustHashSet<Value>>(),
+                                data2.downcast_ref::<RustHashSet<Value>>(),
+                            ) {
+                                let mut result_set = set1.clone();
+                                result_set.extend(set2.iter().cloned());
 
-                            // Add all from set1
-                            for v in set1 {
-                                result_set.insert(format!("{:?}", v));
+                                return Ok(Value::NativeObject {
+                                    name: "HashSet".to_string(),
+                                    data: Box::new(result_set),
+                                });
                             }
-
-                            // Add all from set2
-                            for v in set2 {
-                                result_set.insert(format!("{:?}", v));
-                            }
-
-                            // Convert back to Vec, removing duplicates
-                            let mut result_vec = Vec::new();
-                            let mut seen = RustHashSet::new();
-                            for v in set1.iter().chain(set2.iter()) {
-                                let key = format!("{:?}", v);
-                                if seen.insert(key) {
-                                    result_vec.push(v.clone());
-                                }
-                            }
-
-                            let mut new_fields = std::collections::HashMap::new();
-                            new_fields.insert("data".to_string(), Value::Array(result_vec));
-                            return Ok(Value::Struct {
-                                name: "HashSet".to_string(),
-                                fields: new_fields,
-                            });
                         }
                     }
                 }
@@ -1547,34 +1531,29 @@ impl Interpreter {
                     ));
                 }
 
-                if let Value::Struct {
-                    fields: fields1, ..
+                if let Value::NativeObject {
+                    name: name1,
+                    data: data1,
                 } = &args[0]
                 {
-                    if let Value::Struct {
-                        fields: fields2, ..
+                    if let Value::NativeObject {
+                        name: name2,
+                        data: data2,
                     } = &args[1]
                     {
-                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
-                            (fields1.get("data"), fields2.get("data"))
-                        {
-                            // Create a set of string representations from set2
-                            let set2_strs: RustHashSet<String> =
-                                set2.iter().map(|v| format!("{:?}", v)).collect();
+                        if name1 == "HashSet" && name2 == "HashSet" {
+                            if let (Some(set1), Some(set2)) = (
+                                data1.downcast_ref::<RustHashSet<Value>>(),
+                                data2.downcast_ref::<RustHashSet<Value>>(),
+                            ) {
+                                let result_set: RustHashSet<Value> =
+                                    set1.intersection(set2).cloned().collect();
 
-                            // Filter set1 to only include items in set2
-                            let result_vec: Vec<Value> = set1
-                                .iter()
-                                .filter(|v| set2_strs.contains(&format!("{:?}", v)))
-                                .cloned()
-                                .collect();
-
-                            let mut new_fields = std::collections::HashMap::new();
-                            new_fields.insert("data".to_string(), Value::Array(result_vec));
-                            return Ok(Value::Struct {
-                                name: "HashSet".to_string(),
-                                fields: new_fields,
-                            });
+                                return Ok(Value::NativeObject {
+                                    name: "HashSet".to_string(),
+                                    data: Box::new(result_set),
+                                });
+                            }
                         }
                     }
                 }
@@ -1592,34 +1571,29 @@ impl Interpreter {
                     ));
                 }
 
-                if let Value::Struct {
-                    fields: fields1, ..
+                if let Value::NativeObject {
+                    name: name1,
+                    data: data1,
                 } = &args[0]
                 {
-                    if let Value::Struct {
-                        fields: fields2, ..
+                    if let Value::NativeObject {
+                        name: name2,
+                        data: data2,
                     } = &args[1]
                     {
-                        if let (Some(Value::Array(set1)), Some(Value::Array(set2))) =
-                            (fields1.get("data"), fields2.get("data"))
-                        {
-                            // Create a set of string representations from set2
-                            let set2_strs: RustHashSet<String> =
-                                set2.iter().map(|v| format!("{:?}", v)).collect();
+                        if name1 == "HashSet" && name2 == "HashSet" {
+                            if let (Some(set1), Some(set2)) = (
+                                data1.downcast_ref::<RustHashSet<Value>>(),
+                                data2.downcast_ref::<RustHashSet<Value>>(),
+                            ) {
+                                let result_set: RustHashSet<Value> =
+                                    set1.difference(set2).cloned().collect();
 
-                            // Filter set1 to only include items NOT in set2
-                            let result_vec: Vec<Value> = set1
-                                .iter()
-                                .filter(|v| !set2_strs.contains(&format!("{:?}", v)))
-                                .cloned()
-                                .collect();
-
-                            let mut new_fields = std::collections::HashMap::new();
-                            new_fields.insert("data".to_string(), Value::Array(result_vec));
-                            return Ok(Value::Struct {
-                                name: "HashSet".to_string(),
-                                fields: new_fields,
-                            });
+                                return Ok(Value::NativeObject {
+                                    name: "HashSet".to_string(),
+                                    data: Box::new(result_set),
+                                });
+                            }
                         }
                     }
                 }
