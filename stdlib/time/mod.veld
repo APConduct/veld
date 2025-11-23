@@ -91,7 +91,7 @@ end
 
 #| Parse a string into a Time using the specified format
 #| @Compiler.Builtin
-pub fn parse_time(time_str: str, format_str: str) -> Option<Time>
+pub fn parse_time(time_str: str, format_str: str) -> std.option.Option<Time>
     # Native implementation provided by interpreter
-    Option.None
+    std.option.Option.None
 end
