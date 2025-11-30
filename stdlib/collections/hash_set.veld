@@ -1,5 +1,5 @@
 pub struct HashSet<T>
-    data: native("HashSet<Value>")
+    data: any
 end
 
 impl<T> HashSet<T>

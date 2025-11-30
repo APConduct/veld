@@ -6,17 +6,17 @@ import std.io
 io.println("=== HashMap Alias Import Test ===")
 io.println("")
 
-# Create HashMap via aliased import
+# Test 1: Create HashMap via aliased import
 var map = HashMap.new()
 io.println("1. Created HashMap via std.collections.HashMap")
 
-# Use the HashMap
+# Test 2: Use the HashMap
 map.set("key1", "value1")
 map.set("key2", "value2")
 
 io.println("2. Added two entries")
 
-# Get values
+# Test 3: Get values
 let result1 = map.get("key1")
 match result1
     Some(v) => do
@@ -35,7 +35,7 @@ match result2
     None => io.println("   key2 not found")
 end
 
-# Check length
+# Test 4: Check length
 io.println("")
 io.print("3. Map length: ")
 io.println(map.len())
