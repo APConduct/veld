@@ -11,8 +11,7 @@ pub struct Time
         Time(seconds: seconds, nanos: nanos)
     end
 
-    #| Get the current system time
-    #| @Compiler.Builtin
+    # Get the current system time
     pub fn now() -> Time
         # Native implementation provided by interpreter
         Time(seconds: 0, nanos: 0)
@@ -33,57 +32,54 @@ pub struct Time
         )
     end
 
-    #| Get year component
-    #| @Compiler.Builtin
+    # Get year component
     pub fn year(self) -> i32
         # Native implementation provided by interpreter
         1970
     end
 
-    #| Get month component (1-12)
-    #| @Compiler.Builtin
+    # Get month component (1-12)
     pub fn month(self) -> i32
         # Native implementation provided by interpreter
         1
     end
 
-    #| Get day component (1-31)
-    #| @Compiler.Builtin
+    # Get day component (1-31)
     pub fn day(self) -> i32
         # Native implementation provided by interpreter
         1
     end
 
-    #| Get hour component (0-23)
-    #| @Compiler.Builtin
+    # Get hour component (0-23)
+    # @Compiler.Builtin
     pub fn hour(self) -> i32
         # Native implementation provided by interpreter
         0
     end
 
-    #| Get minute component (0-59)
-    #| @Compiler.Builtin
+    # Get minute component (0-59)
+    # @Compiler.Builtin
     pub fn minute(self) -> i32
         # Native implementation provided by interpreter
         0
     end
 
-    #| Get second component (0-59)
-    #| @Compiler.Builtin
+    # Get second component (0-59)
+    # @Compiler.Builtin
     pub fn second(self) -> i32
         # Native implementation provided by interpreter
         0
     end
 end
 
-#| Sleep for the specified number of milliseconds
-#| @Compiler.Builtin
+# Sleep for the specified number of milliseconds
+# @Compiler.Builtin
 pub fn sleep(milliseconds: i32) -> ()
     # Native implementation provided by interpreter
 end
 
-#| Create a Time from year, month, day, hour, minute, second
-#| @Compiler.Builtin
+# Create a Time from year, month, day, hour, minute, second
+# @Compiler.Builtin
 pub fn datetime(year: i32, month: i32, day: i32, hour: i32, minute: i32, second: i32) -> Time
     # Native implementation provided by interpreter
     Time(seconds: 0, nanos: 0)
