@@ -3600,12 +3600,10 @@ impl Interpreter {
 
         match pattern {
             Pattern::Identifier(name) => {
-                // Check if variable already exists (for recursive lambda case)
-                let variable_exists = self.current_scope_mut().get(name).is_some();
-                if !variable_exists {
-                    self.current_scope_mut()
-                        .declare(name.clone(), value, var_kind)?;
-                }
+                // Always declare to allow shadowing of imports/modules
+                // The declare method will handle proper shadowing rules
+                self.current_scope_mut()
+                    .declare(name.clone(), value, var_kind)?;
                 Ok(())
             }
             Pattern::Wildcard => {
