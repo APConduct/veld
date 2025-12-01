@@ -4515,29 +4515,53 @@ impl Parser {
             None
         };
 
-        let mut _is_block_lambda = false;
-        // Expect '=>' for single-expression lambdas and '=> do' or nothing for block lambdas
-        if self.match_token(&[Token::FatArrow(ZTUP)]) {
+        // Check if this is a block lambda (statements until 'end') or expression lambda
+        let is_block_lambda = !self.check(&Token::FatArrow(ZTUP));
+
+        if is_block_lambda {
+            // Block lambda: parse statements until 'end'
+            tracing::debug!("Parsing block lambda (fn() ... end)");
+            let mut body = Vec::new();
+            while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
+                body.push(self.statement(ctx)?);
+            }
+
+            self.consume(&Token::End(ZTUP), "Expected 'end' after block lambda body")?;
+
+            let end = self.get_current_position();
+            if let Some(ctx) = ctx {
+                ctx.add_span(NodeId::new(), start, end);
+            }
+
+            Ok(Expr::BlockLambda {
+                params,
+                body,
+                return_type,
+                generic_params,
+            })
+        } else {
+            // Expression lambda: expect '=>' and parse single expression
+            self.advance(); // consume '=>'
             tracing::debug!("Detected '=>' for single-expression lambda");
+
+            // Body - expect an expression
+            let body = self.expression(ctx)?;
+
+            // If there's an 'end' token, consume it
+            self.match_token(&[Token::End(ZTUP)]);
+
+            let end = self.get_current_position();
+            if let Some(ctx) = ctx {
+                ctx.add_span(NodeId::new(), start, end);
+            }
+
+            Ok(Expr::Lambda {
+                params,
+                body: Box::new(body),
+                return_type,
+                generic_params,
+            })
         }
-
-        // Body - expect and expression
-        let body = self.expression(ctx)?;
-
-        // If there's an 'end' token, consume it
-        self.match_token(&[Token::End(ZTUP)]);
-
-        let end = self.get_current_position();
-        if let Some(ctx) = ctx {
-            ctx.add_span(NodeId::new(), start, end);
-        }
-
-        Ok(Expr::Lambda {
-            params,
-            body: Box::new(body),
-            return_type,
-            generic_params,
-        })
     }
 
     fn peek(&self) -> &Token {
