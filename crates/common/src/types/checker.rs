@@ -530,6 +530,28 @@ impl TypeChecker {
         let _span = tracing::span!(tracing::Level::INFO, "Type checking statement");
         let _guard = _span.enter();
 
+        let stmt_type = match stmt {
+            Statement::VariableDeclaration {
+                pattern, var_kind, ..
+            } => {
+                format!(
+                    "VariableDeclaration(pattern: {:?}, var_kind: {:?})",
+                    pattern, var_kind
+                )
+            }
+            Statement::FunctionDeclaration { name, .. } => {
+                format!("FunctionDeclaration({})", name)
+            }
+            Statement::ExprStatement(expr) => {
+                format!("ExprStatement({:?})", std::mem::discriminant(expr))
+            }
+            Statement::Return(_) => "Return".to_string(),
+            Statement::BlockScope { .. } => "BlockScope".to_string(),
+            _ => format!("Other({:?})", std::mem::discriminant(stmt)),
+        };
+        tracing::debug!("=== TYPE CHECKING STATEMENT: {} ===", stmt_type);
+        tracing::debug!("Full statement: {:?}", stmt);
+
         match stmt {
             Statement::KindDeclaration { .. } => self.type_check_kind_declaration(stmt),
             Statement::Implementation { .. } => self.type_check_implementation(stmt),
@@ -1377,6 +1399,12 @@ impl TypeChecker {
         let _span = tracing::span!(Level::INFO, "Type check variable declaration");
         let _enter = _span.enter();
 
+        tracing::debug!(
+            "=== ENTERING type_check_variable_declaration for '{}', var_kind: {:?} ===",
+            name,
+            var_kind
+        );
+
         // Patch: Fill in missing type_args for EnumVariant from annotation
         if let Expr::EnumVariant {
             enum_name,
@@ -1756,6 +1784,11 @@ impl TypeChecker {
         let _span = tracing::span!(Level::DEBUG, "Infer block lambda type");
         let _enter = _span.enter();
 
+        tracing::debug!(
+            "=== ENTERING infer_block_lambda_type with {} statements in body ===",
+            body.len()
+        );
+
         // Handle generic parameters
         let has_generic_params = !generic_params.is_empty();
         if has_generic_params {
@@ -1798,10 +1831,17 @@ impl TypeChecker {
         }
 
         // Type check all statements in the body first
-        for stmt in body {
+        tracing::debug!(
+            "Block lambda: type-checking {} statements in body",
+            body.len()
+        );
+        for (i, stmt) in body.iter().enumerate() {
+            tracing::debug!("Block lambda: type-checking statement {}: {:?}", i, stmt);
             let mut stmt_mut = stmt.clone();
             self.type_check_statement(&mut stmt_mut)?;
+            tracing::debug!("Block lambda: finished type-checking statement {}", i);
         }
+        tracing::debug!("Block lambda: finished type-checking all statements");
 
         // Infer return type from body
         let body_type = if body.is_empty() {
@@ -1874,8 +1914,24 @@ impl TypeChecker {
     }
 
     pub fn infer_expression_type(&mut self, expr: &Expr) -> Result<Type> {
-        let _span = tracing::span!(Level::INFO, "Infer expression type");
+        let _span = tracing::span!(Level::DEBUG, "Infer expression type");
         let _enter = _span.enter();
+
+        let expr_type_name = match expr {
+            Expr::BlockLambda { .. } => "BlockLambda",
+            Expr::Lambda { .. } => "Lambda",
+            Expr::Literal(_) => "Literal",
+            Expr::Identifier(name) => {
+                tracing::debug!("=== Identifier lookup: '{}' ===", name);
+                "Identifier"
+            }
+            Expr::BlockExpression { .. } => "BlockExpression",
+            Expr::FunctionCall { .. } => "FunctionCall",
+            Expr::MethodCall { .. } => "MethodCall",
+            _ => "Other",
+        };
+
+        tracing::debug!("=== Inferring type for expression: {} ===", expr_type_name);
 
         let result = match expr {
             Expr::IfExpression {

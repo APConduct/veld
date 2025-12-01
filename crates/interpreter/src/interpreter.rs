@@ -262,9 +262,65 @@ impl Interpreter {
 
     pub fn interpret_ast(&mut self, ast: veld_common::ast::AST) -> Result<Value> {
         // Expand macros in the AST before interpretation
+        tracing::debug!(
+            "=== BEFORE macro expansion: {} statements ===",
+            ast.statements.len()
+        );
+        for (i, stmt) in ast.statements.iter().enumerate() {
+            let stmt_desc = match stmt {
+                Statement::VariableDeclaration {
+                    pattern, var_kind, ..
+                } => {
+                    format!(
+                        "VariableDeclaration(pattern: {:?}, var_kind: {:?})",
+                        pattern, var_kind
+                    )
+                }
+                Statement::FunctionDeclaration { name, .. } => {
+                    format!("FunctionDeclaration({})", name)
+                }
+                Statement::ExprStatement(expr) => {
+                    format!(
+                        "ExprStatement(discriminant: {:?})",
+                        std::mem::discriminant(expr)
+                    )
+                }
+                _ => format!("{:?}", std::mem::discriminant(stmt)),
+            };
+            tracing::debug!("Before expansion statement {}: {}", i, stmt_desc);
+        }
+
         let mut macro_system = MacroSystem::new();
         let expanded_ast = expand_macros_in_ast(ast, &mut macro_system)
             .map_err(|e| VeldError::RuntimeError(format!("Macro expansion failed: {:?}", e)))?;
+
+        tracing::debug!(
+            "=== AFTER macro expansion: {} statements ===",
+            expanded_ast.statements.len()
+        );
+        for (i, stmt) in expanded_ast.statements.iter().enumerate() {
+            let stmt_desc = match stmt {
+                Statement::VariableDeclaration {
+                    pattern, var_kind, ..
+                } => {
+                    format!(
+                        "VariableDeclaration(pattern: {:?}, var_kind: {:?})",
+                        pattern, var_kind
+                    )
+                }
+                Statement::FunctionDeclaration { name, .. } => {
+                    format!("FunctionDeclaration({})", name)
+                }
+                Statement::ExprStatement(expr) => {
+                    format!(
+                        "ExprStatement(discriminant: {:?})",
+                        std::mem::discriminant(expr)
+                    )
+                }
+                _ => format!("{:?}", std::mem::discriminant(stmt)),
+            };
+            tracing::debug!("After expansion statement {}: {}", i, stmt_desc);
+        }
 
         // Register the main script as a module named "main" in the module manager
         use std::collections::HashMap;
@@ -318,6 +374,32 @@ impl Interpreter {
         }
 
         // Now type check the program after imports and declarations are processed
+        tracing::debug!(
+            "=== About to type check {} statements ===",
+            statements.len()
+        );
+        for (i, stmt) in statements.iter().enumerate() {
+            let stmt_desc = match stmt {
+                Statement::VariableDeclaration {
+                    pattern, var_kind, ..
+                } => {
+                    format!(
+                        "VariableDeclaration(pattern: {:?}, var_kind: {:?})",
+                        pattern, var_kind
+                    )
+                }
+                Statement::FunctionDeclaration { name, .. } => {
+                    format!("FunctionDeclaration({})", name)
+                }
+                Statement::ExprStatement(expr) => {
+                    format!("ExprStatement({:?})", expr)
+                }
+                Statement::Return(_) => "Return".to_string(),
+                Statement::BlockScope { .. } => "BlockScope".to_string(),
+                _ => format!("{:?}", std::mem::discriminant(stmt)),
+            };
+            tracing::debug!("Statement {}: {}", i, stmt_desc);
+        }
         self.type_checker.check_program(&statements)?;
 
         // Second pass: execute everything else

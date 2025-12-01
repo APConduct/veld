@@ -339,6 +339,34 @@ impl Parser {
 
         let statements = self.parse_statements(&mut context)?;
 
+        tracing::debug!(
+            "=== parse_with_source_map: parsed {} statements ===",
+            statements.len()
+        );
+        for (i, stmt) in statements.iter().enumerate() {
+            let stmt_desc = match stmt {
+                Statement::VariableDeclaration {
+                    pattern, var_kind, ..
+                } => {
+                    format!(
+                        "VariableDeclaration(pattern: {:?}, var_kind: {:?})",
+                        pattern, var_kind
+                    )
+                }
+                Statement::FunctionDeclaration { name, .. } => {
+                    format!("FunctionDeclaration({})", name)
+                }
+                Statement::ExprStatement(expr) => {
+                    format!(
+                        "ExprStatement(discriminant: {:?})",
+                        std::mem::discriminant(expr)
+                    )
+                }
+                _ => format!("{:?}", std::mem::discriminant(stmt)),
+            };
+            tracing::debug!("Parsed statement {}: {}", i, stmt_desc);
+        }
+
         Ok(AST {
             statements,
             source_map: Some(source_map),
@@ -1093,11 +1121,23 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "parse_block_demi_lambda");
         let _span = _span.enter();
 
+        tracing::debug!("=== parse_block_demi_lambda: Starting to parse body ===");
+        tracing::debug!("Current token: {:?}", self.peek());
+
         let start = self.get_current_position();
 
         let mut body = Vec::new();
         while !self.check(&Token::End(ZTUP)) && !self.is_at_end() {
-            body.push(self.statement(ctx)?);
+            tracing::debug!(
+                "=== parse_block_demi_lambda: About to parse statement, current token: {:?} ===",
+                self.peek()
+            );
+            let stmt = self.statement(ctx)?;
+            tracing::debug!(
+                "=== parse_block_demi_lambda: Parsed statement: {:?} ===",
+                std::mem::discriminant(&stmt)
+            );
+            body.push(stmt);
         }
 
         self.consume(
@@ -2701,7 +2741,7 @@ impl Parser {
         let _span = tracing::span!(tracing::Level::TRACE, "statement");
         let _span = _span.enter();
 
-        tracing::debug!("Parsing statement");
+        tracing::debug!("Parsing statement, current token: {:?}", self.peek());
 
         let start = self.get_current_position();
 
@@ -2725,10 +2765,20 @@ impl Parser {
             || self.check(&Token::Var(ZTUP))
             || self.check(&Token::Const(ZTUP))
         {
+            tracing::debug!(
+                "=== statement(): Matched Let/Var/Const, parsing variable declaration ==="
+            );
             // Handle variable declarations (let, var, const)
             // Consume the declaration keyword and determine the var kind
             let var_kind = match self.advance() {
-                Token::Let(_) => VarKind::Let,
+                Token::Let(_) => {
+                    // Check if this is 'let mut'
+                    if self.match_token(&[Token::Mut(ZTUP)]) {
+                        VarKind::LetMut
+                    } else {
+                        VarKind::Let
+                    }
+                }
                 Token::Var(_) => VarKind::Var,
                 Token::Const(_) => VarKind::Const,
                 _ => VarKind::Let, // Fallback, though this shouldn't happen
@@ -2740,6 +2790,10 @@ impl Parser {
         } else if self.check_assignment() {
             self.assignment_statement(ctx)
         } else {
+            tracing::debug!(
+                "=== statement(): No match, parsing as expression statement, current token: {:?} ===",
+                self.peek()
+            );
             // Try to parse as expression statement
             let expr = self.expression(ctx)?;
             // Print token after expression
