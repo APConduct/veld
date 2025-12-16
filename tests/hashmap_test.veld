@@ -11,11 +11,25 @@ var my_map = HashMap.new()
 io.println("1. Created new HashMap")
 
 # Test 2: Set and get values
-my_map.set("name", "Alice")
+let set_result1 = my_map.set("name", "Alice")
+io.print("   set 'name': ")
+match set_result1
+    Option.Some(old) => io.println("replaced " + old)
+    Option.None => io.println("new key")
+end
+
 my_map.set("age", 30.to_str())
 my_map.set("city", "New York")
 
 io.println("2. Set three key-value pairs")
+
+# Update an existing key
+let set_result2 = my_map.set("name", "Bob")
+io.print("   update 'name': ")
+match set_result2
+    Option.Some(old) => io.println("replaced " + old)
+    Option.None => io.println("new key")
+end
 
 let name_result = my_map.get("name")
 match name_result
@@ -71,14 +85,20 @@ io.println("")
 io.println("7. Getting entries:")
 let entries = my_map.entries()
 io.print("   first member of entries: ")
-io.println(entries[0].0 + " => " + entries[0].1)
+let entry = entries[0]
+io.print(entry.0)
+io.print(" => ")
+io.println(entry.1)
 
 # Test 8: Remove a key
 io.println("")
 io.println("8. Testing remove():")
 let removed = my_map.remove("age")
 io.print("   Removed 'age': ")
-io.println(removed)
+match removed
+    Option.Some(value) => io.println("was " + value)
+    Option.None => io.println("key not found")
+end
 io.print("   New length: ")
 io.println(my_map.len().to_str())
 io.print("   has('age'): ")
@@ -87,14 +107,17 @@ io.println(my_map.has("age").to_str())
 # Test 9: Remove non-existent key
 let removed_none = my_map.remove("country")
 io.print("   Removed 'country': ")
-io.println(removed_none.to_str())
+match removed_none
+    Option.Some(value) => io.println("was " + value)
+    Option.None => io.println("key not found")
+end
 
 # Test 10: Clear the map
 io.println("")
 io.println("9. Testing clear():")
 my_map.clear()
 io.print("   After clear, len(): ")
-io.println(my_map.len())
+io.println(my_map.len().to_str())
 io.print("   After clear, is_empty(): ")
 io.println(my_map.is_empty().to_str())
 

@@ -83,7 +83,8 @@ impl NativeFunctionRegistry {
 
 // Registry for native methods on built-in types
 pub struct NativeMethodRegistry {
-    methods: HashMap<String, Arc<dyn Fn(&Interpreter, Vec<Value>) -> Result<Value> + Send + Sync>>,
+    methods:
+        HashMap<String, Arc<dyn Fn(&Interpreter, &mut Vec<Value>) -> Result<Value> + Send + Sync>>,
 }
 
 impl NativeMethodRegistry {
@@ -96,7 +97,7 @@ impl NativeMethodRegistry {
     // Register a native method for a specific type
     pub fn register<F>(&mut self, type_name: &str, method_name: &str, f: F)
     where
-        F: Fn(&Interpreter, Vec<Value>) -> Result<Value> + 'static + Send + Sync,
+        F: Fn(&Interpreter, &mut Vec<Value>) -> Result<Value> + 'static + Send + Sync,
     {
         let _span = tracing::span!(tracing::Level::INFO, "Registering static method");
         let _guard = _span.enter();
@@ -106,7 +107,11 @@ impl NativeMethodRegistry {
     }
 
     // Get a native method by type and method name
-    pub fn get(&self, type_name: &str, method_name: &str) -> Option<&NativeFn> {
+    pub fn get(
+        &self,
+        type_name: &str,
+        method_name: &str,
+    ) -> Option<&Arc<dyn Fn(&Interpreter, &mut Vec<Value>) -> Result<Value> + Send + Sync>> {
         let key = format!("{}:{}", type_name, method_name);
         self.methods.get(&key)
     }

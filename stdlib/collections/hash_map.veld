@@ -22,8 +22,8 @@ impl<K, V> HashMap<K, V> <- Map<K, V>
 
     # @Compiler.Builtin
     # Mutates the HashMap in place when called on a mutable variable
-    # Returns Self to enable the interpreter's mutation tracking
-    fn set(mut self, key: K, value: V) -> Self
+    # Returns the previous value if the key was already present, or None
+    fn set(mut self, key: K, value: V) -> Option<V>
     end
 
     # @Compiler.Builtin
@@ -32,15 +32,13 @@ impl<K, V> HashMap<K, V> <- Map<K, V>
 
     # @Compiler.Builtin
     # Removes a key from the HashMap (mutates in place)
-    # To check if key was present, use has() before calling remove()
-    # Returns Self to enable the interpreter's mutation tracking
-    fn remove(mut self, key: K) -> Self
+    # Returns the value that was removed, or None if the key wasn't present
+    fn remove(mut self, key: K) -> Option<V>
     end
 
     # @Compiler.Builtin
     # Clears all entries from the HashMap (mutates in place)
-    # Returns Self to enable the interpreter's mutation tracking
-    fn clear(mut self) -> Self
+    fn clear(mut self)
     end
 
     # @Compiler.Builtin

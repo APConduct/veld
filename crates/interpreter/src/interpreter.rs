@@ -1144,7 +1144,7 @@ impl Interpreter {
 
         // HashMap.set(key, value) -> ()
         self.native_method_registry
-            .register("HashMap", "set", |_, mut args| {
+            .register("HashMap", "set", |_, args| {
                 if args.len() != 3 {
                     return Err(VeldError::RuntimeError(
                         "set requires self and two arguments (key, value)".to_string(),
@@ -1157,12 +1157,20 @@ impl Interpreter {
 
                 if let Value::Struct { name, fields } = &mut args[0] {
                     if let Some(Value::Record(map)) = fields.get_mut("data") {
-                        map.insert(key_str, value);
-                        // Return the modified HashMap for mutation support
-                        Ok(Value::Struct {
-                            name: name.clone(),
-                            fields: fields.clone(),
-                        })
+                        // Insert and return the old value as Option<V>
+                        let old_value = map.insert(key_str, value);
+                        match old_value {
+                            Some(v) => Ok(Value::Enum {
+                                enum_name: "Option".to_string(),
+                                variant_name: "Some".to_string(),
+                                fields: vec![v],
+                            }),
+                            None => Ok(Value::Enum {
+                                enum_name: "Option".to_string(),
+                                variant_name: "None".to_string(),
+                                fields: vec![],
+                            }),
+                        }
                     } else {
                         Err(VeldError::RuntimeError(
                             "Invalid HashMap structure".to_string(),
@@ -1203,7 +1211,7 @@ impl Interpreter {
 
         // HashMap.remove(key) -> bool
         self.native_method_registry
-            .register("HashMap", "remove", |_, mut args| {
+            .register("HashMap", "remove", |_, args| {
                 if args.len() != 2 {
                     return Err(VeldError::RuntimeError(
                         "remove requires self and one argument (key)".to_string(),
@@ -1215,12 +1223,20 @@ impl Interpreter {
 
                 if let Value::Struct { name, fields } = &mut args[0] {
                     if let Some(Value::Record(map)) = fields.get_mut("data") {
-                        let existed = map.remove(&key_str).is_some();
-                        // Return the modified HashMap for mutation support
-                        Ok(Value::Struct {
-                            name: name.clone(),
-                            fields: fields.clone(),
-                        })
+                        // Remove and return the value as Option<V>
+                        let removed_value = map.remove(&key_str);
+                        match removed_value {
+                            Some(v) => Ok(Value::Enum {
+                                enum_name: "Option".to_string(),
+                                variant_name: "Some".to_string(),
+                                fields: vec![v],
+                            }),
+                            None => Ok(Value::Enum {
+                                enum_name: "Option".to_string(),
+                                variant_name: "None".to_string(),
+                                fields: vec![],
+                            }),
+                        }
                     } else {
                         Err(VeldError::RuntimeError(
                             "Invalid HashMap structure".to_string(),
@@ -1235,7 +1251,7 @@ impl Interpreter {
 
         // HashMap.clear() -> ()
         self.native_method_registry
-            .register("HashMap", "clear", |_, mut args| {
+            .register("HashMap", "clear", |_, args| {
                 if args.len() != 1 {
                     return Err(VeldError::RuntimeError(
                         "clear requires only self".to_string(),
@@ -1245,11 +1261,8 @@ impl Interpreter {
                 if let Value::Struct { name, fields } = &mut args[0] {
                     if let Some(Value::Record(map)) = fields.get_mut("data") {
                         map.clear();
-                        // Return the modified HashMap for mutation support
-                        Ok(Value::Struct {
-                            name: name.clone(),
-                            fields: fields.clone(),
-                        })
+                        // Return Unit
+                        Ok(Value::Unit)
                     } else {
                         Err(VeldError::RuntimeError(
                             "Invalid HashMap structure".to_string(),
@@ -7738,16 +7751,13 @@ impl Interpreter {
             method_args.extend(args.clone());
 
             if let Some(handler) = self.native_method_registry.get(&type_name, &method_name) {
-                let result = handler(self, method_args.clone())?;
+                let result = handler(self, &mut method_args)?;
 
-                // For native methods that return a struct (indicating mutation),
-                // update the original variable if we have a variable name
-                if let Value::Struct { .. } = &result {
-                    if let Some(var_name) = variable_name {
-                        // The native method returned the modified struct
-                        // Update the variable with the new value
-                        self.set_variable(&var_name, result.clone())?;
-                    }
+                // For native methods with mut self, update the original variable
+                // The mutated self is at method_args[0]
+                if let Some(var_name) = variable_name {
+                    // Update the variable with the mutated self (first argument)
+                    self.set_variable(&var_name, method_args[0].clone())?;
                 }
 
                 return Ok(result);
@@ -8576,11 +8586,11 @@ impl Interpreter {
                     .native_method_registry
                     .has_method(&struct_name, &method_name)
                 {
-                    let method_args = args.clone();
+                    let mut method_args = args.clone();
                     if let Some(handler) =
                         self.native_method_registry.get(&struct_name, &method_name)
                     {
-                        return handler(self, method_args);
+                        return handler(self, &mut method_args);
                     }
                 }
 
