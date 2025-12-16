@@ -4347,6 +4347,124 @@ impl TypeChecker {
                             type_args: vec![self.env.fresh_type_var(), arg_type],
                         })
                     }
+                    "std.fs.read" | "fs.read" => {
+                        // read(path: String) -> Result<String, String>
+                        if args.len() != 1 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function read expects 1 argument, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        let arg_expr = match &args[0] {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { name: _, value } => value,
+                        };
+
+                        let arg_type = self.infer_expression_type(arg_expr)?;
+                        self.env.add_constraint(arg_type, Type::String);
+
+                        // Return Result<String, String>
+                        Ok(Type::Generic {
+                            base: "Result".to_string(),
+                            type_args: vec![Type::String, Type::String],
+                        })
+                    }
+                    "std.fs.write" | "fs.write" => {
+                        // write(path: String, contents: String) -> Result<Unit, String>
+                        if args.len() != 2 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function write expects 2 arguments, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        for arg in args {
+                            let arg_expr = match arg {
+                                Argument::Positional(expr) => expr,
+                                Argument::Named { name: _, value } => value,
+                            };
+                            let arg_type = self.infer_expression_type(arg_expr)?;
+                            self.env.add_constraint(arg_type, Type::String);
+                        }
+
+                        // Return Result<Unit, String>
+                        Ok(Type::Generic {
+                            base: "Result".to_string(),
+                            type_args: vec![Type::Unit, Type::String],
+                        })
+                    }
+                    "std.fs.exists" | "fs.exists" => {
+                        // exists(path: String) -> Bool
+                        if args.len() != 1 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function exists expects 1 argument, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        let arg_expr = match &args[0] {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { name: _, value } => value,
+                        };
+
+                        let arg_type = self.infer_expression_type(arg_expr)?;
+                        self.env.add_constraint(arg_type, Type::String);
+
+                        Ok(Type::Bool)
+                    }
+                    "std.fs.remove" | "fs.remove" => {
+                        // remove(path: String) -> Result<Unit, String>
+                        if args.len() != 1 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function remove expects 1 argument, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        let arg_expr = match &args[0] {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { name: _, value } => value,
+                        };
+
+                        let arg_type = self.infer_expression_type(arg_expr)?;
+                        self.env.add_constraint(arg_type, Type::String);
+
+                        // Return Result<Unit, String>
+                        Ok(Type::Generic {
+                            base: "Result".to_string(),
+                            type_args: vec![Type::Unit, Type::String],
+                        })
+                    }
+                    "std.fs.read_dir" | "fs.read_dir" => {
+                        // read_dir(path: String) -> Result<Vec<String>, String>
+                        if args.len() != 1 {
+                            return Err(VeldError::TypeError(format!(
+                                "Function read_dir expects 1 argument, got {}",
+                                args.len()
+                            )));
+                        }
+
+                        let arg_expr = match &args[0] {
+                            Argument::Positional(expr) => expr,
+                            Argument::Named { name: _, value } => value,
+                        };
+
+                        let arg_type = self.infer_expression_type(arg_expr)?;
+                        self.env.add_constraint(arg_type, Type::String);
+
+                        // Return Result<Vec<String>, String>
+                        Ok(Type::Generic {
+                            base: "Result".to_string(),
+                            type_args: vec![
+                                Type::Generic {
+                                    base: "Vec".to_string(),
+                                    type_args: vec![Type::String],
+                                },
+                                Type::String,
+                            ],
+                        })
+                    }
                     _ => {
                         // Try to look up the function in the environment
                         // First, try the full qualified path (e.g., "io.println" for aliased imports)
@@ -4654,7 +4772,11 @@ impl TypeChecker {
                 };
 
                 // Try enum methods first
+                // Try each enum one at a time to avoid conflicting constraints when multiple enums have the same method
                 for (enum_name, _method_name, method_type) in enum_methods {
+                    // Save the current constraint state so we can rollback if this enum doesn't work
+                    let constraint_snapshot = self.env.save_constraint_state();
+
                     let fresh_type_var = self.env.fresh_type_var();
                     let enum_generic_type = Type::Generic {
                         base: enum_name
@@ -4676,37 +4798,54 @@ impl TypeChecker {
                         } => {
                             // Check argument count (excluding self)
                             if params.len() - 1 != args.len() {
-                                return Err(VeldError::TypeError(format!(
-                                    "Method {} expects {} arguments, got {}",
-                                    method,
-                                    params.len() - 1,
-                                    args.len()
-                                )));
+                                // Wrong argument count, try next enum
+                                self.env.restore_constraint_state(constraint_snapshot);
+                                continue;
                             }
 
                             // Infer argument types and add constraints
+                            let mut all_args_valid = true;
                             for (i, arg) in args.iter().enumerate() {
                                 let arg_expr = match arg {
                                     Argument::Positional(expr) => expr,
                                     Argument::Named { name: _, value } => value,
                                 };
-                                let arg_type = self.infer_expression_type(arg_expr)?;
+                                let arg_type = match self.infer_expression_type(arg_expr) {
+                                    Ok(t) => t,
+                                    Err(_) => {
+                                        all_args_valid = false;
+                                        break;
+                                    }
+                                };
                                 if i + 1 < params.len() {
                                     self.env.add_constraint(arg_type, params[i + 1].clone());
                                 }
                             }
 
-                            // Solve constraints after adding them
-                            self.env.solve_constraints()?;
-                            let resolved_return_type = self.env.apply_substitutions(&return_type);
+                            if !all_args_valid {
+                                // Failed to infer argument types, try next enum
+                                self.env.restore_constraint_state(constraint_snapshot);
+                                continue;
+                            }
 
-                            return Ok(resolved_return_type);
+                            // Try to solve constraints - if it fails, try the next enum
+                            match self.env.solve_constraints() {
+                                Ok(_) => {
+                                    let resolved_return_type =
+                                        self.env.apply_substitutions(&return_type);
+                                    return Ok(resolved_return_type);
+                                }
+                                Err(_) => {
+                                    // This enum didn't work, restore state and try next one
+                                    self.env.restore_constraint_state(constraint_snapshot);
+                                    continue;
+                                }
+                            }
                         }
                         _ => {
-                            return Err(VeldError::TypeError(format!(
-                                "Invalid method type for {}",
-                                method
-                            )));
+                            // Not a function type, try next enum
+                            self.env.restore_constraint_state(constraint_snapshot);
+                            continue;
                         }
                     }
                 }

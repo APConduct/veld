@@ -625,6 +625,13 @@ impl ImplementationInfo {
     }
 }
 
+/// Snapshot of constraint state for rollback
+#[derive(Debug, Clone)]
+pub struct ConstraintSnapshot {
+    constraints_len: usize,
+    substitutions: HashMap<usize, Type>,
+}
+
 #[derive(Debug, Clone)]
 pub struct TypeEnvironment {
     scopes: Vec<HashMap<String, Type>>,
@@ -731,6 +738,22 @@ impl TypeEnvironment {
 
     pub fn add_constraint(&mut self, t1: Type, t2: Type) {
         self.constraints.push((t1, t2));
+    }
+
+    /// Save the current constraint state for potential rollback
+    pub fn save_constraint_state(&self) -> ConstraintSnapshot {
+        ConstraintSnapshot {
+            constraints_len: self.constraints.len(),
+            substitutions: self.substitutions.clone(),
+        }
+    }
+
+    /// Restore the constraint state to a previous snapshot
+    pub fn restore_constraint_state(&mut self, snapshot: ConstraintSnapshot) {
+        // Remove constraints added after the snapshot
+        self.constraints.truncate(snapshot.constraints_len);
+        // Restore substitutions
+        self.substitutions = snapshot.substitutions;
     }
 
     pub fn push_scope(&mut self) {

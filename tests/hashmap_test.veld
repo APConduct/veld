@@ -39,39 +39,39 @@ end
 io.println("")
 io.println("3. Testing has() method:")
 io.print("   has('name'): ")
-io.println(my_map.has("name"))
+io.println(my_map.has("name").to_str())
 io.print("   has('country'): ")
-io.println(my_map.has("country"))
+io.println(my_map.has("country").to_str())
 
 # Test 4: Get length
 io.println("")
 io.println("4. Testing len():")
 io.print("   my_map.len(): ")
-io.println(my_map.len())
+io.println(my_map.len().to_str())
 
 # Test 5: Check if empty
 io.println("")
 io.println("5. Testing is_empty():")
 io.print("   my_map.is_empty(): ")
-io.println(my_map.is_empty())
+io.println(my_map.is_empty().to_str())
 
 # Test 6: Get keys and values
 io.println("")
 io.println("6. Getting keys and values:")
 let keys = my_map.keys()
-io.print("   keys: ")
-io.println(keys)
+io.print("   first member of keys: ")
+io.println(keys[0])
 
 let values = my_map.values()
-io.print("   values: ")
-io.println(values)
+io.print("   first member of values: ")
+io.println(values[0])
 
 # Test 7: Get entries
 io.println("")
 io.println("7. Getting entries:")
 let entries = my_map.entries()
-io.print("   entries: ")
-io.println(entries)
+io.print("   first member of entries: ")
+io.println(entries[0].0 + " => " + entries[0].1)
 
 # Test 8: Remove a key
 io.println("")
@@ -80,14 +80,14 @@ let removed = my_map.remove("age")
 io.print("   Removed 'age': ")
 io.println(removed)
 io.print("   New length: ")
-io.println(my_map.len())
+io.println(my_map.len().to_str())
 io.print("   has('age'): ")
-io.println(my_map.has("age"))
+io.println(my_map.has("age").to_str())
 
 # Test 9: Remove non-existent key
 let removed_none = my_map.remove("country")
 io.print("   Removed 'country': ")
-io.println(removed_none)
+io.println(removed_none.to_str())
 
 # Test 10: Clear the map
 io.println("")
@@ -96,7 +96,7 @@ my_map.clear()
 io.print("   After clear, len(): ")
 io.println(my_map.len())
 io.print("   After clear, is_empty(): ")
-io.println(my_map.is_empty())
+io.println(my_map.is_empty().to_str())
 
 # Test 11: Use with different types (all as strings)
 io.println("")
