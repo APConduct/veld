@@ -1,2 +1,3 @@
+use inkwell::*;
 use veld_common::types::Type;
-pub fn foo() {}
+pub fn compile() {}
