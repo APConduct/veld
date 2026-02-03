@@ -1,3 +1,6 @@
+# Veld
+## a language full of goodies
+
 [comment]: <>  (# Veld)
 
 <p align="center">
@@ -5,7 +8,6 @@
 </p>
 
 
-## a language full of goodies
 
 Veld is a programming language that aims to provide a rich set of features while maintaining simplicity and ease of use. It is designed to be versatile, supporting various programming paradigms and offering extensive types (with liberal inference), structured behavior, first-class functions, and more.
 
