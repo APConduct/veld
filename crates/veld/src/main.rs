@@ -2,10 +2,8 @@ use colored::Colorize;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use tracing::Level;
 use veld_bytecode::{
-    BYTECODE_EXTENSION, FileType, SOURCE_EXTENSION, bytecode_file, compile_to_file,
-    run_bytecode_file, run_file,
+    BYTECODE_EXTENSION, FileType, SOURCE_EXTENSION, compile_to_file, run_bytecode_file, run_file,
 };
 use veld_common::lexer::Lexer;
 use veld_common::parser::Parser;
