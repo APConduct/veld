@@ -32,12 +32,10 @@ fn main() -> Result<()> {
                 Ok(())
             }
         })
-        .map_err(|e| VeldError::RuntimeError(format!("Failed to spawn REPL thread: {e}")))?;
+        .unwrap();
 
     // Propagate any error from the thread
-    handle
-        .join()
-        .map_err(|panic_payload| VeldError::RuntimeError(format!("REPL thread panicked: {:?}", panic_payload)))?
+    handle.join().unwrap()
 }
 
 fn run_file(filename: &str) -> Result<()> {
